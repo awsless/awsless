@@ -2,7 +2,7 @@ import { kebabCase } from 'change-case'
 import { z } from 'zod'
 import { TaskSchema } from '../task/schema.js'
 
-export const TopicNameSchema = z
+const TopicNameSchema = z
 	.string()
 	.min(3)
 	.max(256)

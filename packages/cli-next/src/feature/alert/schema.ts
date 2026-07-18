@@ -2,7 +2,7 @@ import { kebabCase } from 'change-case'
 import { z } from 'zod'
 import { EmailSchema } from '../../config/schema/email.js'
 
-export const AlertNameSchema = z
+const AlertNameSchema = z
 	.string()
 	.min(3)
 	.max(256)

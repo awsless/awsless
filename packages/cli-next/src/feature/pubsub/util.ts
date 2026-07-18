@@ -250,38 +250,28 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 	// VPC
 
-	let dependsOn: Resource<any>[] = []
-	if (props.vpc) {
-		// if (props.warm > 1) {
-		// 	throw new FileError(
-		// 		'stackConfig' in ctx ? ctx.stackConfig.file : 'app.json',
-		// 		`We can't warm more then 1 lambda in a VPC.`
-		// 	)
-		// }
-
-		dependsOn.push(
-			new aws.iam.RolePolicy(group, 'vpc-policy', {
-				role: role.name,
-				name: 'lambda-vpc-policy',
-				policy: JSON.stringify({
-					Version: '2012-10-17',
-					Statement: [
-						{
-							Effect: 'Allow',
-							Action: [
-								'ec2:CreateNetworkInterface',
-								'ec2:DescribeNetworkInterfaces',
-								'ec2:DeleteNetworkInterface',
-								'ec2:AssignPrivateIpAddresses',
-								'ec2:UnassignPrivateIpAddresses',
-							],
-							Resource: ['*'],
-						},
-					],
-				}),
-			})
-		)
-	}
+	const dependsOn: Resource<any>[] = [
+		new aws.iam.RolePolicy(group, 'vpc-policy', {
+			role: role.name,
+			name: 'lambda-vpc-policy',
+			policy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: [
+							'ec2:CreateNetworkInterface',
+							'ec2:DescribeNetworkInterfaces',
+							'ec2:DeleteNetworkInterface',
+							'ec2:AssignPrivateIpAddresses',
+							'ec2:UnassignPrivateIpAddresses',
+						],
+						Resource: ['*'],
+					},
+				],
+			}),
+		}),
+	]
 
 	// ------------------------------------------------------------
 
@@ -333,13 +323,12 @@ export const createLambdaFunction = (
 				// }),
 			},
 
-			vpcConfig: props.vpc
-				? {
-						securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
-						subnetIds: ctx.shared.get('vpc', 'private-subnets'),
-						ipv6AllowedForDualStack: true,
-					}
-				: undefined,
+			// The lambda always lives inside the app vpc.
+			vpcConfig: {
+				securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
+				subnetIds: ctx.shared.get('vpc', 'private-subnets'),
+				ipv6AllowedForDualStack: true,
+			},
 
 			loggingConfig: {
 				logGroup: `/aws/lambda/${name}`,
@@ -388,13 +377,8 @@ export const createLambdaFunction = (
 		variables.STACK = ctx.stackConfig.name
 	}
 
-	if (props.vpc) {
-		// This will tell all aws client's to use
-		// the dualstack endpoint when our lambda
-		// is inside a vpc
-
-		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
-	}
+	// The lambda always lives inside a vpc, so use the dualstack aws endpoints.
+	variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
 
 	// ------------------------------------------------------------
 	// Logging
@@ -468,7 +452,7 @@ export const createAsyncLambdaFunction = (
 		retryAttempts: number
 	}
 ) => {
-	const result = createLambdaFunction(group, ctx, ns, id, { ...props.consumer, warm: 0 })
+	const result = createLambdaFunction(group, ctx, ns, id, { ...props.consumer })
 
 	// ------------------------------------------------------------
 	// Make sure we always log errors inside async functions
