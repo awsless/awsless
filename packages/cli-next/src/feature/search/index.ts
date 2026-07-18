@@ -104,7 +104,7 @@ export const searchFeature = defineFeature({
 				}
 			)
 
-			ctx.addEnv(`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`, openSearch.endpoint)
+			ctx.addEnv(`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`, openSearch.endpointV2)
 
 			ctx.addStackPermission({
 				actions: ['es:ESHttp*'],

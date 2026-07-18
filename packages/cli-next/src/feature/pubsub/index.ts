@@ -178,12 +178,15 @@ export const pubsubFeature = defineFeature({
 				{
 					name: cacheName,
 					engine: 'valkey',
+					networkType: 'dual_stack',
 					majorEngineVersion: '8',
 					securityGroupIds: [cacheSecurityGroup.id],
 					subnetIds: ctx.shared.get('vpc', 'private-subnets'),
 				},
 				{
 					import: ctx.import ? cacheName : undefined,
+					// The network type can only be set at creation time.
+					replaceOnChanges: ['networkType'],
 				}
 			)
 
