@@ -141,31 +141,76 @@ function setRouteOrigin(route) {
 		setS3Origin(route);
 	} else if(route.type === 'lambda') {
 		setLambdaOrigin(route);
+	} else if(route.type === 'url') {
+		setUrlOrigin(route);
 	} else {
 		throw new Error('Unsupported route type');
 	}
 }
 
+function getRequestOriginConfig(route) {
+	const timeouts = {};
+	const config = { domainName: route.domainName, timeouts }
+
+	if(typeof route.readTimeout === 'number') {
+		timeouts.readTimeout = route.readTimeout;
+	}
+
+	if(typeof route.keepAliveTimeout === 'number') {
+		timeouts.keepAliveTimeout = route.keepAliveTimeout;
+	}
+
+	if(typeof route.responseCompletionTimeout === 'number') {
+		timeouts.responseCompletionTimeout = route.responseCompletionTimeout;
+	}
+
+	if(typeof route.connectionTimeout === 'number') {
+		timeouts.connectionTimeout = route.connectionTimeout;
+	}
+
+	if(typeof route.connectionAttempts === 'number') {
+		config.connectionAttempts = route.connectionAttempts;
+	}
+
+	if(typeof route.customHeaders === 'object') {
+		config.customHeaders = route.customHeaders;
+	}
+
+	if(typeof route.hostHeader === 'string') {
+		config.hostHeader = route.hostHeader;
+	}
+
+	if(typeof route.originPath === 'string') {
+		config.originPath = route.originPath;
+	}
+
+	return config
+}
+
 function setS3Origin(route) {
-	cf.updateRequestOrigin({
-		domainName: route.domainName,
+	cf.updateRequestOrigin(Object.assign(getRequestOriginConfig(route), {
 		originAccessControlConfig: {
 			enabled: true,
 			signingBehavior: 'always',
 			signingProtocol: 'sigv4',
 			originType: 's3',
 		}
-	});
+	}));
 }
 
 function setLambdaOrigin(route) {
-	cf.updateRequestOrigin({
-		domainName: route.domainName,
-		timeouts: {
-			// CloudFront caps the origin response timeout at 60s without a quota increase.
-			readTimeout: 120,
-			connectionTimeout: 10,
-		},
+	const config = getRequestOriginConfig(route);
+
+	// CloudFront caps the origin response timeout at 60s without a quota increase.
+	if(typeof config.timeouts.readTimeout !== 'number') {
+		config.timeouts.readTimeout = 120;
+	}
+
+	if(typeof config.timeouts.connectionTimeout !== 'number') {
+		config.timeouts.connectionTimeout = 10;
+	}
+
+	cf.updateRequestOrigin(Object.assign(config, {
 		customOriginConfig: {
 			port: 443,
 			protocol: 'https',
@@ -177,7 +222,11 @@ function setLambdaOrigin(route) {
 			signingProtocol: 'sigv4',
 			originType: 'lambda',
 		}
-	});
+	}));
+}
+
+function setUrlOrigin(route) {
+	cf.updateRequestOrigin(getRequestOriginConfig(route));
 }
 
 async function handler(event) {
@@ -247,7 +296,7 @@ async function handler(event) {
 		}
 	}
 
-	if(route.type === 's3') {
+	if(route.type === 's3' || route.removeCookies) {
 		delete headers["Cookies"];
 		delete headers["cookies"];
 		delete request.cookies;

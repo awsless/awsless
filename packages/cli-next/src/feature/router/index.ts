@@ -541,6 +541,8 @@ export const routerFeature = defineFeature({
 					// Lambda routes dispatch in-process, so the deploy-time
 					// lambda url host isn't needed & would be circular through
 					// the bundle env.
+					// Url routes are left out, since the preview can't proxy
+					// to another origin.
 					if (!(props.basicAuth ?? props.passwordAuth)) {
 						bundle.addEnv(
 							'AWSLESS_PREVIEW',
@@ -548,7 +550,9 @@ export const routerFeature = defineFeature({
 								JSON.stringify({
 									router: id,
 									routes: Object.fromEntries(
-										Object.entries(routes).filter(([key]) => key.startsWith(`${id}:`))
+										Object.entries(routes).filter(
+											([key, route]) => key.startsWith(`${id}:`) && route.type !== 'url'
+										)
 									),
 								})
 							)
