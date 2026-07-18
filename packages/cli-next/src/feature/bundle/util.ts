@@ -5,7 +5,7 @@ import { readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { Builder, getBuildPath } from '../../build/index.js'
-import { AppContext, Permission, StackContext } from '../../feature.js'
+import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown } from './build/rolldown.js'
@@ -31,8 +31,6 @@ export const registerBundleFunction = (
 			importAsString?: string[]
 		}
 		handler?: string
-		environment?: Record<string, string>
-		permissions?: Permission[]
 	}
 ) => {
 	const bundle = ctx.shared.get('bundle', 'main')
@@ -44,14 +42,6 @@ export const registerBundleFunction = (
 		external: props.code.external,
 		importAsString: props.code.importAsString,
 	})
-
-	for (const [name, value] of Object.entries(props.environment ?? {})) {
-		bundle.addEnv(name, value)
-	}
-
-	for (const permission of props.permissions ?? []) {
-		bundle.addPermission(permission)
-	}
 
 	return bundle
 }
