@@ -10,6 +10,7 @@ import {
 	formatDeploymentSummary,
 	markDeployed,
 	preflightDeployment,
+	promoteAppDeployment,
 	readDeployedFunctionVersion,
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
@@ -138,11 +139,11 @@ export const deploy = (program: Command) => {
 								id: deployment.id,
 							})
 
-							// // Promotion goes live, so it must be the last fallible step.
-							// await promoteAppDeployment({
-							// 	appConfig,
-							// 	id: deployment.id,
-							// })
+							// Promotion goes live, so it must be the last fallible step.
+							await promoteAppDeployment({
+								appConfig,
+								id: deployment.id,
+							})
 
 							return deployments
 						} finally {
