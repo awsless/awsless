@@ -29,12 +29,12 @@
 				"path": "/rpc"
 			}
 		},
-		// "pubsub": {
-		// 	"test": {
-		// 		"auth": "./pubsub/auth.ts"
-		// 		// "logLevel": "all"
-		// 	}
-		// },
+		"pubsub": {
+			"test": {
+				"router": "main",
+				"auth": "./pubsub/auth.ts"
+			}
+		},
 		"function": {
 			"log": {
 				"retention": "7 days",
@@ -67,11 +67,6 @@
 		// 	"test": {
 		// 		"file": "./layer/2.zip",
 		// 		"architecture": "x86_64"
-		// 	}
-		// }
-		// "pubsub": {
-		// 	"test": {
-		// 		"auth": "./function.ts"
 		// 	}
 		// }
 	}
