@@ -238,14 +238,21 @@ export const storeFeature = defineFeature({
 					})
 
 					for (const file of files) {
-						new aws.s3.BucketObject(group, file, {
-							bucket: bucket.name,
-							key: `${folder}${file}`,
-							cacheControl: getCacheControl(file),
-							contentType: getContentType(file),
-							source: join(props.static, file),
-							sourceHash: $hash(join(props.static, file)),
-						})
+						new aws.s3.BucketObject(
+							group,
+							file,
+							{
+								bucket: bucket.name,
+								key: `${folder}${file}`,
+								cacheControl: getCacheControl(file),
+								contentType: getContentType(file),
+								source: join(props.static, file),
+								sourceHash: $hash(join(props.static, file)),
+							},
+							{
+								replaceOnChanges: ['bucket', 'key'],
+							}
+						)
 					}
 				}
 			})

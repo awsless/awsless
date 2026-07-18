@@ -40,13 +40,20 @@ export const imageFeature = defineFeature({
 			resourceName: 'sharp',
 		})
 
-		const zipFile = new aws.s3.BucketObject(group, 'layer', {
-			bucket: ctx.shared.get('store', 'bucket').name,
-			key: `layer/${layerId}.zip`,
-			contentType: 'application/zip',
-			source: path,
-			sourceHash: $hash(path),
-		})
+		const zipFile = new aws.s3.BucketObject(
+			group,
+			'layer',
+			{
+				bucket: ctx.shared.get('store', 'bucket').name,
+				key: `layer/${layerId}.zip`,
+				contentType: 'application/zip',
+				source: path,
+				sourceHash: $hash(path),
+			},
+			{
+				replaceOnChanges: ['bucket', 'key'],
+			}
+		)
 
 		const layer = new aws.lambda.LayerVersion(
 			group,
@@ -172,12 +179,19 @@ export const imageFeature = defineFeature({
 					})
 
 					for (const file of files) {
-						new aws.s3.BucketObject(group, `static-${file}`, {
-							bucket: bucket.name,
-							key: `${folder}origin/${file}`,
-							source: join(props.origin.static, file),
-							sourceHash: $hash(join(props.origin.static, file)),
-						})
+						new aws.s3.BucketObject(
+							group,
+							`static-${file}`,
+							{
+								bucket: bucket.name,
+								key: `${folder}origin/${file}`,
+								source: join(props.origin.static, file),
+								sourceHash: $hash(join(props.origin.static, file)),
+							},
+							{
+								replaceOnChanges: ['bucket', 'key'],
+							}
+						)
 					}
 				}
 			})

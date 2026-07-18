@@ -32,13 +32,20 @@ export const layerFeature = defineFeature({
 			const props = _props as LayerProps
 			const group = new Group(ctx.base, 'layer', id)
 
-			const zip = new aws.s3.BucketObject(group, 'zip', {
-				bucket: ctx.shared.get('store', 'bucket').name,
-				key: `layer/${id}.zip`,
-				contentType: 'application/zip',
-				source: props.file,
-				sourceHash: $hash(props.file),
-			})
+			const zip = new aws.s3.BucketObject(
+				group,
+				'zip',
+				{
+					bucket: ctx.shared.get('store', 'bucket').name,
+					key: `layer/${id}.zip`,
+					contentType: 'application/zip',
+					source: props.file,
+					sourceHash: $hash(props.file),
+				},
+				{
+					replaceOnChanges: ['bucket', 'key'],
+				}
+			)
 
 			const layer = new aws.lambda.LayerVersion(
 				group,

@@ -60,12 +60,19 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('store', 'bucket').name,
-		key: `${getFeatureFolder('job', ctx.stack.name, id)}code`,
-		source: relativePath(getBuildPath('job', name, 'program')),
-		sourceHash: $file(getBuildPath('job', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('store', 'bucket').name,
+			key: `${getFeatureFolder('job', ctx.stack.name, id)}code`,
+			source: relativePath(getBuildPath('job', name, 'program')),
+			sourceHash: $file(getBuildPath('job', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions

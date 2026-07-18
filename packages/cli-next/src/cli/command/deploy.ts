@@ -117,7 +117,7 @@ export const deploy = (program: Command) => {
 
 						try {
 							await preflightDeployment({ lambda, dynamo, appId: globalAppId, functionName, deployment })
-							await workspace.deploy(app)
+							await workspace.deploy(app, { filters: [] })
 
 							await pullRemoteState(app, state)
 							const remoteState = await state.get(app.urn)

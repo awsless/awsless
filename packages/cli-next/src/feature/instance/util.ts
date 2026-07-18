@@ -68,12 +68,19 @@ export const createFargateTask = (
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('store', 'bucket').name,
-		key: `${getFeatureFolder('instance', ctx.stack.name, id)}code`,
-		source: relativePath(getBuildPath('instance', name, 'program')),
-		sourceHash: $file(getBuildPath('instance', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('store', 'bucket').name,
+			key: `${getFeatureFolder('instance', ctx.stack.name, id)}code`,
+			source: relativePath(getBuildPath('instance', name, 'program')),
+			sourceHash: $file(getBuildPath('instance', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions

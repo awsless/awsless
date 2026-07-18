@@ -108,12 +108,19 @@ export const iconFeature = defineFeature({
 							throw new Error(`Icon file "${file}" in "${props.origin.static}" is not an SVG file.`)
 						}
 
-						new aws.s3.BucketObject(group, `static-${file}`, {
-							bucket: bucket.name,
-							key: `${folder}origin/${file}`,
-							source: join(props.origin.static, file),
-							sourceHash: $hash(join(props.origin.static, file)),
-						})
+						new aws.s3.BucketObject(
+							group,
+							`static-${file}`,
+							{
+								bucket: bucket.name,
+								key: `${folder}origin/${file}`,
+								source: join(props.origin.static, file),
+								sourceHash: $hash(join(props.origin.static, file)),
+							},
+							{
+								replaceOnChanges: ['bucket', 'key'],
+							}
+						)
 					}
 				}
 			})

@@ -1,4 +1,4 @@
-import { DescribeTableCommand, DynamoDB, ResourceNotFoundException } from '@aws-sdk/client-dynamodb'
+import { DescribeTableCommand, DynamoDB, ResourceNotFoundException, waitUntilTableExists } from '@aws-sdk/client-dynamodb'
 import {
 	CreateBucketCommand,
 	HeadBucketCommand,
@@ -138,22 +138,33 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 			errorMessage: 'Failed to bootstrap Awsless.',
 			async task() {
 				const client = new DynamoDBClient(props)
+				const missing: string[] = []
 
 				if (!lockTable) {
 					await migrate(client, lockTableInput)
+					missing.push(lockTableInput.TableName)
 				}
 
 				if (!logTable) {
 					await migrate(client, activityLogTableInput)
+					missing.push(activityLogTableInput.TableName)
 				}
 
 				if (!deployTable) {
 					await migrate(client, deploymentsTable)
+					missing.push(deploymentsTable.name)
 				}
 
 				if (!stateBucket) {
 					await createStateBucket(s3, props.region, props.accountId)
 				}
+
+				// Table creation is async, so wait until the new tables are active.
+				await Promise.all(
+					missing.map(name => {
+						return waitUntilTableExists({ client: dynamo, maxWaitTime: 120 }, { TableName: name })
+					})
+				)
 			},
 		})
 	} else {

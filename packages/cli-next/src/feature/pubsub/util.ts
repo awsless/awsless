@@ -82,12 +82,19 @@ export const createPubSubService = (
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('store', 'bucket').name,
-		key: `pubsub/${name}`,
-		source: relativePath(getBuildPath('pubsub', name, 'program')),
-		sourceHash: $file(getBuildPath('pubsub', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('store', 'bucket').name,
+			key: `pubsub/${name}`,
+			source: relativePath(getBuildPath('pubsub', name, 'program')),
+			sourceHash: $file(getBuildPath('pubsub', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions

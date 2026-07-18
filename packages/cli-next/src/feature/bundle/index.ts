@@ -112,12 +112,19 @@ export const bundleFeature = defineFeature({
 			resolve(createHash('sha1').update(buildHash).update(envFile).digest('hex'))
 		})
 
-		const code = new aws.s3.BucketObject(group, 'code', {
-			bucket: ctx.shared.get('store', 'bucket').name,
-			key: `bundle/${name}.zip`,
-			source: relativePath(getBuildPath('bundle', name, 'bundle.zip')),
-			sourceHash,
-		})
+		const code = new aws.s3.BucketObject(
+			group,
+			'code',
+			{
+				bucket: ctx.shared.get('store', 'bucket').name,
+				key: `bundle/${name}.zip`,
+				source: relativePath(getBuildPath('bundle', name, 'bundle.zip')),
+				sourceHash,
+			},
+			{
+				replaceOnChanges: ['bucket', 'key'],
+			}
+		)
 
 		// ------------------------------------------------------
 		// The bundle role & permissions.
