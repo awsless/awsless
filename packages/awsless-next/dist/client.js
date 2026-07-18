@@ -73,53 +73,9 @@ var createHttpClient = (fetcher) => {
     }
   };
 };
-
-// src/lib/client/pubsub.ts
-import { parse, stringify } from "@awsless/json";
-import { createClient } from "@awsless/mqtt";
-var createPubSubClient = (app, props, debug) => {
-  const mqtt = createClient(async () => {
-    const config = typeof props === "function" ? await props() : props;
-    return {
-      endpoint: `wss://${config.endpoint}/mqtt`,
-      username: `?x-amz-customauthorizer-name=${config.authorizer}`,
-      password: config.token
-    };
-  }, debug);
-  const getApp = () => {
-    return typeof app === "string" ? app : app();
-  };
-  const getPubSubTopic = (name) => {
-    return `${getApp()}/pubsub/${name}`;
-  };
-  const fromPubSubTopic = (name) => {
-    return name.replace(`${getApp()}/pubsub/`, "");
-  };
-  return {
-    ...mqtt,
-    get connected() {
-      return mqtt.connected;
-    },
-    get topics() {
-      return mqtt.topics.map(fromPubSubTopic);
-    },
-    publish(topic, event, payload, qos) {
-      return mqtt.publish(getPubSubTopic(topic), stringify([event, payload]), qos);
-    },
-    subscribe(topic, event, callback) {
-      return mqtt.subscribe(getPubSubTopic(topic), (message) => {
-        const [eventName, payload] = parse(message.toString("utf8"));
-        if (event === eventName) {
-          callback(payload);
-        }
-      });
-    }
-  };
-};
 export {
   Auth,
   createHttpClient,
   createHttpFetcher,
-  createPubSubClient,
   getAuthProps
 };

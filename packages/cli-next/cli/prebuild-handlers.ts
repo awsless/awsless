@@ -12,16 +12,22 @@ const handlers = [
 	{ name: 'icon', entry: 'src/feature/icon/server/handle.ts' },
 	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },
-]
+	{ name: 'pubsub-publisher', entry: 'src/feature/pubsub/publisher/handle.ts' },
 
-for (const { name, entry } of handlers) {
+	// The pubsub server runs as a bun executable on fargate, so its bundle
+	// is self-contained instead of joining the app module graph.
+	{ name: 'pubsub-server', entry: 'src/feature/pubsub/server/index.ts', packages: 'bundle', target: 'bun' },
+] as const
+
+for (const { name, entry, ...options } of handlers) {
 	const result = await Bun.build({
+		packages: 'external',
+		target: 'node',
+		...options,
 		entrypoints: [entry],
 		outdir: 'dist/handlers',
 		naming: `${name}.mjs`,
-		packages: 'external',
 		format: 'esm',
-		target: 'node',
 	})
 
 	if (!result.success) {

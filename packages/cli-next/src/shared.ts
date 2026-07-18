@@ -96,6 +96,10 @@ type SharedEntries = {
 		permission: aws.lambda.Permission
 	}
 
+	pubsub: {
+		'events-topic-arn': Output<string>
+	}
+
 	image: {
 		'distribution-id': Output<string>
 		cache: { bucket: Output<string>; prefix: string }

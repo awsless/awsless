@@ -10,6 +10,7 @@ import { imageHandler } from './resource/image.js'
 import { logHandler } from './resource/log.js'
 import { metricHandler } from './resource/metric.js'
 import { onFailureHandler } from './resource/on-failure.js'
+import { pubsubHandler } from './resource/pubsub.js'
 import { queueHandler } from './resource/queue.js'
 import { restHandler } from './resource/rest.js'
 import { rpcHandler } from './resource/rpc.js'
@@ -35,6 +36,8 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		onFailureHandler,
 		logHandler,
 		queueHandler,
+		// The pubsub matcher must claim its SNS events before the generic topic matcher.
+		pubsubHandler,
 		topicHandler,
 		taskHandler,
 		restHandler,

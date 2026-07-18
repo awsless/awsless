@@ -95,6 +95,7 @@
 		"filesize": "^10.0.7",
 		"folder-hash": "^4.0.4",
 		"glob": "^10.3.9",
+		"ioredis": "^5.10.1",
 		"json5": "^2.2.3",
 		"jszip": "^3.10.1",
 		"mime-types": "^2.1.35",

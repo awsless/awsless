@@ -144,18 +144,12 @@ importers:
       '@awsless/ecs':
         specifier: workspace:^
         version: link:../ecs
-      '@awsless/iot':
-        specifier: workspace:^
-        version: link:../iot
       '@awsless/json':
         specifier: workspace:^
         version: link:../json
       '@awsless/lambda':
         specifier: workspace:^
         version: link:../lambda
-      '@awsless/mqtt':
-        specifier: workspace:^
-        version: link:../mqtt
       '@awsless/open-search':
         specifier: workspace:^
         version: link:../open-search
@@ -652,6 +646,9 @@ importers:
       glob:
         specifier: ^10.3.9
         version: 10.5.0
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       json5:
         specifier: ^2.2.3
         version: 2.2.3

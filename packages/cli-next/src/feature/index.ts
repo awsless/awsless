@@ -8,7 +8,7 @@ import { domainFeature } from './domain/index.js'
 import { functionFeature } from './function/index.js'
 import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
-// import { pubsubFeature } from './pubsub/index.js'
+import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
 import { restFeature } from './rest/index.js'
 import { rpcFeature } from './rpc/index.js'
@@ -48,7 +48,7 @@ export const features = [
 	// graphqlFeature,
 	configFeature,
 	searchFeature,
-	// pubsubFeature,
+	pubsubFeature,
 	metricFeature,
 	// streamFeature,
 	tableFeature,
