@@ -15,6 +15,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { filterPattern } from '../on-error-log/util.js'
+import { getFeatureFolder } from '../store/index.js'
 import { buildJobExecutable } from './build/executable.js'
 import { JobProps } from './schema.js'
 
@@ -60,8 +61,8 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	})
 
 	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('job', 'bucket-name'),
-		key: name,
+		bucket: ctx.shared.get('store', 'bucket').name,
+		key: `${getFeatureFolder('job', ctx.stack.name, id)}code`,
 		source: relativePath(getBuildPath('job', name, 'program')),
 		sourceHash: $file(getBuildPath('job', name, 'HASH')),
 	})
@@ -115,7 +116,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 								{
 									Effect: pascalCase('allow'),
 									Action: ['s3:GetObject', 's3:HeadObject'],
-									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/payloads/*`],
+									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/job/payloads/*`],
 								},
 							],
 						})
@@ -369,7 +370,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		statements.push(...ctx.appConfig.defaults.job.permissions)
 	}
 
-	if ('permissions' in local && local.permissions) {
+	if (local.permissions) {
 		statements.push(...local.permissions)
 	}
 

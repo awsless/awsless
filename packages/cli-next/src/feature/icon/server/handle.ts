@@ -9,15 +9,17 @@ import svgstore from 'svgstore'
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const path = event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath
-		const cacheBucket = getRouteEnv('ICON_CACHE_BUCKET')
+		const bucket = getRouteEnv('ICON_BUCKET')
+		const folder = getRouteEnv('ICON_FOLDER') ?? ''
+		const cacheKey = `${folder}cache/${path}`
 
 		// ----------------------------------------
 		// Get cached svg from s3
 
-		if (cacheBucket) {
+		if (bucket) {
 			const cachedIcon = await getObject({
-				bucket: cacheBucket,
-				key: path,
+				bucket,
+				key: cacheKey,
 			})
 
 			if (cachedIcon) {
@@ -54,12 +56,10 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		let baseIcon: Buffer | undefined
 
-		const originBucket = getRouteEnv('ICON_ORIGIN_S3')
-
-		if (originBucket) {
+		if (getRouteEnv('ICON_ORIGIN_S3')) {
 			const result = await getObject({
-				bucket: originBucket,
-				key: path,
+				bucket: bucket!,
+				key: `${folder}origin/${path}`,
 			})
 
 			if (result?.body) {
@@ -122,8 +122,8 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Cache the image in S3
 
 		await putObject({
-			bucket: cacheBucket!,
-			key: path,
+			bucket: bucket!,
+			key: cacheKey,
 			body: icon,
 			contentType: 'image/svg+xml',
 			cacheControl: 'public, max-age=31536000, immutable',

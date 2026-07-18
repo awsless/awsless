@@ -1,17 +1,17 @@
 import { Group } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
+import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
 import { glob } from 'glob'
 import { basename, dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
-import { formatLocalResourceName } from '../../util/name.js'
 import { SiteDeployment } from '../../formation/s3.js'
-import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
-import { constantCase } from 'change-case'
-import { generateCacheKey } from '../../util/cache.js'
-import { directories } from '../../util/path.js'
 import { getCredentials } from '../../util/aws.js'
+import { generateCacheKey } from '../../util/cache.js'
+import { formatLocalResourceName } from '../../util/name.js'
+import { directories } from '../../util/path.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { Route } from '../router/route.js'
+import { getFeatureFolder } from '../store/index.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -26,8 +26,6 @@ export const siteFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const routerId = ctx.shared.entry('router', 'id', props.router)
-			const previewRouterId = ctx.shared.entry('router', 'preview-id', props.router)
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
 			const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
 
@@ -137,82 +135,14 @@ export const siteFeature = defineFeature({
 			// Static Assets
 
 			if (props.static) {
-				const bucket = new aws.s3.Bucket(group, 'bucket', {
-					bucket: formatLocalResourceName({
-						appName: ctx.app.name,
-						stackName: ctx.stack.name,
-						resourceType: 'site',
-						resourceName: id,
-						postfix: ctx.appId,
-					}),
-					forceDestroy: true,
-					website: {
-						indexDocument: 'index.html',
-						errorDocument: props.ssr ? undefined : 'error.html',
-					},
-					corsRule: [
-						{
-							allowedOrigins: ['*'],
-							allowedHeaders: ['*'],
-							allowedMethods: ['GET', 'HEAD'],
-							exposeHeaders: ['content-type', 'cache-control'],
-						},
-					],
-				})
-
-				const bucketPolicy = new aws.s3.BucketPolicy(
-					group,
-					`policy`,
-					{
-						bucket: bucket.bucket,
-						policy: $resolve([bucket.arn, routerId, previewRouterId], (arn, ...ids) => {
-							return JSON.stringify({
-								Version: '2012-10-17',
-								Statement: [
-									{
-										Effect: 'Allow',
-										Action: 's3:GetObject',
-										Resource: `${arn}/*`,
-										Principal: {
-											Service: 'cloudfront.amazonaws.com',
-										},
-										Condition: {
-											StringEquals: {
-												'AWS:SourceArn': ids.map(
-													id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`
-												),
-											},
-										},
-									},
-								],
-							})
-						}),
-					},
-					{
-						dependsOn: [bucket],
-					}
-				)
-
-				ctx.addStackPermission({
-					actions: [
-						's3:ListBucket',
-						's3:GetObject',
-						's3:PutObject',
-						's3:DeleteObject',
-						's3:GetObjectAttributes',
-					],
-					resources: [
-						//
-						bucket.arn,
-						bucket.arn.pipe(arn => `${arn}/*`),
-					],
-				})
+				const bucket = ctx.shared.get('store', 'bucket')
+				const folder = getFeatureFolder('site', ctx.stack.name, id)
 
 				// ------------------------------------------------------------
 				// Get all static files
 
 				ctx.onReady(() => {
-					if (typeof props.static === 'string' && bucket) {
+					if (typeof props.static === 'string') {
 						const staticDir = props.static
 						const files = glob
 							.sync('**', {
@@ -232,7 +162,8 @@ export const siteFeature = defineFeature({
 							return hash.digest('hex')
 						})
 						const deployment = new SiteDeployment(group, 'deployment', {
-							bucket: bucket.bucket,
+							bucket: bucket.name,
+							prefix: folder,
 							source: staticDir,
 							version,
 						})
@@ -255,14 +186,14 @@ export const siteFeature = defineFeature({
 
 								staticRoutes[routeFileKey] = {
 									type: 's3',
-									domainName: bucket.bucketRegionalDomainName,
-									rewrite: { to: $interpolate`/v-${deployment.version}/${file}` },
+									domainName: bucket.regionalDomainName,
+									rewrite: { to: $interpolate`/${folder}v-${deployment.version}/${file}` },
 								}
 							} else if (!basename(file).includes('.')) {
 								staticRoutes[join(props.path, file)] = {
 									type: 's3',
-									domainName: bucket.bucketRegionalDomainName,
-									rewrite: { to: $interpolate`/v-${deployment.version}/${file}` },
+									domainName: bucket.regionalDomainName,
+									rewrite: { to: $interpolate`/${folder}v-${deployment.version}/${file}` },
 								}
 							}
 						}
@@ -273,14 +204,14 @@ export const siteFeature = defineFeature({
 
 						staticRoutes[join(props.path, '*.')] = {
 							type: 's3',
-							domainName: bucket.bucketRegionalDomainName,
+							domainName: bucket.regionalDomainName,
 							rewrite: {
 								regex: `^${pathPattern}/?(.*)$`,
-								to: $interpolate`/v-${deployment.version}/$1`,
+								to: $interpolate`/${folder}v-${deployment.version}/$1`,
 							},
 						}
 
-						addRoutes(staticRoutes, { dependsOn: [deployment, bucketPolicy] })
+						addRoutes(staticRoutes, { dependsOn: [deployment, bucket.policy] })
 					}
 				})
 			}

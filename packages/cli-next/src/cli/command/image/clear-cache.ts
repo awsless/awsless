@@ -83,10 +83,11 @@ export const clearCache = (program: Command) => {
 				await workspace.hydrate(app)
 
 				let distributionId: string
-				let cacheBucket: string
+				let cache: { bucket: string; prefix: string }
 				try {
 					distributionId = await shared.entry('image', 'distribution-id', name)
-					cacheBucket = await shared.entry('image', 'cache-bucket', name)
+					const entry = shared.entry('image', 'cache', name)
+					cache = { bucket: await entry.bucket, prefix: entry.prefix }
 				} catch (_) {
 					throw new ExpectedError(`The image resource hasn't been deployed yet.`)
 				}
@@ -114,7 +115,8 @@ export const clearCache = (program: Command) => {
 						while (true) {
 							const result = await s3Client.send(
 								new ListObjectsV2Command({
-									Bucket: cacheBucket,
+									Bucket: cache.bucket,
+									Prefix: cache.prefix,
 									ContinuationToken: continuationToken,
 									MaxKeys: 1000, // Maximum allowed per request
 								})
@@ -123,7 +125,7 @@ export const clearCache = (program: Command) => {
 							if (result.Contents && result.Contents.length > 0) {
 								await s3Client.send(
 									new DeleteObjectsCommand({
-										Bucket: cacheBucket,
+										Bucket: cache.bucket,
 										Delete: {
 											Objects: result.Contents.map(obj => ({
 												Key: obj.Key!,

@@ -68,16 +68,6 @@ var build = (opt) => {
     opt?.postfix
   ].filter((v) => typeof v === "string").map((v) => kebabCase2(v)).join(opt.seperator ?? "--");
 };
-var bindPostfixedLocalResourceName = (resourceType, postfix) => {
-  return (resourceName, stackName = getStack()) => {
-    return build({
-      stackName,
-      resourceName,
-      resourceType,
-      postfix
-    });
-  };
-};
 var bindLocalResourceName = (resourceType) => {
   return (resourceName, stackName = getStack()) => {
     return build({
@@ -111,7 +101,7 @@ var Job = /* @__PURE__ */ createProxy((stackName) => {
         let storedPayload = payload;
         const bucket = process.env.JOB_PAYLOAD_BUCKET;
         if (payload !== void 0 && bucket) {
-          const key = `payloads/${randomUUID()}.json`;
+          const key = `job/payloads/${randomUUID()}.json`;
           await putObject({ bucket, key, body: stringify(payload), contentType: "application/json" });
           storedPayload = `s3://${bucket}/${key}`;
         }
@@ -871,38 +861,36 @@ var Search = /* @__PURE__ */ createProxy((stack) => {
   });
 });
 
-// src/lib/server/site.ts
-var getSiteBucketName = bindPostfixedLocalResourceName("site", APP_ID);
-
 // src/lib/server/store.ts
 import { deleteObject, getObject, headObject, putObject as putObject2 } from "@awsless/s3";
-var getStoreName = bindPostfixedLocalResourceName("store", APP_ID);
+import { kebabCase as kebabCase6 } from "change-case";
+var BUCKET = `${APP}--store--assets--${APP_ID}`;
 var Store = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
-    const bucket = getStoreName(name, stack);
+    const scoped = (key) => `store/${kebabCase6(stack)}/${kebabCase6(name)}/${key}`;
     return {
-      name: bucket,
+      name: BUCKET,
       async put(key, body, options = {}) {
         await putObject2({
-          bucket,
-          key,
+          bucket: BUCKET,
+          key: scoped(key),
           body,
           ...options
         });
       },
       async get(key) {
-        const object2 = await getObject({ bucket, key });
+        const object2 = await getObject({ bucket: BUCKET, key: scoped(key) });
         if (object2) {
           return object2.body;
         }
         return void 0;
       },
       async has(key) {
-        const object2 = await headObject({ bucket, key });
+        const object2 = await headObject({ bucket: BUCKET, key: scoped(key) });
         return !!object2;
       },
       delete(key) {
-        return deleteObject({ bucket, key });
+        return deleteObject({ bucket: BUCKET, key: scoped(key) });
       }
     };
   });
@@ -959,9 +947,7 @@ export {
   getRouteEnv,
   getSearchName,
   getSearchProps,
-  getSiteBucketName,
   getStack,
-  getStoreName,
   getTableName,
   getTaskName,
   getTopicName,

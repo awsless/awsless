@@ -6,7 +6,7 @@ import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { createFargateJob } from './util.js'
 
@@ -78,29 +78,6 @@ export const jobFeature = defineFeature({
 
 		await ctx.write('job.d.ts', types, true)
 	},
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'job', 'asset')
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'job',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-			lifecycleRule: [
-				{
-					id: 'expire-payloads',
-					enabled: true,
-					prefix: 'payloads/',
-					expiration: { days: 1 },
-				},
-			],
-		})
-
-		ctx.shared.set('job', 'bucket-name', bucket.bucket)
-	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {
 			return Object.keys(stack.jobs ?? {}).length > 0
@@ -109,6 +86,13 @@ export const jobFeature = defineFeature({
 		if (found.length === 0) {
 			return
 		}
+
+		ctx.shared.get('store', 'bucket').addLifecycleRule({
+			id: 'expire-job-payloads',
+			enabled: true,
+			prefix: 'job/payloads/',
+			expiration: { days: 1 },
+		})
 
 		// ------------------------------------------------------------
 		// Create the ECS cluster
@@ -213,7 +197,7 @@ export const jobFeature = defineFeature({
 			})
 		)
 		ctx.addEnv('JOB_SECURITY_GROUP', ctx.shared.get('job', 'security-group-id'))
-		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('job', 'bucket-name'))
+		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('store', 'bucket').name)
 
 		for (const [id, props] of jobs) {
 			const group = new Group(ctx.stack, 'job', id)
@@ -240,16 +224,5 @@ export const jobFeature = defineFeature({
 			},
 		})
 
-		ctx.addStackPermission({
-			actions: ['s3:PutObject'],
-			resources: [
-				`arn:aws:s3:::${formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'job',
-					resourceName: 'assets',
-					postfix: ctx.appId,
-				})}/payloads/*`,
-			],
-		})
 	},
 })

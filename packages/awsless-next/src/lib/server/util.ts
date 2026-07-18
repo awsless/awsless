@@ -52,20 +52,6 @@ export const build = (opt: {
 		.join(opt.seperator ?? '--')
 }
 
-export const bindPostfixedLocalResourceName = <T extends string, P extends string>(resourceType: T, postfix: P) => {
-	return <N extends string, S extends string = ReturnType<typeof getStack>>(
-		resourceName: N,
-		stackName: S = getStack() as S
-	) => {
-		return build({
-			stackName,
-			resourceName,
-			resourceType,
-			postfix,
-		}) as `${typeof APP}--${S}--${T}--${N}--${P}`
-	}
-}
-
 export const bindLocalResourceName = <T extends string>(resourceType: T) => {
 	return <N extends string, S extends string = ReturnType<typeof getStack>>(
 		resourceName: N,

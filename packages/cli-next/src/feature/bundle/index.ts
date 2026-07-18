@@ -19,25 +19,6 @@ import { buildBundle } from './util.js'
 export const bundleFeature = defineFeature({
 	name: 'bundle',
 	onApp(ctx) {
-		const assetGroup = new Group(ctx.base, 'function', 'asset')
-
-		// ------------------------------------------------------
-		// Define the Bucket used to store the lambda function code.
-
-		const bucket = new aws.s3.Bucket(assetGroup, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'function',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-			// versioning: true,
-			// forceDelete: true,
-		})
-
-		ctx.shared.set('bundle', 'bucket-name', bucket.bucket)
-
 		// ------------------------------------------------------
 		// Create the app bundle lambda that contains all handlers.
 
@@ -132,8 +113,8 @@ export const bundleFeature = defineFeature({
 		})
 
 		const code = new aws.s3.BucketObject(group, 'code', {
-			bucket: ctx.shared.get('bundle', 'bucket-name'),
-			key: `/lambda/${name}.zip`,
+			bucket: ctx.shared.get('store', 'bucket').name,
+			key: `bundle/${name}.zip`,
 			source: relativePath(getBuildPath('bundle', name, 'bundle.zip')),
 			sourceHash,
 		})

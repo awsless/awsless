@@ -2,6 +2,7 @@ import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Permission } from './feature'
 import { Route } from './feature/router/route'
+import { BucketLifecycleRule, BucketNotificationRule } from './feature/store/index'
 
 type SharedState = {
 	vpc: {
@@ -25,8 +26,19 @@ type SharedState = {
 		}
 	}
 
+	store: {
+		bucket: {
+			name: Output<string>
+			arn: Output<string>
+			regionalDomainName: Output<string>
+			policy: aws.s3.BucketPolicy
+			addLifecycleRule: (rule: BucketLifecycleRule) => void
+			addNotification: (rule: BucketNotificationRule) => void
+			notificationRules: BucketNotificationRule[]
+		}
+	}
+
 	bundle: {
-		'bucket-name': Output<string>
 		main: {
 			lambda: aws.lambda.Function
 			alias: aws.lambda.Alias
@@ -50,18 +62,12 @@ type SharedState = {
 		'role-arn': Output<string>
 	}
 
-	layer: {
-		'bucket-name': Output<string>
-	}
-
 	instance: {
-		'bucket-name': Output<string>
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 	}
 
 	job: {
-		'bucket-name': Output<string>
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 		'security-group-id': Output<string>
@@ -92,12 +98,12 @@ type SharedEntries = {
 
 	image: {
 		'distribution-id': Output<string>
-		'cache-bucket': Output<string>
+		cache: { bucket: Output<string>; prefix: string }
 	}
 
 	icon: {
 		'distribution-id': Output<string>
-		'cache-bucket': Output<string>
+		cache: { bucket: Output<string>; prefix: string }
 	}
 
 	router: {

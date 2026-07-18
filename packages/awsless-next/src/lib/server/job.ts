@@ -24,7 +24,7 @@ export const Job: JobResources = /*@__PURE__*/ createProxy(stackName => {
 				let storedPayload = payload
 				const bucket = process.env.JOB_PAYLOAD_BUCKET
 				if (payload !== undefined && bucket) {
-					const key = `payloads/${randomUUID()}.json`
+					const key = `job/payloads/${randomUUID()}.json`
 					await putObject({ bucket, key, body: stringify(payload), contentType: 'application/json' })
 					storedPayload = `s3://${bucket}/${key}`
 				}

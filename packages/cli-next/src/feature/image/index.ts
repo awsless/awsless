@@ -1,15 +1,16 @@
-import { Group } from '@terraforge/core'
+import { toDays } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
+import { formatRouteEnvName } from 'awsless'
+import { kebabCase } from 'change-case'
+import { glob } from 'glob'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 import { FileError } from '../../error'
 import { defineFeature } from '../../feature'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
-import { formatRouteEnvName } from 'awsless'
-import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
-import { join, dirname } from 'path'
-import { toDays } from '@awsless/duration'
-import { fileURLToPath } from 'url'
-import { glob } from 'glob'
-import { shortId } from '../../util/id'
+import { formatGlobalResourceName } from '../../util/name'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { getFeatureFolder } from '../store/index.js'
 
 export const imageFeature = defineFeature({
 	name: 'image',
@@ -40,8 +41,8 @@ export const imageFeature = defineFeature({
 		})
 
 		const zipFile = new aws.s3.BucketObject(group, 'layer', {
-			bucket: ctx.shared.get('layer', 'bucket-name'),
-			key: `/layer/${layerId}.zip`,
+			bucket: ctx.shared.get('store', 'bucket').name,
+			key: `layer/${layerId}.zip`,
 			contentType: 'application/zip',
 			source: path,
 			sourceHash: $hash(path),
@@ -79,16 +80,11 @@ export const imageFeature = defineFeature({
 	},
 	onStack(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
+		const bucket = ctx.shared.get('store', 'bucket')
 
 		for (const [id, props] of Object.entries(ctx.stackConfig.images ?? {})) {
 			const group = new Group(ctx.stack, 'image', id)
-
-			// const name = formatLocalResourceName({
-			// 	appName: ctx.app.name,
-			// 	stackName: ctx.stack.name,
-			// 	resourceType: 'image',
-			// 	resourceName: id,
-			// })
+			const folder = getFeatureFolder('image', ctx.stack.name, id)
 
 			// const addInvalidation = ctx.shared.entry('router', 'addInvalidation', props.router)
 			const routerId = ctx.shared.entry('router', 'id', props.router)
@@ -107,49 +103,19 @@ export const imageFeature = defineFeature({
 				registerBundleFunction(ctx, originRouteKey, origin)
 			}
 
-			let s3Origin: aws.s3.Bucket | undefined
+			// ------------------------------------------------------------
+			// The image cache lives in the shared bucket
 
-			if (props.origin.static) {
-				s3Origin = new aws.s3.Bucket(group, 'origin', {
-					bucket: formatLocalResourceName({
-						appName: ctx.app.name,
-						stackName: ctx.stack.name,
-						resourceType: 'image',
-						resourceName: shortId(`${id}-${ctx.appId}`),
-					}),
-					forceDestroy: true,
+			if (props.cacheDuration) {
+				bucket.addLifecycleRule({
+					id: kebabCase(`${folder}cache-duration`),
+					enabled: true,
+					prefix: `${folder}cache/`,
+					expiration: {
+						days: toDays(props.cacheDuration),
+					},
 				})
 			}
-
-			// ------------------------------------------------------------
-			// Create the image cache
-
-			const cacheBucket = new aws.s3.Bucket(group, 'cache', {
-				bucket: formatLocalResourceName({
-					appName: ctx.app.name,
-					stackName: ctx.stack.name,
-					resourceType: 'image',
-					resourceName: shortId(`cache-${id}-${ctx.appId}`),
-				}),
-				tags: {
-					cache: 'true',
-				},
-				forceDestroy: true,
-
-				...(props.cacheDuration
-					? {
-							lifecycleRule: [
-								{
-									enabled: true,
-									id: 'image-cache-duration',
-									expiration: {
-										days: toDays(props.cacheDuration),
-									},
-								},
-							],
-						}
-					: {}),
-			})
 
 			// ------------------------------------------------------------
 			// Add the image server to the bundle
@@ -176,16 +142,6 @@ export const imageFeature = defineFeature({
 				},
 			})
 
-			bundle.addPermission({
-				actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
-				resources: [
-					//
-					cacheBucket.arn,
-					cacheBucket.arn.pipe(arn => `${arn}/*`),
-					...(s3Origin ? [s3Origin.arn, s3Origin.arn.pipe(arn => `${arn}/*`)] : []),
-				],
-			})
-
 			bundle.addEnv(
 				formatRouteEnvName(serverRouteKey, 'IMAGE_CONFIG'),
 				JSON.stringify({
@@ -194,21 +150,22 @@ export const imageFeature = defineFeature({
 				})
 			)
 
-			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_CACHE_BUCKET'), cacheBucket.bucket)
+			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_BUCKET'), bucket.name)
+			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_FOLDER'), folder)
 
 			if (originRouteKey) {
 				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN'), originRouteKey)
 			}
 
-			if (s3Origin) {
-				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN_S3'), s3Origin.bucket)
+			if (props.origin.static) {
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN_S3'), 'true')
 			}
 
 			// ------------------------------------------------------------
 			// Upload static images to S3
 
 			ctx.onReady(() => {
-				if (props.origin.static && s3Origin) {
+				if (props.origin.static) {
 					const files = glob.sync('**', {
 						cwd: props.origin.static,
 						nodir: true,
@@ -216,8 +173,8 @@ export const imageFeature = defineFeature({
 
 					for (const file of files) {
 						new aws.s3.BucketObject(group, `static-${file}`, {
-							bucket: s3Origin.bucket,
-							key: file,
+							bucket: bucket.name,
+							key: `${folder}origin/${file}`,
 							source: join(props.origin.static, file),
 							sourceHash: $hash(join(props.origin.static, file)),
 						})
@@ -229,7 +186,7 @@ export const imageFeature = defineFeature({
 			// Domain name records and endpoint binding
 
 			ctx.shared.add('image', 'distribution-id', id, routerId)
-			ctx.shared.add('image', 'cache-bucket', id, cacheBucket.bucket)
+			ctx.shared.add('image', 'cache', id, { bucket: bucket.name, prefix: `${folder}cache/` })
 		}
 	},
 })

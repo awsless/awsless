@@ -58,7 +58,7 @@ describe('S3 site deployment', () => {
 				}),
 			])
 		)
-		expect(created.state).toEqual({ bucket: 'site-bucket', source, version: 'new-version' })
+		expect(created.state).toEqual({ bucket: 'site-bucket', prefix: '', source, version: 'new-version' })
 
 		send.mockClear()
 		const updated = await provider.updateResource({
@@ -93,6 +93,6 @@ describe('S3 site deployment', () => {
 		})
 
 		expect(send).not.toHaveBeenCalled()
-		expect(result.state).toEqual({ bucket: 'site-bucket', source, version: 'current-version' })
+		expect(result.state).toEqual({ bucket: 'site-bucket', prefix: '', source, version: 'current-version' })
 	})
 })

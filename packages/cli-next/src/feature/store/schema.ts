@@ -22,8 +22,6 @@ export const StoresSchema = z
 				string,
 				{
 					static?: string
-					versioning?: boolean
-					// deletionProtection?: boolean
 					lifecycle?: z.output<typeof LifecycleRuleSchema>[]
 					events?: Record<string, z.output<typeof TaskSchema>>
 				}
@@ -39,7 +37,6 @@ export const StoresSchema = z
 			ResourceIdSchema,
 			z.object({
 				static: LocalDirectorySchema.optional().describe('Specifies the path to the static files directory.'),
-				versioning: z.boolean().default(false).describe('Enable versioning of your store.'),
 				lifecycle: z
 					.array(LifecycleRuleSchema)
 					.optional()

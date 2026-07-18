@@ -11,12 +11,14 @@ import { Credentials } from '../util/aws'
 
 type SiteDeploymentInput = {
 	bucket: Input<string>
+	prefix: Input<string>
 	source: Input<string>
 	version: Input<string>
 }
 
 type SiteDeploymentOutput = {
 	bucket: Output<string>
+	prefix: Output<string>
 	source: Output<string>
 	version: Output<string>
 }
@@ -35,6 +37,7 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 	const client = new S3Client({ credentials, region })
 	const inputSchema = z.object({
 		bucket: z.string(),
+		prefix: z.string().default(''),
 		source: z.string(),
 		version: z.string(),
 	})
@@ -54,8 +57,8 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 		}
 	}
 
-	const uploadFiles = async (bucket: string, source: string, version: string) => {
-		const files = glob.sync('**', { cwd: source, nodir: true })
+	const uploadFiles = async (state: z.output<typeof inputSchema>) => {
+		const files = glob.sync('**', { cwd: state.source, nodir: true })
 		const limit = promiseLimit(16)
 
 		await Promise.all(
@@ -63,9 +66,9 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 				limit(async () => {
 					await client.send(
 						new PutObjectCommand({
-							Bucket: bucket,
-							Key: posix.join(`v-${version}`, file),
-							Body: await readFile(join(source, file)),
+							Bucket: state.bucket,
+							Key: posix.join(state.prefix, `v-${state.version}`, file),
+							Body: await readFile(join(state.source, file)),
 							ContentType: contentType(extname(file)) || 'text/html; charset=utf-8',
 							CacheControl: getCacheControl(file),
 						})
@@ -80,7 +83,7 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 			async createResource(props) {
 				const state = inputSchema.parse(props.state)
 
-				await uploadFiles(state.bucket, state.source, state.version)
+				await uploadFiles(state)
 
 				return state
 			},
@@ -88,12 +91,12 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 				const prior = inputSchema.parse(props.priorState)
 				const proposed = inputSchema.parse(props.proposedState)
 
-				if (prior.bucket !== proposed.bucket) {
-					throw new Error(`bucket can't be changed.`)
-				}
-
-				if (prior.version !== proposed.version) {
-					await uploadFiles(proposed.bucket, proposed.source, proposed.version)
+				if (
+					prior.bucket !== proposed.bucket ||
+					prior.prefix !== proposed.prefix ||
+					prior.version !== proposed.version
+				) {
+					await uploadFiles(proposed)
 				}
 
 				return proposed
