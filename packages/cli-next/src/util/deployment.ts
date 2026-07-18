@@ -2,11 +2,11 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
 import {
+	AnyTable,
 	define,
 	deleteItem,
 	DynamoDBClient,
 	getItem,
-	Infer,
 	number,
 	object,
 	optional,
@@ -67,7 +67,7 @@ export const isCommitMerged = (commit: string, branch: string) => {
 // fields: a deployed record has a functionVersion & a promoted
 // record has a promotedAt timestamp.
 
-export const deploymentsTable = define('awsless-deployments', {
+const table = define('awsless-deployments', {
 	hash: 'appId',
 	sort: 'id',
 	schema: object({
@@ -84,7 +84,21 @@ export const deploymentsTable = define('awsless-deployments', {
 	}),
 })
 
-export type Deployment = Infer<typeof deploymentsTable>
+// Explicit types keep the deep table inference out of the emitted declarations.
+export type Deployment = {
+	appId: string
+	id: string
+	branch: string
+	seq: number
+	createdAt: string
+	user?: string
+	commit?: string
+	message?: string
+	functionVersion?: string
+	promotedAt?: string
+}
+
+export const deploymentsTable: AnyTable = table
 
 const latestBranchDeployment = async (client: DynamoDBClient, appId: string, branch: string) => {
 	const items = await listDeployments(client, appId, branch)
@@ -111,7 +125,7 @@ export const claimDeployment = async (props: { client: DynamoDBClient; appId: st
 		}
 
 		try {
-			await putItem(deploymentsTable, deployment, {
+			await putItem(table, deployment, {
 				when: e => e.id.notExists(),
 				client: props.client,
 			})
@@ -133,7 +147,7 @@ export const currentDeployment = async (client: DynamoDBClient, appId: string) =
 }
 
 export const getDeployment = async (client: DynamoDBClient, appId: string, id: string) => {
-	return getItem(deploymentsTable, { appId, id }, { client })
+	return getItem(table, { appId, id }, { client })
 }
 
 export const listDeployments = async (client: DynamoDBClient, appId: string, branch?: string): Promise<Deployment[]> => {
@@ -142,7 +156,7 @@ export const listDeployments = async (client: DynamoDBClient, appId: string, bra
 
 	do {
 		const result = await query(
-			deploymentsTable,
+			table,
 			{ appId },
 			{
 				where: branch ? e => e.id.startsWith(`${branch}-`) : undefined,
@@ -169,7 +183,7 @@ export const markDeployed = async (props: {
 	functionVersion: string
 }) => {
 	await updateItem(
-		deploymentsTable,
+		table,
 		{ appId: props.appId, id: props.id },
 		{
 			update: e => e.functionVersion.set(props.functionVersion),
@@ -181,7 +195,7 @@ export const markDeployed = async (props: {
 
 const markPromoted = async (client: DynamoDBClient, appId: string, id: string) => {
 	await updateItem(
-		deploymentsTable,
+		table,
 		{ appId, id },
 		{
 			update: e => e.promotedAt.set(new Date().toISOString()),
@@ -192,7 +206,7 @@ const markPromoted = async (client: DynamoDBClient, appId: string, id: string) =
 }
 
 export const removeDeployment = async (client: DynamoDBClient, appId: string, id: string) => {
-	await deleteItem(deploymentsTable, { appId, id }, { client })
+	await deleteItem(table, { appId, id }, { client })
 }
 
 // ------------------------------------------------------------
