@@ -34,16 +34,15 @@ import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 // ------------------------------------------------------------
 // A deployment id is a counter per git branch formatted as
-// '<branch>-<seq>' with a dashless branch slug. The one string is
-// the manifest sort key, the deployment alias suffix, the route
-// store key & the id users see.
+// '<branch>-<seq>'. The one string is the manifest sort key, the
+// deployment alias suffix, the route store key & the id users see.
 
+// Lambda alias names only allow [a-zA-Z0-9-_].
 export const slugifyBranch = (branch?: string) => {
 	return (
 		(branch ?? '')
-			.toLowerCase()
-			.replace(/[^a-z0-9]/g, '')
-			.slice(0, 16) || 'local'
+			.replace(/[^a-zA-Z0-9_-]+/g, '-')
+			.replace(/^-+|-+$/g, '') || 'local'
 	)
 }
 
@@ -157,7 +156,10 @@ export const listDeployments = async (client: DynamoDBClient, appId: string, bra
 		cursor = result.cursor
 	} while (cursor)
 
-	return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+	// The id prefix also matches longer branch names like '<branch>-2'.
+	return items
+		.filter(item => !branch || item.branch === branch)
+		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 export const markDeployed = async (props: {

@@ -322,10 +322,10 @@ const seedStore = (stores: Map<string, Map<string, string>>) => {
 }
 
 describe('deployment keys', () => {
-	it('should slug branches into dashless host-safe labels', () => {
-		expect(slugifyBranch('feature/foo-bar')).toBe('featurefoobar')
-		expect(slugifyBranch('Feat_X')).toBe('featx')
-		expect(slugifyBranch('a-very-long-branch-name-that-keeps-going')).toBe('averylongbranchn')
+	it('should keep the branch name, replacing chars a lambda alias rejects', () => {
+		expect(slugifyBranch('awsless-next-2')).toBe('awsless-next-2')
+		expect(slugifyBranch('feature/foo-bar')).toBe('feature-foo-bar')
+		expect(slugifyBranch('Feat_X')).toBe('Feat_X')
 		expect(slugifyBranch(undefined)).toBe('local')
 		expect(slugifyBranch('***')).toBe('local')
 	})
@@ -359,6 +359,19 @@ describe('deployment claims', () => {
 
 		expect(deployment.seq).toBe(2)
 		expect(aws.manifest.size).toBe(2)
+	})
+
+	it('should ignore sibling branches that share the id prefix', async () => {
+		const aws = mockAws()
+		const { dynamo } = clients()
+
+		const first = await claimDeployment({ client: dynamo, appId })
+		const sibling = seedRow({ branch: `${first.branch}-extra`, seq: 99 })
+		aws.manifest.set(sibling.id, { ...sibling })
+
+		const second = await claimDeployment({ client: dynamo, appId })
+
+		expect(second.seq).toBe(2)
 	})
 })
 
