@@ -48,7 +48,7 @@ export const searchFeature = defineFeature({
 				{
 					domainName: name,
 					engineVersion: `OpenSearch_${props.version}`,
-					ipAddressType: 'ipv4',
+					ipAddressType: 'dualstack',
 					clusterConfig: {
 						instanceType: `${props.type}.search`,
 						instanceCount: props.count,
