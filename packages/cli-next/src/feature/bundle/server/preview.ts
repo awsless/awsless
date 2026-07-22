@@ -22,6 +22,8 @@ export type PreviewRoute = {
 type PreviewProps = {
 	router: string
 	routes: Record<string, PreviewRoute>
+	basicAuth?: { username: string; password: string }
+	passwordAuth?: { password: string }
 	dispatch: (event: LambdaFunctionURLEvent) => Promise<unknown>
 }
 
@@ -125,6 +127,43 @@ const serveObject = async (route: PreviewRoute, path: string, method: string): P
 	}
 }
 
+// The preview enforces the same viewer auth as the router function, since
+// the deployment alias url bypasses the router in front.
+const checkAuth = (props: PreviewProps, headers: Record<string, string | undefined>) => {
+	if (!props.basicAuth && !props.passwordAuth) {
+		return
+	}
+
+	const authHeader = headers['authorization']
+	const authMethods: string[] = []
+
+	if (props.basicAuth) {
+		authMethods.push('Basic realm="Protected"')
+
+		const expected = Buffer.from(`${props.basicAuth.username}:${props.basicAuth.password}`).toString('base64')
+
+		if (authHeader?.startsWith('Basic ') && authHeader.slice(6) === expected) {
+			return
+		}
+	}
+
+	if (props.passwordAuth) {
+		authMethods.push('Password realm="Protected"')
+
+		if (authHeader?.startsWith('Password ') && authHeader.slice(9) === props.passwordAuth.password) {
+			return
+		}
+	}
+
+	return {
+		statusCode: 401,
+		headers: {
+			'access-control-allow-origin': '*',
+			'www-authenticate': authMethods.join(', '),
+		},
+	} satisfies LambdaFunctionURLResult
+}
+
 export const createPreviewHandler = (props: PreviewProps) => {
 	return async (event: LambdaFunctionURLEvent): Promise<unknown> => {
 		const method = event.requestContext.http.method
@@ -134,6 +173,12 @@ export const createPreviewHandler = (props: PreviewProps) => {
 		try {
 			path = decodeURIComponent(path)
 		} catch {}
+
+		const unauthorized = checkAuth(props, headers)
+
+		if (unauthorized) {
+			return unauthorized
+		}
 
 		if (method === 'OPTIONS') {
 			return {

@@ -120,6 +120,46 @@ describe('bundle preview handler', () => {
 		expect(dispatch).not.toHaveBeenCalled()
 	})
 
+	it('should enforce the router viewer auth like the router function', async () => {
+		mockS3()
+		objects.set('site-bucket/v-abc/about.html', { body: 'about', contentType: 'text/html' })
+
+		const dispatch = vi.fn(async () => ({ statusCode: 200 }))
+		const handler = createPreviewHandler({
+			router: 'main',
+			routes,
+			basicAuth: { username: 'admin', password: 'secret' },
+			passwordAuth: { password: 'letmein' },
+			dispatch,
+		})
+
+		const denied = (await handler(createEvent('/about'))) as any
+		expect(denied.statusCode).toBe(401)
+		expect(denied.headers['www-authenticate']).toBe('Basic realm="Protected", Password realm="Protected"')
+
+		const wrong = (await handler(createEvent('/about', 'GET', { authorization: 'Basic bogus' }))) as any
+		expect(wrong.statusCode).toBe(401)
+
+		const basic = Buffer.from('admin:secret').toString('base64')
+		const viaBasic = (await handler(createEvent('/about', 'GET', { authorization: `Basic ${basic}` }))) as any
+		expect(viaBasic.statusCode).toBe(200)
+
+		const viaPassword = (await handler(
+			createEvent('/about', 'GET', { authorization: 'Password letmein' })
+		)) as any
+		expect(viaPassword.statusCode).toBe(200)
+	})
+
+	it('should skip the auth check when no viewer auth is configured', async () => {
+		mockS3()
+		objects.set('site-bucket/v-abc/about.html', { body: 'about', contentType: 'text/html' })
+
+		const handler = createPreviewHandler({ router: 'main', routes, dispatch: vi.fn() })
+		const result = (await handler(createEvent('/about'))) as any
+
+		expect(result.statusCode).toBe(200)
+	})
+
 	it('should answer preflight requests directly', async () => {
 		const handler = createPreviewHandler({ router: 'main', routes, dispatch: vi.fn() })
 		const result = (await handler(createEvent('/api/users', 'OPTIONS'))) as any

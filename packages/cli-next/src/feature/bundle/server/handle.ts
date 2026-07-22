@@ -25,7 +25,14 @@ type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unk
 
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
-	let previewConfig: { router: string; routes: Record<string, PreviewRoute> } | undefined
+	let previewConfig:
+		| {
+				router: string
+				routes: Record<string, PreviewRoute>
+				basicAuth?: { username: string; password: string }
+				passwordAuth?: { password: string }
+		  }
+		| undefined
 
 	const matchers: RouteMatcher[] = [
 		functionHandler,

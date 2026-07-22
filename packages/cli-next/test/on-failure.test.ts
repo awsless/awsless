@@ -19,6 +19,8 @@ describe('on failure handler', () => {
 			if (consumerError) {
 				return Promise.reject(consumerError)
 			}
+
+			return
 		},
 	})
 
