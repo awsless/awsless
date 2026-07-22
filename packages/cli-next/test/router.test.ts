@@ -185,6 +185,14 @@ describe('router routes', () => {
 		])
 	})
 
+	it('should only use syntax the cloudfront js runtime supports', async () => {
+		// The cloudfront-js-2.0 runtime rejects for...of at parse time,
+		// which breaks the whole function with a 503 on every request.
+		for (const preview of [true, false]) {
+			expect(getViewerRequestFunctionCode({ router: 'main', preview })).not.toMatch(/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/)
+		}
+	})
+
 	it('should preview a staged deployment selected by query and pin it in a cookie', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],

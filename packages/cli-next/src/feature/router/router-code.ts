@@ -118,8 +118,9 @@ if (request.querystring['awsless-deployment']) {
 		const entry = request.querystring[key];
 
 		if (entry.multiValue) {
-			for (const item of entry.multiValue) {
-				query.push(key + '=' + item.value);
+			// The CloudFront js runtime doesn't support for...of.
+			for (const i in entry.multiValue) {
+				query.push(key + '=' + entry.multiValue[i].value);
 			}
 		} else {
 			query.push(key + '=' + entry.value);
