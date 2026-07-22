@@ -1,5 +1,5 @@
 import { parse } from '@awsless/json'
-import { DynamoDBStreamFailureEvent, FailureSource, UnknownFailureEvent } from './types'
+import { DynamoDBStreamFailureEvent, FailureSource, QueueRecord, StreamRecord, TopicRecord, UnknownFailureEvent } from './types'
 
 export const isDynamoDBFailureEvent = (event: UnknownFailureEvent): event is DynamoDBStreamFailureEvent => {
 	return 'DDBStreamBatchInfo' in event
@@ -55,24 +55,6 @@ export const getFailureSource = (payload: unknown): FailureSource | undefined =>
 	}
 
 	return
-}
-
-type TopicRecord = {
-	Sns: {
-		TopicArn?: string
-		Message?: string
-	}
-}
-
-type StreamRecord = {
-	eventSource: 'aws:dynamodb'
-	eventSourceARN: string
-}
-
-type QueueRecord = {
-	eventSource: 'aws:sqs'
-	eventSourceARN: string
-	body?: string
 }
 
 const getDeliveryRecord = (payload: unknown): object | undefined => {

@@ -89,3 +89,22 @@ export type DynamoDBStreamFailureEvent = {
 	 */
 	payload: string
 }
+
+// The delivery record shapes inside a raw invocation payload.
+export type TopicRecord = {
+	Sns: {
+		TopicArn?: string
+		Message?: string
+	}
+}
+
+export type StreamRecord = {
+	eventSource: 'aws:dynamodb'
+	eventSourceARN: string
+}
+
+export type QueueRecord = {
+	eventSource: 'aws:sqs'
+	eventSourceARN: string
+	body?: string
+}
