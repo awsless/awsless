@@ -1,7 +1,7 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
-import { formatRoutePayload, getCurrentRoute, withRoute } from 'awsless'
 import type { LambdaFunctionURLEvent } from 'aws-lambda'
+import { formatRoutePayload, getCurrentRoute, withRoute } from 'awsless'
 import { createPreviewHandler, PreviewRoute } from './preview.js'
 import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
@@ -36,8 +36,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		onFailureHandler,
 		logHandler,
 		queueHandler,
-		// The pubsub matcher must claim its SNS events before the generic topic matcher.
-		pubsubHandler,
+		pubsubHandler, // The pubsub matcher must claim its SNS events before the generic topic matcher.
 		topicHandler,
 		taskHandler,
 		restHandler,
@@ -77,7 +76,12 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			return withRoute(match.key, invokeRoute, async () => {
 				const handle = await load()
 
-				return handle(match.payload ?? {}, context)
+				// The route on the context ends up in error logs, so log
+				// consumers can attribute an error to a logical resource
+				// instead of the shared bundle function.
+				const routedContext: LambdaContext & { route: string } = { ...context, route: match.key }
+
+				return handle(match.payload ?? {}, routedContext)
 			})
 		}
 

@@ -4,6 +4,7 @@ import { normalizeError } from '../helpers/error'
 
 class EnhandedError extends Error {
 	input: unknown
+	route?: string
 	requestId?: string
 	functionName?: string
 	functionVersion?: string
@@ -27,6 +28,14 @@ export const enhanceError = (
 	error.input = schema ? applyRedaction(schema, input) : input
 
 	if (context) {
+		const route = (context as { route?: unknown }).route
+
+		if (typeof route === 'string') {
+			// Set by the shared bundle, so errors can be attributed to the
+			// logical resource that was running.
+			error.route = route
+		}
+
 		error.requestId = context.awsRequestId
 		error.functionName = context.functionName
 		error.functionVersion = context.functionVersion

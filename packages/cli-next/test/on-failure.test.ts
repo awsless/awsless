@@ -117,6 +117,87 @@ describe('on failure handler', () => {
 		expect(invokes).toStrictEqual([])
 	})
 
+	it('derives the failure source from routed payloads and delivery envelopes', async () => {
+		const routedFailure = {
+			...asyncFailure,
+			requestPayload: {
+				'$awsless-route': 'test-stack:task:export',
+				'event': { roomId: 'room-1' },
+			},
+		}
+
+		await putObject({
+			bucket: 'failures',
+			key: 'routed.json',
+			body: JSON.stringify(routedFailure),
+		})
+		await handle(sqsEvent(s3Event('routed.json')) as any, context)
+
+		expect(invokes.at(-1)).toMatchObject({
+			event: {
+				function: { name: 'test-stack:task:export' },
+				source: { resource: 'test-stack:task:export', event: { roomId: 'room-1' } },
+			},
+		})
+
+		const topicFailure = {
+			...asyncFailure,
+			requestPayload: {
+				Records: [
+					{
+						EventSource: 'aws:sns',
+						Sns: {
+							TopicArn: 'arn:aws:sns:eu-west-1:123456789:test-app--topic--failure-requested',
+							Message: '{"id":"event-1"}',
+						},
+					},
+				],
+			},
+		}
+
+		await putObject({
+			bucket: 'failures',
+			key: 'topic.json',
+			body: JSON.stringify(topicFailure),
+		})
+		await handle(sqsEvent(s3Event('topic.json')) as any, context)
+
+		expect(invokes.at(-1)).toMatchObject({
+			event: {
+				function: { name: 'test-app--function--bundle' },
+				source: { resource: 'topic:failure-requested', event: { id: 'event-1' } },
+			},
+		})
+	})
+
+	it('derives the failure source from the failed queue name', async () => {
+		await handle(
+			{
+				Records: [
+					{
+						eventSource: 'aws:sqs',
+						messageId: 'queue-message-id',
+						body: '{"task":"failed"}',
+						attributes: {
+							SentTimestamp: '1767225600000',
+						},
+						messageAttributes: {
+							queueName: { stringValue: 'test-app--test-stack--queue--index.fifo' },
+						},
+					},
+				],
+			} as any,
+			context
+		)
+
+		expect(invokes.at(-1)).toMatchObject({
+			event: {
+				queue: { name: 'test-app--test-stack--queue--index.fifo' },
+				source: { resource: 'test-stack:queue:index', event: { task: 'failed' } },
+			},
+		})
+	})
+
 	it('normalizes ordinary failure queue messages', async () => {
 		await handle(sqsEvent('{"task":"failed"}') as any, context)
 
