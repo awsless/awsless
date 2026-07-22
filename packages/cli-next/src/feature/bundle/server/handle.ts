@@ -1,6 +1,5 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
-import type { LambdaFunctionURLEvent } from 'aws-lambda'
 import { formatRoutePayload, getCurrentRoute, withRoute } from 'awsless'
 import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
@@ -24,6 +23,42 @@ type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unk
 
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
+
+	const matchers: RouteMatcher[] = [
+		functionHandler,
+		cronHandler,
+		iconHandler,
+		imageHandler,
+		metricHandler,
+		onFailureHandler,
+		logHandler,
+		queueHandler,
+		pubsubHandler, // The pubsub matcher must claim its SNS events before the generic topic matcher.
+		topicHandler,
+		taskHandler,
+		restHandler,
+		rpcHandler,
+		siteHandler,
+		storeHandler,
+		tableHandler,
+	]
+
+	const matchRoute = (event: BundleEvent) => {
+		// Expected errors start disabled on every dispatch & only the matched route can enable them.
+		delete process.env.THROW_EXPECTED_ERRORS
+
+		for (const matcher of matchers) {
+			const match = matcher(event, routes)
+
+			if (match) {
+				return match
+			}
+		}
+
+		const route = event?.['$awsless-route'] ?? event?.headers?.['x-awsless-route']
+
+		throw new Error('Unknown bundle route: ' + route)
+	}
 	return async (event: BundleEvent, context: LambdaContext) => {
 		const handleRoute = (match: RouteMatch) => {
 			const load = handlers[match.key]
