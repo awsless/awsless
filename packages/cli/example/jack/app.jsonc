@@ -16,12 +16,12 @@
 				"domain": "main"
 			}
 		},
-		"pubsub": {
-			"test": {
-				"router": "main",
-				"auth": "./socket/auth.ts"
-			}
-		},
+		// "pubsub": {
+		// 	"test": {
+		// 		"router": "main",
+		// 		"auth": "./socket/auth.ts"
+		// 	}
+		// },
 		// "rpc": {
 		// 	"main": {
 		// 		"router": "main",

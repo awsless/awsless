@@ -26,6 +26,7 @@ import { TablesSchema } from '../feature/table/schema.js'
 import { TasksSchema } from '../feature/task/schema.js'
 import { TestsSchema } from '../feature/test/schema.js'
 import { SubscribersSchema } from '../feature/topic/schema.js'
+import { RoutesSchema } from '../feature/router/schema.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
 
 const DependsSchema = ResourceIdSchema.array().optional().describe('Define the stacks that this stack is depended on.')
@@ -44,6 +45,7 @@ export const StackSchema = z.object({
 	// auth: AuthSchema,
 	// http: HttpSchema,
 	rest: RestSchema,
+	routes: RoutesSchema,
 	rpc: RpcSchema,
 	configs: ConfigsSchema,
 	crons: CronsSchema,

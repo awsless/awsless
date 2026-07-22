@@ -1,6 +1,7 @@
 import * as _awsless_validate from '@awsless/validate';
 import { Duration } from '@awsless/duration';
 import { UUID } from 'node:crypto';
+import { LambdaFunctionURLEvent, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
 interface JobMock {
 }
@@ -179,6 +180,37 @@ interface QueueResources {
 }
 declare const Queue: QueueResources;
 
+type RouteParams<Pattern extends string> = Pattern extends `${string}{${infer Param}}${infer Rest}` ? Param | RouteParams<Rest> : never;
+type RouteParamHeaders<Pattern extends string> = [RouteParams<Pattern>] extends [never] ? {} : {
+    [Param in RouteParams<Pattern> as `x-param-${Lowercase<Param>}`]: string;
+};
+/**
+ * The request that a route function receives.
+ *
+ * Passing the route pattern will type the params that are
+ * passed as "x-param-[NAME]" request headers.
+ * Param values are URI encoded.
+ *
+ * @example
+ * export default async (event: RouteInput<'/sitemap/{locale}/{page}.xml'>) => {
+ *   const locale = decodeURIComponent(event.headers['x-param-locale'])
+ *   ...
+ * }
+ */
+type RouteEvent<Pattern extends string = string> = LambdaFunctionURLEvent & {
+    headers: LambdaFunctionURLEvent['headers'] & RouteParamHeaders<Pattern>;
+};
+/**
+ * The response that a route function can return.
+ *
+ * The statusCode is required because Lambda function urls only treat
+ * the returned object as an HTTP response when it contains a statusCode.
+ * Without it, the whole return value is serialized as a JSON body.
+ */
+type RouteResponse = string | (APIGatewayProxyStructuredResultV2 & {
+    statusCode: number;
+});
+
 type RpcAuthorizerResponse = {
     authorized: false;
 } | {
@@ -222,4 +254,4 @@ declare const Topic: TopicResources;
 declare const APP: "app";
 declare const STACK: "stack";
 
-export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PubSubAuthorizerEvent, type PubSubAuthorizerResponse, type PubSubConnectedEvent, type PubSubDisconnectedEvent, type PubSubMock, type PubSubMockResponse, type PubSubResources, type PubSubSubscribedEvent, type PubSubUnsubscribedEvent, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, setConfigValue };
+export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PubSubAuthorizerEvent, type PubSubAuthorizerResponse, type PubSubConnectedEvent, type PubSubDisconnectedEvent, type PubSubMock, type PubSubMockResponse, type PubSubResources, type PubSubSubscribedEvent, type PubSubUnsubscribedEvent, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RouteEvent, type RouteResponse, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, setConfigValue };

@@ -110,7 +110,7 @@ type SharedEntries = {
 			//
 			group: Group,
 			name: string,
-			routes: Record<string, Route>,
+			routes: Record<string, Route | Route[]>,
 			options?: { dependsOn?: Array<Resource | DataSource> }
 		) => void
 		addInvalidation: (

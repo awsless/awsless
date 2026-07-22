@@ -1,15 +1,19 @@
 import { days, seconds, toSeconds, years } from '@awsless/duration'
-import { Future, Group, Resource } from '@terraforge/core'
+import { Future, Group, Input, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
-import { camelCase, constantCase } from 'change-case'
+import { camelCase, constantCase, kebabCase } from 'change-case'
 import { ImportKeys } from '../../formation/cloudfront-kvs.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
 import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'node:crypto'
-import { ExpectedError } from '../../error.js'
+import { ExpectedError, FileError } from '../../error.js'
+import { createLambdaFunction } from '../function/util.js'
+import { shortId } from '../../util/id.js'
+import { compileRoutePattern } from './pattern.js'
+import { createRouteStoreEntries, Route } from './route.js'
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -52,9 +56,7 @@ export const routerFeature = defineFeature({
 					{
 						kvsArn: routeStore.arn,
 						keys: $resolve([routes], routes => {
-							return Object.entries(routes).map(([key, value]) => {
-								return { key, value: JSON.stringify(value) }
-							}) as any
+							return createRouteStoreEntries(routes) as any
 						}),
 					},
 					{
@@ -178,6 +180,7 @@ export const routerFeature = defineFeature({
 				keyValueStoreAssociations: [routeStore.arn],
 				code: getViewerRequestFunctionCode({
 					blockDirectAccess: !!props.domain,
+					redirectWww: !!props.domain && props.redirectWww,
 					basicAuth: props.basicAuth,
 					passwordAuth: props.passwordAuth,
 				}),
@@ -451,6 +454,7 @@ export const routerFeature = defineFeature({
 
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				const wwwDomainName = props.redirectWww ? `www.${domainName}` : undefined
 				const certificateArn = ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 				const zoneId = ctx.shared.entry('domain', 'zone-id', props.domain)
 
@@ -463,7 +467,11 @@ export const routerFeature = defineFeature({
 					enabled: true,
 					distributionId: distribution.id,
 					connectionGroupId: connectionGroup.id,
-					domain: [{ domain: domainName }],
+					domain: [
+						//
+						{ domain: domainName },
+						...(wwwDomainName ? [{ domain: wwwDomainName }] : []),
+					],
 					customizations: [{ certificate: [{ arn: certificateArn }] }],
 				})
 
@@ -478,8 +486,114 @@ export const routerFeature = defineFeature({
 					},
 				})
 
+				if (wwwDomainName) {
+					new aws.route53.Record(group, `www-record`, {
+						zoneId,
+						type: 'A',
+						name: wwwDomainName,
+						alias: {
+							name: connectionGroup.routingEndpoint,
+							zoneId: 'Z2FDTNDATAQYW2',
+							evaluateTargetHealth: false,
+						},
+					})
+				}
+
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 			}
+		}
+	},
+	onStack(ctx) {
+		for (const [id, routes] of Object.entries(ctx.stackConfig.routes ?? {})) {
+			if (!ctx.appConfig.defaults.router?.[id]) {
+				throw new FileError(ctx.stackConfig.file, `Router "${id}" is not defined on the app level.`)
+			}
+
+			const group = new Group(ctx.stack, 'routes', id)
+			const addRoutes = ctx.shared.entry('router', 'addRoutes', id)
+			const addInvalidation = ctx.shared.entry('router', 'addInvalidation', id)
+
+			const grouped: Record<string, Route[]> = {}
+			const invalidationPaths = new Set<string>()
+			const versions: Array<Input<string> | Input<string | undefined>> = []
+
+			for (const [pattern, props] of Object.entries(routes)) {
+				const compiled = compileRoutePattern(pattern)
+				const slug = pattern
+					.replace(/[^a-zA-Z0-9]+/g, '-')
+					.replace(/^-+|-+$/g, '')
+					.slice(0, 20)
+
+				const entryId = kebabCase(`${slug || 'root'}-${shortId(pattern)}`)
+				const routeGroup = new Group(group, 'route', entryId)
+
+				// ------------------------------------------------------
+				// The lambda function that will handle the route
+
+				const result = createLambdaFunction(routeGroup, ctx, 'route', entryId, props)
+
+				versions.push(result.code.sourceHash)
+
+				ctx.onBind((name, value) => {
+					result.setEnvironment(name, value)
+				})
+
+				// ------------------------------------------------------
+				// Give the router access to the function url.
+				// The wildcard source arn is needed because requests
+				// from a multi-tenant distribution are signed on
+				// behalf of the distribution tenant.
+
+				new aws.lambda.Permission(routeGroup, 'permission', {
+					principal: 'cloudfront.amazonaws.com',
+					action: 'lambda:InvokeFunctionUrl',
+					functionName: result.lambda.functionName,
+					functionUrlAuthType: 'AWS_IAM',
+					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:*`,
+				})
+
+				new aws.lambda.Permission(routeGroup, 'invoke-permission', {
+					principal: 'cloudfront.amazonaws.com',
+					action: 'lambda:InvokeFunction',
+					functionName: result.lambda.functionName,
+					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:*`,
+				})
+
+				const url = new aws.lambda.FunctionUrl(routeGroup, 'url', {
+					functionName: result.lambda.functionName,
+					authorizationType: 'AWS_IAM',
+				})
+
+				grouped[compiled.key] ??= []
+				grouped[compiled.key]!.push({
+					type: 'lambda',
+					domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
+					forwardHost: true,
+					urlEncodedQueryString: true,
+					match: compiled.match,
+					params: compiled.params,
+				})
+
+				invalidationPaths.add(compiled.key)
+			}
+
+			// ------------------------------------------------------
+			// Add the routes to the router, where patterns that share
+			// the same route key are matched in order of definition,
+			// with the basic wildcard route last.
+
+			const merged: Record<string, Route | Route[]> = {}
+
+			for (const [key, list] of Object.entries(grouped)) {
+				if (list.length === 1) {
+					merged[key] = list[0]!
+				} else {
+					merged[key] = [...list.filter(route => route.match), ...list.filter(route => !route.match)]
+				}
+			}
+
+			addRoutes(group, 'routes', merged)
+			addInvalidation(group, 'invalidate', [...invalidationPaths], versions)
 		}
 	},
 })

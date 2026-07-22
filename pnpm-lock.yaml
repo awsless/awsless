@@ -113,13 +113,13 @@ importers:
       '@awsless/weak-cache':
         specifier: workspace:^
         version: link:../weak-cache
+      '@types/aws-lambda':
+        specifier: 8.10.161
+        version: 8.10.161
       change-case:
         specifier: 5.4.4
         version: 5.4.4
     devDependencies:
-      '@types/aws-lambda':
-        specifier: 8.10.161
-        version: 8.10.161
       aws-lambda:
         specifier: 1.0.7
         version: 1.0.7
