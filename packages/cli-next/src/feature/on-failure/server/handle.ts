@@ -10,7 +10,7 @@ import {
 	QueueFailureEvent,
 	UnknownFailureEvent,
 } from './types'
-import { describeEnvelopeSource, logicalResourceName } from './util'
+import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from './util'
 
 export default async (event: S3CreateEvent | SQSEvent, context: Context) => {
 	if (!Array.isArray(event.Records)) {
@@ -103,10 +103,6 @@ const s3Record = async (record: S3EventRecord, context: Context) => {
 	})
 }
 
-const isDynamoDBFailureEvent = (event: UnknownFailureEvent): event is DynamoDBStreamFailureEvent => {
-	return 'DDBStreamBatchInfo' in event
-}
-
 const formatUnknownFailureEvent = (event: UnknownFailureEvent): FunctionFailureEvent => {
 	if (isDynamoDBFailureEvent(event)) {
 		return formatDynamoDBStreamFailureEvent(event)
@@ -130,7 +126,7 @@ const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): Function
 		source:
 			typeof route === 'string'
 				? { resource: route, event: payload!.event ?? {} }
-				: describeEnvelopeSource(payload),
+				: getFailureSource(payload),
 		error: {
 			type: event.responsePayload.errorType,
 			message: event.responsePayload.errorMessage,
@@ -152,7 +148,7 @@ const formatDynamoDBStreamFailureEvent = (event: DynamoDBStreamFailureEvent): Fu
 			name: event.requestContext.functionArn.split(':')[6]!,
 		},
 		payload,
-		source: table ? { resource: logicalResourceName(table) } : describeEnvelopeSource(payload),
+		source: table ? { resource: logicalResourceName(table) } : getFailureSource(payload),
 	}
 }
 
