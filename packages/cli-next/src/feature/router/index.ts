@@ -433,6 +433,7 @@ export const routerFeature = defineFeature({
 					},
 					comment: `${name} preview`,
 					enabled: true,
+					isIpv6Enabled: true,
 					waitForDeployment: true,
 					origin: [
 						{
@@ -575,6 +576,7 @@ export const routerFeature = defineFeature({
 
 				const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
 					name,
+					ipv6Enabled: true,
 				})
 
 				new aws.cloudfront.DistributionTenant(group, `tenant`, {
@@ -589,6 +591,17 @@ export const routerFeature = defineFeature({
 				new aws.route53.Record(group, `record`, {
 					zoneId,
 					type: 'A',
+					name: domainName,
+					alias: {
+						name: connectionGroup.routingEndpoint,
+						zoneId: 'Z2FDTNDATAQYW2',
+						evaluateTargetHealth: false,
+					},
+				})
+
+				new aws.route53.Record(group, `record-ipv6`, {
+					zoneId,
+					type: 'AAAA',
 					name: domainName,
 					alias: {
 						name: connectionGroup.routingEndpoint,
