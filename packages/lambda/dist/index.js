@@ -117,6 +117,7 @@ var normalizeError = (maybeError) => {
 // src/errors/enhanced.ts
 var EnhandedError = class extends Error {
   input;
+  route;
   requestId;
   functionName;
   functionVersion;
@@ -130,6 +131,10 @@ var enhanceError = (maybeError, schema, input, context) => {
   });
   error.input = schema ? applyRedaction(schema, input) : input;
   if (context) {
+    const route = context.route;
+    if (typeof route === "string") {
+      error.route = route;
+    }
     error.requestId = context.awsRequestId;
     error.functionName = context.functionName;
     error.functionVersion = context.functionVersion;
