@@ -32,28 +32,13 @@ export const bundleTypeScriptWithRolldown = async ({
 			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
 		},
 		treeshake: {
-			// The @awsless packages are pure clients, but their entry points
-			// also export test helpers that pull in local server
-			// implementations like dynamo-db-local, which crash the ESM
-			// runtime with CJS globals like __dirname. Treating the scope as
-			// side-effect free prunes those unused chains from production
-			// bundles, while every other dependency keeps its import side
-			// effects, like the fs patching of graceful-fs.
-			moduleSideEffects: (id, isExternal) => {
-				if (isExternal) {
-					return external?.includes(id) === true
-				}
-
-				if (id.includes('/node_modules/@awsless/')) {
-					return false
-				}
-
-				if (id.includes('/node_modules/')) {
-					return true
-				}
-
-				return id.startsWith(`${directories.root}/`)
-			},
+			// Dependencies are treated as side-effect free, so unused imports
+			// like the local test servers never reach the production bundle.
+			// The bundle guard below fails the build if one slips through.
+			moduleSideEffects: (id, isExternal) =>
+				isExternal
+					? external?.includes(id) === true
+					: id.startsWith(`${directories.root}/`) && !id.includes('/node_modules/'),
 		},
 		onwarn: error => {
 			debugError(error.message)
