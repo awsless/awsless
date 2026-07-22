@@ -7,6 +7,8 @@ import {
 	GetAliasCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
+	RemovePermissionCommand,
+	UpdateFunctionUrlConfigCommand,
 } from '@aws-sdk/client-lambda'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLambdaProvider } from '../src/formation/lambda'
@@ -43,6 +45,16 @@ const mockLambda = (liveVersion?: string, liveDescription?: string) => {
 			return {}
 		}
 
+		if (command instanceof UpdateFunctionUrlConfigCommand) {
+			return {
+				FunctionUrl: `https://${command.input.Qualifier}.lambda-url.us-east-1.on.aws/`,
+			}
+		}
+
+		if (command instanceof RemovePermissionCommand) {
+			return {}
+		}
+
 		if (command instanceof DeleteAliasCommand) {
 			return {}
 		}
@@ -74,6 +86,7 @@ describe('Lambda bundle deployment', () => {
 				functionName: 'test-function',
 				functionVersion: '1',
 				onFailureArn,
+				sourceAccount: '123456789012',
 			},
 		})
 
@@ -82,6 +95,7 @@ describe('Lambda bundle deployment', () => {
 			functionName: 'test-function',
 			functionVersion: '1',
 			onFailureArn,
+			sourceAccount: '123456789012',
 			deploymentAlias: 'deployment-main-1',
 			deploymentAliases: ['deployment-main-1'],
 			liveDescription: undefined,
@@ -95,23 +109,68 @@ describe('Lambda bundle deployment', () => {
 			expect.any(CreateFunctionUrlConfigCommand),
 			expect.any(AddPermissionCommand),
 			expect.any(AddPermissionCommand),
+			expect.any(RemovePermissionCommand),
+			expect.any(RemovePermissionCommand),
 		])
 		expect(send.mock.calls[1]![0].input.Name).toBe('deployment-main-1')
 
-		// the deployment preview url is public & only invokable through the url
+		// the deployment url is only invokable through cloudfront with oac
+		const created = sent(send, CreateFunctionUrlConfigCommand).map(command => command.input)
+		expect(created[0]!.AuthType).toBe('AWS_IAM')
+
 		const permissions = sent(send, AddPermissionCommand).map(command => command.input)
 		expect(permissions).toEqual([
 			expect.objectContaining({
-				Principal: '*',
+				Principal: 'cloudfront.amazonaws.com',
+				SourceAccount: '123456789012',
 				Action: 'lambda:InvokeFunctionUrl',
-				FunctionUrlAuthType: 'NONE',
+				FunctionUrlAuthType: 'AWS_IAM',
 			}),
 			expect.objectContaining({
-				Principal: '*',
+				Principal: 'cloudfront.amazonaws.com',
+				SourceAccount: '123456789012',
 				Action: 'lambda:InvokeFunction',
 				InvokedViaFunctionUrl: true,
 			}),
 		])
+
+		// the legacy public permissions are dropped
+		const removed = sent(send, RemovePermissionCommand).map(command => command.input.StatementId)
+		expect(removed).toEqual(['public-url', 'public-invoke'])
+	})
+
+	it('should secure aliases from before IAM-only urls in place once', async () => {
+		const send = mockLambda('1', '$awsless:deployment:main-1:1')
+		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
+		const result = await provider.updateResource({
+			type: 'bundle-deployment',
+			priorState: {
+				deploymentId: 'main-1',
+				functionName: 'test-function',
+				functionVersion: '1',
+				onFailureArn,
+				deploymentAlias: 'deployment-main-1',
+				deploymentAliases: ['deployment-main-1'],
+				liveVersion: '1',
+				url: 'https://deployment-main-1.lambda-url.us-east-1.on.aws/',
+			},
+			proposedState: {
+				deploymentId: 'main-2',
+				functionName: 'test-function',
+				functionVersion: '2',
+				onFailureArn,
+				sourceAccount: '123456789012',
+			},
+		})
+
+		expect((result.state as { deploymentAliases: string[] }).deploymentAliases).toEqual([
+			'deployment-main-1',
+			'deployment-main-2',
+		])
+
+		// both the new & the old alias urls end up IAM-only
+		const configured = sent(send, CreateFunctionUrlConfigCommand).map(command => command.input.Qualifier)
+		expect(configured.sort()).toEqual(['deployment-main-1', 'deployment-main-2'])
 	})
 
 	it('should preserve the existing live target while staging a new version', async () => {

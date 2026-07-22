@@ -3,6 +3,8 @@ import {
 	CreateAliasCommand,
 	CreateFunctionUrlConfigCommand,
 	GetFunctionUrlConfigCommand,
+	RemovePermissionCommand,
+	UpdateFunctionUrlConfigCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
 } from '@aws-sdk/client-lambda'
@@ -34,6 +36,7 @@ type BundleDeploymentInput = {
 	functionName: Input<string>
 	functionVersion: Input<string>
 	onFailureArn: Input<string>
+	sourceAccount?: Input<string>
 }
 
 type BundleDeploymentOutput = {
@@ -70,6 +73,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		functionName: z.string(),
 		functionVersion: z.string(),
 		onFailureArn: z.string(),
+		sourceAccount: z.string().optional(),
 	})
 	const bundleDeploymentStateSchema = bundleDeploymentInputSchema.extend({
 		deploymentAlias: z.string(),
@@ -115,8 +119,11 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			})
 		)
 	}
-	// The public url of a deployment alias serves the deployment preview.
-	const createPublicUrl = async (functionName: string, alias: string) => {
+	// The deployment url doubles as the router origin and the deployment
+	// preview, both reached through CloudFront with OAC signing, so with a
+	// source account nothing else may invoke it directly.
+	const createDeploymentUrl = async (functionName: string, alias: string, sourceAccount: string | undefined) => {
+		const authType = sourceAccount ? ('AWS_IAM' as const) : ('NONE' as const)
 		let url: string
 
 		try {
@@ -124,7 +131,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				new CreateFunctionUrlConfigCommand({
 					FunctionName: functionName,
 					Qualifier: alias,
-					AuthType: 'NONE',
+					AuthType: authType,
 				})
 			)
 
@@ -134,10 +141,12 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				throw error
 			}
 
+			// Urls from before IAM-only access are flipped in place.
 			const result = await lambda.send(
-				new GetFunctionUrlConfigCommand({
+				new UpdateFunctionUrlConfigCommand({
 					FunctionName: functionName,
 					Qualifier: alias,
+					AuthType: authType,
 				})
 			)
 
@@ -145,18 +154,37 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		}
 
 		// Public urls require both invoke permissions since October 2025.
-		const permissions = [
-			{
-				StatementId: 'public-url',
-				Action: 'lambda:InvokeFunctionUrl',
-				FunctionUrlAuthType: 'NONE' as const,
-			},
-			{
-				StatementId: 'public-invoke',
-				Action: 'lambda:InvokeFunction',
-				InvokedViaFunctionUrl: true,
-			},
-		]
+		const permissions = sourceAccount
+			? [
+					{
+						StatementId: 'cloudfront-url',
+						Principal: 'cloudfront.amazonaws.com',
+						SourceAccount: sourceAccount,
+						Action: 'lambda:InvokeFunctionUrl',
+						FunctionUrlAuthType: 'AWS_IAM' as const,
+					},
+					{
+						StatementId: 'cloudfront-invoke',
+						Principal: 'cloudfront.amazonaws.com',
+						SourceAccount: sourceAccount,
+						Action: 'lambda:InvokeFunction',
+						InvokedViaFunctionUrl: true,
+					},
+				]
+			: [
+					{
+						StatementId: 'public-url',
+						Principal: '*',
+						Action: 'lambda:InvokeFunctionUrl',
+						FunctionUrlAuthType: 'NONE' as const,
+					},
+					{
+						StatementId: 'public-invoke',
+						Principal: '*',
+						Action: 'lambda:InvokeFunction',
+						InvokedViaFunctionUrl: true,
+					},
+				]
 
 		for (const permission of permissions) {
 			try {
@@ -164,13 +192,31 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 					new AddPermissionCommand({
 						FunctionName: functionName,
 						Qualifier: alias,
-						Principal: '*',
 						...permission,
 					})
 				)
 			} catch (error) {
 				if (!isError(error, 'ResourceConflictException')) {
 					throw error
+				}
+			}
+		}
+
+		// Drop the legacy public permissions once IAM auth applies.
+		if (sourceAccount) {
+			for (const statementId of ['public-url', 'public-invoke']) {
+				try {
+					await lambda.send(
+						new RemovePermissionCommand({
+							FunctionName: functionName,
+							Qualifier: alias,
+							StatementId: statementId,
+						})
+					)
+				} catch (error) {
+					if (!isError(error, 'ResourceNotFoundException')) {
+						throw error
+					}
 				}
 			}
 		}
@@ -187,7 +233,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			name: deploymentAlias,
 		})
 		await configureVersion(state)
-		const url = await createPublicUrl(state.functionName, deploymentAlias)
+		const url = await createDeploymentUrl(state.functionName, deploymentAlias, state.sourceAccount)
 
 		return {
 			...state,
@@ -321,7 +367,16 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				}
 
 				await configureVersion(proposed)
-				const url = await createPublicUrl(proposed.functionName, deploymentAlias)
+				const url = await createDeploymentUrl(proposed.functionName, deploymentAlias, proposed.sourceAccount)
+
+				// Aliases from before IAM-only urls are secured in place once.
+				if (proposed.sourceAccount && prior.sourceAccount !== proposed.sourceAccount) {
+					await Promise.all(
+						deploymentAliases
+							.filter(name => name !== deploymentAlias)
+							.map(name => createDeploymentUrl(proposed.functionName, name, proposed.sourceAccount))
+					)
+				}
 
 				return {
 					...proposed,
