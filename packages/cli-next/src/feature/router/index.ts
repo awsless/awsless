@@ -56,6 +56,7 @@ export const routerFeature = defineFeature({
 				code: getViewerRequestFunctionCode({
 					router: id,
 					blockDirectAccess: !!props.domain,
+					redirectWww: !!props.domain && props.redirectWww,
 					basicAuth: props.basicAuth,
 					passwordAuth: props.passwordAuth,
 				}),
@@ -571,6 +572,7 @@ export const routerFeature = defineFeature({
 
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				const wwwDomainName = props.redirectWww ? `www.${domainName}` : undefined
 				const certificateArn = ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 				const zoneId = ctx.shared.entry('domain', 'zone-id', props.domain)
 
@@ -584,31 +586,40 @@ export const routerFeature = defineFeature({
 					enabled: true,
 					distributionId: distribution.id,
 					connectionGroupId: connectionGroup.id,
-					domain: [{ domain: domainName }],
+					domain: [
+						//
+						{ domain: domainName },
+						...(wwwDomainName ? [{ domain: wwwDomainName }] : []),
+					],
 					customizations: [{ certificate: [{ arn: certificateArn }] }],
 				})
 
-				new aws.route53.Record(group, `record`, {
-					zoneId,
-					type: 'A',
-					name: domainName,
-					alias: {
-						name: connectionGroup.routingEndpoint,
-						zoneId: 'Z2FDTNDATAQYW2',
-						evaluateTargetHealth: false,
-					},
-				})
+				for (const [recordId, recordName] of [
+					['record', domainName],
+					...(wwwDomainName ? [['www-record', wwwDomainName]] : []),
+				] as const) {
+					new aws.route53.Record(group, recordId, {
+						zoneId,
+						type: 'A',
+						name: recordName,
+						alias: {
+							name: connectionGroup.routingEndpoint,
+							zoneId: 'Z2FDTNDATAQYW2',
+							evaluateTargetHealth: false,
+						},
+					})
 
-				new aws.route53.Record(group, `record-ipv6`, {
-					zoneId,
-					type: 'AAAA',
-					name: domainName,
-					alias: {
-						name: connectionGroup.routingEndpoint,
-						zoneId: 'Z2FDTNDATAQYW2',
-						evaluateTargetHealth: false,
-					},
-				})
+					new aws.route53.Record(group, `${recordId}-ipv6`, {
+						zoneId,
+						type: 'AAAA',
+						name: recordName,
+						alias: {
+							name: connectionGroup.routingEndpoint,
+							zoneId: 'Z2FDTNDATAQYW2',
+							evaluateTargetHealth: false,
+						},
+					})
+				}
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 			}

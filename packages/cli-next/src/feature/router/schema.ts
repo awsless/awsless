@@ -135,6 +135,11 @@ export const RouterDefaultSchema = z
 			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
 			subDomain: z.string().optional(),
 
+			redirectWww: z
+				.boolean()
+				.default(false)
+				.describe('Redirect all www subdomain requests to your root domain.'),
+
 			waf: WafSettingsSchema.optional(),
 
 			geoRestrictions: z
@@ -263,6 +268,22 @@ export const RouterDefaultSchema = z
 				.describe(
 					'Specifies the cookies, headers, and query values that CloudFront includes in the cache key.'
 				),
+		}).superRefine((props, ctx) => {
+			if (props.redirectWww && !props.domain) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['redirectWww'],
+					message: 'The redirectWww option requires a domain to be set.',
+				})
+			}
+
+			if (props.redirectWww && props.subDomain) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['redirectWww'],
+					message: `The redirectWww option can't be combined with a subDomain, because the domain certificate only covers single level subdomains.`,
+				})
+			}
 		})
 	)
 	.optional()

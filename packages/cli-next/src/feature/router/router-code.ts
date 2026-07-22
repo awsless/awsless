@@ -1,12 +1,14 @@
 export const getViewerRequestFunctionCode = (props: {
 	router: string
 	blockDirectAccess?: boolean
+	redirectWww?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
 }): string => {
 	return CODE(
 		[
 			props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
+			props.redirectWww ? REDIRECT_WWW : '',
 			(props.passwordAuth ?? props.basicAuth)
 				? AUTH_WRAPPER(
 						[
@@ -26,6 +28,39 @@ if (headers.host && headers.host.value.includes('cloudfront.net')) {
 	return {
 		statusCode: 403,
 		statusDescription: 'Forbidden'
+	};
+}`
+
+const REDIRECT_WWW = `
+if (headers.host && headers.host.value.startsWith('www.')) {
+	let location = 'https://' + headers.host.value.slice(4) + request.uri;
+	const query = [];
+
+	for(const key in request.querystring) {
+		const item = request.querystring[key];
+
+		if(item.multiValue) {
+			for(const i in item.multiValue) {
+				query.push(key + '=' + item.multiValue[i].value);
+			}
+		} else if(item.value === '') {
+			query.push(key);
+		} else {
+			query.push(key + '=' + item.value);
+		}
+	}
+
+	if(query.length > 0) {
+		location += '?' + query.join('&');
+	}
+
+	return {
+		statusCode: 301,
+		statusDescription: 'Moved Permanently',
+		headers: {
+			'location': { value: location },
+			'strict-transport-security': { value: 'max-age=31536000; includeSubdomains; preload' }
+		}
 	};
 }`
 
