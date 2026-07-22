@@ -136,7 +136,8 @@ describe('router routes', () => {
 
 		expect(resources.filter(resource => resource.type === 'route-deployment')).toHaveLength(1)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_key_value_store')).toHaveLength(1)
-		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(1)
+		// one preview distribution per router
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(2)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_multitenant_distribution')).toHaveLength(
 			2
 		)
@@ -183,6 +184,25 @@ describe('router routes', () => {
 			'api.example.com',
 			'assets.example.com',
 		])
+	})
+
+	it('should give every router its own preview distribution', async () => {
+		const result = createRouterApp({ main: {}, admin: {} })
+		result.ready()
+
+		const resources = result.app.resources.map(getMeta)
+		const previews = resources.filter(
+			resource => resource.type === 'aws_cloudfront_distribution' && resource.urn.endsWith(':{preview}')
+		)
+		const previewFns = resources.filter(
+			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('preview-function')
+		)
+
+		expect(previews).toHaveLength(2)
+		expect(previewFns).toHaveLength(2)
+
+		const routers = previewFns.map(fn => String(fn.input.code).match(/const router = "(\w+)"/)?.[1]).sort()
+		expect(routers).toEqual(['admin', 'main'])
 	})
 
 	it('should only use syntax the cloudfront js runtime supports', async () => {

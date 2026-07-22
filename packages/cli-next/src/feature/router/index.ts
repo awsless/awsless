@@ -24,7 +24,6 @@ export const routerFeature = defineFeature({
 		const distributionIds: Output<string>[] = []
 		let hasLambdaRoutes = false
 		let routeStore: aws.cloudfront.KeyValueStore | undefined
-		let previewDistribution: aws.cloudfront.Distribution | undefined
 
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
@@ -413,9 +412,10 @@ export const routerFeature = defineFeature({
 				webAclId: waf?.arn,
 			})
 
-			if (id === defaultRouter) {
-				// The preview distribution's cloudfront.net host serves the
-				// default router's active deployment.
+			// Every router gets its own preview host, serving its active
+			// deployment by default or any staged deployment selected with
+			// the awsless-deployment query parameter.
+			{
 				const previewFunction = new aws.cloudfront.Function(group, 'preview-function', {
 					name: `${name.slice(0, 55)}--preview`,
 					runtime: 'cloudfront-js-2.0',
@@ -429,7 +429,7 @@ export const routerFeature = defineFeature({
 					keyValueStoreAssociations: [routeStore!.arn],
 				})
 
-				previewDistribution = new aws.cloudfront.Distribution(group, 'preview', {
+				const previewDistribution = new aws.cloudfront.Distribution(group, 'preview', {
 					tags: {
 						name: `${name}-preview`,
 					},
@@ -495,7 +495,10 @@ export const routerFeature = defineFeature({
 				})
 
 				distributionIds.push(previewDistribution.id)
+				ctx.shared.add('router', 'preview-id', id, previewDistribution.id)
+			}
 
+			if (id === defaultRouter) {
 				ctx.onReadyLast(() => {
 					const bundle = ctx.shared.get('bundle', 'main')
 					let lambdaUrlHost: Input<string> | undefined
@@ -543,7 +546,6 @@ export const routerFeature = defineFeature({
 			}
 
 			ctx.shared.add('router', 'id', id, distribution.id)
-			ctx.shared.add('router', 'preview-id', id, previewDistribution!.id)
 			distributionIds.push(distribution.id)
 
 			// ------------------------------------------------------------
