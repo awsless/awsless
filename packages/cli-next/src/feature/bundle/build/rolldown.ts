@@ -15,7 +15,6 @@ export type BundleTypeScriptProps = {
 	external?: string[]
 	handler?: string
 	file: string
-	nativeDir?: string
 	importAsString?: string[]
 }
 
@@ -23,7 +22,6 @@ export const bundleTypeScriptWithRolldown = async ({
 	format = 'esm',
 	minify = true,
 	file,
-	nativeDir,
 	external,
 	importAsString: importAsStringList,
 }: BundleTypeScriptProps) => {

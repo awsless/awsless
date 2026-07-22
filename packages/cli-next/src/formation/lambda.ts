@@ -370,11 +370,21 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				const url = await createDeploymentUrl(proposed.functionName, deploymentAlias, proposed.sourceAccount)
 
 				// Aliases from before IAM-only urls are secured in place once.
+				// Pruned aliases can still be listed in the state, so a
+				// missing alias is skipped instead of failing the deploy.
 				if (proposed.sourceAccount && prior.sourceAccount !== proposed.sourceAccount) {
 					await Promise.all(
 						deploymentAliases
 							.filter(name => name !== deploymentAlias)
-							.map(name => createDeploymentUrl(proposed.functionName, name, proposed.sourceAccount))
+							.map(name =>
+								createDeploymentUrl(proposed.functionName, name, proposed.sourceAccount).catch(
+									error => {
+										if (!isError(error, 'ResourceNotFoundException')) {
+											throw error
+										}
+									}
+								)
+							)
 					)
 				}
 

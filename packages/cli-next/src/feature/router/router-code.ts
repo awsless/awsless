@@ -115,7 +115,15 @@ if (request.querystring['awsless-deployment']) {
 	const query = [];
 
 	for (const key in request.querystring) {
-		query.push(key + '=' + request.querystring[key].value);
+		const entry = request.querystring[key];
+
+		if (entry.multiValue) {
+			for (const item of entry.multiValue) {
+				query.push(key + '=' + item.value);
+			}
+		} else {
+			query.push(key + '=' + entry.value);
+		}
 	}
 
 	return {
