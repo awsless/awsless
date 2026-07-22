@@ -151,9 +151,18 @@ describe('router routes', () => {
 		const previewFn = resources.find(
 			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('preview-function')
 		)!
+		const productionFn = resources.find(
+			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('production-function')
+		)!
 
 		await expect(resolveInputs(preview.input.aliases)).resolves.toBeUndefined()
-		expect(String(previewFn.input.code)).not.toContain('$deploy:')
+
+		// Only the preview host can select a staged deployment; production
+		// always serves the active route table.
+		expect(String(previewFn.input.code)).toContain('$deploy:')
+		expect(String(previewFn.input.code)).toContain('awsless-deployment')
+		expect(String(productionFn.input.code)).not.toContain('$deploy:')
+
 		expect(resources.find(resource => resource.type === 'aws_acm_certificate')).toBeUndefined()
 		expect(resources.find(resource => resource.type === 'aws_route53_zone')).toBeUndefined()
 	})
@@ -174,6 +183,58 @@ describe('router routes', () => {
 			'api.example.com',
 			'assets.example.com',
 		])
+	})
+
+	it('should preview a staged deployment selected by query and pin it in a cookie', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['$deploy:local-2', 'v2:2'],
+			['v2:main:/api/*', route('staged.example.com')],
+		])
+		const { get, handler } = createRouter(values, { preview: true })
+
+		const request = createRequest('/api/users')
+		request.querystring['awsless-deployment'] = { value: 'local-2' }
+
+		const redirect = (await handler({ request })) as Response & {
+			headers: Record<string, { value: string }>
+			cookies: Record<string, { value: string }>
+		}
+
+		expect(redirect.statusCode).toBe(302)
+		expect(redirect.headers.location!.value).toBe('/api/users')
+		expect(redirect.cookies['awsless-deployment']!.value).toBe('local-2')
+		expect(get).toHaveBeenCalledWith('$deploy:local-2')
+
+		const pinned = createRequest('/api/users') as Request & {
+			cookies: Record<string, { value: string }>
+		}
+		pinned.cookies = { 'awsless-deployment': { value: 'local-2' } }
+
+		const routed = (await handler({ request: pinned })) as Request
+		expect(routed.headers['x-origin']?.value).toBe('staged.example.com')
+	})
+
+	it('should return 404 for an unknown preview deployment', async () => {
+		const values = new Map([['$active', 'v1:1']])
+		const { handler } = createRouter(values, { preview: true })
+
+		const request = createRequest('/')
+		request.querystring['awsless-deployment'] = { value: 'missing' }
+
+		const response = (await handler({ request })) as Response
+		expect(response.statusCode).toBe(404)
+	})
+
+	it('should serve the active deployment on the preview host by default', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/*', route('active.example.com')],
+		])
+		const { handler } = createRouter(values, { preview: true })
+		const request = (await handler({ request: createRequest('/index.html') })) as Request
+
+		expect(request.headers['x-origin']?.value).toBe('active.example.com')
 	})
 
 	it('should return 503 without a staged deployment', async () => {

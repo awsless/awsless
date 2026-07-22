@@ -249,24 +249,21 @@ export const formatDeploymentSummary = (props: {
 	id: string
 }): string[] => {
 	let previewUrl: string | undefined
-	let lambdaUrl: string | undefined
 
 	for (const [urn, node] of readStateNodes(props.state)) {
 		if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
 			previewUrl = `https://${node.output.domainName}`
 		}
-
-		if (node.type === 'bundle-deployment') {
-			lambdaUrl = node.output.url
-		}
 	}
 
-	// The preview distribution's own host serves the first router.
+	// The preview distribution's own host serves the first router: its plain
+	// host previews the live deployment, and the awsless-deployment query
+	// selects this deployment through the same router function.
 	return Object.keys(props.appConfig.defaults.router ?? {}).map((routerId, index) => {
 		return [
 			`${routerId}: deployment #${props.id}`,
 			index === 0 ? previewUrl : undefined,
-			index === 0 ? lambdaUrl : undefined,
+			index === 0 && previewUrl ? `${previewUrl}/?awsless-deployment=${props.id}` : undefined,
 		]
 			.filter(Boolean)
 			.join('\n')

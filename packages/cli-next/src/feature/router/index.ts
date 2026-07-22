@@ -421,6 +421,7 @@ export const routerFeature = defineFeature({
 					runtime: 'cloudfront-js-2.0',
 					code: getViewerRequestFunctionCode({
 						router: id,
+						preview: true,
 						basicAuth: props.basicAuth,
 						passwordAuth: props.passwordAuth,
 					}),
@@ -537,30 +538,7 @@ export const routerFeature = defineFeature({
 						}
 					)
 
-					// The deployment alias lambda url serves a preview of the
-					// default router with these baked routes. The preview
-					// handler enforces the same viewer auth as the router
-					// function, since the url bypasses the router in front.
-					// Lambda routes dispatch in-process, so the deploy-time
-					// lambda url host isn't needed & would be circular through
-					// the bundle env.
-					// Url routes are left out, since the preview can't proxy
-					// to another origin.
-					bundle.addEnv(
-						'AWSLESS_PREVIEW',
-						$resolve([routes], routes =>
-							JSON.stringify({
-								router: id,
-								basicAuth: props.basicAuth,
-								passwordAuth: props.passwordAuth,
-								routes: Object.fromEntries(
-									Object.entries(routes).filter(
-										([key, route]) => key.startsWith(`${id}:`) && route.type !== 'url'
-									)
-								),
-							})
-						)
-					)
+
 				})
 			}
 

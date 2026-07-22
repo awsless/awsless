@@ -2,6 +2,7 @@ export const getViewerRequestFunctionCode = (props: {
 	router: string
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
+	preview?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
 }): string => {
@@ -19,7 +20,7 @@ export const getViewerRequestFunctionCode = (props: {
 					)
 				: '',
 		],
-		ACTIVE_PREFIX(props.router)
+		props.preview ? PREVIEW_PREFIX(props.router) : ACTIVE_PREFIX(props.router)
 	)
 }
 
@@ -83,6 +84,54 @@ if(!isAuthorized) {
 	}
 }
 `
+
+// The preview host serves the live deployment by default, or any staged
+// deployment selected with the awsless-deployment query parameter. The
+// selection is pinned in a cookie, so asset requests hit the same preview.
+const PREVIEW_PREFIX = (router: string) => `
+const router = ${JSON.stringify(router)};
+let deployment;
+
+if (request.querystring['awsless-deployment'] && request.querystring['awsless-deployment'].value) {
+	deployment = request.querystring['awsless-deployment'].value;
+} else if (request.cookies && request.cookies['awsless-deployment'] && request.cookies['awsless-deployment'].value) {
+	deployment = request.cookies['awsless-deployment'].value;
+}
+
+let prefix;
+
+try {
+	const pointer = deployment ? '$deploy:' + deployment : '$active';
+	prefix = (await cf.kvs().get(pointer)).split(':')[0] + ':' + router + ':';
+} catch (e) {
+	return deployment
+		? { statusCode: 404, statusDescription: 'Unknown Deployment' }
+		: { statusCode: 503, statusDescription: 'Service Unavailable' };
+}
+
+if (request.querystring['awsless-deployment']) {
+	delete request.querystring['awsless-deployment'];
+
+	const query = [];
+
+	for (const key in request.querystring) {
+		query.push(key + '=' + request.querystring[key].value);
+	}
+
+	return {
+		statusCode: 302,
+		statusDescription: 'Found',
+		headers: {
+			location: { value: request.uri + (query.length ? '?' + query.join('&') : '') }
+		},
+		cookies: {
+			'awsless-deployment': {
+				value: deployment,
+				attributes: 'Path=/; Secure; SameSite=Lax'
+			}
+		}
+	};
+}`
 
 // '$active' points at the route table of the live deployment.
 const ACTIVE_PREFIX = (router: string) => `
