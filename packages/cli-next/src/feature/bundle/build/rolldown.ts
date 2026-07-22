@@ -34,8 +34,28 @@ export const bundleTypeScriptWithRolldown = async ({
 			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
 		},
 		treeshake: {
-			moduleSideEffects: (id, isExternal) =>
-				isExternal ? external?.includes(id) === true : id.startsWith(`${directories.root}/`),
+			// The @awsless packages are pure clients, but their entry points
+			// also export test helpers that pull in local server
+			// implementations like dynamo-db-local, which crash the ESM
+			// runtime with CJS globals like __dirname. Treating the scope as
+			// side-effect free prunes those unused chains from production
+			// bundles, while every other dependency keeps its import side
+			// effects, like the fs patching of graceful-fs.
+			moduleSideEffects: (id, isExternal) => {
+				if (isExternal) {
+					return external?.includes(id) === true
+				}
+
+				if (id.includes('/node_modules/@awsless/')) {
+					return false
+				}
+
+				if (id.includes('/node_modules/')) {
+					return true
+				}
+
+				return id.startsWith(`${directories.root}/`)
+			},
 		},
 		onwarn: error => {
 			debugError(error.message)
@@ -89,6 +109,8 @@ export const bundleTypeScriptWithRolldown = async ({
 		minify,
 	})
 
+	assertNoTestOnlyModules(result.output)
+
 	const hash = createHash('sha1')
 	const files: File[] = []
 
@@ -116,5 +138,28 @@ export const bundleTypeScriptWithRolldown = async ({
 	return {
 		hash: hash.digest('hex'),
 		files,
+	}
+}
+
+// Local test servers must never ship inside a production bundle. They spawn
+// processes, rely on CJS globals like __dirname, and crash the ESM runtime.
+const TEST_ONLY_MODULES = ['dynamo-db-local', '@awsless/dynamodb-server', 'redis-memory-server']
+
+const assertNoTestOnlyModules = (output: Array<{ type: string; moduleIds?: string[] }>) => {
+	for (const item of output) {
+		if (item.type !== 'chunk') {
+			continue
+		}
+
+		for (const id of item.moduleIds ?? []) {
+			const found = TEST_ONLY_MODULES.find(name => id.includes(`/node_modules/${name}/`))
+
+			if (found) {
+				throw new Error(
+					`The test-only package "${found}" was bundled into a production build through "${id}". ` +
+						'Remove the import from the handler, or keep the package tree-shakeable.'
+				)
+			}
+		}
 	}
 }
