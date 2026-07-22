@@ -243,6 +243,20 @@ describe('router routes', () => {
 		expect(routed.headers['x-origin']?.value).toBe('staged.example.com')
 	})
 
+	it('should ignore an empty preview deployment selection', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/*', route('active.example.com')],
+		])
+		const { handler } = createRouter(values, { preview: true })
+
+		const request = createRequest('/index.html')
+		request.querystring['awsless-deployment'] = { value: '' }
+
+		const routed = (await handler({ request })) as Request
+		expect(routed.headers['x-origin']?.value).toBe('active.example.com')
+	})
+
 	it('should return 404 for an unknown preview deployment', async () => {
 		const values = new Map([['$active', 'v1:1']])
 		const { handler } = createRouter(values, { preview: true })

@@ -109,7 +109,7 @@ try {
 		: { statusCode: 503, statusDescription: 'Service Unavailable' };
 }
 
-if (request.querystring['awsless-deployment']) {
+if (deployment && request.querystring['awsless-deployment']) {
 	delete request.querystring['awsless-deployment'];
 
 	const query = [];
