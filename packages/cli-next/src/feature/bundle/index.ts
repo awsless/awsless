@@ -68,6 +68,17 @@ export const bundleFeature = defineFeature({
 			layers.push(layer)
 		}
 
+		// ------------------------------------------------------
+		// Attach the configured layers & keep their packages out
+		// of the bundle, so imports resolve from the layer.
+
+		const layerIds = Object.keys(ctx.appConfig.defaults.layers ?? {})
+		const layerPackages = layerIds.flatMap(id => ctx.shared.entry('layer', 'packages', id))
+
+		for (const id of layerIds) {
+			addLayer(ctx.shared.entry('layer', 'arn', id))
+		}
+
 		const name = getBundleFunctionName(ctx.app.name)
 
 		const shortName = formatGlobalResourceName({
@@ -86,7 +97,7 @@ export const bundleFeature = defineFeature({
 				name,
 				handlers,
 				minify: defaults.minify,
-				external: defaults.external,
+				external: [...(defaults.external ?? []), ...layerPackages],
 			})
 		)
 
