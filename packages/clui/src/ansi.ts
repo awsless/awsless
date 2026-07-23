@@ -12,9 +12,16 @@ export const length = (value: string) => {
 }
 
 export const truncate = (value: string, width: number): string => {
-	return ansiTruncate(value, width, {
-		ellipsis,
-	})
+	// ansi-truncate counts the total width across newlines, so a
+	// multi-line value must be truncated one line at a time.
+	return value
+		.split('\n')
+		.map(line =>
+			ansiTruncate(line, width, {
+				ellipsis,
+			})
+		)
+		.join('\n')
 }
 
 export const pad = (texts: string[]) => {

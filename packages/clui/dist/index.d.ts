@@ -1,4 +1,4 @@
-import { TextOptions, PasswordOptions, ConfirmOptions, SelectOptions, MultiSelectOptions } from '@clack/prompts';
+import { ConfirmOptions, MultiSelectOptions, PasswordOptions, SelectOptions, TextOptions } from '@clack/prompts';
 import { Options } from 'wrap-ansi';
 import * as chalk from 'chalk';
 

@@ -149,9 +149,11 @@ var length = (value) => {
   return ansiLength(value);
 };
 var truncate = (value, width) => {
-  return ansiTruncate(value, width, {
-    ellipsis
-  });
+  return value.split("\n").map(
+    (line) => ansiTruncate(line, width, {
+      ellipsis
+    })
+  ).join("\n");
 };
 var pad = (texts) => {
   const size = Math.max(...texts.map((text2) => ansiLength(text2)));

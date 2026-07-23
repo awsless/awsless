@@ -178,9 +178,11 @@ var length = (value) => {
   return (0, import_string_length.default)(value);
 };
 var truncate = (value, width) => {
-  return (0, import_ansi_truncate.default)(value, width, {
-    ellipsis
-  });
+  return value.split("\n").map(
+    (line) => (0, import_ansi_truncate.default)(line, width, {
+      ellipsis
+    })
+  ).join("\n");
 };
 var pad = (texts) => {
   const size = Math.max(...texts.map((text2) => (0, import_string_length.default)(text2)));
