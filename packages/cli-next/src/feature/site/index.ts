@@ -3,6 +3,7 @@ import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
 import { glob } from 'glob'
 import { basename, dirname, join } from 'path'
+import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { SiteDeployment } from '../../formation/s3.js'
 import { getCredentials } from '../../util/aws.js'
@@ -73,24 +74,18 @@ export const siteFeature = defineFeature({
 							env,
 							stdout: 'pipe',
 							stderr: 'pipe',
-							// stdout: 'ignore',
-							// stderr: ''
-							// stdout: 'inherit',
-							// stderr: 'inherit',
 						})
 
-						await instance.exited
+						// Read stdout & stderr while the build runs, otherwise
+						// the build hangs once its output fills the pipe buffer.
+						const [output, errors] = await Promise.all([
+							new Response(instance.stdout).text(),
+							new Response(instance.stderr).text(),
+							instance.exited,
+						])
 
 						if (instance.exitCode !== null && instance.exitCode > 0) {
-							// const error = instance.stderr
-							// throw new ExpectedError(await instance.stderr?.text() ?? '')
-
-							// console.log('')
-							// console.log(await instance.stderr.text())
-							// // console.log('')
-							// // console.log(await instance.stdout.text())
-							// console.log('')
-							throw new Error('Site build failed')
+							throw new ExpectedError(`Site build failed:\n${(errors.trim() || output.trim()).slice(-2000)}`)
 						}
 
 						// await execCommand({
