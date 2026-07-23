@@ -154,9 +154,13 @@ export const deploy = (program: Command) => {
 
 				playSuccessSound()
 
-				const details = deployments.length > 0 ? `\n${deployments.join('\n')}` : ''
+				// The outro truncates to the terminal width, so the multi-line
+				// summary is logged as a message, which wraps instead.
+				for (const summary of deployments) {
+					log.message(summary)
+				}
 
-				return `Deployment #${deployment.id} is live.${details}`
+				return `Deployment #${deployment.id} is live.`
 			})
 		})
 }
