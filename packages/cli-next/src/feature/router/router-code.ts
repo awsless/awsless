@@ -79,7 +79,7 @@ const PASSWORD_AUTH_CHECK = (password: string) => `
 authMethods.push('Password realm="Protected"');
 
 if(!isAuthorized) {
-	if(authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === '${password}') {
+	if(authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === ${JSON.stringify(password)}) {
 		isAuthorized = true;
 	}
 }
