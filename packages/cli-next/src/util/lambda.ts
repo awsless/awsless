@@ -4,6 +4,7 @@ import {
 	DeleteFunctionUrlConfigCommand,
 	GetAliasCommand,
 	LambdaClient,
+	ListAliasesCommand,
 	UpdateAliasCommand,
 	UpdateFunctionCodeCommand,
 } from '@aws-sdk/client-lambda'
@@ -34,6 +35,26 @@ export const getLambdaAlias = async (lambda: LambdaClient, functionName: string,
 
 		return
 	}
+}
+
+export const listLambdaAliases = async (lambda: LambdaClient, functionName: string, functionVersion: string) => {
+	const aliases = []
+	let marker: string | undefined
+
+	do {
+		const result = await lambda.send(
+			new ListAliasesCommand({
+				FunctionName: functionName,
+				FunctionVersion: functionVersion,
+				Marker: marker,
+			})
+		)
+
+		aliases.push(...(result.Aliases ?? []))
+		marker = result.NextMarker
+	} while (marker)
+
+	return aliases
 }
 
 // Update-first upsert for aliases that almost always exist (the live alias).

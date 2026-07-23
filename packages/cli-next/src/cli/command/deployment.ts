@@ -1,22 +1,25 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import { DeleteFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import { LambdaClient } from '@aws-sdk/client-lambda'
 import { log, prompt } from '@awsless/clui'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { AppConfig } from '../../config/app.js'
 import { Cancelled } from '../../error.js'
 import { getRouteStoreArn, pruneStoreDeployments } from '../../formation/cloudfront-kvs.js'
-import { getAccountId, getCredentials, isError } from '../../util/aws.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
-	isCommitMerged,
+	Deployment,
 	listDeployments,
+	pruneFunctionVersion,
+	PruneOptions,
 	readLiveDeploymentId,
 	removeDeployment,
-	slugifyBranch,
+	selectPrunableDeployments,
+	selectPrunableVersions,
 	withAppReleaseLock,
 } from '../../util/deployment.js'
-import { deleteLambdaAlias, getDeploymentLambdaAliasName, getLambdaAlias, LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
+import { deleteLambdaAlias, getDeploymentLambdaAliasName } from '../../util/lambda.js'
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
@@ -46,6 +49,14 @@ const formatAge = (iso: string) => {
 	return `${Math.floor(minutes / (60 * 24))}d ago`
 }
 
+const formatStatus = (item: Deployment, liveId?: string) => {
+	if (item.id === liveId) return color.success('live    ')
+	if (item.promotedAt) return 'promoted'
+	if (item.functionVersion) return color.info('staged  ')
+
+	return color.dim('pending ')
+}
+
 export const deployments = (program: Command) => {
 	program
 		.command('deployments')
@@ -67,25 +78,16 @@ export const deployments = (program: Command) => {
 
 				log.message(
 					items
-						.map(item => {
-							const status =
-								item.id === liveId
-									? color.success('live    ')
-									: item.promotedAt
-										? 'promoted'
-										: item.functionVersion
-											? color.info('staged  ')
-											: color.dim('pending ')
-
-							return [
+						.map(item =>
+							[
 								color.label(item.id.padEnd(idWidth)),
-								status,
+								formatStatus(item, liveId),
 								formatAge(item.createdAt).padEnd(8),
 								color.dim(item.commit?.slice(0, 7) ?? '-------'),
 								(item.message ?? '').slice(0, 50).padEnd(50),
 								color.dim(item.user ?? ''),
 							].join('  ')
-						})
+						)
 						.join('\n')
 				)
 
@@ -101,7 +103,7 @@ export const prune = (program: Command) => {
 		.option('--keep <count>', 'How many deployments of the main branch to keep', '10')
 		.option('--main <branch>', 'The branch that merged work lands on', 'main')
 		.description('Delete old deployments & the resources they hold on to')
-		.action(async (options: { branch?: string; keep: string; main: string }) => {
+		.action(async (options: PruneOptions) => {
 			await layout('prune', async ({ appConfig }) => {
 				const { appId, functionName, dynamo, lambda, kvs, cloudfront } = await createClients(appConfig)
 
@@ -110,44 +112,7 @@ export const prune = (program: Command) => {
 					readLiveDeploymentId(lambda, functionName),
 				])
 
-				// The live deployment & the newest other promoted deployment
-				// always survive, so a rollback keeps a target.
-				const rollbackTarget = items
-					.filter(item => item.promotedAt && item.id !== liveId)
-					.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))[0]
-
-				const keep = Math.max(1, Number(options.keep) || 10)
-				const mainSlug = slugifyBranch(options.main)
-				const keptMain = new Set(
-					items
-						.filter(item => item.branch === mainSlug && item.functionVersion)
-						.map(item => item.seq)
-						.sort((a, b) => b - a)
-						.slice(0, keep)
-				)
-				const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
-				const prunable = items.filter(item => {
-					if (item.id === liveId || item.id === rollbackTarget?.id) {
-						return false
-					}
-
-					if (options.branch) {
-						return item.branch === slugifyBranch(options.branch)
-					}
-
-					// deploys that never finished are abandoned after a day
-					if (!item.functionVersion) {
-						return item.createdAt < dayAgo
-					}
-
-					if (item.branch === mainSlug) {
-						return !keptMain.has(item.seq)
-					}
-
-					// branch deployments are prunable once their commit is merged
-					return item.commit ? isCommitMerged(item.commit, options.main) : false
-				})
+				const prunable = selectPrunableDeployments(items, liveId, options)
 
 				if (prunable.length === 0) {
 					return `Nothing to prune.`
@@ -170,43 +135,16 @@ export const prune = (program: Command) => {
 					successMessage: 'Done pruning the deployments.',
 					task: () =>
 						withAppReleaseLock(appConfig, async () => {
-							// the aliases go first, so shared function
-							// versions become deletable
+							// the deployment aliases go first, so shared
+							// function versions become deletable
 							for (const item of prunable) {
 								await deleteLambdaAlias(lambda, functionName, getDeploymentLambdaAliasName(item.id))
 							}
 
-							// function versions that no surviving deployment references
-							const surviving = items.filter(item => !prunable.includes(item))
-							const keepVersions = new Set(surviving.map(item => item.functionVersion))
-							const live = await getLambdaAlias(lambda, functionName, LIVE_LAMBDA_ALIAS)
-
-							if (live?.FunctionVersion) {
-								keepVersions.add(live.FunctionVersion)
-							}
-
-							const versions = new Set(
-								prunable
-									.map(item => item.functionVersion)
-									.filter(version => version && !keepVersions.has(version))
-							)
+							const versions = await selectPrunableVersions({ lambda, functionName, items, prunable })
 
 							for (const version of versions) {
-								try {
-									await lambda.send(
-										new DeleteFunctionCommand({
-											FunctionName: functionName,
-											Qualifier: version,
-										})
-									)
-								} catch (error) {
-									if (
-										!isError(error, 'ResourceNotFoundException') &&
-										!isError(error, 'ResourceConflictException')
-									) {
-										throw error
-									}
-								}
+								await pruneFunctionVersion(lambda, functionName, version)
 							}
 
 							// the route store entries & orphaned route tables

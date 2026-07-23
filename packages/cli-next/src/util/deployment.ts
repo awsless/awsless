@@ -1,6 +1,6 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import { GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import { DeleteFunctionCommand, GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
 import {
 	AnyTable,
 	define,
@@ -28,7 +28,7 @@ import {
 	setActiveRouteDeployment,
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
-import { getLambdaAlias, LIVE_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
+import { deleteLambdaAlias, getLambdaAlias, listLambdaAliases, LIVE_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
@@ -207,6 +207,101 @@ const markPromoted = async (client: DynamoDBClient, appId: string, id: string) =
 
 export const removeDeployment = async (client: DynamoDBClient, appId: string, id: string) => {
 	await deleteItem(table, { appId, id }, { client })
+}
+
+// ------------------------------------------------------------
+// Pruning policy
+
+export type PruneOptions = {
+	branch?: string
+	keep: string
+	main: string
+}
+
+export const selectPrunableDeployments = (items: Deployment[], liveId: string | undefined, options: PruneOptions) => {
+	// The live deployment & the newest other promoted deployment
+	// always survive, so a rollback keeps a target.
+	const rollbackTarget = items
+		.filter(item => item.promotedAt && item.id !== liveId)
+		.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))[0]
+
+	const keep = Math.max(1, Number(options.keep) || 10)
+	const mainSlug = slugifyBranch(options.main)
+	const keptMain = new Set(
+		items
+			.filter(item => item.branch === mainSlug && item.functionVersion)
+			.map(item => item.seq)
+			.sort((a, b) => b - a)
+			.slice(0, keep)
+	)
+	const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+	return items.filter(item => {
+		if (item.id === liveId || item.id === rollbackTarget?.id) {
+			return false
+		}
+
+		if (options.branch) {
+			return item.branch === slugifyBranch(options.branch)
+		}
+
+		// deploys that never finished are abandoned after a day
+		if (!item.functionVersion) {
+			return item.createdAt < dayAgo
+		}
+
+		if (item.branch === mainSlug) {
+			return !keptMain.has(item.seq)
+		}
+
+		// branch deployments are prunable once their commit is merged
+		return item.commit ? isCommitMerged(item.commit, options.main) : false
+	})
+}
+
+export const pruneFunctionVersion = async (lambda: LambdaClient, functionName: string, version: string) => {
+	// The remaining aliases of the version, like the hash named router
+	// aliases, block its deletion & nothing else references them.
+	for (const alias of await listLambdaAliases(lambda, functionName, version)) {
+		if (alias.Name && alias.Name !== LIVE_LAMBDA_ALIAS) {
+			await deleteLambdaAlias(lambda, functionName, alias.Name)
+		}
+	}
+
+	try {
+		await lambda.send(
+			new DeleteFunctionCommand({
+				FunctionName: functionName,
+				Qualifier: version,
+			})
+		)
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+	}
+}
+
+// The function versions that only pruned deployments reference.
+export const selectPrunableVersions = async (props: {
+	lambda: LambdaClient
+	functionName: string
+	items: Deployment[]
+	prunable: Deployment[]
+}) => {
+	const surviving = props.items.filter(item => !props.prunable.includes(item))
+	const kept = new Set(surviving.map(item => item.functionVersion))
+	const live = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
+
+	if (live?.FunctionVersion) {
+		kept.add(live.FunctionVersion)
+	}
+
+	return new Set(
+		props.prunable
+			.map(item => item.functionVersion)
+			.filter((version): version is string => Boolean(version && !kept.has(version)))
+	)
 }
 
 // ------------------------------------------------------------
