@@ -40,7 +40,6 @@
 		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"@types/aws-lambda": "8.10.161",
-		"aws-lambda": "1.0.7",
 		"aws-sdk-vitest-mock": "1.0.55",
 		"type-fest": "5.5.0"
 	}
