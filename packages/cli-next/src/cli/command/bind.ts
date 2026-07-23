@@ -97,7 +97,8 @@ export const bind = (program: Command) => {
 
 				await instance.exited
 
-				process.exit(0)
+				// A signal termination has no exit code, but is still a failure.
+				process.exit(instance.exitCode ?? 1)
 
 				// return
 			})
