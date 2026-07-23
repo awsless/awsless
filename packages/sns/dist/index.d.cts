@@ -1,6 +1,5 @@
 import { SNSClient } from '@aws-sdk/client-sns';
 export { SNSClient } from '@aws-sdk/client-sns';
-import { Mock } from 'vitest';
 
 type Attributes = {
     [key: string]: string;
@@ -20,7 +19,7 @@ declare const publish: ({ client, topic, subject, payload, attributes, region, a
 type Topics = {
     [key: string]: (payload: any) => any;
 };
-declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
+declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: any; };
 
 declare const snsClient: {
     (): SNSClient;

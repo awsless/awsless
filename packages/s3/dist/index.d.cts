@@ -87,6 +87,6 @@ type CreateSignedDownloadUrlProps = {
 };
 declare const createSignedDownloadUrl: ({ client, bucket, key, versionId, expires, }: CreateSignedDownloadUrlProps) => Promise<string>;
 
-declare const mockS3: () => Mock<any, any>;
+declare const mockS3: () => Mock;
 
 export { type Body, type BodyStream, type CopyObjectProps, type CreateSignedDownloadUrlProps, type CreateSignedUploadUrlProps, type DeleteObjectProps, type GetObjectProps, type HeadObjectProps, type PutObjectProps, copyObject, createSignedDownloadUrl, createSignedUploadUrl, deleteObject, getObject, headObject, mockS3, putObject, s3Client };

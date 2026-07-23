@@ -1,6 +1,5 @@
 import { SchedulerClient } from '@aws-sdk/client-scheduler';
 import { Duration } from '@awsless/duration';
-import { Mock } from 'vitest';
 
 type CreateSchedule = {
     name: string;
@@ -21,7 +20,7 @@ declare const schedule: ({ client, name, group, payload, schedule, idempotentKey
 type Lambdas = {
     [key: string]: (payload: any) => any;
 };
-declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
+declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: any; };
 
 declare const schedulerClient: {
     (): SchedulerClient;

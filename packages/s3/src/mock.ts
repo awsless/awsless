@@ -53,7 +53,7 @@ class MemoryStore {
 	}
 }
 
-export const mockS3 = () => {
+export const mockS3 = (): Mock => {
 	const fn = vi.fn()
 	const store = new MemoryStore()
 	const s3ClientMock = mockClient(S3Client)
