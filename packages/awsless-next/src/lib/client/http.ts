@@ -74,7 +74,7 @@ export const createHttpClient = <S extends Schema>(fetcher: HttpFetcher) => {
 		props?: Props<GetRoute<S, M, P>>
 	) => {
 		const path = routeKey.replaceAll(/{([a-z0-9-]+)}/g, key => {
-			return props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? ''
+			return encodeURIComponent(props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? '')
 		})
 
 		return fetcher({

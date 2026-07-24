@@ -70,7 +70,7 @@ export class SsmStore {
 
 		await this.client.send(
 			new PutParameterCommand({
-				Type: ParameterType.STRING,
+				Type: ParameterType.SECURE_STRING,
 				Name: this.getName(name),
 				Value: value,
 				Overwrite: true,

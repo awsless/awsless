@@ -169,6 +169,8 @@ const parseJsonLog = (
 	} catch (error) {}
 
 	if (
+		typeof json === 'object' &&
+		json !== null &&
 		'level' in json &&
 		typeof json.level === 'string' &&
 		'timestamp' in json &&

@@ -16,7 +16,7 @@ import {
 	updateItem,
 } from '@awsless/dynamodb'
 import { StateBackend } from '@terraforge/core'
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { userInfo } from 'node:os'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
@@ -58,7 +58,15 @@ const git = (command: string) => {
 }
 
 export const isCommitMerged = (commit: string, branch: string) => {
-	return git(`merge-base --is-ancestor ${JSON.stringify(commit)} ${JSON.stringify(branch)}`) !== undefined
+	try {
+		// execFile with an argv array, so commit/branch never reach a shell.
+		execFileSync('git', ['merge-base', '--is-ancestor', commit, branch], {
+			stdio: ['ignore', 'pipe', 'ignore'],
+		})
+		return true
+	} catch {
+		return false
+	}
 }
 
 // ------------------------------------------------------------

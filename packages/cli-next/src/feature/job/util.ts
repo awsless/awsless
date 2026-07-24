@@ -151,6 +151,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 						Effect: pascalCase(statement.effect ?? 'allow'),
 						Action: statement.actions,
 						Resource: statement.resources,
+						Condition: statement.conditions,
 					})),
 				})
 			)

@@ -196,10 +196,12 @@ export const domainFeature = defineFeature({
 		}
 
 		ctx.addGlobalPermission({
-			actions: ['ses:*'],
+			actions: ['ses:SendEmail', 'ses:SendRawEmail'],
 			resources: [
-				// `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
-				'*',
+				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
+				// Sending through the app configuration set is authorized against
+				// its own ARN, not just the identity.
+				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:configuration-set/${ctx.app.name}`,
 			],
 		})
 	},

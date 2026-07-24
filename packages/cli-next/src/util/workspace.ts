@@ -145,7 +145,7 @@ export const pullRemoteState = async (app: App, stateBackend: StateBackend) => {
 			await rm(file)
 		}
 	} else {
-		await writeFile(file, JSON.stringify(state, undefined, 2))
+		await writeFile(file, JSON.stringify(state, undefined, 2), { mode: 0o600 })
 	}
 }
 

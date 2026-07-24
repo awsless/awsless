@@ -100,7 +100,9 @@ export const functionFeature = defineFeature({
 				// 'lambda:ListFunctions',
 				// 'lambda:GetFunction',
 			],
-			resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
+			resources: [
+				`arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.appConfig.name}--*`,
+			],
 		})
 	},
 	onStack(ctx) {
