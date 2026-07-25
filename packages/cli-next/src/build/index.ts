@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { directories } from '../util/path.js'
 import { createTimer } from '../util/timer.js'
@@ -48,6 +48,9 @@ export const build = (type: string, name: string, builder: Builder, props: Build
 				cached: true,
 			}
 		}
+
+		// Builders replace their output in place, so a stale entry can outlive it.
+		await rm(cacheFile, { force: true })
 
 		const time = createTimer()
 		const meta = await callback(async (file, data) => {

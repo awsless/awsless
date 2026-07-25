@@ -6,6 +6,7 @@ import { rolldown } from 'rolldown'
 // import natives from 'rollup-plugin-natives'
 import { importAsString } from 'rollup-plugin-string-import'
 import { debugError } from '../../../cli/debug.js'
+import { ExpectedError } from '../../../error.js'
 import { directories } from '../../../util/path.js'
 import { File } from './zip.js'
 
@@ -41,6 +42,11 @@ export const bundleTypeScriptWithRolldown = async ({
 					: id.startsWith(`${directories.root}/`) && !id.includes('/node_modules/'),
 		},
 		onwarn: error => {
+			// Only a warning, so the bare specifier would ship & fail on first request.
+			if (error.code === 'UNRESOLVED_IMPORT') {
+				throw new ExpectedError(error.message)
+			}
+
 			debugError(error.message)
 		},
 		plugins: [
@@ -62,7 +68,8 @@ export const bundleTypeScriptWithRolldown = async ({
 
 					return {
 						code: await readFile(file, 'utf8'),
-						moduleType: extension === '.tsx' ? 'tsx' : extension === '.jsx' ? 'jsx' : typescript ? 'ts' : 'js',
+						moduleType:
+							extension === '.tsx' ? 'tsx' : extension === '.jsx' ? 'jsx' : typescript ? 'ts' : 'js',
 					}
 				},
 			},
@@ -124,9 +131,14 @@ export const bundleTypeScriptWithRolldown = async ({
 	}
 }
 
-// Local test servers must never ship inside a production bundle. They spawn
+// Test-only packages must never ship inside a production bundle. They spawn
 // processes, rely on CJS globals like __dirname, and crash the ESM runtime.
-const TEST_ONLY_MODULES = ['dynamo-db-local', '@awsless/dynamodb-server', 'redis-memory-server']
+const TEST_ONLY_MODULES = ['dynamo-db-local', '@awsless/dynamodb-server', 'redis-memory-server', 'aws-sdk-vitest-mock']
+
+// pnpm resolves a workspace link to its realpath, so there is no node_modules.
+export const findPackage = (id: string, names: string[]) => {
+	return names.find(name => id.includes(`/${name.replace(/^@[^/]+\//, '')}/`))
+}
 
 const assertNoTestOnlyModules = (output: Array<{ type: string; moduleIds?: string[] }>) => {
 	for (const item of output) {
@@ -135,7 +147,7 @@ const assertNoTestOnlyModules = (output: Array<{ type: string; moduleIds?: strin
 		}
 
 		for (const id of item.moduleIds ?? []) {
-			const found = TEST_ONLY_MODULES.find(name => id.includes(`/node_modules/${name}/`))
+			const found = findPackage(id, TEST_ONLY_MODULES)
 
 			if (found) {
 				throw new Error(

@@ -84,8 +84,13 @@ export const siteFeature = defineFeature({
 							instance.exited,
 						])
 
-						if (instance.exitCode !== null && instance.exitCode > 0) {
-							throw new ExpectedError(`Site build failed:\n${(errors.trim() || output.trim()).slice(-2000)}`)
+						// A killed build reports a null exit code.
+						if (instance.exitCode !== 0) {
+							const reason = instance.signalCode ? ` (${instance.signalCode})` : ''
+
+							throw new ExpectedError(
+								`Site build failed${reason}:\n${(errors.trim() || output.trim()).slice(-2000)}`
+							)
 						}
 
 						// await execCommand({
@@ -194,8 +199,7 @@ export const siteFeature = defineFeature({
 						}
 
 						// one route serves every asset of this site version
-						const pathPattern =
-							props.path === '/' ? '' : props.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+						const pathPattern = props.path === '/' ? '' : props.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 						staticRoutes[join(props.path, '*.')] = {
 							type: 's3',
