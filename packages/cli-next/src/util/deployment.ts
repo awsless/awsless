@@ -16,7 +16,7 @@ import {
 	updateItem,
 } from '@awsless/dynamodb'
 import { StateBackend } from '@terraforge/core'
-import { execFileSync, execSync } from 'node:child_process'
+import { isAfter, subHours } from 'date-fns'
 import { userInfo } from 'node:os'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
@@ -28,6 +28,7 @@ import {
 	setActiveRouteDeployment,
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
+import { currentBranch, currentCommit, currentCommitMessage, isCommitMerged } from './git.js'
 import { deleteLambdaAlias, getLambdaAlias, listLambdaAliases, LIVE_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
@@ -39,34 +40,7 @@ import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 // Lambda alias names only allow [a-zA-Z0-9-_].
 export const slugifyBranch = (branch?: string) => {
-	return (
-		(branch ?? '')
-			.replace(/[^a-zA-Z0-9_-]+/g, '-')
-			.replace(/^-+|-+$/g, '') || 'local'
-	)
-}
-
-// ------------------------------------------------------------
-// Git
-
-const git = (command: string) => {
-	try {
-		return execSync(`git ${command}`, { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }).trim()
-	} catch {
-		return
-	}
-}
-
-export const isCommitMerged = (commit: string, branch: string) => {
-	try {
-		// execFile with an argv array, so commit/branch never reach a shell.
-		execFileSync('git', ['merge-base', '--is-ancestor', commit, branch], {
-			stdio: ['ignore', 'pipe', 'ignore'],
-		})
-		return true
-	} catch {
-		return false
-	}
+	return (branch ?? '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'local'
 }
 
 // ------------------------------------------------------------
@@ -111,11 +85,14 @@ export const deploymentsTable: AnyTable = table
 const latestBranchDeployment = async (client: DynamoDBClient, appId: string, branch: string) => {
 	const items = await listDeployments(client, appId, branch)
 
-	return items.reduce<Deployment | undefined>((latest, item) => ((latest?.seq ?? 0) >= item.seq ? latest : item), undefined)
+	return items.reduce<Deployment | undefined>(
+		(latest, item) => ((latest?.seq ?? 0) >= item.seq ? latest : item),
+		undefined
+	)
 }
 
 export const claimDeployment = async (props: { client: DynamoDBClient; appId: string }): Promise<Deployment> => {
-	const branch = slugifyBranch(git('rev-parse --abbrev-ref HEAD'))
+	const branch = slugifyBranch(currentBranch())
 
 	// Retry when a concurrent deploy claims the same sequence number.
 	while (true) {
@@ -128,8 +105,8 @@ export const claimDeployment = async (props: { client: DynamoDBClient; appId: st
 			seq,
 			createdAt: new Date().toISOString(),
 			user: userInfo().username,
-			commit: git('rev-parse HEAD'),
-			message: git('log -1 --pretty=%s'),
+			commit: currentCommit(),
+			message: currentCommitMessage(),
 		}
 
 		try {
@@ -151,14 +128,18 @@ export const claimDeployment = async (props: { client: DynamoDBClient; appId: st
 
 // Non-deploy commands build the same graph as the last deploy of the branch.
 export const currentDeployment = async (client: DynamoDBClient, appId: string) => {
-	return latestBranchDeployment(client, appId, slugifyBranch(git('rev-parse --abbrev-ref HEAD')))
+	return latestBranchDeployment(client, appId, slugifyBranch(currentBranch()))
 }
 
 export const getDeployment = async (client: DynamoDBClient, appId: string, id: string) => {
 	return getItem(table, { appId, id }, { client })
 }
 
-export const listDeployments = async (client: DynamoDBClient, appId: string, branch?: string): Promise<Deployment[]> => {
+export const listDeployments = async (
+	client: DynamoDBClient,
+	appId: string,
+	branch?: string
+): Promise<Deployment[]> => {
 	const items: Deployment[] = []
 	let cursor: string | undefined
 
@@ -226,6 +207,13 @@ export type PruneOptions = {
 	main: string
 }
 
+// A record without a function version is either still running or abandoned.
+const BUSY_WINDOW_HOURS = 24
+
+export const isDeploymentBusy = (item: Deployment, now = new Date()) => {
+	return !item.functionVersion && isAfter(new Date(item.createdAt), subHours(now, BUSY_WINDOW_HOURS))
+}
+
 export const selectPrunableDeployments = (items: Deployment[], liveId: string | undefined, options: PruneOptions) => {
 	// The live deployment & the newest other promoted deployment
 	// always survive, so a rollback keeps a target.
@@ -242,10 +230,8 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 			.sort((a, b) => b - a)
 			.slice(0, keep)
 	)
-	const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
 	return items.filter(item => {
-		if (item.id === liveId || item.id === rollbackTarget?.id) {
+		if (item.id === liveId || item.id === rollbackTarget?.id || isDeploymentBusy(item)) {
 			return false
 		}
 
@@ -255,7 +241,7 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 
 		// deploys that never finished are abandoned after a day
 		if (!item.functionVersion) {
-			return item.createdAt < dayAgo
+			return true
 		}
 
 		if (item.branch === mainSlug) {
@@ -521,18 +507,17 @@ export const promoteDeployment = async (props: {
 			.map(result => result.reason)
 
 		if (failures.length > 0) {
-			throw new AggregateError([error, ...failures], `Deployment promotion failed and couldn't be fully reverted.`)
+			throw new AggregateError(
+				[error, ...failures],
+				`Deployment promotion failed and couldn't be fully reverted.`
+			)
 		}
 
 		throw error
 	}
 }
 
-const activateDeployment = async (props: {
-	appConfig: AppConfig
-	id?: string
-	rejectStale?: boolean
-}) => {
+const activateDeployment = async (props: { appConfig: AppConfig; id?: string; rejectStale?: boolean }) => {
 	const region = props.appConfig.region
 	const credentials = await getCredentials(props.appConfig.profile)
 	const accountId = await getAccountId(credentials, region)

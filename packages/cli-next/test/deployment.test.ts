@@ -12,13 +12,16 @@ import {
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
 import { DynamoDBClient } from '@awsless/dynamodb'
+import { subHours } from 'date-fns'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
 	claimDeployment,
 	Deployment,
+	isDeploymentBusy,
 	preflightDeployment,
 	previousDeploymentId,
 	promoteDeployment,
+	selectPrunableDeployments,
 	slugifyBranch,
 } from '../src/util/deployment'
 import { notFound } from './_kit'
@@ -329,7 +332,60 @@ describe('deployment keys', () => {
 		expect(slugifyBranch(undefined)).toBe('local')
 		expect(slugifyBranch('***')).toBe('local')
 	})
+})
 
+describe('prune selection', () => {
+	const build = (props: Partial<Deployment> & Pick<Deployment, 'id'>): Deployment => ({
+		appId,
+		branch: 'main',
+		seq: 1,
+		createdAt: new Date().toISOString(),
+		...props,
+	})
+
+	const options = { keep: '10', main: 'main' }
+	const stale = () => subHours(new Date(), 25).toISOString()
+
+	it('should treat a claimed deploy without a function version as busy', () => {
+		expect(isDeploymentBusy(build({ id: 'main-1' }))).toBe(true)
+		expect(isDeploymentBusy(build({ id: 'main-1', functionVersion: '1' }))).toBe(false)
+		expect(isDeploymentBusy(build({ id: 'main-1', createdAt: stale() }))).toBe(false)
+	})
+
+	it('should never prune a busy deployment', () => {
+		expect(selectPrunableDeployments([build({ id: 'main-1' })], undefined, options)).toEqual([])
+	})
+
+	it('should never prune a busy deployment, not even with --branch', () => {
+		const prunable = selectPrunableDeployments([build({ id: 'main-1' })], undefined, {
+			...options,
+			branch: 'main',
+		})
+
+		expect(prunable).toEqual([])
+	})
+
+	it('should prune an unfinished deploy once it is abandoned', () => {
+		const items = [build({ id: 'main-1', createdAt: stale() })]
+
+		expect(selectPrunableDeployments(items, undefined, options).map(item => item.id)).toEqual(['main-1'])
+	})
+
+	it('should prune a finished deployment with --branch', () => {
+		const items = [build({ id: 'feat-1', branch: 'feat', functionVersion: '1' })]
+		const prunable = selectPrunableDeployments(items, undefined, { ...options, branch: 'feat' })
+
+		expect(prunable.map(item => item.id)).toEqual(['feat-1'])
+	})
+
+	it('should keep the live deployment & the rollback target', () => {
+		const items = [
+			build({ id: 'main-1', functionVersion: '1', promotedAt: '2026-01-01T00:00:00.000Z' }),
+			build({ id: 'main-2', seq: 2, functionVersion: '2', promotedAt: '2026-01-02T00:00:00.000Z' }),
+		]
+
+		expect(selectPrunableDeployments(items, 'main-2', { ...options, branch: 'main' })).toEqual([])
+	})
 })
 
 describe('deployment claims', () => {

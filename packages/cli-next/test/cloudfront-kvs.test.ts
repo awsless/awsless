@@ -125,7 +125,7 @@ describe('CloudFront route deployments', () => {
 		)
 	})
 
-	it('should only add a mapping for a deployment with unchanged routes', async () => {
+	it('should share the route table of a deployment with unchanged routes', async () => {
 		const { getStore, kvs } = mockAws()
 		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })
 		const created = await provider.createResource({ type: 'route-deployment', state })
@@ -139,10 +139,33 @@ describe('CloudFront route deployments', () => {
 
 		const store = getStore(storeArn)
 		const puts = sent(kvs, UpdateKeysCommand).flatMap(command => command.input.Puts ?? [])
+		const table = deployEntry(store, 'main-2').table
 
-		expect(deployEntry(store, 'main-2').table).toBe(deployEntry(store, 'main-1').table)
-		expect(puts.map(item => item.Key)).toEqual(['$deploy:main-2'])
+		expect(table).toBe(deployEntry(store, 'main-1').table)
+		expect(puts.map(item => item.Key)).toEqual([`${table}:/api/*`, '$deploy:main-2'])
 		expect(store.has('$active')).toBe(false)
+	})
+
+	it('should restore a route table that was pruned away', async () => {
+		const { getStore, kvs } = mockAws()
+		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })
+		const created = await provider.createResource({ type: 'route-deployment', state })
+		const store = getStore(storeArn)
+		const table = deployEntry(store, 'main-1').table
+
+		// prune dropped the rows while prior state still claims them
+		store.delete(`${table}:/api/*`)
+		store.delete('$deploy:main-1')
+		kvs.mockClear()
+
+		await provider.updateResource({
+			type: 'route-deployment',
+			priorState: created.state,
+			proposedState: { ...state, deploymentId: 'main-2' },
+		})
+
+		expect(deployEntry(store, 'main-2').table).toBe(table)
+		expect(store.get(`${table}:/api/*`)).toBe(state.routes[0]!.value)
 	})
 
 	it('should stage the full route table into a replaced store', async () => {
@@ -261,5 +284,4 @@ describe('CloudFront route deployments', () => {
 		await setActiveRouteDeployment(clients.kvs, storeArn)
 		expect(getStore(storeArn).has('$active')).toBe(false)
 	})
-
 })

@@ -135,13 +135,29 @@ export const prune = (program: Command) => {
 					successMessage: 'Done pruning the deployments.',
 					task: () =>
 						withAppReleaseLock(appConfig, async () => {
+							// Redone under the lock, narrowed to what was confirmed.
+							const [freshItems, freshLiveId] = await Promise.all([
+								listDeployments(dynamo, appId),
+								readLiveDeploymentId(lambda, functionName),
+							])
+
+							const confirmed = new Set(prunable.map(item => item.id))
+							const prune = selectPrunableDeployments(freshItems, freshLiveId, options).filter(item =>
+								confirmed.has(item.id)
+							)
+
 							// the deployment aliases go first, so shared
 							// function versions become deletable
-							for (const item of prunable) {
+							for (const item of prune) {
 								await deleteLambdaAlias(lambda, functionName, getDeploymentLambdaAliasName(item.id))
 							}
 
-							const versions = await selectPrunableVersions({ lambda, functionName, items, prunable })
+							const versions = await selectPrunableVersions({
+								lambda,
+								functionName,
+								items: freshItems,
+								prunable: prune,
+							})
 
 							for (const version of versions) {
 								await pruneFunctionVersion(lambda, functionName, version)
@@ -161,13 +177,13 @@ export const prune = (program: Command) => {
 								await pruneStoreDeployments(
 									kvs,
 									storeArn,
-									prunable.map(item => item.id)
+									prune.map(item => item.id)
 								)
 							}
 
 							// the manifest records go last, so an interrupted
 							// prune can simply be re-run
-							for (const item of prunable) {
+							for (const item of prune) {
 								await removeDeployment(dynamo, appId, item.id)
 							}
 						}),

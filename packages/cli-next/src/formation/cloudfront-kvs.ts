@@ -120,10 +120,7 @@ const getStoreValue = async (kvs: CloudFrontKeyValueStoreClient, storeArn: strin
 	}
 }
 
-const updateKeys = async (
-	kvs: CloudFrontKeyValueStoreClient,
-	props: { storeArn: string; mutations: Mutation[] }
-) => {
+const updateKeys = async (kvs: CloudFrontKeyValueStoreClient, props: { storeArn: string; mutations: Mutation[] }) => {
 	let etag = (await kvs.send(new DescribeDataStoreCommand({ KvsARN: props.storeArn }))).ETag
 
 	for (const mutations of chunk(props.mutations, 50)) {
@@ -175,14 +172,9 @@ export const getRouteStoreArn = async (cloudfront: CloudFrontClient, name: strin
 // ------------------------------------------------------------
 // Staging
 
-const stageRoutes = async (
-	kvs: CloudFrontKeyValueStoreClient,
-	state: z.output<typeof routeDeploymentInputSchema>,
-	prior?: z.output<typeof routeDeploymentInputSchema>
-) => {
+const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<typeof routeDeploymentInputSchema>) => {
 	const routes = sortRoutes(state.routes)
 	const table = getRouteTableId(routes)
-	const priorTable = prior ? getRouteTableId(sortRoutes(prior.routes)) : undefined
 
 	const deployment: RouteDeployment = {
 		id: state.deploymentId,
@@ -191,7 +183,7 @@ const stageRoutes = async (
 	}
 
 	const mutations: Mutation[] = [
-		...(priorTable === table ? [] : getTableMutations(table, routes)),
+		...getTableMutations(table, routes),
 		{
 			type: 'put',
 			key: `${DEPLOY_KEY_PREFIX}${deployment.id}`,
@@ -227,10 +219,7 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 				return stageRoutes(kvs, routeDeploymentInputSchema.parse(props.state))
 			},
 			async updateResource(props) {
-				const state = routeDeploymentInputSchema.parse(props.proposedState)
-				const prior = routeDeploymentInputSchema.parse(props.priorState)
-
-				return stageRoutes(kvs, state, prior.storeArn === state.storeArn ? prior : undefined)
+				return stageRoutes(kvs, routeDeploymentInputSchema.parse(props.proposedState))
 			},
 		},
 	})
@@ -283,4 +272,3 @@ export const pruneStoreDeployments = async (
 		mutations: orphans.map(entry => ({ type: 'delete', key: entry.key })),
 	})
 }
-
