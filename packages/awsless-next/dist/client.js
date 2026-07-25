@@ -1,6 +1,6 @@
 import {
   createProxy
-} from "./chunk-2LRBH7VV.js";
+} from "./chunk-XERFMF6Z.js";
 
 // src/lib/client/auth.ts
 import { constantCase } from "change-case";
@@ -53,7 +53,7 @@ var createHttpFetcher = (host) => {
 var createHttpClient = (fetcher) => {
   const fetch2 = (method, routeKey, props) => {
     const path = routeKey.replaceAll(/{([a-z0-9-]+)}/g, (key) => {
-      return props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? "";
+      return encodeURIComponent(props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? "");
     });
     return fetcher({
       headers: new Headers(props?.headers),

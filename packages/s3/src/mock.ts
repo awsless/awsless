@@ -7,6 +7,7 @@ import {
 	GetObjectCommandInput,
 	HeadObjectCommand,
 	NoSuchKey,
+	NotFound,
 	PutObjectCommand,
 	PutObjectCommandInput,
 	S3Client,
@@ -107,9 +108,10 @@ export const mockS3 = (): Mock => {
 			}
 		}
 
-		throw new NoSuchKey({
+		// Real HeadObject answers with a bodiless 404, not NoSuchKey.
+		throw new NotFound({
 			$metadata: {},
-			message: 'No such key',
+			message: 'Not found',
 		})
 	})
 

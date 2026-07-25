@@ -15,6 +15,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   NoSuchKey,
+  NotFound,
   PutObjectCommand
 } from "@aws-sdk/client-s3";
 import { createPresignedPost as signedPost } from "@aws-sdk/s3-presigned-post";
@@ -80,7 +81,7 @@ var headObject = async ({ client = s3Client(), bucket, key, versionId }) => {
   try {
     result = await client.send(command);
   } catch (error) {
-    if (error instanceof NoSuchKey) {
+    if (error instanceof NotFound || error instanceof NoSuchKey) {
       return;
     }
     throw error;
@@ -168,6 +169,7 @@ import {
   GetObjectCommand as GetObjectCommand2,
   HeadObjectCommand as HeadObjectCommand2,
   NoSuchKey as NoSuchKey2,
+  NotFound as NotFound2,
   PutObjectCommand as PutObjectCommand2,
   S3Client as S3Client3
 } from "@aws-sdk/client-s3";
@@ -263,9 +265,9 @@ var mockS3 = () => {
         ChecksumSHA1: data.sha1
       };
     }
-    throw new NoSuchKey2({
+    throw new NotFound2({
       $metadata: {},
-      message: "No such key"
+      message: "Not found"
     });
   });
   s3ClientMock.on(CopyObjectCommand2).callsFake(async (input) => {
