@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
+import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
@@ -22,9 +23,13 @@ export const test = (program: Command) => {
 					return 'No tests found.'
 				}
 
-				await runTests(tests, stacks, options?.filters, {
+				const passed = await runTests(tests, stacks, options?.filters, {
 					showLogs: true,
 				})
+
+				if (!passed) {
+					throw new Cancelled()
+				}
 
 				return 'All tests finished.'
 			})

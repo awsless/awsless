@@ -185,6 +185,8 @@ const parseJsonLog = (
 	}
 
 	if (
+		typeof json === 'object' &&
+		json !== null &&
 		'type' in json &&
 		typeof json.type === 'string' &&
 		json.type.startsWith('platform') &&
