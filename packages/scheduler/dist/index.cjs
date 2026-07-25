@@ -95,8 +95,8 @@ var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var mockScheduler = (lambdas) => {
   const list = (0, import_utils2.mockObjectValues)(lambdas);
   (0, import_aws_sdk_client_mock.mockClient)(import_client_scheduler3.SchedulerClient).on(import_client_scheduler3.CreateScheduleCommand).callsFake(async (input) => {
-    const parts = input.Target?.Arn?.split(":") ?? [];
-    const name = parts[6] ?? parts[parts.length - 1];
+    const parts = input.Target?.Arn?.split(":") ?? "";
+    const name = parts[parts.length - 1];
     const callback = list[name];
     if (!callback) {
       throw new TypeError(`Scheduler mock function not defined for: ${name}`);

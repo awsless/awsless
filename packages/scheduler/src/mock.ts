@@ -17,9 +17,8 @@ export const mockScheduler = <T extends Lambdas>(lambdas: T) => {
 		// @ts-ignore
 		.on(CreateScheduleCommand)
 		.callsFake(async (input: CreateScheduleCommandInput) => {
-			// arn:aws:lambda:<region>:<account>:function:<name>[:<qualifier>]
-			const parts = input.Target?.Arn?.split(':') ?? []
-			const name = parts[6] ?? parts[parts.length - 1]!
+			const parts = input.Target?.Arn?.split(':') ?? ''
+			const name = parts[parts.length - 1]!
 			const callback = list[name]
 
 			if (!callback) {
