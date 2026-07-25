@@ -1,3 +1,5 @@
+import { Duration } from '@awsless/duration';
+
 interface AuthResources {
 }
 declare const Auth: AuthResources;
@@ -44,7 +46,16 @@ type HttpFetcher = (props: {
     query?: Query;
     body?: Body;
 }) => unknown;
-declare const createHttpFetcher: (host: string) => HttpFetcher;
+declare class HttpError extends Error {
+    readonly status: number;
+    readonly body: string;
+    readonly url: string;
+    constructor(status: number, body: string, url: string);
+}
+type HttpFetcherOptions = {
+    timeout?: Duration;
+};
+declare const createHttpFetcher: (host: string, options?: HttpFetcherOptions) => HttpFetcher;
 declare const createHttpClient: <S extends Schema>(fetcher: HttpFetcher) => {
     fetch: <M extends keyof S, P extends keyof S[M]>(method: M, routeKey: Extract<P, string>, props?: Props<GetRoute<S, M, P>>) => Promise<GetRoute<S, M, P>["response"]>;
     get<P_1 extends keyof S["GET"]>(routeKey: Extract<P_1, string>, props?: Props<GetRoute<S, "GET", P_1>>): Promise<GetRoute<S, "GET", P_1>["response"]>;
@@ -54,4 +65,4 @@ declare const createHttpClient: <S extends Schema>(fetcher: HttpFetcher) => {
 interface RpcSchema {
 }
 
-export { Auth, type AuthResources, type HTTP, type HttpFetcher, type RpcSchema, createHttpClient, createHttpFetcher, getAuthProps };
+export { Auth, type AuthResources, type HTTP, HttpError, type HttpFetcher, type HttpFetcherOptions, type RpcSchema, createHttpClient, createHttpFetcher, getAuthProps };

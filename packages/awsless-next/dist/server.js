@@ -224,10 +224,16 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
           return send(payload, invokeOptions);
         }
         const cacheKey = stringify3([routeKey, payload, invokeOptions.qualifier]);
-        if (!cache.has(cacheKey)) {
-          cache.set(cacheKey, send(payload, invokeOptions));
+        const cached = cache.get(cacheKey);
+        if (cached) {
+          return cached;
         }
-        return cache.get(cacheKey);
+        const pending = send(payload, invokeOptions).catch((error) => {
+          cache.delete(cacheKey);
+          throw error;
+        });
+        cache.set(cacheKey, pending);
+        return pending;
       }
     };
     const call = ctx[name];
@@ -260,7 +266,13 @@ var mockFunction = (cb) => {
 
 // src/lib/mock/metric.ts
 import { mockCloudWatch } from "@awsless/cloudwatch";
-var mockMetric = () => {
+import { constantCase } from "change-case";
+var mockMetric = (metrics = {}) => {
+  for (const [stack, names] of Object.entries(metrics)) {
+    for (const [name, unit] of Object.entries(names)) {
+      process.env[`METRIC_${constantCase(stack)}_${constantCase(name)}`] = unit;
+    }
+  }
   return mockCloudWatch();
 };
 
@@ -269,10 +281,10 @@ import { mockSQS } from "@awsless/sqs";
 
 // src/lib/server/instance.ts
 import { getCachedQueueUrl, sendMessage } from "@awsless/sqs";
-import { constantCase } from "change-case";
+import { constantCase as constantCase2 } from "change-case";
 var getInstanceQueueName = bindLocalResourceName("instance");
 var getInstanceQueueUrl = (name, stack = getStack()) => {
-  return process.env[`INSTANCE_${constantCase(stack)}_${constantCase(name)}_URL`];
+  return process.env[`INSTANCE_${constantCase2(stack)}_${constantCase2(name)}_URL`];
 };
 var Instance = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
@@ -376,13 +388,13 @@ import {
   sendMessage as sendMessage2,
   sendMessageBatch
 } from "@awsless/sqs";
-import { constantCase as constantCase2 } from "change-case";
+import { constantCase as constantCase3 } from "change-case";
 var bindQueueBaseName = bindLocalResourceName("queue");
 var getQueueName = (name, stack = getStack()) => {
   return `${bindQueueBaseName(name, stack)}.fifo`;
 };
 var getQueueUrl = (name, stack = getStack()) => {
-  return process.env[`QUEUE_${constantCase2(stack)}_${constantCase2(name)}_URL`];
+  return process.env[`QUEUE_${constantCase3(stack)}_${constantCase3(name)}_URL`];
 };
 var Queue = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((queue) => {
@@ -471,7 +483,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
     const routeKey = formatRouteKey(stackName, "task", taskName);
     const ctx = {
       [name]: async (payload, options = {}) => {
-        if (IS_TEST) {
+        if (IS_TEST && !options.schedule) {
           await invoke3({
             ...options,
             type: "Event",
@@ -515,7 +527,13 @@ var mockTask = (cb) => {
   });
   cb(mock);
   mockLambda3(list);
-  mockScheduler(list);
+  mockScheduler({
+    ...list,
+    [BUNDLE_NAME]: vi.fn(async (payload) => {
+      const [stack, , name] = payload[ROUTE_PROPERTY].split(":");
+      return list[getTaskName(name, stack)]?.(payload.event);
+    })
+  });
   beforeEach && beforeEach(() => {
     for (const item of Object.values(list)) {
       item.mockClear();
@@ -567,11 +585,11 @@ var mockTopic = (cb) => {
 };
 
 // src/lib/server/auth.ts
-import { constantCase as constantCase3 } from "change-case";
+import { constantCase as constantCase4 } from "change-case";
 var getAuthProps = (name) => {
   return {
-    userPoolId: process.env[`AUTH_${constantCase3(name)}_USER_POOL_ID`],
-    clientId: process.env[`AUTH_${constantCase3(name)}_CLIENT_ID`]
+    userPoolId: process.env[`AUTH_${constantCase4(name)}_USER_POOL_ID`],
+    clientId: process.env[`AUTH_${constantCase4(name)}_CLIENT_ID`]
   };
 };
 var Auth = /* @__PURE__ */ createProxy((name) => {
@@ -594,9 +612,9 @@ var Auth = /* @__PURE__ */ createProxy((name) => {
 // src/lib/server/cache.ts
 import { getContext } from "@awsless/lambda";
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
-import { constantCase as constantCase4 } from "change-case";
+import { constantCase as constantCase5 } from "change-case";
 var getCacheProps = (name, stack = getStack()) => {
-  const prefix = `CACHE_${constantCase4(stack)}_${constantCase4(name)}`;
+  const prefix = `CACHE_${constantCase5(stack)}_${constantCase5(name)}`;
   return {
     host: process.env[`${prefix}_HOST`],
     port: parseInt(process.env[`${prefix}_PORT`], 10)
@@ -716,7 +734,7 @@ import {
   createSizeMetric,
   putData
 } from "@awsless/cloudwatch";
-import { constantCase as constantCase5, kebabCase as kebabCase5 } from "change-case";
+import { constantCase as constantCase6, kebabCase as kebabCase5 } from "change-case";
 var getMetricName = (name) => {
   return kebabCase5(name);
 };
@@ -730,12 +748,10 @@ var Metric = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((metricName) => {
     const name = getMetricName(metricName);
     const namespace = getMetricNamespace(stack);
-    const unit = process.env[`METRIC_${constantCase5(stack)}_${constantCase5(metricName)}`];
+    const unit = process.env[`METRIC_${constantCase6(stack)}_${constantCase6(metricName)}`];
     let metric;
-    if (!unit && !IS_TEST) {
+    if (!unit) {
       throw new TypeError(`Metric "${name}" isn't defined in your stack.`);
-    } else if (!unit) {
-      metric = createMetric({ name, namespace });
     } else {
       const factories = {
         number: createMetric,
@@ -793,11 +809,11 @@ var onErrorLogSchema = object({
 
 // src/lib/server/search.ts
 import { define, searchClient } from "@awsless/open-search";
-import { constantCase as constantCase6 } from "change-case";
+import { constantCase as constantCase7 } from "change-case";
 var getSearchName = bindLocalResourceName("search");
 var getSearchProps = (name, stack = getStack()) => {
   return {
-    domain: process.env[`SEARCH_${constantCase6(stack)}_${constantCase6(name)}_DOMAIN`]
+    domain: process.env[`SEARCH_${constantCase7(stack)}_${constantCase7(name)}_DOMAIN`]
   };
 };
 var Search = /* @__PURE__ */ createProxy((stack) => {

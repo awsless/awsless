@@ -1,3 +1,5 @@
+import { Duration, seconds, toMilliSeconds } from '@awsless/duration'
+
 export interface HTTP {}
 
 type Method = 'GET' | 'POST'
@@ -32,7 +34,25 @@ export type HttpFetcher = (props: {
 	body?: Body
 }) => unknown
 
-export const createHttpFetcher = (host: string): HttpFetcher => {
+export class HttpError extends Error {
+	constructor(
+		readonly status: number,
+		readonly body: string,
+		readonly url: string
+	) {
+		super(`HTTP ${status} from ${url}: ${body.slice(0, 500)}`)
+		this.name = 'HttpError'
+	}
+}
+
+export type HttpFetcherOptions = {
+	// Without one a hung upstream holds the caller until its own timeout.
+	timeout?: Duration
+}
+
+export const createHttpFetcher = (host: string, options: HttpFetcherOptions = {}): HttpFetcher => {
+	const timeout = toMilliSeconds(options.timeout ?? seconds(30))
+
 	return async ({ method, path, headers, body, query }) => {
 		const url = new URL(path, host)
 
@@ -59,11 +79,16 @@ export const createHttpFetcher = (host: string): HttpFetcher => {
 			method,
 			headers,
 			body: payload,
+			signal: AbortSignal.timeout(timeout),
 		})
 
-		const result = await response.json()
+		// A non-2xx body is rarely json, so reading it as text keeps the status
+		// & the real message instead of failing inside json parsing.
+		if (!response.ok) {
+			throw new HttpError(response.status, await response.text().catch(() => ''), url.toString())
+		}
 
-		return result
+		return await response.json()
 	}
 }
 

@@ -63,12 +63,23 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 				}
 
 				const cacheKey = stringify([routeKey, payload, invokeOptions.qualifier])
+				const cached = cache.get(cacheKey)
 
-				if (!cache.has(cacheKey)) {
-					cache.set(cacheKey, send(payload, invokeOptions))
+				if (cached) {
+					return cached
 				}
 
-				return cache.get(cacheKey)
+				// The module scope outlives the invocation, so a rejection is
+				// evicted instead of being replayed for the life of the container.
+				const pending = send(payload, invokeOptions).catch(error => {
+					cache.delete(cacheKey)
+
+					throw error
+				})
+
+				cache.set(cacheKey, pending)
+
+				return pending
 			},
 		}
 

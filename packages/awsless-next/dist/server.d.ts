@@ -1,3 +1,4 @@
+import { Unit } from '@awsless/cloudwatch';
 import * as _awsless_validate from '@awsless/validate';
 import { Duration } from '@awsless/duration';
 import { UUID } from 'node:crypto';
@@ -22,7 +23,7 @@ interface FunctionMockResponse {
 }
 declare const mockFunction: (cb: (mock: FunctionMock) => void) => FunctionMockResponse;
 
-declare const mockMetric: () => void;
+declare const mockMetric: (metrics?: Record<string, Record<string, Unit>>) => void;
 
 interface InstanceMock {
 }

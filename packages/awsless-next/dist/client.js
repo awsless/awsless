@@ -23,7 +23,21 @@ var getAuthProps = (name) => {
 };
 
 // src/lib/client/http.ts
-var createHttpFetcher = (host) => {
+import { seconds, toMilliSeconds } from "@awsless/duration";
+var HttpError = class extends Error {
+  constructor(status, body, url) {
+    super(`HTTP ${status} from ${url}: ${body.slice(0, 500)}`);
+    this.status = status;
+    this.body = body;
+    this.url = url;
+    this.name = "HttpError";
+  }
+  status;
+  body;
+  url;
+};
+var createHttpFetcher = (host, options = {}) => {
+  const timeout = toMilliSeconds(options.timeout ?? seconds(30));
   return async ({ method, path, headers, body, query }) => {
     const url = new URL(path, host);
     if (query) {
@@ -44,10 +58,13 @@ var createHttpFetcher = (host) => {
     const response = await fetch(url, {
       method,
       headers,
-      body: payload
+      body: payload,
+      signal: AbortSignal.timeout(timeout)
     });
-    const result = await response.json();
-    return result;
+    if (!response.ok) {
+      throw new HttpError(response.status, await response.text().catch(() => ""), url.toString());
+    }
+    return await response.json();
   };
 };
 var createHttpClient = (fetcher) => {
@@ -75,6 +92,7 @@ var createHttpClient = (fetcher) => {
 };
 export {
   Auth,
+  HttpError,
   createHttpClient,
   createHttpFetcher,
   getAuthProps

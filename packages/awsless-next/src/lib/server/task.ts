@@ -22,8 +22,9 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 		const ctx: Record<string, any> = {
 			[name]: async (payload: unknown, options: Options = {}) => {
 				// In tests we keep invoking the per-task name
-				// so that the task mocks keep working.
-				if (IS_TEST) {
+				// so that the task mocks keep working. A scheduled task still
+				// goes through the scheduler, or it would run right away.
+				if (IS_TEST && !options.schedule) {
 					await invoke({
 						...options,
 						type: 'Event',
