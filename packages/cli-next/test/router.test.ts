@@ -1,6 +1,7 @@
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
 import { describe, expect, it, vi } from 'vitest'
 import { getViewerRequestFunctionCode } from '../src/feature/router/router-code'
+import { RouteSchema } from '../src/feature/router/schema'
 import { createTestApp } from './_kit'
 
 type Request = {
@@ -35,10 +36,9 @@ const evaluate = (code: string, values: Map<string, string>) => {
 		kvs: () => ({ get }),
 		updateRequestOrigin: vi.fn(),
 	}
-	const handler = new Function(
-		'cf',
-		`${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`
-	)(cf) as (event: { request: Request }) => Promise<Request | Response>
+	const handler = new Function('cf', `${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`)(
+		cf
+	) as (event: { request: Request }) => Promise<Request | Response>
 
 	return { get, handler, updateRequestOrigin: cf.updateRequestOrigin }
 }
@@ -209,7 +209,9 @@ describe('router routes', () => {
 		// The cloudfront-js-2.0 runtime rejects for...of at parse time,
 		// which breaks the whole function with a 503 on every request.
 		for (const preview of [true, false]) {
-			expect(getViewerRequestFunctionCode({ router: 'main', preview })).not.toMatch(/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/)
+			expect(getViewerRequestFunctionCode({ router: 'main', preview })).not.toMatch(
+				/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/
+			)
 		}
 	})
 
@@ -294,7 +296,12 @@ describe('router routes', () => {
 		const response = (await handler({ request: createRequest('/removed') })) as Response
 
 		expect(response.statusCode).toBe(404)
-		expect(get.mock.calls.map(([key]) => key)).toEqual(['$active', 'v1:main:/removed', 'v1:main:/removed/*', 'v1:main:/*'])
+		expect(get.mock.calls.map(([key]) => key)).toEqual([
+			'$active',
+			'v1:main:/removed',
+			'v1:main:/removed/*',
+			'v1:main:/*',
+		])
 	})
 
 	it('should preserve viewer authorization for Lambda routes', async () => {
@@ -333,6 +340,73 @@ describe('router routes', () => {
 		const result = (await handler({ request })) as Request
 
 		expect(result.headers['x-awsless-authorization']).toBeUndefined()
+	})
+
+	it('should match trailing slash urls against their exact route', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/about', route('site.example.com')],
+			['v1:main:/docs/guide', route('site.example.com')],
+		])
+		const { handler } = createRouter(values)
+		const invoke = async (path: string) => (await handler({ request: createRequest(path) })) as Request
+
+		await expect(invoke('/about/')).resolves.toMatchObject({
+			headers: { 'x-origin': { value: 'site.example.com' } },
+		})
+		await expect(invoke('/docs/guide/')).resolves.toMatchObject({
+			headers: { 'x-origin': { value: 'site.example.com' } },
+		})
+		await expect(invoke('/about')).resolves.toMatchObject({
+			headers: { 'x-origin': { value: 'site.example.com' } },
+		})
+	})
+
+	it('should only accept single segment router paths', () => {
+		for (const path of ['/', '/api', '/rpc-v2', '/api_internal']) {
+			expect(RouteSchema.safeParse(path).success, path).toBe(true)
+		}
+
+		for (const path of ['/docs/v2', '/api.v2', '/docs/', 'docs', '/api/*']) {
+			expect(RouteSchema.safeParse(path).success, path).toBe(false)
+		}
+	})
+
+	it('should discard a spoofed forwarded host header', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		])
+		const { handler } = createRouter(values)
+		const request = createRequest('/api')
+
+		request.headers['x-forwarded-host'] = { value: 'evil.com' }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.headers['x-forwarded-host']).toBeUndefined()
+	})
+
+	it('should forward the host when the route opts in', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/api',
+				JSON.stringify({
+					type: 'lambda',
+					domainName: 'bundle.lambda-url.us-east-1.on.aws',
+					forwardHost: true,
+				}),
+			],
+		])
+		const { handler } = createRouter(values)
+		const request = createRequest('/api', 'example.com')
+
+		request.headers['x-forwarded-host'] = { value: 'evil.com' }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.headers['x-forwarded-host']).toEqual({ value: 'example.com' })
 	})
 
 	it('should serve assets through the single dotted-catchall route', async () => {
@@ -417,5 +491,4 @@ describe('router routes', () => {
 		expect(page.headers['x-origin']?.value).toBe('ssr.example.com')
 		expect(page.uri).toBe('/docs/getting-started')
 	})
-
 })

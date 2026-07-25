@@ -1,3 +1,9 @@
+import { minutes, seconds, toSeconds } from '@awsless/duration'
+
+// updateRequestOrigin accepts 1-120s, while functions may run for 15 minutes.
+const ORIGIN_READ_TIMEOUT = toSeconds(minutes(2))
+const ORIGIN_CONNECTION_TIMEOUT = toSeconds(seconds(10))
+
 export const getViewerRequestFunctionCode = (props: {
 	router: string
 	blockDirectAccess?: boolean
@@ -213,6 +219,11 @@ function isValidRoute(route, method) {
 }
 
 async function findRoute(path, method, prefix) {
+	// only route selection is normalized, the forwarded uri stays untouched
+	if (path.length > 1 && path.slice(-1) === '/') {
+		path = path.slice(0, -1);
+	}
+
 	const store = cf.kvs();
 	const keys = getPossibleRouteKeys(path);
 
@@ -294,13 +305,12 @@ function setS3Origin(route) {
 function setLambdaOrigin(route) {
 	const config = getRequestOriginConfig(route);
 
-	// CloudFront caps the origin response timeout at 60s without a quota increase.
 	if(typeof config.timeouts.readTimeout !== 'number') {
-		config.timeouts.readTimeout = 120;
+		config.timeouts.readTimeout = ${ORIGIN_READ_TIMEOUT};
 	}
 
 	if(typeof config.timeouts.connectionTimeout !== 'number') {
-		config.timeouts.connectionTimeout = 10;
+		config.timeouts.connectionTimeout = ${ORIGIN_CONNECTION_TIMEOUT};
 	}
 
 	cf.updateRequestOrigin(Object.assign(config, {
@@ -376,6 +386,8 @@ async function handler(event) {
 
 	if(route.forwardHost && headers.host && headers.host.value) {
 		headers['x-forwarded-host'] = { value: headers.host.value };
+	} else {
+		delete headers['x-forwarded-host'];
 	}
 
 	headers['x-origin'] = { value: route.domainName };
