@@ -125,11 +125,14 @@ const CodeSchema = z
 	])
 	.describe('Specify the code of your function.')
 
-// The lambda config is defined by the shared bundle.
-const FnSchema = z.object({
-	code: CodeSchema,
-	handler: HandlerSchema.optional(),
-})
+// The lambda config is defined by the shared bundle, so environment,
+// permissions & memorySize live in defaults.function.
+const FnSchema = z
+	.object({
+		code: CodeSchema,
+		handler: HandlerSchema.optional(),
+	})
+	.strict()
 
 export type FunctionProps = z.output<typeof FnSchema>
 

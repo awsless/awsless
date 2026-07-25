@@ -44,7 +44,12 @@ const ErrorResponseSchema = z
 	])
 	.optional()
 
-export const RouteSchema = z.string().regex(/^\//, 'Route must start with a slash (/)')
+// The route matcher only probes single segment mounts, and treats a dotted
+// first segment as a file at the root.
+export const RouteSchema = z
+	.string()
+	.regex(/^\//, 'Route must start with a slash (/)')
+	.regex(/^\/([^/*.]+)?$/, 'Router paths mount a single segment without dots, like "/api".')
 
 const VisibilitySchema = z.boolean().default(false).describe('Whether to enable CloudWatch metrics for the WAF rule.')
 
@@ -131,160 +136,162 @@ const WafSettingsSchema = z
 export const RouterDefaultSchema = z
 	.record(
 		ResourceIdSchema,
-		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
-			subDomain: z.string().optional(),
+		z
+			.object({
+				domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
+				subDomain: z.string().optional(),
 
-			redirectWww: z
-				.boolean()
-				.default(false)
-				.describe('Redirect all www subdomain requests to your root domain.'),
+				redirectWww: z
+					.boolean()
+					.default(false)
+					.describe('Redirect all www subdomain requests to your root domain.'),
 
-			waf: WafSettingsSchema.optional(),
+				waf: WafSettingsSchema.optional(),
 
-			geoRestrictions: z
-				.array(z.string().length(2).toUpperCase())
-				.default([])
-				.describe('Specifies a blacklist of countries that should be blocked.'),
+				geoRestrictions: z
+					.array(z.string().length(2).toUpperCase())
+					.default([])
+					.describe('Specifies a blacklist of countries that should be blocked.'),
 
-			errors: z
-				.object({
-					400: ErrorResponseSchema.describe('Customize a `400 Bad Request` response.'),
-					403: ErrorResponseSchema.describe('Customize a `403 Forbidden` response.'),
-					404: ErrorResponseSchema.describe('Customize a `404 Not Found` response.'),
-					405: ErrorResponseSchema.describe('Customize a `405 Method Not Allowed` response.'),
-					414: ErrorResponseSchema.describe('Customize a `414 Request-URI` response.'),
-					416: ErrorResponseSchema.describe('Customize a `416 Range Not` response.'),
-					500: ErrorResponseSchema.describe('Customize a `500 Internal Server` response.'),
-					501: ErrorResponseSchema.describe('Customize a `501 Not Implemented` response.'),
-					502: ErrorResponseSchema.describe('Customize a `502 Bad Gateway` response.'),
-					503: ErrorResponseSchema.describe('Customize a `503 Service Unavailable` response.'),
-					504: ErrorResponseSchema.describe('Customize a `504 Gateway Timeout` response.'),
-				})
-				.optional()
-				.describe('Customize the error responses for specific HTTP status codes.'),
+				errors: z
+					.object({
+						400: ErrorResponseSchema.describe('Customize a `400 Bad Request` response.'),
+						403: ErrorResponseSchema.describe('Customize a `403 Forbidden` response.'),
+						404: ErrorResponseSchema.describe('Customize a `404 Not Found` response.'),
+						405: ErrorResponseSchema.describe('Customize a `405 Method Not Allowed` response.'),
+						414: ErrorResponseSchema.describe('Customize a `414 Request-URI` response.'),
+						416: ErrorResponseSchema.describe('Customize a `416 Range Not` response.'),
+						500: ErrorResponseSchema.describe('Customize a `500 Internal Server` response.'),
+						501: ErrorResponseSchema.describe('Customize a `501 Not Implemented` response.'),
+						502: ErrorResponseSchema.describe('Customize a `502 Bad Gateway` response.'),
+						503: ErrorResponseSchema.describe('Customize a `503 Service Unavailable` response.'),
+						504: ErrorResponseSchema.describe('Customize a `504 Gateway Timeout` response.'),
+					})
+					.optional()
+					.describe('Customize the error responses for specific HTTP status codes.'),
 
-			cors: z
-				.object({
-					override: z.boolean().default(false),
-					maxAge: DurationSchema.default('365 days'),
-					exposeHeaders: z.string().array().optional(),
-					credentials: z.boolean().default(false),
-					headers: z.string().array().default(['*']),
-					origins: z.string().array().default(['*']),
-					methods: z
-						.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
-						.array()
-						.default(['ALL']),
-				})
-				.optional()
-				.describe('Specify the cors headers.'),
+				cors: z
+					.object({
+						override: z.boolean().default(false),
+						maxAge: DurationSchema.default('365 days'),
+						exposeHeaders: z.string().array().optional(),
+						credentials: z.boolean().default(false),
+						headers: z.string().array().default(['*']),
+						origins: z.string().array().default(['*']),
+						methods: z
+							.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
+							.array()
+							.default(['ALL']),
+					})
+					.optional()
+					.describe('Specify the cors headers.'),
 
-			passwordAuth: z
-				.object({
-					password: z.string().describe('Password.'),
-				})
-				.optional()
-				.describe(
-					[
-						'Enable password authentication for the router.',
-						'You can authenicate by adding a "authorization" header with the value "Password [YOUR_PASSWORD]".',
-					].join('\n')
-				),
+				passwordAuth: z
+					.object({
+						password: z.string().describe('Password.'),
+					})
+					.optional()
+					.describe(
+						[
+							'Enable password authentication for the router.',
+							'You can authenicate by adding a "authorization" header with the value "Password [YOUR_PASSWORD]".',
+						].join('\n')
+					),
 
-			basicAuth: z
-				.object({
-					username: z.string().describe('Basic auth username.'),
-					password: z.string().describe('Basic auth password.'),
-				})
-				.optional()
-				.describe('Enable basic authentication for the router.'),
+				basicAuth: z
+					.object({
+						username: z.string().describe('Basic auth username.'),
+						password: z.string().describe('Basic auth password.'),
+					})
+					.optional()
+					.describe('Enable basic authentication for the router.'),
 
-			// security: z
-			// 	.object({
-			// 		contentSecurityPolicy: z.object({
-			// 			override: z.boolean().default(false),
-			// 			policy: z.string(),
-			// 		})
-			// 		contentSecurityPolicy?: {
-			// 			override?: boolean
-			// 			contentSecurityPolicy: string
-			// 		}
-			// 		contentTypeOptions?: {
-			// 			override?: boolean
-			// 		}
-			// 		frameOptions?: {
-			// 			override?: boolean
-			// 			frameOption?: 'deny' | 'same-origin'
-			// 		}
-			// 		referrerPolicy?: {
-			// 			override?: boolean
-			// 			referrerPolicy?: (
-			// 				'no-referrer' |
-			// 				'no-referrer-when-downgrade' |
-			// 				'origin' |
-			// 				'origin-when-cross-origin' |
-			// 				'same-origin' |
-			// 				'strict-origin' |
-			// 				'strict-origin-when-cross-origin' |
-			// 				'unsafe-url'
-			// 			)
-			// 		}
-			// 		strictTransportSecurity?: {
-			// 			maxAge?: Duration
-			// 			includeSubdomains?: boolean
-			// 			override?: boolean
-			// 			preload?: boolean
-			// 		}
-			// 		xssProtection?: {
-			// 			override?: boolean
-			// 			enable?: boolean
-			// 			modeBlock?: boolean
-			// 			reportUri?: string
-			// 		}
-			// 	})
-			// 	.optional()
-			// 	.describe('Specify the security policy.'),
+				// security: z
+				// 	.object({
+				// 		contentSecurityPolicy: z.object({
+				// 			override: z.boolean().default(false),
+				// 			policy: z.string(),
+				// 		})
+				// 		contentSecurityPolicy?: {
+				// 			override?: boolean
+				// 			contentSecurityPolicy: string
+				// 		}
+				// 		contentTypeOptions?: {
+				// 			override?: boolean
+				// 		}
+				// 		frameOptions?: {
+				// 			override?: boolean
+				// 			frameOption?: 'deny' | 'same-origin'
+				// 		}
+				// 		referrerPolicy?: {
+				// 			override?: boolean
+				// 			referrerPolicy?: (
+				// 				'no-referrer' |
+				// 				'no-referrer-when-downgrade' |
+				// 				'origin' |
+				// 				'origin-when-cross-origin' |
+				// 				'same-origin' |
+				// 				'strict-origin' |
+				// 				'strict-origin-when-cross-origin' |
+				// 				'unsafe-url'
+				// 			)
+				// 		}
+				// 		strictTransportSecurity?: {
+				// 			maxAge?: Duration
+				// 			includeSubdomains?: boolean
+				// 			override?: boolean
+				// 			preload?: boolean
+				// 		}
+				// 		xssProtection?: {
+				// 			override?: boolean
+				// 			enable?: boolean
+				// 			modeBlock?: boolean
+				// 			reportUri?: string
+				// 		}
+				// 	})
+				// 	.optional()
+				// 	.describe('Specify the security policy.'),
 
-			cache: z
-				.object({
-					cookies: z
-						.string()
-						.array()
-						.optional()
-						.describe('Specifies the cookies that CloudFront includes in the cache key.'),
-					headers: z
-						.string()
-						.array()
-						.optional()
-						.describe('Specifies the headers that CloudFront includes in the cache key.'),
-					queries: z
-						.string()
-						.array()
-						.optional()
-						.describe('Specifies the query values that CloudFront includes in the cache key.'),
-				})
-				.optional()
-				.describe(
-					'Specifies the cookies, headers, and query values that CloudFront includes in the cache key.'
-				),
-		}).superRefine((props, ctx) => {
-			if (props.redirectWww && !props.domain) {
-				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
-					path: ['redirectWww'],
-					message: 'The redirectWww option requires a domain to be set.',
-				})
-			}
+				cache: z
+					.object({
+						cookies: z
+							.string()
+							.array()
+							.optional()
+							.describe('Specifies the cookies that CloudFront includes in the cache key.'),
+						headers: z
+							.string()
+							.array()
+							.optional()
+							.describe('Specifies the headers that CloudFront includes in the cache key.'),
+						queries: z
+							.string()
+							.array()
+							.optional()
+							.describe('Specifies the query values that CloudFront includes in the cache key.'),
+					})
+					.optional()
+					.describe(
+						'Specifies the cookies, headers, and query values that CloudFront includes in the cache key.'
+					),
+			})
+			.superRefine((props, ctx) => {
+				if (props.redirectWww && !props.domain) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						path: ['redirectWww'],
+						message: 'The redirectWww option requires a domain to be set.',
+					})
+				}
 
-			if (props.redirectWww && props.subDomain) {
-				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
-					path: ['redirectWww'],
-					message: `The redirectWww option can't be combined with a subDomain, because the domain certificate only covers single level subdomains.`,
-				})
-			}
-		})
+				if (props.redirectWww && props.subDomain) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						path: ['redirectWww'],
+						message: `The redirectWww option can't be combined with a subDomain, because the domain certificate only covers single level subdomains.`,
+					})
+				}
+			})
 	)
 	.optional()
 	.describe(`Define the global Router. Backed by AWS CloudFront.`)

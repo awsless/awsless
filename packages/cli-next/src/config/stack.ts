@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { JobsSchema } from '../feature/job/schema.js'
 import { InstancesSchema } from '../feature/instance/schema.js'
+import { JobsSchema } from '../feature/job/schema.js'
 // import { AuthSchema } from '../feature/auth/schema.js'
 import { CachesSchema } from '../feature/cache/schema.js'
 import { CommandsSchema } from '../feature/command/schema.js'
@@ -34,38 +34,40 @@ const NameSchema = ResourceIdSchema.refine(name => !['base', 'hostedzones'].incl
 	message: `Stack name can't be a reserved name.`,
 }).describe('Stack name.')
 
-export const StackSchema = z.object({
-	$schema: z.string().optional(),
-	name: NameSchema,
-	depends: DependsSchema,
+export const StackSchema = z
+	.object({
+		$schema: z.string().optional(),
+		name: NameSchema,
+		depends: DependsSchema,
 
-	commands: CommandsSchema,
+		commands: CommandsSchema,
 
-	// auth: AuthSchema,
-	// http: HttpSchema,
-	rest: RestSchema,
-	rpc: RpcSchema,
-	configs: ConfigsSchema,
-	crons: CronsSchema,
-	caches: CachesSchema,
-	// topics: TopicsSchema,
-	subscribers: SubscribersSchema,
-	functions: FunctionsSchema,
-	instances: InstancesSchema,
-	jobs: JobsSchema,
-	tasks: TasksSchema,
-	tables: TablesSchema,
-	stores: StoresSchema,
-	// streams: StreamsSchema,
-	queues: QueuesSchema,
-	pubsub: PubSubSchema,
-	searchs: SearchsSchema,
-	sites: SitesSchema,
-	tests: TestsSchema,
-	images: ImagesSchema,
-	icons: IconsSchema,
-	metrics: MetricsSchema,
-})
+		// auth: AuthSchema,
+		// http: HttpSchema,
+		rest: RestSchema,
+		rpc: RpcSchema,
+		configs: ConfigsSchema,
+		crons: CronsSchema,
+		caches: CachesSchema,
+		// topics: TopicsSchema,
+		subscribers: SubscribersSchema,
+		functions: FunctionsSchema,
+		instances: InstancesSchema,
+		jobs: JobsSchema,
+		tasks: TasksSchema,
+		tables: TablesSchema,
+		stores: StoresSchema,
+		// streams: StreamsSchema,
+		queues: QueuesSchema,
+		pubsub: PubSubSchema,
+		searchs: SearchsSchema,
+		sites: SitesSchema,
+		tests: TestsSchema,
+		images: ImagesSchema,
+		icons: IconsSchema,
+		metrics: MetricsSchema,
+	})
+	.strict()
 
 // export type StackConfigInput = z.input<typeof StackSchema>
 export type StackConfig = z.output<typeof StackSchema> & { file: string }
