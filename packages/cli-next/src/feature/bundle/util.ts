@@ -62,7 +62,7 @@ export const buildBundle = (props: {
 	runtime?: string
 }): Builder => {
 	return async (build, { workspace }) => {
-		const runtime = props.runtime ?? join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.mjs')
+		const runtime = props.runtime ?? join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.js')
 		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
 
 		// The entry file maps every route key to a lazy import, so a cold

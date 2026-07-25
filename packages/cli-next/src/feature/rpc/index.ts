@@ -84,7 +84,7 @@ export const rpcFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/rpc.mjs'),
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/rpc.js'),
 				exportName: 'default',
 			})
 

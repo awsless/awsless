@@ -29,7 +29,7 @@ export const onErrorLogFeature = defineFeature({
 
 		bundle.addHandler({
 			routeKey: handlerRoute,
-			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-error-log.mjs'),
+			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-error-log.js'),
 			exportName: 'default',
 		})
 

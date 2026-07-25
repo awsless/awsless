@@ -192,7 +192,7 @@ export const onFailureFeature = defineFeature({
 
 		bundle.addHandler({
 			routeKey: normalizerRoute,
-			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.mjs'),
+			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.js'),
 			exportName: 'default',
 		})
 		registerBundleFunction(ctx, consumerRoute, consumer)

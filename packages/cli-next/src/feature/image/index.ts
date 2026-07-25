@@ -131,7 +131,7 @@ export const imageFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/image.mjs'),
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/image.js'),
 				exportName: 'default',
 				external: ['sharp'],
 			})

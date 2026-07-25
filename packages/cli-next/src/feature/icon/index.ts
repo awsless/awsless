@@ -57,7 +57,7 @@ export const iconFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/icon.mjs'),
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/icon.js'),
 				exportName: 'default',
 			})
 

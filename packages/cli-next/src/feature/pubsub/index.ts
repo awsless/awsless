@@ -350,7 +350,7 @@ export const pubsubFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: publisherRouteKey,
-				file: join(__dirname, '/handlers/pubsub-publisher.mjs'),
+				file: join(__dirname, '/handlers/pubsub-publisher.js'),
 				exportName: 'default',
 			})
 

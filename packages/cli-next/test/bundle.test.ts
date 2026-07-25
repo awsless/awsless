@@ -85,7 +85,7 @@ describe('bundle', () => {
 		const files: Record<string, string> = {}
 		const builder = buildBundle({
 			name: 'side-effect-test',
-			runtime: join(process.cwd(), 'dist/handlers/bundle.mjs'),
+			runtime: join(process.cwd(), 'dist/handlers/bundle.js'),
 			minify: false,
 			handlers: [
 				{
@@ -144,7 +144,7 @@ describe('bundle handler', () => {
 		const scoped = fixture('bundle', 'scoped.ts')
 		const builder = buildBundle({
 			name: 'bundle-handler-test',
-			runtime: join(process.cwd(), 'dist/handlers/bundle.mjs'),
+			runtime: join(process.cwd(), 'dist/handlers/bundle.js'),
 			minify: false,
 			external: ['@awsless/lambda'],
 				handlers: [

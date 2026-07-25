@@ -26,7 +26,7 @@ for (const { name, entry, ...options } of handlers) {
 		...options,
 		entrypoints: [entry],
 		outdir: 'dist/handlers',
-		naming: `${name}.mjs`,
+		naming: `${name}.js`,
 		format: 'esm',
 	})
 

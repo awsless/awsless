@@ -57,7 +57,7 @@ export const createPubSubService = (
 	// ------------------------------------------------------------
 	// Compile the prebuilt server bundle into a bun executable
 
-	const bundleFile = join(__dirname, 'handlers/pubsub-server.mjs')
+	const bundleFile = join(__dirname, 'handlers/pubsub-server.js')
 
 	ctx.registerBuild('pubsub', name, async build => {
 		const hash = createHash('sha1')
