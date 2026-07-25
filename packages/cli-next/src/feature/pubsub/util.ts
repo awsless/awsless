@@ -173,6 +173,7 @@ export const createPubSubService = (
 						Effect: pascalCase(statement.effect ?? 'allow'),
 						Action: statement.actions,
 						Resource: statement.resources,
+						Condition: statement.conditions,
 					})),
 				})
 			)
