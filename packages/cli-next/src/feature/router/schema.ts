@@ -2,6 +2,8 @@ import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { FunctionSchema } from '../function/schema.js'
+import { compileRoutePattern } from './pattern.js'
 
 const ErrorResponsePathSchema = z
 	.string()
@@ -50,6 +52,35 @@ export const RouteSchema = z
 	.string()
 	.regex(/^\//, 'Route must start with a slash (/)')
 	.regex(/^\/([^/*.]+)?$/, 'Router paths mount a single segment without dots, like "/api".')
+
+export const RoutesSchema = z
+	.record(
+		ResourceIdSchema.describe('The router id to add your routes to.'),
+		z
+			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), FunctionSchema)
+			.superRefine((routes, ctx) => {
+				for (const pattern of Object.keys(routes)) {
+					try {
+						compileRoutePattern(pattern)
+					} catch (error) {
+						ctx.addIssue({
+							code: z.ZodIssueCode.custom,
+							path: [pattern],
+							message: error instanceof Error ? error.message : `Invalid route pattern: ${pattern}`,
+						})
+					}
+				}
+			})
+			.describe(
+				[
+					'Define the routes and the lambda function that should handle them.',
+					'Routes can be an exact path like "/sitemap.xml", a wildcard like "/sitemap/*", or contain params like "/sitemap/{locale}/{page}.xml".',
+					'Param values are passed to the function as "x-param-[NAME]" request headers.',
+				].join('\n')
+			)
+	)
+	.optional()
+	.describe('Add routes to your global Router that link a path pattern to a lambda function.')
 
 const VisibilitySchema = z.boolean().default(false).describe('Whether to enable CloudWatch metrics for the WAF rule.')
 

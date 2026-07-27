@@ -1,5 +1,6 @@
 import { createApp } from '../src/app'
 import { AppSchema } from '../src/config/app'
+import { StackSchema } from '../src/config/stack'
 
 export const credentials = async () => ({
 	accessKeyId: 'test',
@@ -13,7 +14,11 @@ export const notFound = (name = 'ResourceNotFoundException') => {
 	return error
 }
 
-export const createTestApp = (defaults: Record<string, unknown> = {}, deploymentId?: string) => {
+export const createTestApp = (
+	defaults: Record<string, unknown> = {},
+	deploymentId?: string,
+	stacks: Record<string, unknown>[] = []
+) => {
 	const appConfig = AppSchema.parse({
 		name: 'test-app',
 		region: 'us-east-1',
@@ -24,7 +29,10 @@ export const createTestApp = (defaults: Record<string, unknown> = {}, deployment
 	return {
 		...createApp({
 			appConfig,
-			stackConfigs: [],
+			stackConfigs: stacks.map(stack => ({
+				...StackSchema.parse(stack),
+				file: `${stack.name}/stack.jsonc`,
+			})),
 			accountId: '123456789012',
 			deploymentId,
 		}),

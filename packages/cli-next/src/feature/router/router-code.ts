@@ -218,6 +218,38 @@ function isValidRoute(route, method) {
 	return true;
 }
 
+function matchRoute(value, path, method) {
+	const list = Array.isArray(value) ? value : [value];
+
+	for(const i in list) {
+		const route = list[i];
+
+		if(!isValidRoute(route, method)) {
+			continue;
+		}
+
+		if(route.match) {
+			const found = path.match(new RegExp(route.match));
+
+			if(!found) {
+				continue;
+			}
+
+			const params = {};
+
+			if(route.params) {
+				for(const p in route.params) {
+					params[route.params[p]] = found[Number(p) + 1];
+				}
+			}
+
+			return { route: route, params: params };
+		}
+
+		return { route: route };
+	}
+}
+
 async function findRoute(path, method, prefix) {
 	// only route selection is normalized, the forwarded uri stays untouched
 	if (path.length > 1 && path.slice(-1) === '/') {
@@ -229,14 +261,34 @@ async function findRoute(path, method, prefix) {
 
 	for(const i in keys) {
 		const key = keys[i];
+		let value;
 
 		try {
-			const route = await store.get(prefix + key, { format: 'json' });
+			value = await store.get(prefix + key, { format: 'json' });
+		} catch (e) {
+			continue;
+		}
 
-			if(isValidRoute(route, method)) {
-				return route;
+		// Route lists that are too big for a single key value pair
+		// are sharded over multiple entries behind a route index.
+		if(value && value.list) {
+			for(let n = 0; n < value.list; n++) {
+				try {
+					const route = await store.get(prefix + key + '#' + n, { format: 'json' });
+					const result = matchRoute(route, path, method);
+
+					if(result) {
+						return result;
+					}
+				} catch (e) {}
 			}
-		} catch (e) {}
+		} else {
+			const result = matchRoute(value, path, method);
+
+			if(result) {
+				return result;
+			}
+		}
 	}
 }
 
@@ -359,13 +411,34 @@ async function handler(event) {
 
 	${prefixCode}
 
-	const route = await findRoute(path, request.method, prefix);
+	const result = await findRoute(path, request.method, prefix);
 
-	if(!route) {
+	if(!result) {
 		return {
 			statusCode: 404,
 			statusDescription: 'Not Found'
 		};
+	}
+
+	const route = result.route;
+
+	// A client provided param header can never reach the origin.
+	const spoofed = [];
+
+	for(const name in headers) {
+		if(name.indexOf('x-param-') === 0) {
+			spoofed.push(name);
+		}
+	}
+
+	for(const i in spoofed) {
+		delete headers[spoofed[i]];
+	}
+
+	if(result.params) {
+		for(const name in result.params) {
+			headers['x-param-' + name.toLowerCase()] = { value: encodeURIComponent(result.params[name]) };
+		}
 	}
 
 	if(route.requestHeaders) {

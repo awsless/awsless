@@ -13,6 +13,7 @@ import { CronsSchema } from '../feature/cron/schema/index.js'
 import { PubSubSchema } from '../feature/pubsub/schema.js'
 import { QueuesSchema } from '../feature/queue/schema.js'
 import { RestSchema } from '../feature/rest/schema.js'
+import { RoutesSchema } from '../feature/router/schema.js'
 import { RpcSchema } from '../feature/rpc/schema.js'
 import { SearchsSchema } from '../feature/search/schema.js'
 import { SitesSchema } from '../feature/site/schema.js'
@@ -36,6 +37,7 @@ export const StackSchema = z
 	.object({
 		$schema: z.string().optional(),
 		name: NameSchema,
+		routes: RoutesSchema,
 
 		commands: CommandsSchema,
 

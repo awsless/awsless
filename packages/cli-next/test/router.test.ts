@@ -492,3 +492,219 @@ describe('router routes', () => {
 		expect(page.uri).toBe('/docs/getting-started')
 	})
 })
+
+describe('router route patterns', () => {
+	it('should compile patterns into route keys, matchers & params', async () => {
+		const { compileRoutePattern } = await import('../src/feature/router/pattern')
+
+		expect(compileRoutePattern('/sitemap.xml')).toEqual({ key: '/sitemap.xml' })
+		expect(compileRoutePattern('/files/*')).toEqual({ key: '/files/*' })
+		expect(compileRoutePattern('/*')).toEqual({ key: '/*' })
+
+		const compiled = compileRoutePattern('/sitemap/{locale}/games/{page}.xml')
+		expect(compiled.key).toBe('/sitemap/*')
+		expect(compiled.params).toEqual(['locale', 'page'])
+		expect('/sitemap/en/games/5.xml'.match(new RegExp(compiled.match!))?.slice(1)).toEqual(['en', '5'])
+		expect('/sitemap/en/static.xml'.match(new RegExp(compiled.match!))).toBeNull()
+
+		const deep = compileRoutePattern('/files/a/*')
+		expect(deep.key).toBe('/files/*')
+		expect('/files/a/b/c'.match(new RegExp(deep.match!))).toBeTruthy()
+		expect('/files/b/c'.match(new RegExp(deep.match!))).toBeNull()
+
+		expect(() => compileRoutePattern('sitemap')).toThrow('must start with a slash')
+		expect(() => compileRoutePattern('/{locale}/home')).toThrow('must be static')
+		expect(() => compileRoutePattern('/api.v1/{id}')).toThrow(`can't contain a dot`)
+		expect(() => compileRoutePattern('/x/{id}/{id}')).toThrow('Duplicate param')
+	})
+
+	it('should match route lists in order & forward params as headers', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/sitemap/*',
+				JSON.stringify([
+					{
+						type: 'lambda',
+						domainName: 'bundle.example.com',
+						match: '^/sitemap/([^/]+)/static\\.xml$',
+						params: ['locale'],
+						requestHeaders: { 'x-awsless-route': 'web:route:static' },
+					},
+					{
+						type: 'lambda',
+						domainName: 'bundle.example.com',
+						match: '^/sitemap/([^/]+)/games/([^/]+)\\.xml$',
+						params: ['locale', 'page'],
+						requestHeaders: { 'x-awsless-route': 'web:route:games' },
+					},
+					{
+						type: 'lambda',
+						domainName: 'bundle.example.com',
+						requestHeaders: { 'x-awsless-route': 'web:route:fallback' },
+					},
+				]),
+			],
+			['v1:main:/*', JSON.stringify({ type: 's3', domainName: 'site.s3.amazonaws.com' })],
+		])
+		const { handler } = createRouter(values)
+		const invoke = async (path: string, headers: Record<string, { value: string }> = {}) => {
+			const request = createRequest(path)
+			Object.assign(request.headers, headers)
+			return (await handler({ request })) as Request
+		}
+
+		// a param route matches & forwards its params
+		const games = await invoke('/sitemap/en/games/5.xml')
+		expect(games.headers['x-awsless-route']?.value).toBe('web:route:games')
+		expect(games.headers['x-param-locale']?.value).toBe('en')
+		expect(games.headers['x-param-page']?.value).toBe('5')
+
+		// param values are uri encoded
+		const encoded = await invoke('/sitemap/en%20us/static.xml')
+		expect(encoded.headers['x-awsless-route']?.value).toBe('web:route:static')
+		expect(encoded.headers['x-param-locale']?.value).toBe('en%20us')
+
+		// a client provided param header never reaches the origin
+		const spoofed = await invoke('/sitemap/en/misc.bin', {
+			'x-param-locale': { value: 'evil' },
+			'x-param-injected': { value: 'evil' },
+		})
+		expect(spoofed.headers['x-awsless-route']?.value).toBe('web:route:fallback')
+		expect(spoofed.headers['x-param-locale']).toBeUndefined()
+		expect(spoofed.headers['x-param-injected']).toBeUndefined()
+
+		// a trailing slash still matches the pattern
+		const slash = await invoke('/sitemap/en/static.xml/')
+		expect(slash.headers['x-awsless-route']?.value).toBe('web:route:static')
+		expect(slash.uri).toBe('/sitemap/en/static.xml/')
+	})
+
+	it('should fall through to the next route key when no list entry matches', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/sitemap/*',
+				JSON.stringify([
+					{
+						type: 'lambda',
+						domainName: 'bundle.example.com',
+						match: '^/sitemap/([^/]+)/static\\.xml$',
+						params: ['locale'],
+					},
+				]),
+			],
+			['v1:main:/*', JSON.stringify({ type: 's3', domainName: 'site.s3.amazonaws.com' })],
+		])
+		const { handler } = createRouter(values)
+
+		const request = (await handler({ request: createRequest('/sitemap/nope') })) as Request
+		expect(request.headers['x-origin']?.value).toBe('site.s3.amazonaws.com')
+	})
+
+	it('should serialize stack route patterns into grouped route entries', async () => {
+		const result = createTestApp({ router: { main: {} } }, undefined, [
+			{
+				name: 'web',
+				routes: {
+					main: {
+						'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+						'/sitemap/{locale}/static.xml': { code: { file: { nocheck: './static.ts' } } },
+						'/sitemap/*': { code: { file: { nocheck: './fallback.ts' } } },
+					},
+				},
+			},
+		])
+		result.ready()
+
+		const deployment = result.app.resources.map(getMeta).find(meta => meta.type === 'route-deployment')!
+		const dependencies = findInputDeps(deployment.input.routes).map(dependency => dependency.type)
+
+		expect(dependencies).toContain('function-deployment')
+	})
+
+	it('should reject stack routes for an unknown router', () => {
+		expect(() =>
+			createTestApp({ router: { main: {} } }, undefined, [
+				{
+					name: 'web',
+					routes: {
+						other: {
+							'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+						},
+					},
+				},
+			])
+		).toThrow('Router "other" is not defined on the app level.')
+	})
+
+	it('should shard a route list that outgrows a route store value', async () => {
+		const result = createRouterApp({ main: {} })
+		const addRoutes = result.shared.entry('router', 'addRoutes', 'main')
+		const list = Array.from({ length: 20 }).map((_, i) => ({
+			type: 's3' as const,
+			domainName: `files-${i}.s3.amazonaws.com`,
+			match: `^/files/deep/nested/folder/pattern-number-${i}/([^/]+)\\.json$`,
+			params: ['name'],
+		}))
+
+		addRoutes({ '/files/*': list })
+		result.ready()
+
+		const deployment = result.app.resources.map(getMeta).find(meta => meta.type === 'route-deployment')!
+		const entries = (await resolveInputs(deployment.input.routes)) as { key: string; value: string }[]
+
+		expect(entries.find(entry => entry.key === 'main:/files/*')?.value).toBe(JSON.stringify({ list: 20 }))
+		expect(entries.find(entry => entry.key === 'main:/files/*#0')?.value).toBe(JSON.stringify(list[0]))
+		expect(entries.find(entry => entry.key === 'main:/files/*#19')?.value).toBe(JSON.stringify(list[19]))
+	})
+
+	it('should match sharded route lists', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/sitemap/*', JSON.stringify({ list: 2 })],
+			[
+				'v1:main:/sitemap/*#0',
+				JSON.stringify({
+					type: 'lambda',
+					domainName: 'bundle.example.com',
+					match: '^/sitemap/([^/]+)/static\\.xml$',
+					params: ['locale'],
+					requestHeaders: { 'x-awsless-route': 'web:route:static' },
+				}),
+			],
+			[
+				'v1:main:/sitemap/*#1',
+				JSON.stringify({
+					type: 'lambda',
+					domainName: 'bundle.example.com',
+					requestHeaders: { 'x-awsless-route': 'web:route:fallback' },
+				}),
+			],
+		])
+		const { handler } = createRouter(values)
+		const invoke = async (path: string) => (await handler({ request: createRequest(path) })) as Request
+
+		const matched = await invoke('/sitemap/en/static.xml')
+		expect(matched.headers['x-awsless-route']?.value).toBe('web:route:static')
+		expect(matched.headers['x-param-locale']?.value).toBe('en')
+
+		const fallback = await invoke('/sitemap/en/other.bin')
+		expect(fallback.headers['x-awsless-route']?.value).toBe('web:route:fallback')
+	})
+
+	it('should reject a single route that outgrows a route store value', () => {
+		const result = createRouterApp({ main: {} })
+		const addRoutes = result.shared.entry('router', 'addRoutes', 'main')
+
+		expect(() =>
+			addRoutes({
+				'/files/*': {
+					type: 's3',
+					domainName: 'files.s3.amazonaws.com',
+					rewrite: { to: `/${'x'.repeat(1000)}` },
+				},
+			})
+		).toThrow('too large')
+	})
+})

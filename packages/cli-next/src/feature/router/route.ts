@@ -1,6 +1,13 @@
 import { Input } from '@terraforge/core'
 
 type RouteProps = {
+	// A regex that the request path needs to match for routes
+	// that are more specific than their route store key.
+	match?: string
+
+	// The param names for each capture group in the match regex.
+	params?: string[]
+
 	removeCookies?: boolean
 	forwardHost?: boolean
 	urlEncodedQueryString?: boolean

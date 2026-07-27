@@ -4,12 +4,52 @@ import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
-import { camelCase, constantCase } from 'change-case'
+import { camelCase, constantCase, kebabCase } from 'change-case'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
-import { ExpectedError } from '../../error.js'
+import { ExpectedError, FileError } from '../../error.js'
 import { FunctionDeployment } from '../../formation/lambda.js'
 import { Route } from './route.js'
+import { compileRoutePattern } from './pattern.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { shortId } from '../../util/id.js'
+
+// The route store caps a value at 1KB.
+const MAX_VALUE_SIZE = 1000
+
+// Serialized lambda routes gain a function url host, which tops out under 64 chars.
+const ORIGIN_PLACEHOLDER = 'x'.repeat(64)
+
+const assertRouteValueSize = (key: string, route: Route | Route[]) => {
+	const withOrigin = (entry: Route) => {
+		return entry.type === 'lambda' ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
+	}
+
+	// Route lists shard over multiple entries, so only a single route can outgrow one.
+	for (const entry of Array.isArray(route) ? route : [route]) {
+		if (Buffer.byteLength(JSON.stringify(withOrigin(entry)), 'utf8') > MAX_VALUE_SIZE) {
+			throw new ExpectedError(`The route value of the "${key}" route key is too large.`)
+		}
+	}
+}
+
+// Route lists that are too big for a single key value pair are
+// sharded over multiple entries behind a route index.
+const createRouteStoreEntries = (key: string, route: object | object[]) => {
+	const value = JSON.stringify(route)
+
+	if (!Array.isArray(route) || Buffer.byteLength(value, 'utf8') <= MAX_VALUE_SIZE) {
+		return [{ key, value }]
+	}
+
+	return [
+		{ key, value: JSON.stringify({ list: route.length }) },
+		...route.map((entry, index) => ({
+			key: `${key}#${index}`,
+			value: JSON.stringify(entry),
+		})),
+	]
+}
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -19,7 +59,7 @@ export const routerFeature = defineFeature({
 		// All routers share one route store, one preview distribution and
 		// one deployment; the shared resources live in the first router.
 		const defaultRouter = routers[0]?.[0]
-		const routes: Record<string, Route> = {}
+		const routes: Record<string, Route | Route[]> = {}
 		const routeDependencies = new Set<Resource | DataSource>()
 		const distributionIds: Output<string>[] = []
 		let hasLambdaRoutes = false
@@ -72,6 +112,7 @@ export const routerFeature = defineFeature({
 						throw new ExpectedError(`Duplicate route key: ${key} in the "${id}" router`)
 					}
 
+					assertRouteValueSize(`${id}:${key}`, route)
 					routes[`${id}:${key}`] = route
 				}
 
@@ -79,7 +120,11 @@ export const routerFeature = defineFeature({
 					routeDependencies.add(dependency)
 				}
 
-				if (Object.values(newRoutes).some(route => route.type === 'lambda')) {
+				if (
+					Object.values(newRoutes)
+						.flat()
+						.some(route => route.type === 'lambda')
+				) {
 					hasLambdaRoutes = true
 				}
 			})
@@ -528,12 +573,16 @@ export const routerFeature = defineFeature({
 							storeArn: routeStore!.arn,
 							functionVersion: bundle.lambda.version,
 							routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
-								return Object.entries(routes).map(([key, route]) => ({
-									key,
-									value: JSON.stringify(
-										route.type === 'lambda' ? { ...route, domainName: lambdaUrlHost } : route
-									),
-								}))
+								const withOrigin = (route: Route) => {
+									return route.type === 'lambda' ? { ...route, domainName: lambdaUrlHost } : route
+								}
+
+								return Object.entries(routes).flatMap(([key, route]) =>
+									createRouteStoreEntries(
+										key,
+										Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
+									)
+								)
 							}),
 						},
 						{
@@ -604,6 +653,50 @@ export const routerFeature = defineFeature({
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 			}
+		}
+	},
+	onStack(ctx) {
+		for (const [id, patterns] of Object.entries(ctx.stackConfig.routes ?? {})) {
+			if (!ctx.appConfig.defaults.router?.[id]) {
+				throw new FileError(ctx.stackConfig.file, `Router "${id}" is not defined on the app level.`)
+			}
+
+			const addRoutes = ctx.shared.entry('router', 'addRoutes', id)
+			const grouped: Record<string, Route[]> = {}
+
+			for (const [pattern, props] of Object.entries(patterns)) {
+				const compiled = compileRoutePattern(pattern)
+				const slug = kebabCase(pattern).slice(0, 20)
+				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
+
+				registerBundleFunction(ctx, routeKey, props)
+
+				grouped[compiled.key] ??= []
+				grouped[compiled.key]!.push({
+					type: 'lambda',
+					forwardHost: true,
+					urlEncodedQueryString: true,
+					match: compiled.match,
+					params: compiled.params,
+					requestHeaders: {
+						[ROUTE_HEADER]: routeKey,
+					},
+				})
+			}
+
+			// Patterns that share a route key match in order of definition,
+			// with the basic wildcard route last.
+			const merged: Record<string, Route | Route[]> = {}
+
+			for (const [key, list] of Object.entries(grouped)) {
+				if (list.length === 1) {
+					merged[key] = list[0]!
+				} else {
+					merged[key] = [...list.filter(route => route.match), ...list.filter(route => !route.match)]
+				}
+			}
+
+			addRoutes(merged)
 		}
 	},
 })
