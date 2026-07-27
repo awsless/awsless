@@ -57,12 +57,7 @@
 			}
 		},
 		// "onFailure": "./on-failure/handle.ts",
-		"onErrorLog": {
-			"code": "./on-error-log/consumer.ts",
-			"log": {
-				"level": "info"
-			}
-		}
+		"onErrorLog": "./on-error-log/consumer.ts"
 		// "layers": {
 		// 	"test": {
 		// 		"file": "./layer/2.zip",

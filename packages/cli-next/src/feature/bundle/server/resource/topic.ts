@@ -1,12 +1,12 @@
 import type { SNSEvent } from 'aws-lambda'
 import type { RouteMatcher } from './types.js'
-import { asyncRoute } from './util.js'
+import { asyncRoute, routeType } from './util.js'
 
 export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	const route = event?.['$awsless-route']
 
 	if (typeof route === 'string') {
-		if (route.split(':')[1] === 'topic') {
+		if (routeType(route) === 'topic') {
 			return asyncRoute(route, event.event)
 		}
 

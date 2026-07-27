@@ -3,7 +3,7 @@ import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { filterPattern } from './util.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -24,8 +24,8 @@ export const onErrorLogFeature = defineFeature({
 		// ------------------------------------------------
 		// Add the error log handler & consumer to the bundle
 
-		const handlerRoute = formatRouteKey(ctx.app.name, 'on-error-log', 'handler')
-		const consumerRoute = formatRouteKey(ctx.app.name, 'on-error-log', 'consumer')
+		const handlerRoute = formatRouteKey('base', 'on-error-log', 'handler')
+		const consumerRoute = formatRouteKey('base', 'on-error-log', 'consumer')
 
 		bundle.addHandler({
 			routeKey: handlerRoute,

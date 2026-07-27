@@ -4,7 +4,7 @@ import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { days, toSeconds } from '@awsless/duration'
 import { formatRouteEnvName } from 'awsless'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -186,8 +186,8 @@ export const onFailureFeature = defineFeature({
 
 		const bundle = ctx.shared.get('bundle', 'main')
 		const { group, bucket, queue } = ctx.shared.get('on-failure', 'resources')
-		const normalizerRoute = formatRouteKey(ctx.app.name, 'on-failure', 'normalizer')
-		const consumerRoute = formatRouteKey(ctx.app.name, 'on-failure', 'consumer')
+		const normalizerRoute = formatRouteKey('base', 'on-failure', 'normalizer')
+		const consumerRoute = formatRouteKey('base', 'on-failure', 'consumer')
 		const consumer = props.consumer
 
 		bundle.addHandler({

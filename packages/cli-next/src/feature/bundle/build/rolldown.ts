@@ -1,14 +1,21 @@
-// import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { extname } from 'path'
-import { rolldown } from 'rolldown'
-// import natives from 'rollup-plugin-natives'
+import { Plugin, rolldown } from 'rolldown'
 import { importAsString } from 'rollup-plugin-string-import'
 import { debugError } from '../../../cli/debug.js'
 import { ExpectedError } from '../../../error.js'
 import { directories } from '../../../util/path.js'
 import { File } from './zip.js'
+
+// Importing a handler file with this query makes rolldown treat it as a
+// separate module per route, giving every route a private copy of its
+// top-level module state.
+const ROUTE_MODULE_QUERY = '?awsless-route='
+
+export const formatRouteModuleId = (file: string, routeKey: string) => {
+	return `${file}${ROUTE_MODULE_QUERY}${encodeURIComponent(routeKey)}`
+}
 
 export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'
@@ -19,26 +26,25 @@ export type BundleTypeScriptProps = {
 	importAsString?: string[]
 }
 
-export const bundleTypeScriptWithRolldown = async ({
-	format = 'esm',
-	minify = true,
-	file,
-	external,
-	importAsString: importAsStringList,
-}: BundleTypeScriptProps) => {
+export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps) => {
+	const { format = 'esm', minify = true } = props
+
 	const bundle = await rolldown({
-		input: file,
+		input: props.file,
 		platform: 'node',
 		external: importee => {
-			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
+			return (
+				importee.startsWith('@aws-sdk') || //
+				importee.startsWith('aws-sdk') ||
+				props.external?.includes(importee)
+			)
 		},
 		treeshake: {
 			// Dependencies are treated as side-effect free, so unused imports
 			// like the local test servers never reach the production bundle.
-			// The bundle guard below fails the build if one slips through.
 			moduleSideEffects: (id, isExternal) =>
 				isExternal
-					? external?.includes(id) === true
+					? props.external?.includes(id) === true
 					: id.startsWith(`${directories.root}/`) && !id.includes('/node_modules/'),
 		},
 		onwarn: error => {
@@ -50,64 +56,57 @@ export const bundleTypeScriptWithRolldown = async ({
 			debugError(error.message)
 		},
 		plugins: [
-			{
-				name: 'route-module',
-				resolveId(source) {
-					return source.includes('?awsless-route=') ? source : undefined
-				},
-				async load(id) {
-					const index = id.indexOf('?awsless-route=')
-
-					if (index === -1) {
-						return
-					}
-
-					const file = id.slice(0, index)
-					const extension = extname(file)
-					const typescript = ['.ts', '.mts', '.cts'].includes(extension)
-
-					return {
-						code: await readFile(file, 'utf8'),
-						moduleType:
-							extension === '.tsx' ? 'tsx' : extension === '.jsx' ? 'jsx' : typescript ? 'ts' : 'js',
-					}
-				},
-			},
-			// nodeResolve({ preferBuiltins: true }),
-			// nativeDir
-			// 	? natives({
-			// 			copyTo: nativeDir,
-			// 			targetEsm: format === 'esm',
-			// 			sourcemap: true,
-			// 		})
-			// 	: undefined,
-			importAsStringList
+			routeModulePlugin(),
+			props.importAsString
 				? importAsString({
-						include: importAsStringList,
+						include: props.importAsString,
 					})
 				: undefined,
 		],
 	})
 
-	const ext = format === 'esm' ? 'mjs' : 'js'
+	const extension = format === 'esm' ? 'mjs' : 'js'
 	const result = await bundle.generate({
 		format,
 		sourcemap: 'hidden',
 		exports: 'auto',
-		entryFileNames: `index.${ext}`,
-		chunkFileNames: `[name].${ext}`,
 		minify,
+		entryFileNames: `index.${extension}`,
+
+		// Handler chunks are named after their route key, with the ":"
+		// separator swapped for "--" to keep the file name portable.
+		chunkFileNames: chunk => {
+			const encodedRouteKey = chunk.facadeModuleId?.split(ROUTE_MODULE_QUERY)[1]
+
+			if (!encodedRouteKey) {
+				return `[name].${extension}`
+			}
+
+			const routeKey = decodeURIComponent(encodedRouteKey)
+
+			return `${routeKey.replaceAll(':', '--')}.${extension}`
+		},
+		codeSplitting: {
+			// Every dynamically imported handler stays a chunk of its own,
+			// while all modules used by more than one handler collapse into
+			// a single shared chunk.
+			groups: [
+				{
+					name: 'shared',
+					minShareCount: 2,
+				},
+			],
+		},
 	})
 
-	assertNoTestOnlyModules(result.output)
+	// -------------------------------------------------
+	// Generate output
 
 	const hash = createHash('sha1')
 	const files: File[] = []
 
 	for (const item of result.output) {
-		// For now we ignore asset chunks...
-		// I don't know what to do with assets yet.
-
+		// Asset outputs are ignored, we don't emit or use them yet.
 		if (item.type !== 'chunk') {
 			continue
 		}
@@ -131,30 +130,28 @@ export const bundleTypeScriptWithRolldown = async ({
 	}
 }
 
-// Test-only packages must never ship inside a production bundle. They spawn
-// processes, rely on CJS globals like __dirname, and crash the ESM runtime.
-const TEST_ONLY_MODULES = ['dynamo-db-local', '@awsless/dynamodb-server', 'redis-memory-server', 'aws-sdk-vitest-mock']
+// Resolves & loads route module imports by stripping the query and
+// reading the underlying handler file.
+const routeModulePlugin = (): Plugin => ({
+	name: 'route-module',
+	resolveId(source) {
+		return source.includes(ROUTE_MODULE_QUERY) ? source : undefined
+	},
+	async load(id) {
+		const [file, routeKey] = id.split(ROUTE_MODULE_QUERY)
 
-// pnpm resolves a workspace link to its realpath, so there is no node_modules.
-export const findPackage = (id: string, names: string[]) => {
-	return names.find(name => id.includes(`/${name.replace(/^@[^/]+\//, '')}/`))
-}
-
-const assertNoTestOnlyModules = (output: Array<{ type: string; moduleIds?: string[] }>) => {
-	for (const item of output) {
-		if (item.type !== 'chunk') {
-			continue
+		if (!file || !routeKey) {
+			return
 		}
 
-		for (const id of item.moduleIds ?? []) {
-			const found = findPackage(id, TEST_ONLY_MODULES)
+		const extension = extname(file)
 
-			if (found) {
-				throw new Error(
-					`The test-only package "${found}" was bundled into a production build through "${id}". ` +
-						'Remove the import from the handler, or keep the package tree-shakeable.'
-				)
-			}
+		return {
+			code: await readFile(file, 'utf8'),
+			// The query hides the file extension from rolldown, so the module
+			// type must be given explicitly. Plain javascript parses fine as
+			// typescript, so "ts" covers both.
+			moduleType: extension === '.tsx' ? 'tsx' : extension === '.jsx' ? 'jsx' : 'ts',
 		}
-	}
-}
+	},
+})

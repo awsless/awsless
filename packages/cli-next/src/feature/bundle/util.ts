@@ -8,7 +8,7 @@ import { Builder, getBuildPath } from '../../build/index.js'
 import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
-import { bundleTypeScriptWithRolldown } from './build/rolldown.js'
+import { bundleTypeScriptWithRolldown, formatRouteModuleId } from './build/rolldown.js'
 
 // The request header used to route web requests to the right bundle handler.
 export const ROUTE_HEADER = 'x-awsless-route'
@@ -75,7 +75,7 @@ export const buildBundle = (props: {
 		// top module is copied & everything the handler imports is still
 		// deduplicated into shared chunks.
 		const entries = handlers.map(({ routeKey, file, exportName }) => {
-			const virtualFile = JSON.stringify(`${file}?awsless-route=${encodeURIComponent(routeKey)}`)
+			const virtualFile = JSON.stringify(formatRouteModuleId(file, routeKey))
 
 			return `\t${JSON.stringify(routeKey)}: () => import(${virtualFile}).then(module => module[${JSON.stringify(exportName)}]),`
 		})

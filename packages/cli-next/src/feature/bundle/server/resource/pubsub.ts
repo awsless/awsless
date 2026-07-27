@@ -1,6 +1,6 @@
 import type { SNSEvent } from 'aws-lambda'
 import type { RouteMatcher } from './types.js'
-import { asyncRoute } from './util.js'
+import { asyncRoute, routeType } from './util.js'
 
 const eventTypes = ['connected', 'disconnected', 'subscribed', 'unsubscribed']
 
@@ -8,7 +8,7 @@ export const pubsubHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	const route = event?.['$awsless-route']
 
 	if (typeof route === 'string') {
-		if (route.split(':')[1] === 'pubsub') {
+		if (routeType(route) === 'pubsub') {
 			// Event listener routes retry & reach the on-failure destination,
 			// while the auth & publisher routes respond to their caller.
 			if (eventTypes.some(type => route.endsWith(`-${type}`))) {

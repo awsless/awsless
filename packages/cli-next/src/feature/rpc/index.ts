@@ -8,7 +8,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteEnvName } from 'awsless'
-import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'url'
@@ -80,7 +80,7 @@ export const rpcFeature = defineFeature({
 			// ------------------------------------------------------
 			// Add the RPC server to the bundle
 
-			const serverRouteKey = formatRouteKey(ctx.app.name, 'rpc', id)
+			const serverRouteKey = formatRouteKey('base', 'rpc', id)
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
@@ -128,7 +128,7 @@ export const rpcFeature = defineFeature({
 			// Add the auth handler to the bundle
 
 			if (props.auth) {
-				const authRouteKey = formatRouteKey(ctx.app.name, 'rpc', `${id}-auth`)
+				const authRouteKey = formatRouteKey('base', 'rpc', `${id}-auth`)
 
 				registerBundleFunction(ctx, authRouteKey, props.auth)
 
@@ -159,7 +159,7 @@ export const rpcFeature = defineFeature({
 				throw new FileError(ctx.stackConfig.file, `RPC definition is not defined on app level for "${id}"`)
 			}
 
-			const serverRouteKey = formatRouteKey(ctx.app.name, 'rpc', id)
+			const serverRouteKey = formatRouteKey('base', 'rpc', id)
 
 			for (const [name, props] of Object.entries(queries ?? {})) {
 				const entryId = kebabCase(`${id}-${shortId(name)}`)

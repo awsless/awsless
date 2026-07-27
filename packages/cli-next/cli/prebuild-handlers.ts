@@ -13,9 +13,6 @@ const handlers = [
 	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },
 	{ name: 'pubsub-publisher', entry: 'src/feature/pubsub/publisher/handle.ts' },
-
-	// The pubsub server runs as a bun executable on fargate, so its bundle
-	// is self-contained instead of joining the app module graph.
 	{ name: 'pubsub-server', entry: 'src/feature/pubsub/server/index.ts', packages: 'bundle', target: 'bun' },
 ] as const
 

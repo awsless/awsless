@@ -109,7 +109,7 @@ export const pubsubFeature = defineFeature({
 			// ------------------------------------------------------------
 			// The auth handler lives inside the shared bundle
 
-			const authRouteKey = formatRouteKey(ctx.app.name, 'pubsub', `${id}-auth`)
+			const authRouteKey = formatRouteKey('base', 'pubsub', `${id}-auth`)
 
 			registerBundleFunction(ctx, authRouteKey, props.auth)
 
@@ -346,7 +346,7 @@ export const pubsubFeature = defineFeature({
 			// The publisher handler lives inside the shared bundle, which
 			// reaches redis through the app vpc.
 
-			const publisherRouteKey = formatRouteKey(ctx.app.name, 'pubsub', `${id}-publisher`)
+			const publisherRouteKey = formatRouteKey('base', 'pubsub', `${id}-publisher`)
 
 			bundle.addHandler({
 				routeKey: publisherRouteKey,

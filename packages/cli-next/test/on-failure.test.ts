@@ -6,8 +6,8 @@ import handle from '../src/feature/on-failure/server/handle'
 
 describe('on failure handler', () => {
 	const functionArn = 'arn:aws:lambda:eu-west-1:123456789:function:test-app--function--bundle:live'
-	const normalizerRoute = 'test-app:on-failure:normalizer'
-	const consumerRoute = 'test-app:on-failure:consumer'
+	const normalizerRoute = 'base:on-failure:normalizer'
+	const consumerRoute = 'base:on-failure:consumer'
 	const invokes: unknown[] = []
 	let consumerError: Error | undefined
 

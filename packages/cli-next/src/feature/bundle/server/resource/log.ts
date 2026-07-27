@@ -1,12 +1,12 @@
 import type { CloudWatchLogsEvent } from 'aws-lambda'
 import type { RouteMatcher } from './types.js'
-import { asyncRoute } from './util.js'
+import { asyncRoute, routeType } from './util.js'
 
 export const logHandler: RouteMatcher<CloudWatchLogsEvent> = event => {
 	const route = event?.['$awsless-route']
 
 	if (typeof route === 'string') {
-		if (route.split(':')[1] === 'on-error-log') {
+		if (routeType(route) === 'on-error-log') {
 			return asyncRoute(route, event.event)
 		}
 
@@ -14,7 +14,7 @@ export const logHandler: RouteMatcher<CloudWatchLogsEvent> = event => {
 	}
 
 	if (typeof event?.awslogs?.data === 'string') {
-		return asyncRoute(`${process.env.APP}:on-error-log:handler`, event)
+		return asyncRoute('base:on-error-log:handler', event)
 	}
 
 	return

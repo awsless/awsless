@@ -1,12 +1,12 @@
 import type { SQSEvent } from 'aws-lambda'
 import type { RouteMatcher } from './types.js'
-import { asyncRoute } from './util.js'
+import { asyncRoute, routeFromResourceName, routeType } from './util.js'
 
 export const queueHandler: RouteMatcher<SQSEvent> = event => {
 	const route = event?.['$awsless-route']
 
 	if (typeof route === 'string') {
-		if (route.split(':')[1] === 'queue') {
+		if (routeType(route) === 'queue') {
 			return asyncRoute(route, event.event)
 		}
 
@@ -21,15 +21,10 @@ export const queueHandler: RouteMatcher<SQSEvent> = event => {
 	const record = event?.Records?.[0]
 
 	if (record?.eventSource === 'aws:sqs' && typeof record.eventSourceARN === 'string') {
-		// Map a resource name like "app--stack--queue--id.fifo" back to the "stack:queue:id" route key.
-		const resourceName = record.eventSourceARN.split(':').at(-1)!
-		const route = resourceName
-			.replace(/\.fifo$/, '')
-			.slice(process.env.APP!.length + 2)
-			.split('--')
-			.join(':')
+		const queueName = record.eventSourceARN.split(':').at(-1)!
+		const route = routeFromResourceName(queueName.replace(/\.fifo$/, ''))
 
-		if (route.split(':')[1] === 'queue') {
+		if (routeType(route) === 'queue') {
 			return asyncRoute(route, event)
 		}
 	}

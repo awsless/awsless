@@ -158,9 +158,9 @@ describe('bundle handler', () => {
 				{ routeKey: 'stack-1:cron:tick', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:task:work', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:rpc:query', file: handlers, exportName: 'echo' },
-				{ routeKey: 'app:rpc:api', file: handlers, exportName: 'site' },
-				{ routeKey: 'test-app:on-failure:normalizer', file: handlers, exportName: 'queue' },
-				{ routeKey: 'test-app:on-failure:consumer', file: handlers, exportName: 'queue' },
+				{ routeKey: 'base:rpc:api', file: handlers, exportName: 'site' },
+				{ routeKey: 'base:on-failure:normalizer', file: handlers, exportName: 'queue' },
+				{ routeKey: 'base:on-failure:consumer', file: handlers, exportName: 'queue' },
 				{ routeKey: 'stack-1:rest:api', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:site:web', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:store:assets-created', file: handlers, exportName: 'queue' },
@@ -343,7 +343,7 @@ describe('bundle handler', () => {
 	})
 
 	it.each([
-		['test-app:on-failure:consumer', 'test-app'],
+		['base:on-failure:consumer', 'base'],
 		['stack-1:queue:jobs', 'stack-1'],
 		['stack-1:store:assets-created', 'stack-1'],
 		['stack-1:topic:event', 'stack-1'],
@@ -358,7 +358,7 @@ describe('bundle handler', () => {
 		})
 	})
 
-	it.each(['stack-1:rest:api', 'stack-1:site:web', 'stack-1:icon:icons', 'stack-1:image:images', 'app:rpc:api'])(
+	it.each(['stack-1:rest:api', 'stack-1:site:web', 'stack-1:icon:icons', 'stack-1:image:images', 'base:rpc:api'])(
 		'should dispatch the %s route header',
 		async route => {
 			const event = {
@@ -395,7 +395,7 @@ describe('bundle handler', () => {
 		'stack-1:function:echo',
 		'stack-1:cron:tick',
 		'stack-1:metric:latency-0',
-		'test-app:on-failure:consumer',
+		'base:on-failure:consumer',
 		'stack-1:queue:jobs',
 		'stack-1:topic:event',
 		'stack-1:task:work',
@@ -510,7 +510,7 @@ describe('bundle handler', () => {
 		const result = await handler(event, context)
 
 		expect(result).toStrictEqual({
-			stack: 'test-app',
+			stack: 'base',
 			throwExpectedErrors: '1',
 			event,
 		})
