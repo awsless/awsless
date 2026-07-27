@@ -18,18 +18,11 @@
 		"awsless": "./dist/bin.js"
 	},
 	"scripts": {
-		"test": "pnpm prebuild-handlers && pnpm vitest",
-		"term": "zsh -c 'bun dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
-		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; bun dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
-		"build": "bun cli/build-bin.ts && pnpm prebuild-handlers",
-		"prebuild-handlers": "bun cli/prebuild-handlers.ts",
-		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; bun ./dist/build-json-schema.js",
-		"publish-docker-image": "zsh ./cli/publish-fargate-image.sh",
-		"build-test-setup": "pnpm tsup src/test/test-global-setup.ts --format esm",
-		"build-layers": "mkdir -p dist/layers && cp -r layers/* dist/layers",
-		"jack": "pnpm prebuild-handlers && pnpm tsup ./example/jack/jack.ts --format esm --external bun && bun ./dist/jack.js",
-		"kennedy": "pnpm prebuild-handlers && pnpm tsup ./example/kennedy/kennedy.ts --format esm --external bun && bun ./dist/kennedy.js",
-		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; pnpm build-layers; else exit; fi"
+		"test": "bun cli/build-handlers.ts && pnpm vitest",
+		"build": "bun cli/build.ts",
+		"jack": "pnpm build && bun dist/bin.js --config-file=./example/jack/app.jsonc",
+		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
 		"@aws-sdk/signature-v4-crt": "^3.816.0",

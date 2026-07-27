@@ -21,6 +21,9 @@ const handlers: {
 	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },
 	{ name: 'pubsub-publisher', entry: 'src/feature/pubsub/publisher/handle.ts' },
+
+	// The pubsub server runs as a bun executable on fargate, so its
+	// bundle is fully self-contained.
 	{ name: 'pubsub-server', entry: 'src/feature/pubsub/server/index.ts', external: [], target: 'bun' },
 ]
 

@@ -1,3 +1,6 @@
+// Generate the json schema files for the app & stack config into the
+// published dist folder.
+
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ZodSchema } from 'zod'
@@ -16,7 +19,6 @@ const generateJsonSchema = (props: GenerateProps) => {
 	const file = join(process.cwd(), `dist/${props.name}.json`)
 	const schema = zodToJsonSchema(props.schema, {
 		name: props.name,
-		// errorMessages: true,
 		markdownDescription: true,
 		pipeStrategy: 'input',
 		$refStrategy: 'none',
