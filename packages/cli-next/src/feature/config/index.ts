@@ -1,4 +1,3 @@
-import { kebabCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -45,29 +44,13 @@ export const configFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
+		// The app level wildcard grant above already covers every config
+		// parameter, so the stacks don't need their own grants.
 		const configs = ctx.stackConfig.configs ?? []
 
 		for (const name of configs) {
 			ctx.registerConfig(name)
 			ctx.addEnv(`CONFIG_${constantCase(name)}`, name)
-		}
-
-		if (configs.length) {
-			// ctx.addEnv('CONFIG', configs.join(','))
-			ctx.addGlobalPermission({
-				actions: [
-					'ssm:GetParameter',
-					'ssm:GetParameters',
-					'ssm:GetParametersByPath',
-					'ssm:GetParameterHistory',
-				],
-				resources: configs.map(
-					name =>
-						`arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
-							ctx.app.name
-						)}/${kebabCase(name)}` as const
-				),
-			})
 		}
 	},
 })

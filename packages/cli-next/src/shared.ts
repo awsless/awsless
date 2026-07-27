@@ -54,6 +54,7 @@ type SharedState = {
 			addEnv: (name: string, value: Input<string>) => void
 			addLayer: (layer: Input<string>) => void
 			addPermission: (statement: Permission) => void
+			statements: ReadonlySet<Permission>
 		}
 	}
 

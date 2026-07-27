@@ -14,6 +14,7 @@ import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name
 import { relativePath } from '../../util/path.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
+import { compactPolicyStatements, PolicyStatement } from './policy.js'
 import { buildBundle } from './util.js'
 
 export const bundleFeature = defineFeature({
@@ -173,12 +174,12 @@ export const bundleFeature = defineFeature({
 			role: role.name,
 			name: 'lambda-policy',
 			policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-				const list = await resolveInputs(Array.from(statements))
+				const list = (await resolveInputs(Array.from(statements))) as PolicyStatement[]
 
 				resolve(
 					JSON.stringify({
 						Version: '2012-10-17',
-						Statement: list.map(statement => ({
+						Statement: compactPolicyStatements(list).map(statement => ({
 							Effect: pascalCase(statement.effect ?? 'allow'),
 							Action: statement.actions,
 							Resource: statement.resources,
@@ -400,6 +401,7 @@ export const bundleFeature = defineFeature({
 			addEnv,
 			addLayer,
 			addPermission,
+			statements,
 		})
 	},
 })

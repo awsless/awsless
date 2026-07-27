@@ -71,24 +71,27 @@ export const metricFeature = defineFeature({
 	onStack(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
 		const namespace = `awsless/${kebabCase(ctx.app.name)}/${kebabCase(ctx.stack.name)}`
+		const metrics = Object.entries(ctx.stackConfig.metrics ?? {})
 
 		// --------------------------------------------
 		// Add function permissions to PutMetricData
 		// Sadly we can't be specific about the metric
 		// because metric's don't have a ARN.
 
-		ctx.addGlobalPermission({
-			actions: ['cloudwatch:PutMetricData'],
-			resources: ['*'],
-			conditions: {
-				StringEquals: {
-					// Luckily we can limit access to only the namespace.
-					'cloudwatch:namespace': namespace,
+		if (metrics.length > 0) {
+			ctx.addGlobalPermission({
+				actions: ['cloudwatch:PutMetricData'],
+				resources: ['*'],
+				conditions: {
+					StringEquals: {
+						// Luckily we can limit access to only the namespace.
+						'cloudwatch:namespace': namespace,
+					},
 				},
-			},
-		})
+			})
+		}
 
-		for (const [id, props] of Object.entries(ctx.stackConfig.metrics ?? {})) {
+		for (const [id, props] of metrics) {
 			const group = new Group(ctx.stack, 'metric', id)
 
 			ctx.addEnv(`METRIC_${constantCase(ctx.stack.name)}_${constantCase(id)}`, props.type)
