@@ -460,6 +460,19 @@ importers:
 
   packages/cli-next:
     dependencies:
+      '@aws-sdk/signature-v4-crt':
+        specifier: ^3.816.0
+        version: 3.1023.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@awsless/ts-file-cache':
+        specifier: workspace:^
+        version: link:../ts-file-cache
+      rolldown:
+        specifier: 1.0.0-rc.3
+        version: 1.0.0-rc.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+    devDependencies:
       '@aws-sdk/client-cloudformation':
         specifier: ^3.369.0
         version: 3.1023.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
@@ -502,9 +515,6 @@ importers:
       '@aws-sdk/lib-storage':
         specifier: ^3.423.0
         version: 3.1023.0(@aws-sdk/client-s3@3.1088.0)
-      '@aws-sdk/signature-v4-crt':
-        specifier: ^3.816.0
-        version: 3.1023.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@awsless/big-float':
         specifier: workspace:^
         version: link:../big-float
@@ -529,6 +539,9 @@ importers:
       '@awsless/lambda':
         specifier: workspace:^
         version: link:../lambda
+      '@awsless/open-search':
+        specifier: workspace:^
+        version: link:../open-search
       '@awsless/redis':
         specifier: workspace:^
         version: link:../redis
@@ -547,9 +560,9 @@ importers:
       '@awsless/sqs':
         specifier: workspace:^
         version: link:../sqs
-      '@awsless/ts-file-cache':
+      '@awsless/ssm':
         specifier: workspace:^
-        version: link:../ts-file-cache
+        version: link:../ssm
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
@@ -559,6 +572,12 @@ importers:
       '@clack/prompts':
         specifier: ^0.7.0
         version: 0.7.0
+      '@hono/node-server':
+        specifier: 1.19.9
+        version: 1.19.9(hono@4.11.7)
+      '@node-rs/bcrypt':
+        specifier: ^1.10.5
+        version: 1.10.7
       '@terraforge/aws':
         specifier: ^6.53.0
         version: 6.53.0(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)))
@@ -646,6 +665,9 @@ importers:
       glob:
         specifier: ^10.3.9
         version: 10.5.0
+      hono:
+        specifier: 4.11.7
+        version: 4.11.7
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1(supports-color@8.1.1)
@@ -667,12 +689,12 @@ importers:
       pretty-hrtime:
         specifier: ^1.0.3
         version: 1.0.3
-      rolldown:
-        specifier: 1.0.0-rc.3
-        version: 1.0.0-rc.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
       rollup-plugin-string-import:
         specifier: 1.2.6
         version: 1.2.6(rollup@4.60.1)
+      sharp:
+        specifier: ^0.34.2
+        version: 0.34.5
       stay-awake:
         specifier: 0.0.3
         version: 0.0.3(supports-color@8.1.1)
@@ -688,9 +710,6 @@ importers:
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
-      vitest:
-        specifier: ^4.1.0
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       wildstring:
         specifier: ^1.0.9
         version: 1.0.9
@@ -706,22 +725,6 @@ importers:
       zod-to-json-schema:
         specifier: ^3.24.3
         version: 3.25.2(zod@3.25.76)
-    devDependencies:
-      '@awsless/ssm':
-        specifier: workspace:^
-        version: link:../ssm
-      '@hono/node-server':
-        specifier: 1.19.9
-        version: 1.19.9(hono@4.11.7)
-      '@node-rs/bcrypt':
-        specifier: ^1.10.5
-        version: 1.10.7
-      hono:
-        specifier: 4.11.7
-        version: 4.11.7
-      sharp:
-        specifier: ^0.34.2
-        version: 0.34.5
 
   packages/cloudwatch:
     dependencies:

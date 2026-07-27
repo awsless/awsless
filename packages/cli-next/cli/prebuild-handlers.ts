@@ -1,11 +1,19 @@
 // Compile the internal bundle handlers into the published dist folder.
-// Every package import stays external, so the emitted files keep their
-// bare imports and join the same module graph as the user handlers when
-// the app bundle is built.
+// Package imports are bundled in, except the peer packages that must
+// keep their bare imports & join the same module graph as the user
+// handlers when the app bundle is built, plus the packages provided by
+// the lambda runtime & layers.
 
-export {}
+import pkg from '../package.json'
 
-const handlers = [
+const external = [...Object.keys(pkg.peerDependencies), '@aws-sdk/*', 'sharp']
+
+const handlers: {
+	name: string
+	entry: string
+	external?: string[]
+	target?: 'node' | 'bun'
+}[] = [
 	{ name: 'bundle', entry: 'src/feature/bundle/server/handle.ts' },
 	{ name: 'rpc', entry: 'src/feature/rpc/server/handle.ts' },
 	{ name: 'image', entry: 'src/feature/image/server/handle.ts' },
@@ -13,12 +21,12 @@ const handlers = [
 	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },
 	{ name: 'pubsub-publisher', entry: 'src/feature/pubsub/publisher/handle.ts' },
-	{ name: 'pubsub-server', entry: 'src/feature/pubsub/server/index.ts', packages: 'bundle', target: 'bun' },
-] as const
+	{ name: 'pubsub-server', entry: 'src/feature/pubsub/server/index.ts', external: [], target: 'bun' },
+]
 
 for (const { name, entry, ...options } of handlers) {
 	const result = await Bun.build({
-		packages: 'external',
+		external,
 		target: 'node',
 		...options,
 		entrypoints: [entry],
