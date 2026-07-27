@@ -28,8 +28,6 @@ import { TestsSchema } from '../feature/test/schema.js'
 import { SubscribersSchema } from '../feature/topic/schema.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
 
-const DependsSchema = ResourceIdSchema.array().optional().describe('Define the stacks that this stack is depended on.')
-
 const NameSchema = ResourceIdSchema.refine(name => !['base', 'hostedzones'].includes(name), {
 	message: `Stack name can't be a reserved name.`,
 }).describe('Stack name.')
@@ -38,7 +36,6 @@ export const StackSchema = z
 	.object({
 		$schema: z.string().optional(),
 		name: NameSchema,
-		depends: DependsSchema,
 
 		commands: CommandsSchema,
 

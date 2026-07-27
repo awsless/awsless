@@ -7,40 +7,10 @@ import { Builder } from './build/index.js'
 import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
 import { StackConfig } from './config/stack.js'
-import { FileError } from './error.js'
 import { OnEnvListener, OnPermissionCallback, OnReadyListener, Permission } from './feature.js'
 import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
 import { generateGlobalAppId } from './util/name.js'
-
-// const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
-// 	const list: string[] = []
-// 	const walk = (deps: string[]) => {
-// 		deps.forEach(dep => {
-// 			const stack = stacks.find(stack => stack.name === dep)
-// 			if (stack) {
-// 				if (!list.includes(dep)) {
-// 					list.push(dep)
-// 					if (stack.depends) {
-// 						walk(stack.depends)
-// 					}
-// 				}
-// 			}
-// 		})
-// 	}
-
-// 	walk(filters)
-// 	return list
-// }
-
-const assertDepsExists = (stack: StackConfig, stacks: StackConfig[]) => {
-	for (const dep of stack.depends ?? []) {
-		const found = stacks.find(i => i.name === dep)
-		if (!found) {
-			throw new FileError(stack.file, `Stack "${stack.name}" depends on a stack "${dep}" that doesn't exist.`)
-		}
-	}
-}
 
 export type CreateAppProps = {
 	appConfig: AppConfig
@@ -107,29 +77,11 @@ export const createApp = (props: CreateAppProps) => {
 
 	const globalEnv: BindEnv[] = []
 	const globalEnvListeners: OnEnvListener[] = []
-	const allLocalEnv: Record<string, BindEnv[]> = {}
-	const allLocalEnvListeners: Record<string, OnEnvListener[]> = {}
 
 	const globalPermissions: Permission[] = []
 	const globalPermissionCallbacks: OnPermissionCallback[] = []
 	const appPermissions: Permission[] = []
 	const appPermissionCallbacks: OnPermissionCallback[] = []
-	const allStackPermissions: Record<string, Permission[]> = {}
-	const allStackPermissionCallbacks: Record<string, OnPermissionCallback[]> = {}
-
-	// const globalPolicies: aws.iam.RolePolicy[] = []
-	// const globalPoliciesListeners: OnPolicyListener[] = []
-	// const appPolicies: aws.iam.RolePolicy[] = []
-	// const appPoliciesListeners: OnPolicyListener[] = []
-	// const allStackPolicies: Record<string, aws.iam.RolePolicy[]> = {}
-	// const allStackPolicyListeners: Record<string, OnPolicyListener[]> = {}
-
-	// ---------------------------------------------------------------
-	// Run some checks
-
-	for (const stackConfig of props.stackConfigs) {
-		assertDepsExists(stackConfig, props.stackConfigs)
-	}
 
 	// ---------------------------------------------------------------
 
@@ -208,38 +160,9 @@ export const createApp = (props: CreateAppProps) => {
 	}
 
 	// ---------------------------------------------------------------
-	// debug('Stack filters:', filters.map(filter => style.info(filter)).join(', '))
-
-	// let filterdStacks = props.stackConfigs
-	// if (filters.length > 0) {
-	// 	const filtersWithDeps = getFiltersWithDeps(filterdStacks, filters)
-	// 	// debug('Stack filters with deps:', filtersWithDeps.map(filter => style.info(filter)).join(', '))
-	// 	filterdStacks = filterdStacks.filter(stack => filtersWithDeps.includes(stack.name))
-	// }
 
 	for (const stackConfig of props.stackConfigs) {
-		// checkDepsExists(stackConfig, props.stackConfigs)
-
 		const stack = new Stack(app, stackConfig.name)
-		// stack.setTag('stack', stack.name)
-
-		// const stackPolicyListeners: OnPolicyListener[] = []
-		// const stackPolicies: aws.iam.RolePolicy[] = []
-
-		const localEnvListeners: OnEnvListener[] = []
-		const localEnv: BindEnv[] = []
-
-		const stackPermissions: Permission[] = []
-		const stackPermissionCallbacks: OnPermissionCallback[] = []
-
-		allStackPermissions[stack.name] = stackPermissions
-		allStackPermissionCallbacks[stack.name] = stackPermissionCallbacks
-
-		// allStackPolicyListeners[stack.name] = stackPolicyListeners
-		// allStackPolicies[stack.name] = stackPolicies
-
-		allLocalEnvListeners[stack.name] = localEnvListeners
-		allLocalEnv[stack.name] = localEnv
 
 		for (const feature of features) {
 			feature.onStack?.({
@@ -254,16 +177,12 @@ export const createApp = (props: CreateAppProps) => {
 				shared,
 				onPermission(callback) {
 					globalPermissionCallbacks.push(callback)
-					stackPermissionCallbacks.push(callback)
 				},
 				addGlobalPermission(permission) {
 					globalPermissions.push(permission)
 				},
 				addAppPermission(permission) {
 					appPermissions.push(permission)
-				},
-				addStackPermission(permission) {
-					stackPermissions.push(permission)
 				},
 				addWarning(props) {
 					warnings.push(props)
@@ -328,10 +247,10 @@ export const createApp = (props: CreateAppProps) => {
 					bindListeners.push(cb)
 				},
 				addEnv(name, value) {
-					localEnv.push({ name, value })
+					globalEnv.push({ name, value })
 				},
 				onEnv(cb) {
-					localEnvListeners.push(cb)
+					globalEnvListeners.push(cb)
 				},
 				onReady(cb) {
 					readyListeners.push(cb)
@@ -340,21 +259,6 @@ export const createApp = (props: CreateAppProps) => {
 					readyLastListeners.push(cb)
 				},
 			})
-		}
-
-		// ---------------------------------------------------------------
-		// Local stack binds
-
-		for (const callback of stackPermissionCallbacks) {
-			for (const permission of stackPermissions) {
-				callback(permission)
-			}
-		}
-
-		for (const listener of localEnvListeners) {
-			for (const env of localEnv) {
-				listener(env.name, env.value)
-			}
 		}
 	}
 
@@ -387,54 +291,6 @@ export const createApp = (props: CreateAppProps) => {
 			listener(name, value)
 		}
 	}
-
-	// ---------------------------------------------------------------
-	// Stack dependency binds
-
-	for (const stackConfig of props.stackConfigs) {
-		// const functions = allLocalFunctions[stackConfig.name]!
-		const envListeners = allLocalEnvListeners[stackConfig.name]!
-		const permissionCallbacks = allStackPermissionCallbacks[stackConfig.name]!
-
-		for (const dependency of stackConfig.depends ?? []) {
-			// const functionListeners = allLocalFunctionListeners[dependency]!
-			const permissions = allStackPermissions[dependency]!
-			const env = allLocalEnv[dependency]!
-
-			// for (const fn of functions) {
-			// 	for (const listener of functionListeners) {
-			// 		listener(fn)
-			// 	}
-			// }
-
-			for (const permission of permissions) {
-				for (const callback of permissionCallbacks) {
-					callback(permission)
-				}
-			}
-
-			for (const entry of env) {
-				for (const listener of envListeners) {
-					listener(entry.name, entry.value)
-				}
-			}
-		}
-	}
-
-	// for (const entry of stacks) {
-	// 	for (const dep of entry.config.depends || []) {
-	// 		const depStack = stacks.find(entry => entry.config.name === dep)
-	// 		if (!depStack) {
-	// 			throw new Error(`Stack dependency not found: ${dep}`)
-	// 		}
-	// 		const functions = entry.stack.find(Function)
-	// 		for (const bind of depStack.bindings) {
-	// 			for (const fn of functions) {
-	// 				bind(fn)
-	// 			}
-	// 		}
-	// 	}
-	// }
 
 	// ---------------------------------------------------------------
 	// Ready!

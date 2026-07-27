@@ -24,7 +24,7 @@ const createWorkspace = async () => {
 		join(root, 'api', 'stack.jsonc'),
 		JSON.stringify({
 			name: 'api',
-			depends: ['core'],
+			configs: ['core'],
 		})
 	)
 
@@ -125,12 +125,12 @@ describe('stage patch config loading', () => {
 				JSON.stringify({
 					$schema: '../../dist/stack.stage.json',
 					operations: [
-						{ op: 'copy', from: '/name', path: '/depends/1' },
-						{ op: 'move', from: '/depends/1', path: '/depends/0' },
+						{ op: 'copy', from: '/name', path: '/configs/1' },
+						{ op: 'move', from: '/configs/1', path: '/configs/0' },
 						{ op: 'replace', path: '/name', value: 'jobs' },
-						{ op: 'remove', path: '/depends/1' },
-						{ op: 'test', path: '/depends/0', value: 'api' },
-						{ op: 'add', path: '/depends/1', value: 'worker' },
+						{ op: 'remove', path: '/configs/1' },
+						{ op: 'test', path: '/configs/0', value: 'api' },
+						{ op: 'add', path: '/configs/1', value: 'worker' },
 					],
 				})
 			)
@@ -147,7 +147,7 @@ describe('stage patch config loading', () => {
 
 			expect(stacks).toHaveLength(1)
 			expect(stacks[0]?.name).toBe('jobs')
-			expect(stacks[0]?.depends).toEqual(['api', 'worker'])
+			expect(stacks[0]?.configs).toEqual(['api', 'worker'])
 		})
 	})
 

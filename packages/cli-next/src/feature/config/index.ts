@@ -54,7 +54,7 @@ export const configFeature = defineFeature({
 
 		if (configs.length) {
 			// ctx.addEnv('CONFIG', configs.join(','))
-			ctx.addStackPermission({
+			ctx.addGlobalPermission({
 				actions: [
 					'ssm:GetParameter',
 					'ssm:GetParameters',

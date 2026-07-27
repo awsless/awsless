@@ -402,11 +402,4 @@ export const bundleFeature = defineFeature({
 			addPermission,
 		})
 	},
-	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-
-		// Collect the stack scoped env vars & permissions.
-		ctx.onEnv(bundle.addEnv)
-		ctx.onPermission(bundle.addPermission)
-	},
 })

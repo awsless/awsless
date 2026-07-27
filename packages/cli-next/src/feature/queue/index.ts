@@ -127,7 +127,7 @@ export const queueFeature = defineFeature({
 
 			ctx.addEnv(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 
-			ctx.addStackPermission({
+			ctx.addGlobalPermission({
 				actions: [
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',

@@ -77,7 +77,7 @@ export const metricFeature = defineFeature({
 		// Sadly we can't be specific about the metric
 		// because metric's don't have a ARN.
 
-		ctx.addStackPermission({
+		ctx.addGlobalPermission({
 			actions: ['cloudwatch:PutMetricData'],
 			resources: ['*'],
 			conditions: {

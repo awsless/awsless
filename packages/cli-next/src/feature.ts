@@ -77,9 +77,6 @@ export type StackContext = AppContext & {
 	registerTest: RegisterTest
 	registerConfig: RegisterConfig
 
-	// onStackPolicy: OnPolicy
-	addStackPermission: OnPermissionCallback
-
 	addFunction: (lambda: aws.lambda.Function) => void
 }
 
