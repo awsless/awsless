@@ -561,13 +561,13 @@ importers:
         version: 0.7.0
       '@terraforge/aws':
         specifier: ^6.53.0
-        version: 6.53.0(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)))
+        version: 6.53.0(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)))
       '@terraforge/core':
-        specifier: ^0.0.39
-        version: 0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
+        specifier: ^0.0.40
+        version: 0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
       '@terraforge/terraform':
         specifier: ^0.0.33
-        version: 0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))
+        version: 0.0.33(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))
       '@types/aws-lambda':
         specifier: ^8.10.161
         version: 8.10.161
@@ -4381,8 +4381,8 @@ packages:
   '@terraforge/core@0.0.38':
     resolution: {integrity: sha512-IORqx9i/SyOELO6qNHaHWitRWMoxhwoWB5Yo7JYgLh362EW4EqlrYu/X45UQzv5tvCbZ76URtV6eJXOjDHb07A==}
 
-  '@terraforge/core@0.0.39':
-    resolution: {integrity: sha512-Id4QIopNyDPS7rAq794gc1PY1eYdWgcR9l6kapLA7csUsUIRfagAn2XRYap3kiI4iTlX+SWt2/5M49grWTYtHw==}
+  '@terraforge/core@0.0.40':
+    resolution: {integrity: sha512-L+KNs74cb9PLCE16vLIm/YN/lYHRwyCjVPUhZt1zgfXrhv9HTdgZFFvrVAOGW6onjjBfRto3p8XFJ3u1zjBh6w==}
 
   '@terraforge/terraform@0.0.31':
     resolution: {integrity: sha512-3nIsLUgbohlrslb4D4yxEP7kxwD6wFMXDp9sqeooUKc2ucfC+00yJO/qkbaoJ8e0WfX4MoVA/FHHx4a0ARDM6A==}
@@ -12703,10 +12703,10 @@ snapshots:
       '@terraforge/core': 0.0.38(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
       '@terraforge/terraform': 0.0.31(@terraforge/core@0.0.38(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))
 
-  '@terraforge/aws@6.53.0(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)))':
+  '@terraforge/aws@6.53.0(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)))':
     dependencies:
-      '@terraforge/core': 0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
-      '@terraforge/terraform': 0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))
+      '@terraforge/core': 0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
+      '@terraforge/terraform': 0.0.33(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))
 
   '@terraforge/core@0.0.38(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)':
     dependencies:
@@ -12725,10 +12725,10 @@ snapshots:
       - aws-crt
       - graphology-types
 
-  '@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)':
+  '@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)':
     dependencies:
       '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
-      '@aws-sdk/client-s3': 3.1088.0
+      '@aws-sdk/client-s3': 3.1023.0(aws-crt@1.30.0(supports-color@8.1.1))
       '@aws-sdk/types': 3.329.0
       '@aws-sdk/util-dynamodb': 3.996.2(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)))
       async-on-exit: 0.1.0
@@ -12752,11 +12752,11 @@ snapshots:
       msgpackr: 1.11.12
       semver: 7.8.1
 
-  '@terraforge/terraform@0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))':
+  '@terraforge/terraform@0.0.33(@terraforge/core@0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8))':
     dependencies:
       '@grpc/grpc-js': 1.12.6
       '@grpc/proto-loader': 0.7.15
-      '@terraforge/core': 0.0.39(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
+      '@terraforge/core': 0.0.40(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(graphology-types@0.24.8)
       change-case: 5.4.4
       jszip: 3.10.1
       msgpackr: 1.11.12
