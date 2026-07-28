@@ -3,8 +3,14 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 
 // The payload property used to route lambda invokes to the right bundle handler.
 export const ROUTE_PROPERTY = '$awsless-route'
-export const BUNDLE_NAME = `${process.env.APP ?? 'app'}--function--bundle`
 export const BUNDLE_QUALIFIER = 'live'
+
+// Resolved on every call instead of once at module load. Inside a lambda the
+// env is set before anything imports this, but the cli imports it while
+// booting & only assigns process.env.APP once it knows the app config, so a
+// module level constant would freeze to the 'app' fallback & send `awsless
+// run` at "app--function--bundle" instead of "<app>--function--bundle".
+export const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
 
 // ------------------------------------------------------------
 // The route context of the currently running bundle handler.

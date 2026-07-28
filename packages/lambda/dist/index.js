@@ -188,19 +188,14 @@ var transformValidationErrors = async (callback) => {
 };
 
 // src/context/global-context.ts
+import { AsyncLocalStorage } from "async_hooks";
 var GlobalContext = class {
-  #store;
+  #storage = new AsyncLocalStorage();
   async run(store, callback) {
-    this.#store = store;
-    try {
-      const res = await callback();
-      return res;
-    } finally {
-      this.#store = void 0;
-    }
+    return this.#storage.run(store, callback);
   }
   get() {
-    return this.#store;
+    return this.#storage.getStore();
   }
 };
 

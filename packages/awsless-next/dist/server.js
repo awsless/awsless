@@ -19,8 +19,8 @@ import { kebabCase as kebabCase2 } from "change-case";
 import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
-var BUNDLE_NAME = `${process.env.APP ?? "app"}--function--bundle`;
 var BUNDLE_QUALIFIER = "live";
+var getBundleName = () => `${process.env.APP ?? "app"}--function--bundle`;
 var routeContext = new AsyncLocalStorage();
 var getCurrentRoute = () => routeContext.getStore()?.routeKey;
 var withRoute = (routeKey, invoke5, callback) => {
@@ -212,7 +212,7 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
       }
       return invoke({
         ...options,
-        name: BUNDLE_NAME,
+        name: getBundleName(),
         qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
         payload: formatRoutePayload(routeKey, payload)
       });
@@ -349,7 +349,7 @@ var PubSub = /* @__PURE__ */ createProxy((name) => {
         return;
       }
       await invoke2({
-        name: BUNDLE_NAME,
+        name: getBundleName(),
         qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
         type: "Event",
         payload: formatRoutePayload(routeKey, message)
@@ -487,7 +487,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
         } else if (options.schedule) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
-            name: `${BUNDLE_NAME}:${BUNDLE_QUALIFIER}`,
+            name: `${getBundleName()}:${BUNDLE_QUALIFIER}`,
             payload: formatRoutePayload(routeKey, payload),
             schedule: options.schedule,
             group: resourceTaskName("group"),
@@ -498,7 +498,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
           await invoke3({
             ...options,
             type: "Event",
-            name: BUNDLE_NAME,
+            name: getBundleName(),
             qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
             payload: formatRoutePayload(routeKey, payload)
           });
@@ -704,7 +704,7 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
         await invoke4({
           ...options,
           type: "Event",
-          name: BUNDLE_NAME,
+          name: getBundleName(),
           qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
           payload: formatRoutePayload(routeKey, payload)
         });
@@ -868,7 +868,6 @@ export {
   APP,
   Alert,
   Auth,
-  BUNDLE_NAME,
   BUNDLE_QUALIFIER,
   Cache,
   Config,
@@ -890,6 +889,7 @@ export {
   formatRoutePayload,
   getAlertName,
   getAuthProps,
+  getBundleName,
   getCacheProps,
   getConfigName,
   getConfigValue,

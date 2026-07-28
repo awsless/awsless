@@ -1,6 +1,6 @@
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { createProxy } from '../proxy.js'
-import { BUNDLE_NAME, BUNDLE_QUALIFIER, formatRouteKey, formatRoutePayload } from './bundle.js'
+import { BUNDLE_QUALIFIER, formatRouteKey, formatRoutePayload, getBundleName } from './bundle.js'
 import { bindLocalResourceName, IS_TEST } from './util.js'
 
 export const getCronName = bindLocalResourceName('cron')
@@ -28,7 +28,7 @@ export const Cron: CronResources = /*@__PURE__*/ createProxy(stackName => {
 				await invoke({
 					...options,
 					type: 'Event',
-					name: BUNDLE_NAME,
+					name: getBundleName(),
 					qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
 					payload: formatRoutePayload(routeKey, payload),
 				})

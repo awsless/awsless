@@ -12,8 +12,10 @@ import {
 import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from './util'
 
 // The wire constants mirror the awsless bundle runtime, without pulling
-// the whole awsless package into the prebuilt zip.
-const BUNDLE_NAME = `${process.env.APP ?? 'app'}--function--bundle`
+// the whole awsless package into the prebuilt zip. The name is resolved on
+// call, matching getBundleName() in the runtime, so it never freezes to the
+// 'app' fallback when the env is assigned after this module is imported.
+const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
 const BUNDLE_QUALIFIER = 'live'
 const CONSUMER_ROUTE = 'base:on-failure:consumer'
 
@@ -177,7 +179,7 @@ const patchPayload = (payload: unknown) => {
 // here & the failure object stays in the bucket for the sqs retry.
 const invokeConsumer = async (payload: unknown) => {
 	await invoke({
-		name: BUNDLE_NAME,
+		name: getBundleName(),
 		qualifier: BUNDLE_QUALIFIER,
 		type: 'RequestResponse',
 		payload: {

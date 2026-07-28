@@ -3,7 +3,7 @@ import { invoke } from '@awsless/lambda'
 import type { UUID } from 'node:crypto'
 import { createProxy } from '../proxy.js'
 import {
-	BUNDLE_NAME,
+	getBundleName,
 	BUNDLE_QUALIFIER,
 	formatRouteKey,
 	formatRoutePayload,
@@ -41,7 +41,7 @@ export const PubSub: PubSubResources = /*@__PURE__*/ createProxy(name => {
 			}
 
 			await invoke({
-				name: BUNDLE_NAME,
+				name: getBundleName(),
 				qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
 				type: 'Event',
 				payload: formatRoutePayload(routeKey, message),

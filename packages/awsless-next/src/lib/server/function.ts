@@ -4,7 +4,7 @@ import { invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
 import {
-	BUNDLE_NAME,
+	getBundleName,
 	BUNDLE_QUALIFIER,
 	formatRouteKey,
 	formatRoutePayload,
@@ -48,7 +48,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 
 			return invoke({
 				...options,
-				name: BUNDLE_NAME,
+				name: getBundleName(),
 				qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
 				payload: formatRoutePayload(routeKey, payload),
 			})
