@@ -13,7 +13,7 @@ import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials, isError } from '../util/aws'
 
-import '@aws-sdk/signature-v4a'
+import '@aws-sdk/signature-v4-crt'
 
 // ------------------------------------------------------------
 // Each router keeps its staged route tables and active pointer in one store:
