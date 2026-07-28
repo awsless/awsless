@@ -1,29 +1,13 @@
 {
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
-		"resolveJsonModule": true,
 		"noEmit": true,
+		"module": "Preserve",
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
 		"allowImportingTsExtensions": true,
-		// "module": "Node16",
-		// "moduleResolution": "Classic",
-		// "module": "ESNext",
-		// "module": "CommonJS",
-		// "removeComments": false,
-		"strictNullChecks": true,
-		"noUncheckedIndexedAccess": true,
-		// "declaration": false,
-		"rootDir": ".",
-		// "preserveSymlinks": true,
-		"types": ["bun", "node", "vitest/globals"],
-		// "declaration": true,
-		// "removeComments": false,
-		// "esModuleInterop": true,
-		// "allowImportingTsExtensions": true,
-		"allowSyntheticDefaultImports": true,
-		"jsx": "react-jsx",
+		"isolatedModules": true,
+		"types": ["bun", "node", "vitest/globals"]
 	},
-	// "ts-node": {
-	//     "esm": true,
-	// 	"experimentalSpecifierResolution": "node",
-	// }
+	"exclude": ["dist", "**/_*"]
 }
