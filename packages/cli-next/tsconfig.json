@@ -2,6 +2,8 @@
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
 		"resolveJsonModule": true,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
 		// "module": "Node16",
 		// "moduleResolution": "Classic",
 		// "module": "ESNext",
