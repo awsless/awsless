@@ -138,7 +138,7 @@ export const createPrebuildLambdaFunction = (
 	// ------------------------------------------------------------
 	// VPC
 
-	const dependsOn: Resource[] = []
+	const dependsOn: Resource[] = [role, policy]
 
 	if (props.vpc) {
 		dependsOn.push(
