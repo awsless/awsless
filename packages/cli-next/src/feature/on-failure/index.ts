@@ -1,12 +1,13 @@
-import { formatGlobalResourceName } from '../../util/name.js'
-import { defineFeature } from '../../feature.js'
-import { Group } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
 import { days, toSeconds } from '@awsless/duration'
-import { formatRouteEnvName } from 'awsless'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { mebibytes } from '@awsless/size'
+import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
+import { defineFeature } from '../../feature.js'
+import { formatGlobalResourceName } from '../../util/name.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { createPrebuildLambdaFunction } from '../function/prebuild.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
@@ -186,39 +187,63 @@ export const onFailureFeature = defineFeature({
 
 		const bundle = ctx.shared.get('bundle', 'main')
 		const { group, bucket, queue } = ctx.shared.get('on-failure', 'resources')
-		const normalizerRoute = formatRouteKey('base', 'on-failure', 'normalizer')
-		const consumerRoute = formatRouteKey('base', 'on-failure', 'consumer')
-		const consumer = props.consumer
 
-		bundle.addHandler({
-			routeKey: normalizerRoute,
-			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.js'),
-			exportName: 'default',
-		})
-		registerBundleFunction(ctx, consumerRoute, consumer)
+		// The consumer runs inside the bundle like every other function.
+		registerBundleFunction(ctx, formatRouteKey('base', 'on-failure', 'consumer'), props.consumer)
 
-		bundle.addEnv(formatRouteEnvName(normalizerRoute, 'CONSUMER'), consumerRoute)
+		// ----------------------------------------------------------------
+		// The failure queue feeds a separate lambda that formats every
+		// failure event & invokes the consumer inside the live bundle.
+		// Keeping the bundle out of the failure path prevents a failing
+		// bundle from recursively consuming its own failures.
 
-		bundle.addPermission({
-			actions: ['s3:GetObject', 's3:DeleteObject'],
-			resources: [$interpolate`${bucket.arn}/*`],
+		const distDir = dirname(fileURLToPath(import.meta.url))
+
+		const handler = createPrebuildLambdaFunction(group, ctx, 'on-failure', 'handler', {
+			bundleFile: join(distDir, '/prebuild/on-failure/bundle.zip'),
+			bundleHash: join(distDir, '/prebuild/on-failure/HASH'),
+			runtime: 'nodejs24.x',
+			handler: 'index.default',
+			memorySize: mebibytes(256),
+
+			// The consumer invoke is synchronous, so the handler needs at
+			// least the same timeout as the bundle.
+			timeout: ctx.appConfig.defaults.function.timeout,
+
+			log: {
+				format: 'json',
+				level: 'warn',
+				system: 'warn',
+				retention: days(3),
+			},
 		})
-		bundle.addPermission({
-			actions: [
-				'sqs:DeleteMessage',
-				'sqs:ReceiveMessage',
-				'sqs:GetQueueAttributes',
-				'sqs:ChangeMessageVisibility',
-			],
-			resources: [queue.arn],
-		})
+
+		handler.addPermission(
+			{
+				actions: ['lambda:InvokeFunction'],
+				resources: [bundle.alias.arn],
+			},
+			{
+				actions: ['s3:GetObject', 's3:DeleteObject'],
+				resources: [$interpolate`${bucket.arn}/*`],
+			},
+			{
+				actions: [
+					'sqs:DeleteMessage',
+					'sqs:ReceiveMessage',
+					'sqs:GetQueueAttributes',
+					'sqs:ChangeMessageVisibility',
+				],
+				resources: [queue.arn],
+			}
+		)
 
 		new aws.lambda.EventSourceMapping(group, 'on-failure', {
-			functionName: bundle.alias.arn,
+			functionName: handler.lambda.arn,
 			eventSourceArn: queue.arn,
 			batchSize: 10,
 		}, {
-			dependsOn: [bundle.policy],
+			dependsOn: [handler.policy],
 		})
 
 		const queuePolicy = new aws.sqs.QueuePolicy(group, 'bucket-notification', {

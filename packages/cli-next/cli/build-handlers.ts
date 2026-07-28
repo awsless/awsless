@@ -4,6 +4,9 @@
 // handlers when the app bundle is built, plus the packages provided by
 // the lambda runtime & layers.
 
+import { createHash } from 'crypto'
+import { mkdir, writeFile } from 'fs/promises'
+import JSZip from 'jszip'
 import pkg from '../package.json'
 
 const external = [...Object.keys(pkg.peerDependencies), '@aws-sdk/*', 'sharp']
@@ -18,7 +21,6 @@ const handlers: {
 	{ name: 'rpc', entry: 'src/feature/rpc/server/handle.ts' },
 	{ name: 'image', entry: 'src/feature/image/server/handle.ts' },
 	{ name: 'icon', entry: 'src/feature/icon/server/handle.ts' },
-	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },
 	{ name: 'pubsub-publisher', entry: 'src/feature/pubsub/publisher/handle.ts' },
 
@@ -47,4 +49,54 @@ for (const { name, entry, ...options } of handlers) {
 
 		process.exit(1)
 	}
+}
+
+// ------------------------------------------------------------
+// Handlers that run in their own lambda outside of the app bundle ship
+// as fully self-contained zip archives, with only the packages provided
+// by the lambda runtime left out.
+
+const prebuilds = [{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' }]
+
+for (const { name, entry } of prebuilds) {
+	const result = await Bun.build({
+		external: ['@aws-sdk/*'],
+		target: 'node',
+		minify: true,
+		entrypoints: [entry],
+		naming: 'index.mjs',
+		format: 'esm',
+	})
+
+	if (!result.success) {
+		console.error(`Failed to build the "${name}" prebuild`)
+
+		for (const message of result.logs) {
+			console.error(message)
+		}
+
+		process.exit(1)
+	}
+
+	const code = Buffer.from(await result.outputs[0]!.arrayBuffer())
+
+	const zip = new JSZip()
+	// A fixed file date keeps the archive identical between builds.
+	zip.file('index.mjs', code, { date: new Date(0) })
+
+	const archive = await zip.generateAsync({
+		type: 'nodebuffer',
+		compression: 'DEFLATE',
+		compressionOptions: {
+			level: 9,
+		},
+	})
+
+	const directory = `dist/prebuild/${name}`
+
+	await mkdir(directory, { recursive: true })
+	await Promise.all([
+		writeFile(`${directory}/bundle.zip`, archive),
+		writeFile(`${directory}/HASH`, createHash('sha1').update(code).digest('hex')),
+	])
 }

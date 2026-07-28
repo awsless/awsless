@@ -56,7 +56,7 @@
 				"retention": "1 week"
 			}
 		},
-		// "onFailure": "./on-failure/handle.ts",
+		"onFailure": "./on-failure/handle.ts",
 		"onErrorLog": "./on-error-log/consumer.ts"
 		// "layers": {
 		// 	"test": {

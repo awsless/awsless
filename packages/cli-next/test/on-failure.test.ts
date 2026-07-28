@@ -1,19 +1,17 @@
 import { mockLambda } from '@awsless/lambda'
 import { getObject, mockS3, putObject } from '@awsless/s3'
-import { formatRouteEnvName } from 'awsless'
 import { beforeEach, describe, expect, it } from 'vitest'
 import handle from '../src/feature/on-failure/server/handle'
 
 describe('on failure handler', () => {
-	const functionArn = 'arn:aws:lambda:eu-west-1:123456789:function:test-app--function--bundle:live'
-	const normalizerRoute = 'base:on-failure:normalizer'
+	const BUNDLE_NAME = `${process.env.APP ?? 'app'}--function--bundle`
 	const consumerRoute = 'base:on-failure:consumer'
 	const invokes: unknown[] = []
 	let consumerError: Error | undefined
 
 	mockS3()
 	mockLambda({
-		[functionArn]: payload => {
+		[BUNDLE_NAME]: payload => {
 			invokes.push(payload)
 
 			if (consumerError) {
@@ -27,11 +25,8 @@ describe('on failure handler', () => {
 	beforeEach(() => {
 		invokes.length = 0
 		consumerError = undefined
-		process.env.AWSLESS_ROUTE = normalizerRoute
-		process.env[formatRouteEnvName(normalizerRoute, 'CONSUMER')] = consumerRoute
 	})
 
-	const context = { invokedFunctionArn: functionArn } as any
 	const asyncFailure = {
 		timestamp: '2026-01-01T00:00:00.000Z',
 		requestContext: {
@@ -79,7 +74,7 @@ describe('on failure handler', () => {
 			body: JSON.stringify(asyncFailure),
 		})
 
-		await handle(sqsEvent(s3Event('failure+object.json')) as any, context)
+		await handle(sqsEvent(s3Event('failure+object.json')) as any)
 
 		expect(invokes).toStrictEqual([
 			{
@@ -109,12 +104,12 @@ describe('on failure handler', () => {
 			body: JSON.stringify(asyncFailure),
 		})
 
-		await expect(handle(sqsEvent(s3Event('retry.json')) as any, context)).rejects.toThrow('consumer failed')
+		await expect(handle(sqsEvent(s3Event('retry.json')) as any)).rejects.toThrow('consumer failed')
 		await expect(getObject({ bucket: 'failures', key: 'retry.json' })).resolves.toBeDefined()
 	})
 
 	it('ignores the S3 notification test event', async () => {
-		await handle(sqsEvent({ Event: 's3:TestEvent' }) as any, context)
+		await handle(sqsEvent({ Event: 's3:TestEvent' }) as any)
 
 		expect(invokes).toStrictEqual([])
 	})
@@ -133,7 +128,7 @@ describe('on failure handler', () => {
 			key: 'routed.json',
 			body: JSON.stringify(routedFailure),
 		})
-		await handle(sqsEvent(s3Event('routed.json')) as any, context)
+		await handle(sqsEvent(s3Event('routed.json')) as any)
 
 		expect(invokes.at(-1)).toMatchObject({
 			event: {
@@ -162,7 +157,7 @@ describe('on failure handler', () => {
 			key: 'topic.json',
 			body: JSON.stringify(topicFailure),
 		})
-		await handle(sqsEvent(s3Event('topic.json')) as any, context)
+		await handle(sqsEvent(s3Event('topic.json')) as any)
 
 		expect(invokes.at(-1)).toMatchObject({
 			event: {
@@ -173,24 +168,21 @@ describe('on failure handler', () => {
 	})
 
 	it('derives the failure source from the failed queue name', async () => {
-		await handle(
-			{
-				Records: [
-					{
-						eventSource: 'aws:sqs',
-						messageId: 'queue-message-id',
-						body: '{"task":"failed"}',
-						attributes: {
-							SentTimestamp: '1767225600000',
-						},
-						messageAttributes: {
-							queueName: { stringValue: 'test-app--test-stack--queue--index.fifo' },
-						},
+		await handle({
+			Records: [
+				{
+					eventSource: 'aws:sqs',
+					messageId: 'queue-message-id',
+					body: '{"task":"failed"}',
+					attributes: {
+						SentTimestamp: '1767225600000',
 					},
-				],
-			} as any,
-			context
-		)
+					messageAttributes: {
+						queueName: { stringValue: 'test-app--test-stack--queue--index.fifo' },
+					},
+				},
+			],
+		} as any)
 
 		expect(invokes.at(-1)).toMatchObject({
 			event: {
@@ -201,7 +193,7 @@ describe('on failure handler', () => {
 	})
 
 	it('normalizes ordinary failure queue messages', async () => {
-		await handle(sqsEvent('{"task":"failed"}') as any, context)
+		await handle(sqsEvent('{"task":"failed"}') as any)
 
 		expect(invokes).toStrictEqual([
 			{

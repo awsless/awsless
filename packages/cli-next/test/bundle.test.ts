@@ -159,7 +159,6 @@ describe('bundle handler', () => {
 				{ routeKey: 'stack-1:task:work', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:rpc:query', file: handlers, exportName: 'echo' },
 				{ routeKey: 'base:rpc:api', file: handlers, exportName: 'site' },
-				{ routeKey: 'base:on-failure:normalizer', file: handlers, exportName: 'queue' },
 				{ routeKey: 'base:on-failure:consumer', file: handlers, exportName: 'queue' },
 				{ routeKey: 'stack-1:rest:api', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:site:web', file: handlers, exportName: 'site' },
@@ -492,25 +491,6 @@ describe('bundle handler', () => {
 	])('should route $name events', async ({ event }) => {
 		await expect(handler(event, context)).resolves.toStrictEqual({
 			stack: 'stack-1',
-			throwExpectedErrors: '1',
-			event,
-		})
-	})
-
-	it('should route the global failure queue to the normalizer', async () => {
-		const event = {
-			Records: [
-				{
-					eventSource: 'aws:sqs',
-					eventSourceARN: 'arn:aws:sqs:eu-west-1:123456789:test-app--on-failure--failure',
-				},
-			],
-		}
-
-		const result = await handler(event, context)
-
-		expect(result).toStrictEqual({
-			stack: 'base',
 			throwExpectedErrors: '1',
 			event,
 		})

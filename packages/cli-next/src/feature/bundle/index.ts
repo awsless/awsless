@@ -278,11 +278,6 @@ export const bundleFeature = defineFeature({
 			dependsOn: [vpcPolicy],
 		})
 
-		// const recursion = new aws.lambda.FunctionRecursionConfig(group, 'recursion', {
-		// 	functionName: lambda.functionName,
-		// 	recursiveLoop: 'Allow',
-		// })
-
 		// ------------------------------------------------------
 		// Preserve the current live version while staging the new deployment.
 
@@ -299,7 +294,7 @@ export const bundleFeature = defineFeature({
 			},
 			{
 				// Make sure the permissions are in place before any event source is wired up.
-				dependsOn: [policy /*, recursion*/],
+				dependsOn: [policy],
 			}
 		)
 
@@ -316,7 +311,7 @@ export const bundleFeature = defineFeature({
 				functionVersion: deployment.liveVersion,
 			},
 			{
-				dependsOn: [policy /*, recursion*/],
+				dependsOn: [policy],
 			}
 		)
 

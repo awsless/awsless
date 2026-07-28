@@ -21,10 +21,10 @@ export const logicalResourceName = (physical: string) => {
 	return physical
 }
 
-// Every consumer runs inside the shared bundle function, so the physical
+// Every handler runs inside the shared bundle function, so the physical
 // function name never names the failed resource. The delivery record in the
 // raw invocation payload does: it tells which topic, table stream or queue
-// invoked the consumer, and carries the app level event it received.
+// invoked the handler, and carries the app level event it received.
 export const getFailureSource = (payload: unknown): FailureSource | undefined => {
 	const record = getDeliveryRecord(payload)
 

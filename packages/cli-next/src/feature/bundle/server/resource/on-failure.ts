@@ -1,31 +1,11 @@
-import type { SQSEvent } from 'aws-lambda'
 import type { RouteMatcher } from './types.js'
 import { asyncRoute, routeType } from './util.js'
 
-export const onFailureHandler: RouteMatcher<SQSEvent> = event => {
+export const onFailureHandler: RouteMatcher = event => {
 	const route = event?.['$awsless-route']
 
-	if (typeof route === 'string') {
-		if (routeType(route) === 'on-failure') {
-			return asyncRoute(route, event.event)
-		}
-
-		return
-	}
-
-	if (typeof event?.headers?.['x-awsless-route'] === 'string') {
-		return
-	}
-
-	const record = event?.Records?.[0]
-	const eventSourceArn = record?.eventSourceARN
-
-	if (
-		record?.eventSource === 'aws:sqs' &&
-		typeof eventSourceArn === 'string' &&
-		eventSourceArn.endsWith(':' + process.env.APP + '--on-failure--failure')
-	) {
-		return asyncRoute('base:on-failure:normalizer', event)
+	if (typeof route === 'string' && routeType(route) === 'on-failure') {
+		return asyncRoute(route, event.event)
 	}
 
 	return
