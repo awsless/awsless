@@ -36,7 +36,7 @@ export const layerFeature = defineFeature({
 				group,
 				'zip',
 				{
-					bucket: ctx.shared.get('store', 'bucket').name,
+					bucket: ctx.shared.get('asset', 'bucket').name,
 					key: `layer/${id}.zip`,
 					contentType: 'application/zip',
 					source: props.file,

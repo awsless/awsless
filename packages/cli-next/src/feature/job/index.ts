@@ -87,7 +87,8 @@ export const jobFeature = defineFeature({
 			return
 		}
 
-		ctx.shared.get('store', 'bucket').addLifecycleRule({
+		// The job payloads only need to live for the duration of a job run.
+		ctx.shared.get('asset', 'bucket').addLifecycleRule({
 			id: 'expire-job-payloads',
 			enabled: true,
 			prefix: 'job/payloads/',
@@ -197,7 +198,7 @@ export const jobFeature = defineFeature({
 			})
 		)
 		ctx.addEnv('JOB_SECURITY_GROUP', ctx.shared.get('job', 'security-group-id'))
-		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('store', 'bucket').name)
+		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('asset', 'bucket').name)
 
 		for (const [id, props] of jobs) {
 			const group = new Group(ctx.stack, 'job', id)

@@ -16,7 +16,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { filterPattern } from '../on-error-log/util.js'
-import { getFeatureFolder } from '../store/index.js'
+import { getFeatureFolder } from '../asset/index.js'
 import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
@@ -72,7 +72,7 @@ export const createFargateTask = (
 		group,
 		'code',
 		{
-			bucket: ctx.shared.get('store', 'bucket').name,
+			bucket: ctx.shared.get('asset', 'bucket').name,
 			key: `${getFeatureFolder('instance', ctx.stack.name, id)}code`,
 			source: relativePath(getBuildPath('instance', name, 'program')),
 			sourceHash: $file(getBuildPath('instance', name, 'HASH')),

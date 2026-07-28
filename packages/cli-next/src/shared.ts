@@ -1,8 +1,8 @@
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Permission } from './feature'
+import { BucketLifecycleRule } from './feature/asset/index'
 import { Route } from './feature/router/route'
-import { BucketLifecycleRule, BucketNotificationRule } from './feature/store/index'
 
 type SharedState = {
 	vpc: {
@@ -26,15 +26,13 @@ type SharedState = {
 		}
 	}
 
-	store: {
+	asset: {
 		bucket: {
 			name: Output<string>
 			arn: Output<string>
 			regionalDomainName: Output<string>
 			policy: aws.s3.BucketPolicy
 			addLifecycleRule: (rule: BucketLifecycleRule) => void
-			addNotification: (rule: BucketNotificationRule) => void
-			notificationRules: BucketNotificationRule[]
 		}
 	}
 
@@ -114,7 +112,10 @@ type SharedEntries = {
 	router: {
 		id: Output<string>
 		'preview-id': Output<string>
-		addRoutes: (routes: Record<string, Route | Route[]>, options?: { dependsOn?: Array<Resource | DataSource> }) => void
+		addRoutes: (
+			routes: Record<string, Route | Route[]>,
+			options?: { dependsOn?: Array<Resource | DataSource> }
+		) => void
 	}
 }
 

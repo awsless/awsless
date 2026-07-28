@@ -128,7 +128,7 @@ export const bundleFeature = defineFeature({
 			group,
 			'code',
 			{
-				bucket: ctx.shared.get('store', 'bucket').name,
+				bucket: ctx.shared.get('asset', 'bucket').name,
 				key: `bundle/${name}.zip`,
 				source: relativePath(getBuildPath('bundle', name, 'bundle.zip')),
 				sourceHash,

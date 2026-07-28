@@ -86,7 +86,7 @@ export const createPubSubService = (
 		group,
 		'code',
 		{
-			bucket: ctx.shared.get('store', 'bucket').name,
+			bucket: ctx.shared.get('asset', 'bucket').name,
 			key: `pubsub/${name}`,
 			source: relativePath(getBuildPath('pubsub', name, 'program')),
 			sourceHash: $file(getBuildPath('pubsub', name, 'HASH')),

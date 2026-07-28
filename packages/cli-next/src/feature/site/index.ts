@@ -12,7 +12,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { Route } from '../router/route.js'
-import { getFeatureFolder } from '../store/index.js'
+import { getFeatureFolder } from '../asset/index.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -135,7 +135,7 @@ export const siteFeature = defineFeature({
 			// Static Assets
 
 			if (props.static) {
-				const bucket = ctx.shared.get('store', 'bucket')
+				const bucket = ctx.shared.get('asset', 'bucket')
 				const folder = getFeatureFolder('site', ctx.stack.name, id)
 
 				// ------------------------------------------------------------

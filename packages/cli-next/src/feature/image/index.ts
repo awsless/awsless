@@ -10,7 +10,7 @@ import { FileError } from '../../error'
 import { defineFeature } from '../../feature'
 import { formatGlobalResourceName } from '../../util/name'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
-import { getFeatureFolder } from '../store/index.js'
+import { getFeatureFolder } from '../asset/index.js'
 
 export const imageFeature = defineFeature({
 	name: 'image',
@@ -44,7 +44,7 @@ export const imageFeature = defineFeature({
 			group,
 			'layer',
 			{
-				bucket: ctx.shared.get('store', 'bucket').name,
+				bucket: ctx.shared.get('asset', 'bucket').name,
 				key: `layer/${layerId}.zip`,
 				contentType: 'application/zip',
 				source: path,
@@ -87,7 +87,7 @@ export const imageFeature = defineFeature({
 	},
 	onStack(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
-		const bucket = ctx.shared.get('store', 'bucket')
+		const bucket = ctx.shared.get('asset', 'bucket')
 
 		for (const [id, props] of Object.entries(ctx.stackConfig.images ?? {})) {
 			const group = new Group(ctx.stack, 'image', id)

@@ -1,3 +1,4 @@
+import { assetFeature } from './asset/index.js'
 import { authFeature } from './auth/index.js'
 import { bundleFeature } from './bundle/index.js'
 import { cacheFeature } from './cache/index.js'
@@ -33,10 +34,14 @@ export const features = [
 	// 1
 	vpcFeature,
 	domainFeature,
+	assetFeature,
 	routerFeature,
 	commandFeature,
 	layerFeature,
 
+	// 2
+
+	// 3
 	authFeature,
 
 	functionFeature,
