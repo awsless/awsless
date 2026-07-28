@@ -21,18 +21,6 @@ const lockTableInput = {
 	AttributeDefinitions: [{ AttributeName: 'urn', AttributeType: 'S' as const }],
 }
 
-const activityLogTableInput = {
-	TableName: 'awsless-logs',
-	KeySchema: [
-		{ AttributeName: 'urn', KeyType: 'HASH' as const },
-		{ AttributeName: 'date', KeyType: 'RANGE' as const },
-	],
-	AttributeDefinitions: [
-		{ AttributeName: 'urn', AttributeType: 'S' as const },
-		{ AttributeName: 'date', AttributeType: 'N' as const },
-	],
-}
-
 const hasTable = async (client: DynamoDB, name: string) => {
 	try {
 		const result = await client.send(
@@ -111,15 +99,14 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 	const dynamo = new DynamoDB(props)
 	const s3 = new S3Client(props)
 
-	const [lockTable, logTable, deployTable, stateBucket] = await Promise.all([
+	const [lockTable, deployTable, stateBucket] = await Promise.all([
 		//
 		hasTable(dynamo, lockTableInput.TableName),
-		hasTable(dynamo, activityLogTableInput.TableName),
 		hasTable(dynamo, deploymentsTable.name),
 		hasStateBucket(s3, props.region, props.accountId),
 	])
 
-	if (!lockTable || !stateBucket || !logTable || !deployTable) {
+	if (!lockTable || !stateBucket || !deployTable) {
 		log.warning(`Awsless hasn't been bootstrapped yet.`)
 
 		if (!process.env.SKIP_PROMPT) {
@@ -143,11 +130,6 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 				if (!lockTable) {
 					await migrate(client, lockTableInput)
 					missing.push(lockTableInput.TableName)
-				}
-
-				if (!logTable) {
-					await migrate(client, activityLogTableInput)
-					missing.push(activityLogTableInput.TableName)
 				}
 
 				if (!deployTable) {

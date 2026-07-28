@@ -1,15 +1,6 @@
 import { aws } from '@terraforge/aws'
-import {
-	App,
-	DynamoActivityLogBackend,
-	DynamoLockBackend,
-	enableDebug,
-	S3StateBackend,
-	StateBackend,
-	WorkSpace,
-} from '@terraforge/core'
+import { App, DynamoLockBackend, enableDebug, S3StateBackend, StateBackend, WorkSpace } from '@terraforge/core'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
-import { userInfo } from 'node:os'
 import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
 import { Region } from '../config/schema/region.js'
@@ -47,21 +38,14 @@ export const createDeploymentBackends = (props: BackendProps) => {
 		bucket: getStateBucketName(props.region, props.accountId),
 	})
 
-	const activityLog = new DynamoActivityLogBackend({
-		...props,
-		tableName: 'awsless-logs',
-		user: userInfo().username,
-	})
-
 	return {
-		activityLog,
 		lock,
 		state,
 	}
 }
 
 export const createWorkSpace = async (props: BackendProps) => {
-	const { activityLog, lock, state } = createDeploymentBackends(props)
+	const { lock, state } = createDeploymentBackends(props)
 
 	// const terraform = new Terraform({
 	// 	providerLocation: join(homedir(), `.awsless/providers`),
@@ -119,7 +103,6 @@ export const createWorkSpace = async (props: BackendProps) => {
 		],
 		concurrency: 15,
 		backend: {
-			activityLog,
 			state,
 			lock,
 		},
@@ -127,7 +110,6 @@ export const createWorkSpace = async (props: BackendProps) => {
 
 	return {
 		workspace,
-		activityLog,
 		lock,
 		state,
 	}
