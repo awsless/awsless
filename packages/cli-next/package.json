@@ -20,12 +20,11 @@
 	"scripts": {
 		"test": "bun cli/build-handlers.ts && pnpm vitest",
 		"build": "bun cli/build.ts",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi",
 		"jack": "pnpm build && bun dist/bin.js --config-file=./example/jack/app.jsonc",
-		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc"
 	},
 	"dependencies": {
-		"@aws-sdk/signature-v4-crt": "^3.816.0",
 		"@awsless/ts-file-cache": "workspace:^",
 		"rolldown": "1.0.0-rc.3",
 		"vitest": "^4.1.0"
@@ -56,6 +55,7 @@
 		"@aws-sdk/client-sts": "^3.369.0",
 		"@aws-sdk/credential-providers": "^3.654.0",
 		"@aws-sdk/lib-storage": "^3.423.0",
+		"@aws-sdk/signature-v4a": "^3.1088.0",
 		"@awsless/big-float": "workspace:^",
 		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/clui": "workspace:^",
