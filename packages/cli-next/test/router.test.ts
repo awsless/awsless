@@ -304,6 +304,27 @@ describe('router routes', () => {
 		])
 	})
 
+	it('should fall dotted paths outside the asset dirs through to the catch-all route', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/_app/*.', route('assets.example.com')],
+			['v1:main:/favicon.png', route('assets.example.com')],
+			['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'ssr.lambda-url.us-east-1.on.aws' })],
+		])
+		const { handler } = createRouter(values)
+		const invoke = async (path: string) => (await handler({ request: createRequest(path) })) as Request
+
+		await expect(invoke('/_app/immutable/chunk.js')).resolves.toMatchObject({
+			headers: { 'x-origin': { value: 'assets.example.com' } },
+		})
+		await expect(invoke('/favicon.png')).resolves.toMatchObject({
+			headers: { 'x-origin': { value: 'assets.example.com' } },
+		})
+		await expect(invoke('/manifest.json')).resolves.toMatchObject({
+			headers: { 'x-origin': { value: 'ssr.lambda-url.us-east-1.on.aws' } },
+		})
+	})
+
 	it('should preserve viewer authorization for Lambda routes', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],

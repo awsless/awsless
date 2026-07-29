@@ -2,7 +2,7 @@ import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
 import { glob } from 'glob'
-import { basename, dirname, join } from 'path'
+import { dirname, join } from 'path'
 import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { SiteDeployment } from '../../formation/s3.js'
@@ -12,6 +12,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { Route } from '../router/route.js'
+import { planStaticRoutes } from './static-routes.js'
 import { getFeatureFolder } from '../asset/index.js'
 
 export const siteFeature = defineFeature({
@@ -169,45 +170,32 @@ export const siteFeature = defineFeature({
 						})
 
 						const staticRoutes: Record<string, Route> = {}
+						const plan = planStaticRoutes(files, props.path)
 
-						// html pages and extensionless files get their own exact route;
-						// every other file is covered by the single asset route below
-						for (const file of files) {
-							if (file.endsWith('.html')) {
-								const strippedHtmlFile = file.endsWith('index.html')
-									? file.slice(0, -11)
-									: file.slice(0, -5)
-
-								const urlFriendlyFile = strippedHtmlFile.endsWith('/')
-									? strippedHtmlFile.slice(0, -1)
-									: strippedHtmlFile
-
-								const routeFileKey = join(props.path, urlFriendlyFile)
-
-								staticRoutes[routeFileKey] = {
-									type: 's3',
-									domainName: bucket.regionalDomainName,
-									rewrite: { to: $interpolate`/${folder}v-${deployment.version}/${file}` },
-								}
-							} else if (!basename(file).includes('.')) {
-								staticRoutes[join(props.path, file)] = {
-									type: 's3',
-									domainName: bucket.regionalDomainName,
-									rewrite: { to: $interpolate`/${folder}v-${deployment.version}/${file}` },
-								}
+						for (const [routeFileKey, file] of Object.entries(plan.files)) {
+							staticRoutes[routeFileKey] = {
+								type: 's3',
+								domainName: bucket.regionalDomainName,
+								rewrite: { to: $interpolate`/${folder}v-${deployment.version}/${file}` },
 							}
 						}
 
-						// one route serves every asset of this site version
 						const pathPattern = props.path === '/' ? '' : props.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-						staticRoutes[join(props.path, '*.')] = {
+						const assetRoute: Route = {
 							type: 's3',
 							domainName: bucket.regionalDomainName,
 							rewrite: {
 								regex: `^${pathPattern}/?(.*)$`,
 								to: $interpolate`/${folder}v-${deployment.version}/$1`,
 							},
+						}
+
+						for (const routeDirKey of plan.dirs) {
+							staticRoutes[routeDirKey] = assetRoute
+						}
+
+						if (plan.catchAll) {
+							staticRoutes[plan.catchAll] = assetRoute
 						}
 
 						addRoutes(staticRoutes, { dependsOn: [deployment, bucket.policy] })
