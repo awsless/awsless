@@ -11,8 +11,14 @@ export type StaticRoutePlan = {
 	catchAll?: string
 }
 
-// Root sites route each top level asset dir through its own "/{dir}/*." key,
-// so dotted paths outside the static output fall through to the "/*" ssr route.
+// The scheme mirrors the SST v3 router: exact route store keys for top level
+// files, one "/{dir}/*." key per top level asset dir, and any other dotted
+// path falls through to the "/*" ssr route. A single "/*." catch-all would
+// shadow dotted ssr routes like /manifest.json with s3 errors, while per-file
+// keys for the whole site would fill the 5MB route store within ~25 deploys.
+// The cost of the fallthrough: junk dotted paths (/.env probes) render an ssr
+// 404 instead of dying cheaply at s3, and a dotted ssr route below an asset
+// dir stays shadowed. SST accepts the same tradeoffs & mitigates via the waf.
 export const planStaticRoutes = (files: string[], sitePath: string): StaticRoutePlan => {
 	const plan: StaticRoutePlan = { files: {}, dirs: [] }
 	const assetDirs = new Set<string>()
@@ -34,7 +40,9 @@ export const planStaticRoutes = (files: string[], sitePath: string): StaticRoute
 			continue
 		}
 
-		// sites mounted on a sub path keep the single catch-all below
+		// The viewer function only probes the "/{first-segment}/*." key, so a
+		// site mounted on a sub path can't key per asset dir & keeps the
+		// single "{path}/*." catch-all below.
 		if (sitePath !== '/') {
 			continue
 		}
@@ -46,8 +54,8 @@ export const planStaticRoutes = (files: string[], sitePath: string): StaticRoute
 			continue
 		}
 
-		// the route store can only key clean first segments, so root files
-		// and files inside a dotted dir get their own exact route
+		// Root files and files inside a dotted dir get their own exact route,
+		// since the route store can only key dot-free first segments.
 		plan.files[join(sitePath, file)] = file
 	}
 
