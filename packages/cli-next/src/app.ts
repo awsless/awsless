@@ -177,6 +177,7 @@ export const createApp = (props: CreateAppProps) => {
 				shared,
 				onPermission(callback) {
 					globalPermissionCallbacks.push(callback)
+					appPermissionCallbacks.push(callback)
 				},
 				addGlobalPermission(permission) {
 					globalPermissions.push(permission)
