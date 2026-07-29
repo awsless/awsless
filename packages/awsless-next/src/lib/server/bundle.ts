@@ -72,7 +72,7 @@ export const isInsideBundle = () => bundleContext.getStore() !== undefined
 export const getCurrentRoute = () => bundleContext.getStore()?.routeKey
 
 // The bundle runtime wraps every route handler in this context.
-export const withBundleRoute = <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => {
+export const withBundleRouteContext = <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => {
 	return bundleContext.run({ routeKey, internalInvoke }, callback)
 }
 

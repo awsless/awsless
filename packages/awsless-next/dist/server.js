@@ -42,7 +42,7 @@ var invokeBundle = ({ routeKey, payload, ...options }) => {
 var bundleContext = new AsyncLocalStorage();
 var isInsideBundle = () => bundleContext.getStore() !== void 0;
 var getCurrentRoute = () => bundleContext.getStore()?.routeKey;
-var withBundleRoute = (routeKey, internalInvoke2, callback) => {
+var withBundleRouteContext = (routeKey, internalInvoke2, callback) => {
   return bundleContext.run({ routeKey, internalInvoke: internalInvoke2 }, callback);
 };
 var internalInvoke = (routeKey, payload) => {
@@ -121,7 +121,9 @@ var Job = /* @__PURE__ */ createProxy((stackName) => {
           subnets,
           securityGroups: [securityGroup],
           container: `container-${kebabCase3(jobName)}`,
-          payload: storedPayload
+          payload: storedPayload,
+          // Jobs run in private subnets and reach the internet through the NAT gateway.
+          assignPublicIp: false
         });
       }
     };
@@ -936,5 +938,5 @@ export {
   onFailureQueueArn,
   onFailureQueueName,
   setConfigValue,
-  withBundleRoute
+  withBundleRouteContext
 };
