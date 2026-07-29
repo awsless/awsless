@@ -2,7 +2,7 @@ import { Duration } from '@awsless/duration'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { schedule } from '@awsless/scheduler'
 import { createProxy } from '../proxy.js'
-import { BUNDLE_QUALIFIER, formatRouteKey, formatRoutePayload, getBundleName } from './bundle.js'
+import { formatRouteKey, formatRoutePayload, getBundleName, invokeBundle, LATEST_BUNDLE_ALIAS } from './bundle.js'
 import { onFailureQueueArn } from './on-failure.js'
 import { bindGlobalResourceName, bindLocalResourceName, IS_TEST } from './util.js'
 
@@ -34,7 +34,7 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 					const resourceTaskName = bindGlobalResourceName('task')
 
 					await schedule({
-						name: `${getBundleName()}:${BUNDLE_QUALIFIER}`,
+						name: `${getBundleName()}:${LATEST_BUNDLE_ALIAS}`,
 						payload: formatRoutePayload(routeKey, payload),
 						schedule: options.schedule,
 						group: resourceTaskName('group'),
@@ -42,12 +42,11 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 						deadLetterArn: onFailureQueueArn,
 					})
 				} else {
-					await invoke({
+					await invokeBundle({
 						...options,
+						routeKey,
+						payload,
 						type: 'Event',
-						name: getBundleName(),
-						qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
-						payload: formatRoutePayload(routeKey, payload),
 					})
 				}
 			},

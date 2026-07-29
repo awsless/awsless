@@ -1,4 +1,4 @@
-import { formatRouteKey, getRouteEnv, invokeRoute, withRoute } from '../src/lib/server/bundle'
+import { formatRouteKey, getRouteEnv, internalInvoke, withBundleRoute } from '../src/lib/server/bundle'
 
 describe('bundle routes', () => {
 	afterEach(() => {
@@ -15,16 +15,16 @@ describe('bundle routes', () => {
 		process.env.TABLE = 'plain'
 
 		expect(getRouteEnv('TABLE')).toBe('plain')
-		expect(withRoute('stack:function:echo', async () => undefined, () => getRouteEnv('TABLE'))).toBe('scoped')
+		expect(withBundleRoute('stack:function:echo', async () => undefined, () => getRouteEnv('TABLE'))).toBe('scoped')
 	})
 
 	it('should only invoke routes inside the bundle', async () => {
-		expect(() => invokeRoute('stack:function:echo', {})).toThrow('inside the bundle')
+		expect(() => internalInvoke('stack:function:echo', {})).toThrow('inside the bundle')
 
-		const result = await withRoute(
+		const result = await withBundleRoute(
 			'caller',
 			async (routeKey, payload) => ({ routeKey, payload }),
-			() => invokeRoute('stack:function:echo', { n: 1 })
+			() => internalInvoke('stack:function:echo', { n: 1 })
 		)
 
 		expect(result).toEqual({ routeKey: 'stack:function:echo', payload: { n: 1 } })

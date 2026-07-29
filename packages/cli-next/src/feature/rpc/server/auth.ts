@@ -1,7 +1,7 @@
 import { toSeconds } from '@awsless/duration'
 import { WeakCache } from '@awsless/weak-cache'
 import { addSeconds, isFuture } from 'date-fns'
-import { getRouteEnv, invokeRoute } from 'awsless'
+import { getRouteEnv, internalInvoke } from 'awsless'
 import { parseAuthResponse } from './validate'
 
 const cache = new WeakCache<
@@ -74,7 +74,7 @@ export const authenticate = async (token?: string): Promise<Session> => {
 	let response: unknown
 
 	try {
-		response = await invokeRoute(authRoute, { token })
+		response = await internalInvoke(authRoute, { token })
 	} catch (error) {
 		console.error(error)
 

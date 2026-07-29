@@ -1,3 +1,4 @@
+import { InvokeOptions } from '@awsless/lambda';
 import * as _awsless_validate from '@awsless/validate';
 import { Duration } from '@awsless/duration';
 import { UUID } from 'node:crypto';
@@ -56,17 +57,23 @@ interface TopicMockResponse {
 declare const mockTopic: (cb: (mock: TopicMock) => void) => TopicMockResponse;
 
 declare const ROUTE_PROPERTY = "$awsless-route";
-declare const BUNDLE_QUALIFIER = "live";
+declare const LATEST_BUNDLE_ALIAS = "latest";
 declare const getBundleName: () => string;
-type RouteInvoker = (routeKey: string, payload: unknown) => Promise<unknown>;
-declare const getCurrentRoute: () => string | undefined;
-declare const withRoute: <T>(routeKey: string, invoke: RouteInvoker, callback: () => T) => T;
-declare const invokeRoute: (routeKey: string, payload: unknown) => Promise<unknown>;
 declare const formatRouteKey: (stackName: string, resourceType: string, resourceName: string) => string;
 declare const formatRoutePayload: (routeKey: string, event: unknown) => {
     "$awsless-route": string;
     event: unknown;
 };
+type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
+    routeKey: string;
+    payload?: unknown;
+};
+declare const invokeBundle: ({ routeKey, payload, ...options }: InvokeBundleProps) => Promise<unknown>;
+type InternalInvoke = (routeKey: string, payload: unknown) => Promise<unknown>;
+declare const isInsideBundle: () => boolean;
+declare const getCurrentRoute: () => string | undefined;
+declare const withBundleRoute: <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => T;
+declare const internalInvoke: (routeKey: string, payload: unknown) => Promise<unknown>;
 declare const formatRouteEnvName: (routeKey: string, name: string) => string;
 declare const getRouteEnv: (name: string) => string | undefined;
 
@@ -266,4 +273,4 @@ declare const Topic: TopicResources;
 declare const APP: "app";
 declare const getStack: () => "stack";
 
-export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, BUNDLE_QUALIFIER, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PubSubAuthorizerEvent, type PubSubAuthorizerResponse, type PubSubConnectedEvent, type PubSubDisconnectedEvent, type PubSubMock, type PubSubMockResponse, type PubSubResources, type PubSubSubscribedEvent, type PubSubUnsubscribedEvent, Queue, type QueueMock, type QueueMockResponse, type QueueResources, ROUTE_PROPERTY, type RouteEvent, type RouteInvoker, type RouteResponse, type RpcAuthorizerResponse, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, formatRouteEnvName, formatRouteKey, formatRoutePayload, getAlertName, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getRouteEnv, getSearchName, getSearchProps, getStack, getTableName, getTaskName, getTopicName, invokeRoute, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, setConfigValue, withRoute };
+export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, type InternalInvoke, Job, type JobMock, type JobMockResponse, type JobResources, LATEST_BUNDLE_ALIAS, Metric, type MetricResources, PubSub, type PubSubAuthorizerEvent, type PubSubAuthorizerResponse, type PubSubConnectedEvent, type PubSubDisconnectedEvent, type PubSubMock, type PubSubMockResponse, type PubSubResources, type PubSubSubscribedEvent, type PubSubUnsubscribedEvent, Queue, type QueueMock, type QueueMockResponse, type QueueResources, ROUTE_PROPERTY, type RouteEvent, type RouteResponse, type RpcAuthorizerResponse, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, formatRouteEnvName, formatRouteKey, formatRoutePayload, getAlertName, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getRouteEnv, getSearchName, getSearchProps, getStack, getTableName, getTaskName, getTopicName, internalInvoke, invokeBundle, isInsideBundle, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, setConfigValue, withBundleRoute };

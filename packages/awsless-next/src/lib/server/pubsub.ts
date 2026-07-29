@@ -2,14 +2,7 @@ import { Duration } from '@awsless/duration'
 import { invoke } from '@awsless/lambda'
 import type { UUID } from 'node:crypto'
 import { createProxy } from '../proxy.js'
-import {
-	getBundleName,
-	BUNDLE_QUALIFIER,
-	formatRouteKey,
-	formatRoutePayload,
-	getCurrentRoute,
-	invokeRoute,
-} from './bundle.js'
+import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle } from './bundle.js'
 import { APP, bindGlobalResourceName, IS_TEST } from './util.js'
 
 export const getPubSubPublisherName = bindGlobalResourceName('pubsub-publisher')
@@ -35,16 +28,15 @@ export const PubSub: PubSubResources = /*@__PURE__*/ createProxy(name => {
 			}
 
 			// Inside the bundle we dispatch in-process instead of self-invoking.
-			if (getCurrentRoute()) {
-				await invokeRoute(routeKey, message)
+			if (isInsideBundle()) {
+				await internalInvoke(routeKey, message)
 				return
 			}
 
-			await invoke({
-				name: getBundleName(),
-				qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
+			await invokeBundle({
+				routeKey,
+				payload: message,
 				type: 'Event',
-				payload: formatRoutePayload(routeKey, message),
 			})
 		},
 	}

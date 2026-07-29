@@ -49,14 +49,14 @@ describe('bundle', () => {
 		expect(recursion).toBeUndefined()
 	})
 
-	it('should preserve the Terraform-owned live alias while staging', () => {
+	it('should preserve the Terraform-owned latest alias while staging', () => {
 		const { app } = createTestApp({}, 'main-42')
 		const resources = app.resources.map(getMeta).filter(meta => meta.urn.includes(':function:{bundle}:'))
 		const deployment = resources.find(meta => meta.type === 'bundle-deployment')!
 		const alias = resources.find(meta => meta.type === 'aws_lambda_alias')!
 
 		expect(deployment.input.deploymentId).toBe('main-42')
-		expect(alias.input.name).toBe('live')
+		expect(alias.input.name).toBe('latest')
 		expect(alias.logicalId).toBe('alias')
 		expect(findInputDeps(alias.input.description)).toContain(deployment)
 		expect(findInputDeps(alias.input.functionVersion)).toContain(deployment)
@@ -118,7 +118,7 @@ describe('bundle handler', () => {
 	const functionVersion = '42'
 	const functionTarget = `${functionName}:${functionVersion}`
 	const context = {
-		invokedFunctionArn: `arn:aws:lambda:eu-west-1:123456789:function:${functionName}:live`,
+		invokedFunctionArn: `arn:aws:lambda:eu-west-1:123456789:function:${functionName}:latest`,
 	}
 
 	const topicInvokes: [string, unknown][] = []

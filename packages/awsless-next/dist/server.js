@@ -16,23 +16,12 @@ import { randomUUID } from "crypto";
 import { kebabCase as kebabCase2 } from "change-case";
 
 // src/lib/server/bundle.ts
+import { invoke } from "@awsless/lambda";
 import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
-var BUNDLE_QUALIFIER = "live";
+var LATEST_BUNDLE_ALIAS = "latest";
 var getBundleName = () => `${process.env.APP ?? "app"}--function--bundle`;
-var routeContext = new AsyncLocalStorage();
-var getCurrentRoute = () => routeContext.getStore()?.routeKey;
-var withRoute = (routeKey, invoke5, callback) => {
-  return routeContext.run({ routeKey, invoke: invoke5 }, callback);
-};
-var invokeRoute = (routeKey, payload) => {
-  const invoke5 = routeContext.getStore()?.invoke;
-  if (!invoke5) {
-    throw new Error("Route invocations are only available inside the bundle");
-  }
-  return invoke5(routeKey, payload);
-};
 var formatRouteKey = (stackName, resourceType, resourceName) => {
   return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
 };
@@ -41,6 +30,27 @@ var formatRoutePayload = (routeKey, event) => {
     [ROUTE_PROPERTY]: routeKey,
     event
   };
+};
+var invokeBundle = ({ routeKey, payload, ...options }) => {
+  return invoke({
+    ...options,
+    name: getBundleName(),
+    qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LATEST_BUNDLE_ALIAS,
+    payload: formatRoutePayload(routeKey, payload)
+  });
+};
+var bundleContext = new AsyncLocalStorage();
+var isInsideBundle = () => bundleContext.getStore() !== void 0;
+var getCurrentRoute = () => bundleContext.getStore()?.routeKey;
+var withBundleRoute = (routeKey, internalInvoke2, callback) => {
+  return bundleContext.run({ routeKey, internalInvoke: internalInvoke2 }, callback);
+};
+var internalInvoke = (routeKey, payload) => {
+  const context = bundleContext.getStore();
+  if (!context) {
+    throw new Error("Internal invocations are only available inside the bundle");
+  }
+  return context.internalInvoke(routeKey, payload);
 };
 var formatRouteEnvName = (routeKey, name) => {
   return `${routeKey}:${name}`;
@@ -191,7 +201,7 @@ import { mockLambda } from "@awsless/lambda";
 
 // src/lib/server/function.ts
 import { stringify as stringify3 } from "@awsless/json";
-import { invoke } from "@awsless/lambda";
+import { invoke as invoke2 } from "@awsless/lambda";
 import { WeakCache } from "@awsless/weak-cache";
 var cache = new WeakCache();
 var getFunctionName = bindLocalResourceName("function");
@@ -201,20 +211,19 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
     const routeKey = formatRouteKey(stackName, "function", funcName);
     const send = async (payload, options = {}) => {
       if (IS_TEST) {
-        return invoke({
+        return invoke2({
           ...options,
           name,
           payload
         });
       }
-      if (getCurrentRoute() && !options.qualifier && !options.client) {
-        return invokeRoute(routeKey, payload);
+      if (isInsideBundle() && !options.qualifier && !options.client) {
+        return internalInvoke(routeKey, payload);
       }
-      return invoke({
+      return invokeBundle({
         ...options,
-        name: getBundleName(),
-        qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
-        payload: formatRoutePayload(routeKey, payload)
+        routeKey,
+        payload
       });
     };
     const ctx = {
@@ -329,7 +338,7 @@ var mockInstance = (cb) => {
 import { mockLambda as mockLambda2 } from "@awsless/lambda";
 
 // src/lib/server/pubsub.ts
-import { invoke as invoke2 } from "@awsless/lambda";
+import { invoke as invoke3 } from "@awsless/lambda";
 var getPubSubPublisherName = bindGlobalResourceName("pubsub-publisher");
 var PubSub = /* @__PURE__ */ createProxy((name) => {
   const routeKey = formatRouteKey(APP, "pubsub", `${name}-publisher`);
@@ -337,22 +346,21 @@ var PubSub = /* @__PURE__ */ createProxy((name) => {
     publish: async (topic, event, payload) => {
       const message = { topic, event, payload };
       if (IS_TEST) {
-        await invoke2({
+        await invoke3({
           name: getPubSubPublisherName(name),
           type: "Event",
           payload: message
         });
         return;
       }
-      if (getCurrentRoute()) {
-        await invokeRoute(routeKey, message);
+      if (isInsideBundle()) {
+        await internalInvoke(routeKey, message);
         return;
       }
-      await invoke2({
-        name: getBundleName(),
-        qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
-        type: "Event",
-        payload: formatRoutePayload(routeKey, message)
+      await invokeBundle({
+        routeKey,
+        payload: message,
+        type: "Event"
       });
     }
   };
@@ -453,7 +461,7 @@ import { mockLambda as mockLambda3 } from "@awsless/lambda";
 import { mockScheduler } from "@awsless/scheduler";
 
 // src/lib/server/task.ts
-import { invoke as invoke3 } from "@awsless/lambda";
+import { invoke as invoke4 } from "@awsless/lambda";
 import { schedule } from "@awsless/scheduler";
 
 // src/lib/server/on-failure.ts
@@ -478,7 +486,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
     const ctx = {
       [name]: async (payload, options = {}) => {
         if (IS_TEST) {
-          await invoke3({
+          await invoke4({
             ...options,
             type: "Event",
             name,
@@ -487,7 +495,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
         } else if (options.schedule) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
-            name: `${getBundleName()}:${BUNDLE_QUALIFIER}`,
+            name: `${getBundleName()}:${LATEST_BUNDLE_ALIAS}`,
             payload: formatRoutePayload(routeKey, payload),
             schedule: options.schedule,
             group: resourceTaskName("group"),
@@ -495,12 +503,11 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
             deadLetterArn: onFailureQueueArn
           });
         } else {
-          await invoke3({
+          await invokeBundle({
             ...options,
-            type: "Event",
-            name: getBundleName(),
-            qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
-            payload: formatRoutePayload(routeKey, payload)
+            routeKey,
+            payload,
+            type: "Event"
           });
         }
       }
@@ -684,7 +691,7 @@ var Config = /* @__PURE__ */ new Proxy(
 );
 
 // src/lib/server/cron.ts
-import { invoke as invoke4 } from "@awsless/lambda";
+import { invoke as invoke5 } from "@awsless/lambda";
 var getCronName = bindLocalResourceName("cron");
 var Cron = /* @__PURE__ */ createProxy((stackName) => {
   return createProxy((cronName) => {
@@ -693,7 +700,7 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
     const ctx = {
       [name]: async (payload, options = {}) => {
         if (IS_TEST) {
-          await invoke4({
+          await invoke5({
             ...options,
             type: "Event",
             name,
@@ -701,12 +708,11 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
           });
           return;
         }
-        await invoke4({
+        await invokeBundle({
           ...options,
-          type: "Event",
-          name: getBundleName(),
-          qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
-          payload: formatRoutePayload(routeKey, payload)
+          routeKey,
+          payload,
+          type: "Event"
         });
       }
     };
@@ -868,13 +874,13 @@ export {
   APP,
   Alert,
   Auth,
-  BUNDLE_QUALIFIER,
   Cache,
   Config,
   Cron,
   Fn,
   Instance,
   Job,
+  LATEST_BUNDLE_ALIAS,
   Metric,
   PubSub,
   Queue,
@@ -911,7 +917,9 @@ export {
   getTableName,
   getTaskName,
   getTopicName,
-  invokeRoute,
+  internalInvoke,
+  invokeBundle,
+  isInsideBundle,
   mockAlert,
   mockCache,
   mockFunction,
@@ -928,5 +936,5 @@ export {
   onFailureQueueArn,
   onFailureQueueName,
   setConfigValue,
-  withRoute
+  withBundleRoute
 };

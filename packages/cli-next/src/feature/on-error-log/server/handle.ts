@@ -21,7 +21,7 @@ import {
 	putItem,
 	string as dbString,
 } from '@awsless/dynamodb'
-import { getRouteEnv, invokeRoute } from 'awsless'
+import { getRouteEnv, internalInvoke } from 'awsless'
 import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { createHash, UUID } from 'crypto'
 import * as zlib from 'zlib'
@@ -155,7 +155,7 @@ export default async (event: CloudWatchLogsEvent, context: Context) => {
 			// A hung consumer is abandoned right before the invocation
 			// deadline, so the log handling always finishes cleanly
 			// instead of timing out the whole invocation.
-			const invoke = invokeRoute(consumerRoute, {
+			const invoke = internalInvoke(consumerRoute, {
 				...error,
 				origin,
 				date: logEvent.timestamp,

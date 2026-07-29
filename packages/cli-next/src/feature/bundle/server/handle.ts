@@ -1,6 +1,6 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
-import { formatRoutePayload, getCurrentRoute, withRoute } from 'awsless'
+import { formatRoutePayload, getCurrentRoute, withBundleRoute } from 'awsless'
 import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
@@ -69,7 +69,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 
 			process.env.AWSLESS_ROUTE = match.key
 
-			return withRoute(match.key, invokeRoute, async () => {
+			return withBundleRoute(match.key, internalInvoke, async () => {
 				const handle = await load()
 
 				// The route on the context ends up in error logs, so log
@@ -81,7 +81,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			})
 		}
 
-		const invokeRoute = async (key: string, payload: unknown) => {
+		const internalInvoke = async (key: string, payload: unknown) => {
 			const caller = getCurrentRoute()
 			const throwExpectedErrors = process.env.THROW_EXPECTED_ERRORS
 			let result

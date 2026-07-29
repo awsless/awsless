@@ -3,14 +3,7 @@ import { stringify } from '@awsless/json'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
-import {
-	getBundleName,
-	BUNDLE_QUALIFIER,
-	formatRouteKey,
-	formatRoutePayload,
-	getCurrentRoute,
-	invokeRoute,
-} from './bundle.js'
+import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle } from './bundle.js'
 import { bindLocalResourceName, IS_TEST } from './util.js'
 
 const cache = new WeakCache<string, Promise<unknown>>()
@@ -30,9 +23,9 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 		const name = getFunctionName(funcName, stackName)
 		const routeKey = formatRouteKey(stackName, 'function', funcName)
 
-		// In tests we keep invoking the per-function name
-		// so that the function mocks keep working.
 		const send = async (payload: unknown, options: FunctionInvokeOptions = {}) => {
+			// In tests we keep invoking the per-function name
+			// so that the function mocks keep working.
 			if (IS_TEST) {
 				return invoke({
 					...options,
@@ -41,16 +34,16 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 				})
 			}
 
-			// Inside the bundle we dispatch in-process instead of self-invoking.
-			if (getCurrentRoute() && !options.qualifier && !options.client) {
-				return invokeRoute(routeKey, payload)
+			// Calls between bundled functions run in-process,
+			// unless a qualifier or custom client is given.
+			if (isInsideBundle() && !options.qualifier && !options.client) {
+				return internalInvoke(routeKey, payload)
 			}
 
-			return invoke({
+			return invokeBundle({
 				...options,
-				name: getBundleName(),
-				qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
-				payload: formatRoutePayload(routeKey, payload),
+				routeKey,
+				payload,
 			})
 		}
 

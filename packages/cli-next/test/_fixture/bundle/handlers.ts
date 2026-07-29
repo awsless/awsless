@@ -1,4 +1,4 @@
-import { APP, getCurrentRoute, getStack, invokeRoute } from 'awsless'
+import { APP, getCurrentRoute, getStack, internalInvoke } from 'awsless'
 import { getValue } from './shared'
 
 export const echo = (event: unknown) => ({ stack: getStack(), event })
@@ -6,20 +6,20 @@ export const echo = (event: unknown) => ({ stack: getStack(), event })
 export const app = () => APP
 
 export const nested = async () => {
-	const inner = await invokeRoute('stack-1:function:echo', { from: 'nested' })
+	const inner = await internalInvoke('stack-1:function:echo', { from: 'nested' })
 
 	return { stack: getStack(), inner }
 }
 
 export const parallel = async () => {
 	return Promise.all([
-		invokeRoute('stack-1:function:dependent', {}),
-		invokeRoute('stack-2:function:dependent', {}),
+		internalInvoke('stack-1:function:dependent', {}),
+		internalInvoke('stack-2:function:dependent', {}),
 	])
 }
 
 export const special = () => {
-	return invokeRoute('stack-1:function:echo', {
+	return internalInvoke('stack-1:function:echo', {
 		bigint: 123n,
 		date: new Date('2026-01-02T03:04:05.000Z'),
 	})
@@ -32,7 +32,7 @@ export const errorResponse = () => ({
 	},
 })
 
-export const nestedError = () => invokeRoute('stack-1:function:error', {})
+export const nestedError = () => internalInvoke('stack-1:function:error', {})
 
 export const site = (event: unknown) => event
 

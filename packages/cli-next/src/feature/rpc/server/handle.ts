@@ -1,5 +1,5 @@
 import { ExpectedError, ViewableError } from '@awsless/lambda'
-import { invokeRoute } from 'awsless'
+import { internalInvoke } from 'awsless'
 import { APIGatewayProxyEventV2 } from 'aws-lambda'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
@@ -144,7 +144,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 
 				let data: unknown
 				try {
-					data = await invokeRoute(fn.details.name, {
+					data = await internalInvoke(fn.details.name, {
 						...(fn.payload ?? {}),
 						...(auth.context ?? {}),
 						// headers: request.output.headers,

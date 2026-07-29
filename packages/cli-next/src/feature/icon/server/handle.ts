@@ -1,6 +1,6 @@
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
-import { getRouteEnv, invokeRoute } from 'awsless'
+import { getRouteEnv, internalInvoke } from 'awsless'
 // @ts-ignore
 import { optimize } from 'svgo/browser'
 // @ts-ignore
@@ -74,7 +74,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const originRoute = getRouteEnv('ICON_ORIGIN')
 
 		if (!baseIcon && originRoute) {
-			const result = (await invokeRoute(originRoute, { path })) as string | undefined
+			const result = (await internalInvoke(originRoute, { path })) as string | undefined
 
 			if (typeof result === 'string') {
 				baseIcon = Buffer.from(result)

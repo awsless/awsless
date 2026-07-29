@@ -1,7 +1,7 @@
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
 import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
-import { getRouteEnv, invokeRoute } from 'awsless'
+import { getRouteEnv, internalInvoke } from 'awsless'
 import { parsePath, supportedExtensions } from './validate'
 
 const normalizeExtension = (extension: (typeof supportedExtensions)[number]) => {
@@ -99,7 +99,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const originRoute = getRouteEnv('IMAGE_ORIGIN')
 
 		if (!baseImage && originRoute) {
-			const result = (await invokeRoute(originRoute, { path: originalPath })) as string | undefined
+			const result = (await internalInvoke(originRoute, { path: originalPath })) as string | undefined
 
 			if (typeof result === 'string') {
 				baseImage = Buffer.from(result, 'base64')
