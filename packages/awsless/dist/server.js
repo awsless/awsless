@@ -291,9 +291,42 @@ var mockInstance = (cb) => {
 };
 
 // src/lib/mock/pubsub.ts
-import { mockIoT } from "@awsless/iot";
-var mockPubSub = () => {
-  return mockIoT();
+import { mockLambda as mockLambda2 } from "@awsless/lambda";
+
+// src/lib/server/pubsub.ts
+import { invoke as invoke2 } from "@awsless/lambda";
+var getPubSubPublisherName = bindGlobalResourceName("pubsub-publisher");
+var PubSub = /* @__PURE__ */ createProxy((name) => {
+  const functionName = getPubSubPublisherName(name);
+  return {
+    publish: async (topic, event, payload) => {
+      await invoke2({
+        name: functionName,
+        type: "Event",
+        payload: {
+          topic,
+          event,
+          payload
+        }
+      });
+    }
+  };
+});
+
+// src/lib/mock/pubsub.ts
+var mockPubSub = (cb) => {
+  const list = {};
+  const mock = createProxy((name) => {
+    return (handle) => {
+      list[getPubSubPublisherName(name)] = handle ?? (() => {
+      });
+    };
+  });
+  cb(mock);
+  const result = mockLambda2(list);
+  return createProxy((name) => {
+    return result[getPubSubPublisherName(name)];
+  });
 };
 
 // src/lib/mock/queue.ts
@@ -371,11 +404,11 @@ var mockQueue = (cb) => {
 };
 
 // src/lib/mock/task.ts
-import { mockLambda as mockLambda2 } from "@awsless/lambda";
+import { mockLambda as mockLambda3 } from "@awsless/lambda";
 import { mockScheduler } from "@awsless/scheduler";
 
 // src/lib/server/task.ts
-import { invoke as invoke2 } from "@awsless/lambda";
+import { invoke as invoke3 } from "@awsless/lambda";
 import { schedule } from "@awsless/scheduler";
 
 // src/lib/server/on-failure.ts
@@ -409,7 +442,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
             deadLetterArn: onFailureQueueArn
           });
         } else {
-          await invoke2({
+          await invoke3({
             ...options,
             type: "Event",
             name,
@@ -433,7 +466,7 @@ var mockTask = (cb) => {
     });
   });
   cb(mock);
-  mockLambda2(list);
+  mockLambda3(list);
   mockScheduler(list);
   beforeEach && beforeEach(() => {
     for (const item of Object.values(list)) {
@@ -597,14 +630,14 @@ var Config = /* @__PURE__ */ new Proxy(
 );
 
 // src/lib/server/cron.ts
-import { invoke as invoke3 } from "@awsless/lambda";
+import { invoke as invoke4 } from "@awsless/lambda";
 var getCronName = bindLocalResourceName("cron");
 var Cron = /* @__PURE__ */ createProxy((stackName) => {
   return createProxy((taskName) => {
     const name = getCronName(taskName, stackName);
     const ctx = {
       [name]: async (payload, options = {}) => {
-        await invoke3({
+        await invoke4({
           ...options,
           type: "Event",
           name,
@@ -699,94 +732,6 @@ var onErrorLogSchema = object({
   ])
 });
 
-// src/lib/server/pubsub.ts
-import { hours, toSeconds } from "@awsless/duration";
-import { publish as publish3, QoS } from "@awsless/iot";
-import { stringify as stringify5 } from "@awsless/json";
-var getPubSubTopic = (name) => {
-  return `${APP}/pubsub/${name}`;
-};
-var PubSub = {
-  async publish(topic, event, payload, opts = {}) {
-    await publish3({
-      topic: getPubSubTopic(topic),
-      payload: Buffer.from(stringify5([event, payload])),
-      ...opts
-    });
-  }
-};
-var pubsubAuthorizerHandle = async (cb) => {
-  return async (event) => {
-    const token = Buffer.from(event.protocolData.mqtt?.password ?? "", "base64").toString();
-    const response = await cb(token);
-    return pubsubAuthorizerResponse(response);
-  };
-};
-var pubsubAuthorizerResponse = (props) => {
-  const region = process.env.AWS_REGION;
-  const accountId = process.env.AWS_ACCOUNT_ID;
-  const prefix = `arn:aws:iot:${region}:${accountId}`;
-  const statements = [];
-  if (props.publish) {
-    statements.push({
-      Action: "iot:Publish",
-      Effect: "Allow",
-      Resource: props.publish.map((topic) => {
-        return `${prefix}:topic/${getPubSubTopic(topic)}`;
-      })
-    });
-  }
-  if (props.subscribe) {
-    statements.push(
-      {
-        Action: "iot:Subscribe",
-        Effect: "Allow",
-        Resource: props.subscribe.map((topic) => {
-          return `${prefix}:topicfilter/${getPubSubTopic(topic)}`;
-        })
-      }
-      // {
-      // 	Action: 'iot:Receive',
-      // 	Effect: 'Allow',
-      // 	Resource: props.subscribe.map(topic => {
-      // 		return `${prefix}:topic/${getPubSubTopic(topic)}`
-      // 	}),
-      // }
-    );
-  }
-  const policyDocuments = [
-    {
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "iot:Connect",
-          Effect: "Allow",
-          Resource: "*"
-          // Resource: `${prefix}:client/\${iot:ClientId}`,
-        },
-        {
-          Action: "iot:Receive",
-          Effect: "Allow",
-          Resource: "*"
-          // Resource: `${prefix}:client/\${iot:ClientId}`,
-        },
-        ...statements
-      ]
-    }
-  ];
-  const documentSize = JSON.stringify(policyDocuments).length;
-  if (documentSize > 2048) {
-    throw new Error(`IoT policy document size can't exceed 2048 characters. Current size is ${documentSize}`);
-  }
-  return {
-    isAuthenticated: props.authorized,
-    principalId: props.principalId ?? Date.now().toString(),
-    disconnectAfterInSeconds: toSeconds(props.disconnectAfter ?? hours(1)),
-    refreshAfterInSeconds: toSeconds(props.disconnectAfter ?? hours(1)),
-    policyDocuments
-  };
-};
-
 // src/lib/server/search.ts
 import { define, searchClient } from "@awsless/open-search";
 import { constantCase as constantCase6 } from "change-case";
@@ -868,7 +813,6 @@ export {
   Job,
   Metric,
   PubSub,
-  QoS,
   Queue,
   STACK,
   Search,
@@ -888,7 +832,7 @@ export {
   getJobName,
   getMetricName,
   getMetricNamespace,
-  getPubSubTopic,
+  getPubSubPublisherName,
   getQueueName,
   getQueueUrl,
   getSearchName,
@@ -913,7 +857,5 @@ export {
   onFailureBucketName,
   onFailureQueueArn,
   onFailureQueueName,
-  pubsubAuthorizerHandle,
-  pubsubAuthorizerResponse,
   setConfigValue
 };

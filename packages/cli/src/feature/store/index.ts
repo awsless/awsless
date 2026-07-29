@@ -63,12 +63,12 @@ export const storeFeature = defineFeature({
 		ctx.addAppPermission({
 			actions: [
 				's3:ListBucket',
-				's3:ListBucketV2',
-				's3:HeadObject',
+				// 's3:ListBucketV2',
+				// 's3:HeadObject',
 				's3:GetObject',
 				's3:PutObject',
 				's3:DeleteObject',
-				's3:CopyObject',
+				// 's3:CopyObject',
 				's3:GetObjectAttributes',
 			],
 			resources: [
@@ -203,12 +203,12 @@ export const storeFeature = defineFeature({
 			ctx.addStackPermission({
 				actions: [
 					's3:ListBucket',
-					's3:ListBucketV2',
-					's3:HeadObject',
+					// 's3:ListBucketV2',
+					// 's3:HeadObject',
 					's3:GetObject',
 					's3:PutObject',
 					's3:DeleteObject',
-					's3:CopyObject',
+					// 's3:CopyObject',
 					's3:GetObjectAttributes',
 				],
 				resources: [

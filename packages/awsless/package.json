@@ -1,6 +1,6 @@
 {
 	"name": "awsless",
-	"version": "0.0.11",
+	"version": "0.0.14",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -53,6 +53,7 @@
 		"@awsless/weak-cache": "workspace:^"
 	},
 	"dependencies": {
+		"@types/aws-lambda": "8.10.161",
 		"@awsless/big-float": "workspace:^",
 		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/clui": "workspace:^",
@@ -75,7 +76,6 @@
 		"change-case": "5.4.4"
 	},
 	"devDependencies": {
-		"@types/aws-lambda": "8.10.161",
 		"aws-lambda": "1.0.7"
 	}
 }

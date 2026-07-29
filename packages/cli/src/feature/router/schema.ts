@@ -2,6 +2,8 @@ import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { FunctionSchema } from '../function/schema.js'
+import { compileRoutePattern } from './pattern.js'
 
 const ErrorResponsePathSchema = z
 	.string()
@@ -45,6 +47,35 @@ const ErrorResponseSchema = z
 	.optional()
 
 export const RouteSchema = z.string().regex(/^\//, 'Route must start with a slash (/)')
+
+export const RoutesSchema = z
+	.record(
+		ResourceIdSchema.describe('The router id to add your routes to.'),
+		z
+			.record(RouteSchema, FunctionSchema)
+			.superRefine((routes, ctx) => {
+				for (const pattern of Object.keys(routes)) {
+					try {
+						compileRoutePattern(pattern)
+					} catch (error) {
+						ctx.addIssue({
+							code: z.ZodIssueCode.custom,
+							path: [pattern],
+							message: error instanceof Error ? error.message : `Invalid route pattern: ${pattern}`,
+						})
+					}
+				}
+			})
+			.describe(
+				[
+					'Define the routes and the lambda function that should handle them.',
+					'Routes can be an exact path like "/sitemap.xml", a wildcard like "/sitemap/*", or contain params like "/sitemap/{locale}/{page}.xml".',
+					'Param values are passed to the function as "x-param-[NAME]" request headers.',
+				].join('\n')
+			)
+	)
+	.optional()
+	.describe('Add routes to your global Router that link a path pattern to a lambda function.')
 
 const VisibilitySchema = z.boolean().default(false).describe('Whether to enable CloudWatch metrics for the WAF rule.')
 
@@ -134,6 +165,11 @@ export const RouterDefaultSchema = z
 		z.object({
 			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
 			subDomain: z.string().optional(),
+
+			redirectWww: z
+				.boolean()
+				.default(false)
+				.describe('Redirect all www subdomain requests to your root domain.'),
 
 			waf: WafSettingsSchema.optional(),
 
@@ -263,6 +299,22 @@ export const RouterDefaultSchema = z
 				.describe(
 					'Specifies the cookies, headers, and query values that CloudFront includes in the cache key.'
 				),
+		}).superRefine((props, ctx) => {
+			if (props.redirectWww && !props.domain) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['redirectWww'],
+					message: 'The redirectWww option requires a domain to be set.',
+				})
+			}
+
+			if (props.redirectWww && props.subDomain) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['redirectWww'],
+					message: `The redirectWww option can't be combined with a subDomain, because the domain certificate only covers single level subdomains.`,
+				})
+			}
 		})
 	)
 	.optional()

@@ -39,7 +39,7 @@ type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurs
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Response<F>> | Response<F> | void | Promise<void> | Promise<Promise<void>>
 type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
 type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<F>
 `
 
 export const functionFeature = defineFeature({

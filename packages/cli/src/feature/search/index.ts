@@ -8,11 +8,11 @@ import { shortId } from '../../util/id.js'
 import { toGibibytes } from '@awsless/size'
 
 const typeGenCode = `
-import { AnyStruct, Table } from '@awsless/open-search'
+import { AnySchema, Table } from '@awsless/open-search'
 
 type Search = {
 	readonly domain: string
-	readonly defineTable: <N extends string, S extends AnyStruct>(tableName: N, schema: S) => Table<N, S>
+	readonly defineTable: <N extends string, S extends AnySchema>(tableName: N, schema: S) => Table<N, S>
 }
 `
 

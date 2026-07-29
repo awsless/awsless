@@ -1,11 +1,14 @@
-import { toSeconds } from '@awsless/duration'
+import { days, Duration, hours, toSeconds, weeks } from '@awsless/duration'
 import { invoke } from '@awsless/lambda'
 import {
 	array,
 	duration,
 	literal,
+	maxDuration,
+	minDuration,
 	object,
 	optional,
+	pipe,
 	record,
 	safeParse,
 	string,
@@ -20,7 +23,8 @@ const authResponseSchema = union([
 		authorized: literal(true),
 		allowed: array(string()),
 		context: optional(record(string(), unknown())),
-		ttl: duration(),
+		ttl: optional(duration(), hours(1)),
+		disconnectAfter: optional(pipe(duration(), minDuration(hours(1)), maxDuration(weeks(1))), days(1)),
 	}),
 
 	object({
@@ -34,6 +38,7 @@ const cache = new WeakCache<
 		ttl: Date
 		context?: Record<string, unknown>
 		allowed: string[]
+		disconnectAfter: Duration
 	}
 >()
 
@@ -42,6 +47,7 @@ export type Session =
 			authorized: true
 			context?: Record<string, unknown>
 			allowed: string[]
+			disconnectAfter: Duration
 	  }
 	| {
 			authorized: false
@@ -49,12 +55,6 @@ export type Session =
 	  }
 
 export const authenticate = async (token?: string | null): Promise<Session> => {
-	return {
-		authorized: true,
-		context: { playerId: 1 },
-		allowed: ['topic', 'player', 'other'],
-	}
-
 	// ------------------------------------------
 	// Ignore when no custom auth lambda is set.
 
@@ -66,19 +66,16 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	}
 
 	// ------------------------------------------
-	// Fail when no auth token is found.
+	// Guests don't provide an auth token.
+	// The auth lambda decides what they are allowed to do,
+	// and all guests share a single cached response.
 
-	if (!token) {
-		return {
-			authorized: false,
-			reason: 'No authentication token provided',
-		}
-	}
+	const cacheKey = token ?? ''
 
 	// ------------------------------------------
 	// Return cached response
 
-	const entry = cache.get(token)
+	const entry = cache.get(cacheKey)
 
 	if (entry) {
 		if (isFuture(entry.ttl)) {
@@ -86,9 +83,10 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 				authorized: true,
 				context: entry.context,
 				allowed: entry.allowed,
+				disconnectAfter: entry.disconnectAfter,
 			}
 		} else {
-			cache.delete(token)
+			cache.delete(cacheKey)
 		}
 	}
 
@@ -100,7 +98,7 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	try {
 		response = await invoke({
 			name: process.env.AUTH,
-			payload: { token },
+			payload: { token: token ?? undefined },
 		})
 	} catch (error) {
 		console.error(error)
@@ -140,16 +138,19 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	const ttl = addSeconds(now, Number(toSeconds(result.output.ttl)))
 	const context = result.output.context
 	const allowed = result.output.allowed
+	const disconnectAfter = result.output.disconnectAfter
 
-	cache.set(token, {
+	cache.set(cacheKey, {
 		ttl,
 		context,
 		allowed,
+		disconnectAfter,
 	})
 
 	return {
 		authorized: true,
 		context,
 		allowed,
+		disconnectAfter,
 	}
 }

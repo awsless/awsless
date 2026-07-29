@@ -933,6 +933,31 @@ declare namespace array {
 }
 
 /**
+ * Publish a message to a channel.
+ *
+ * Returns the number of subscribers that received the message. In cluster
+ * mode only subscribers connected to the serving node are counted, so a
+ * zero reply doesn't mean the message went unseen.
+ *
+ * Sharded publishing (SPUBLISH) routes the message by channel slot instead
+ * of broadcasting to every cluster node, and is only received by sharded
+ * subscribers (SSUBSCRIBE).
+ *
+ * @command PUBLISH | SPUBLISH
+ * @complexity O(N+M) where N is the number of channel subscribers and M the number of subscribed patterns
+ * @speed fast
+ * @since 2.0.0
+ */
+declare const publish: (client: RedisClient, channel: string, message: InputValue, options?: {
+    sharded?: boolean;
+}) => Command<number, string>;
+
+declare const pubsub_publish: typeof publish;
+declare namespace pubsub {
+  export { pubsub_publish as publish };
+}
+
+/**
  * Execute a Lua script directly.
  *
  * @command EVAL
@@ -1090,6 +1115,7 @@ declare const index_batch: typeof batch;
 declare const index_db: typeof db;
 declare const index_key: typeof key;
 declare const index_map: typeof map;
+declare const index_pubsub: typeof pubsub;
 declare const index_script: typeof script;
 declare const index_server: typeof server;
 declare const index_set: typeof set;
@@ -1097,7 +1123,7 @@ declare const index_sortedSet: typeof sortedSet;
 declare const index_string: typeof string;
 declare const index_ttl: typeof ttl;
 declare namespace index {
-  export { index_array as array, index_batch as batch, index_db as db, index_key as key, index_map as map, index_script as script, index_server as server, index_set as set, index_sortedSet as sortedSet, index_string as string, index_ttl as ttl };
+  export { index_array as array, index_batch as batch, index_db as db, index_key as key, index_map as map, index_pubsub as pubsub, index_script as script, index_server as server, index_set as set, index_sortedSet as sortedSet, index_string as string, index_ttl as ttl };
 }
 
 type IoRedisOptions = RedisOptions & {

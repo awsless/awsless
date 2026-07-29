@@ -13,6 +13,7 @@ import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
+import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { filterPattern } from '../on-error-log/util.js'
@@ -144,16 +145,7 @@ export const createFargateTask = (
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: list.map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-					})),
-				})
-			)
+			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
 		}),
 	})
 
