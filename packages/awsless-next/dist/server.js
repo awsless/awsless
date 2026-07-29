@@ -341,7 +341,7 @@ import { mockLambda as mockLambda2 } from "@awsless/lambda";
 import { invoke as invoke3 } from "@awsless/lambda";
 var getPubSubPublisherName = bindGlobalResourceName("pubsub-publisher");
 var PubSub = /* @__PURE__ */ createProxy((name) => {
-  const routeKey = formatRouteKey(APP, "pubsub", `${name}-publisher`);
+  const routeKey = formatRouteKey("base", "pubsub", `${name}-publisher`);
   return {
     publish: async (topic, event, payload) => {
       const message = { topic, event, payload };

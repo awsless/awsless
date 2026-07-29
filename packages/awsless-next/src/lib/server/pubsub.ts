@@ -3,14 +3,15 @@ import { invoke } from '@awsless/lambda'
 import type { UUID } from 'node:crypto'
 import { createProxy } from '../proxy.js'
 import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle } from './bundle.js'
-import { APP, bindGlobalResourceName, IS_TEST } from './util.js'
+import { bindGlobalResourceName, IS_TEST } from './util.js'
 
 export const getPubSubPublisherName = bindGlobalResourceName('pubsub-publisher')
 
 export interface PubSubResources {}
 
 export const PubSub: PubSubResources = /*@__PURE__*/ createProxy(name => {
-	const routeKey = formatRouteKey(APP, 'pubsub', `${name}-publisher`)
+	// The publisher handler is registered under the app level "base" scope.
+	const routeKey = formatRouteKey('base', 'pubsub', `${name}-publisher`)
 
 	return {
 		publish: async (topic: string, event: string, payload?: unknown) => {
