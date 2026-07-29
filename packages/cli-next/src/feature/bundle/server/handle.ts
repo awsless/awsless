@@ -11,6 +11,7 @@ import { onFailureHandler } from './resource/on-failure.js'
 import { pubsubHandler } from './resource/pubsub.js'
 import { queueHandler } from './resource/queue.js'
 import { restHandler } from './resource/rest.js'
+import { routeHandler } from './resource/route.js'
 import { rpcHandler } from './resource/rpc.js'
 import { siteHandler } from './resource/site.js'
 import { storeHandler } from './resource/store.js'
@@ -37,6 +38,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		topicHandler,
 		taskHandler,
 		restHandler,
+		routeHandler,
 		rpcHandler,
 		siteHandler,
 		storeHandler,

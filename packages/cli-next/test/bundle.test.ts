@@ -162,6 +162,7 @@ describe('bundle handler', () => {
 				{ routeKey: 'base:on-failure:consumer', file: handlers, exportName: 'queue' },
 				{ routeKey: 'stack-1:rest:api', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:site:web', file: handlers, exportName: 'site' },
+				{ routeKey: 'stack-1:route:page', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:store:assets-created', file: handlers, exportName: 'queue' },
 				{ routeKey: 'stack-1:table:users', file: handlers, exportName: 'queue' },
 				{ routeKey: 'stack-1:icon:icons', file: handlers, exportName: 'site' },
@@ -357,7 +358,14 @@ describe('bundle handler', () => {
 		})
 	})
 
-	it.each(['stack-1:rest:api', 'stack-1:site:web', 'stack-1:icon:icons', 'stack-1:image:images', 'base:rpc:api'])(
+	it.each([
+		'stack-1:rest:api',
+		'stack-1:site:web',
+		'stack-1:route:page',
+		'stack-1:icon:icons',
+		'stack-1:image:images',
+		'base:rpc:api',
+	])(
 		'should dispatch the %s route header',
 		async route => {
 			const event = {
