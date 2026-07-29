@@ -368,9 +368,9 @@ export const createFargateTask = (
 			desiredCount: 1,
 			launchType: 'FARGATE',
 			networkConfiguration: {
-				subnets: ctx.shared.get('vpc', 'public-subnets'),
+				subnets: ctx.shared.get('vpc', 'private-subnets'),
 				securityGroups: [securityGroup.id],
-				assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+				assignPublicIp: false,
 			},
 
 			forceNewDeployment: true,

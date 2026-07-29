@@ -174,7 +174,7 @@ export const jobFeature = defineFeature({
 				},
 			})
 
-			for (const [index, subnetId] of ctx.shared.get('vpc', 'public-subnets').entries()) {
+			for (const [index, subnetId] of ctx.shared.get('vpc', 'private-subnets').entries()) {
 				new aws.efs.MountTarget(storageGroup, `mount-target-${index + 1}`, {
 					fileSystemId: fileSystem.id,
 					subnetId,
@@ -189,7 +189,7 @@ export const jobFeature = defineFeature({
 		const jobs = Object.entries(ctx.stackConfig.jobs ?? {})
 		if (jobs.length === 0) return
 
-		const subnets = ctx.shared.get('vpc', 'public-subnets')
+		const subnets = ctx.shared.get('vpc', 'private-subnets')
 		ctx.addEnv(
 			'JOB_SUBNETS',
 			new Output(new Set(findInputDeps(subnets)), async (resolve: (value: string) => void) => {

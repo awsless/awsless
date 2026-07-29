@@ -333,9 +333,9 @@ export const createPubSubService = (
 			taskDefinition: task.arn,
 			launchType: 'FARGATE',
 			networkConfiguration: {
-				subnets: ctx.shared.get('vpc', 'public-subnets'),
+				subnets: ctx.shared.get('vpc', 'private-subnets'),
 				securityGroups: [inputs.securityGroupId],
-				assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+				assignPublicIp: false,
 			},
 
 			loadBalancer: [
