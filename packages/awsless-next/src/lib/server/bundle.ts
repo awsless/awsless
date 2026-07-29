@@ -13,8 +13,8 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 // The payload property used to route lambda invokes to the right bundle handler.
 export const ROUTE_PROPERTY = '$awsless-route'
 
-// The alias that every deploy promotes; matches the CLI's LATEST_LAMBDA_ALIAS.
-export const LATEST_BUNDLE_ALIAS = 'latest'
+// The alias that every deploy promotes; matches the CLI's LIVE_LAMBDA_ALIAS.
+export const LIVE_BUNDLE_ALIAS = 'live'
 
 export const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
 
@@ -45,7 +45,7 @@ export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProp
 	return invoke({
 		...options,
 		name: getBundleName(),
-		qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LATEST_BUNDLE_ALIAS,
+		qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LIVE_BUNDLE_ALIAS,
 		payload: formatRoutePayload(routeKey, payload),
 	})
 }

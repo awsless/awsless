@@ -55,10 +55,9 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			}
 		}
 
-		const route = event?.['$awsless-route'] ?? event?.headers?.['x-awsless-route']
-
-		throw new Error('Unknown bundle route: ' + route)
+		throw new Error(`Unknown bundle route: ${event?.['$awsless-route'] ?? event?.headers?.['x-awsless-route']} `)
 	}
+
 	return async (event: BundleEvent, context: LambdaContext) => {
 		const handleRoute = (match: RouteMatch) => {
 			const load = handlers[match.key]

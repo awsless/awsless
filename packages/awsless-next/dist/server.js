@@ -20,7 +20,7 @@ import { invoke } from "@awsless/lambda";
 import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
-var LATEST_BUNDLE_ALIAS = "latest";
+var LIVE_BUNDLE_ALIAS = "live";
 var getBundleName = () => `${process.env.APP ?? "app"}--function--bundle`;
 var formatRouteKey = (stackName, resourceType, resourceName) => {
   return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
@@ -35,7 +35,7 @@ var invokeBundle = ({ routeKey, payload, ...options }) => {
   return invoke({
     ...options,
     name: getBundleName(),
-    qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LATEST_BUNDLE_ALIAS,
+    qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LIVE_BUNDLE_ALIAS,
     payload: formatRoutePayload(routeKey, payload)
   });
 };
@@ -495,7 +495,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
         } else if (options.schedule) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
-            name: `${getBundleName()}:${LATEST_BUNDLE_ALIAS}`,
+            name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
             payload: formatRoutePayload(routeKey, payload),
             schedule: options.schedule,
             group: resourceTaskName("group"),
@@ -880,7 +880,7 @@ export {
   Fn,
   Instance,
   Job,
-  LATEST_BUNDLE_ALIAS,
+  LIVE_BUNDLE_ALIAS,
   Metric,
   PubSub,
   Queue,

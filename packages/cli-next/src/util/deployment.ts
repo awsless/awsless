@@ -29,7 +29,7 @@ import {
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
 import { currentBranch, currentCommit, currentCommitMessage, isCommitMerged } from './git.js'
-import { deleteLambdaAlias, getLambdaAlias, listLambdaAliases, LATEST_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
+import { deleteLambdaAlias, getLambdaAlias, listLambdaAliases, LIVE_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
@@ -257,7 +257,7 @@ export const pruneFunctionVersion = async (lambda: LambdaClient, functionName: s
 	// The remaining aliases of the version, like the hash named router
 	// aliases, block its deletion & nothing else references them.
 	for (const alias of await listLambdaAliases(lambda, functionName, version)) {
-		if (alias.Name && alias.Name !== LATEST_LAMBDA_ALIAS) {
+		if (alias.Name && alias.Name !== LIVE_LAMBDA_ALIAS) {
 			await deleteLambdaAlias(lambda, functionName, alias.Name)
 		}
 	}
@@ -285,7 +285,7 @@ export const selectPrunableVersions = async (props: {
 }) => {
 	const surviving = props.items.filter(item => !props.prunable.includes(item))
 	const kept = new Set(surviving.map(item => item.functionVersion))
-	const live = await getLambdaAlias(props.lambda, props.functionName, LATEST_LAMBDA_ALIAS)
+	const live = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
 
 	if (live?.FunctionVersion) {
 		kept.add(live.FunctionVersion)
@@ -305,7 +305,7 @@ export const selectPrunableVersions = async (props: {
 // description simply fails the manifest lookup.
 
 export const readLiveDeploymentId = async (lambda: LambdaClient, functionName: string) => {
-	return (await getLambdaAlias(lambda, functionName, LATEST_LAMBDA_ALIAS))?.Description || undefined
+	return (await getLambdaAlias(lambda, functionName, LIVE_LAMBDA_ALIAS))?.Description || undefined
 }
 
 // ------------------------------------------------------------
@@ -433,7 +433,7 @@ export const promoteDeployment = async (props: {
 		throw new ExpectedError(`The routes don't share the deployed function version.`)
 	}
 
-	const alias = await getLambdaAlias(props.lambda, props.functionName, LATEST_LAMBDA_ALIAS)
+	const alias = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
 	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
 	const activeId = props.store ? await readActiveDeploymentId(props.kvs, props.store.arn) : undefined
 	const active =
@@ -478,7 +478,7 @@ export const promoteDeployment = async (props: {
 			await upsertLambdaAlias(props.lambda, {
 				functionName: props.functionName,
 				functionVersion,
-				name: LATEST_LAMBDA_ALIAS,
+				name: LIVE_LAMBDA_ALIAS,
 				description: props.id,
 			})
 		}
@@ -496,7 +496,7 @@ export const promoteDeployment = async (props: {
 						upsertLambdaAlias(props.lambda, {
 							functionName: props.functionName,
 							functionVersion: alias.FunctionVersion,
-							name: LATEST_LAMBDA_ALIAS,
+							name: LIVE_LAMBDA_ALIAS,
 							description: alias.Description ?? '',
 						}),
 					]

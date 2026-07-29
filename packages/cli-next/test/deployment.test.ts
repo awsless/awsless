@@ -192,7 +192,7 @@ const mockAws = (rows: Deployment[] = []) => {
 
 	vi.spyOn(LambdaClient.prototype, 'send').mockImplementation(async (command: any) => {
 		if (command instanceof GetAliasCommand) {
-			if (command.input.Name === 'latest') {
+			if (command.input.Name === 'live') {
 				if (!live) {
 					throw notFound()
 				}
@@ -218,7 +218,7 @@ const mockAws = (rows: Deployment[] = []) => {
 		}
 
 		if (command instanceof UpdateAliasCommand) {
-			if (command.input.Name === 'latest') {
+			if (command.input.Name === 'live') {
 				aliasUpdates += 1
 
 				if (!live) {
@@ -240,7 +240,7 @@ const mockAws = (rows: Deployment[] = []) => {
 		}
 
 		if (command instanceof CreateAliasCommand) {
-			if (command.input.Name === 'latest') {
+			if (command.input.Name === 'live') {
 				aliasUpdates += 1
 				live = {
 					FunctionVersion: command.input.FunctionVersion!,

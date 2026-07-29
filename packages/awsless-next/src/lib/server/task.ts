@@ -2,7 +2,7 @@ import { Duration } from '@awsless/duration'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { schedule } from '@awsless/scheduler'
 import { createProxy } from '../proxy.js'
-import { formatRouteKey, formatRoutePayload, getBundleName, invokeBundle, LATEST_BUNDLE_ALIAS } from './bundle.js'
+import { formatRouteKey, formatRoutePayload, getBundleName, invokeBundle, LIVE_BUNDLE_ALIAS } from './bundle.js'
 import { onFailureQueueArn } from './on-failure.js'
 import { bindGlobalResourceName, bindLocalResourceName, IS_TEST } from './util.js'
 
@@ -34,7 +34,7 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 					const resourceTaskName = bindGlobalResourceName('task')
 
 					await schedule({
-						name: `${getBundleName()}:${LATEST_BUNDLE_ALIAS}`,
+						name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
 						payload: formatRoutePayload(routeKey, payload),
 						schedule: options.schedule,
 						group: resourceTaskName('group'),
