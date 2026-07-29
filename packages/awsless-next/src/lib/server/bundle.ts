@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 
 // The payload property used to route lambda invokes to the right bundle handler.
 export const ROUTE_PROPERTY = '$awsless-route'
-export const BUNDLE_QUALIFIER = 'live'
+export const BUNDLE_QUALIFIER = 'latest'
 
 export const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
 

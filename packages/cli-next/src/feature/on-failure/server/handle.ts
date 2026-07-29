@@ -14,7 +14,7 @@ import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from '.
 // The wire constants mirror the awsless bundle runtime, without pulling
 // the whole awsless package into the prebuilt zip.
 const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
-const BUNDLE_QUALIFIER = 'live'
+const BUNDLE_QUALIFIER = 'latest'
 const CONSUMER_ROUTE = 'base:on-failure:consumer'
 
 export default async (event: S3CreateEvent | SQSEvent) => {

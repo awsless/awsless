@@ -306,7 +306,7 @@ export const bundleFeature = defineFeature({
 			'alias',
 			{
 				description: deployment.liveDescription,
-				name: 'live',
+				name: 'latest',
 				functionName: lambda.functionName,
 				functionVersion: deployment.liveVersion,
 			},

@@ -83,7 +83,7 @@ export const invoke = (program: Command) => {
 					task() {
 						return invokeLambda({
 							name: functionName,
-							qualifier: 'live',
+							qualifier: 'latest',
 							payload: formatRoutePayload(routeKey, payload),
 							client: new LambdaClient({
 								credentials,

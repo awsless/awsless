@@ -13,7 +13,7 @@ import { Credentials, isError } from './aws'
 // ------------------------------------------------------------
 // Alias naming contract
 
-export const LIVE_LAMBDA_ALIAS = 'live'
+export const LATEST_LAMBDA_ALIAS = 'latest'
 
 export const getDeploymentLambdaAliasName = (id: string) => `deployment-${id}`
 

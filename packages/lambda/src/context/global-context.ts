@@ -1,13 +1,17 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
-
 export class GlobalContext<T> {
-	#storage = new AsyncLocalStorage<T>()
+	#store: T | undefined
 
 	async run<R>(store: T, callback: () => R) {
-		return this.#storage.run(store, callback)
+		this.#store = store
+		try {
+			const res = await callback()
+			return res
+		} finally {
+			this.#store = undefined
+		}
 	}
 
 	get() {
-		return this.#storage.getStore()
+		return this.#store
 	}
 }

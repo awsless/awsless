@@ -1,7 +1,7 @@
 import { Context } from '../type'
-import { GlobalContext } from './global-context'
+import { AsyncContext } from './async-context'
 
-export const eventContext = new GlobalContext<Context>()
+export const eventContext = new AsyncContext<Context>()
 
 export const getContext = () => {
 	const ctx = eventContext.get()

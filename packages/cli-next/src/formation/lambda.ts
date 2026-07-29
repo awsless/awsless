@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials, isError } from '../util/aws'
-import { createLambdaAlias, deleteLambdaAlias, getLambdaAlias, getDeploymentLambdaAliasName, LIVE_LAMBDA_ALIAS } from '../util/lambda'
+import { createLambdaAlias, deleteLambdaAlias, getLambdaAlias, getDeploymentLambdaAliasName, LATEST_LAMBDA_ALIAS } from '../util/lambda'
 
 type FunctionDeploymentInput = {
 	functionName: Input<string>
@@ -93,7 +93,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		return `${state.id}-${hash}`
 	}
 	const getLiveAlias = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		const result = await getLambdaAlias(lambda, state.functionName, LIVE_LAMBDA_ALIAS)
+		const result = await getLambdaAlias(lambda, state.functionName, LATEST_LAMBDA_ALIAS)
 
 		return result
 			? {

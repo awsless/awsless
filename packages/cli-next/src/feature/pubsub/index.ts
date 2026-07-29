@@ -10,7 +10,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
-import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
+import { LATEST_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { formatFullDomainName } from '../domain/util.js'
@@ -320,7 +320,7 @@ export const pubsubFeature = defineFeature({
 				targetGroupArn: targetGroup.arn,
 				securityGroupId: taskSecurityGroup.id,
 				environment: {
-					AUTH: bundle.lambda.functionName.pipe(name => `${name}:${LIVE_LAMBDA_ALIAS}`),
+					AUTH: bundle.lambda.functionName.pipe(name => `${name}:${LATEST_LAMBDA_ALIAS}`),
 					AUTH_ROUTE: authRouteKey,
 					EVENTS_TOPIC: topicName,
 					PORT: WS_PORT.toString(),
@@ -334,7 +334,7 @@ export const pubsubFeature = defineFeature({
 			service.addPermission(
 				{
 					actions: ['lambda:InvokeFunction'],
-					resources: [bundle.lambda.arn.pipe(arn => `${arn}:${LIVE_LAMBDA_ALIAS}`)],
+					resources: [bundle.lambda.arn.pipe(arn => `${arn}:${LATEST_LAMBDA_ALIAS}`)],
 				},
 				{
 					actions: ['sns:Publish'],
