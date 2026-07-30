@@ -175,11 +175,20 @@ export const jobFeature = defineFeature({
 			})
 
 			for (const [index, subnetId] of ctx.shared.get('vpc', 'private-subnets').entries()) {
-				new aws.efs.MountTarget(storageGroup, `mount-target-${index + 1}`, {
-					fileSystemId: fileSystem.id,
-					subnetId,
-					securityGroups: [securityGroup.id],
-				})
+				new aws.efs.MountTarget(
+					storageGroup,
+					`mount-target-${index + 1}`,
+					{
+						fileSystemId: fileSystem.id,
+						subnetId,
+						securityGroups: [securityGroup.id],
+					},
+					{
+						// Mount targets are immutable per subnet, so a subnet
+						// change replaces them.
+						replaceOnChanges: ['subnetId'],
+					}
+				)
 			}
 
 			ctx.shared.set('job', 'persistent-storage-file-system-id', fileSystem.id)
