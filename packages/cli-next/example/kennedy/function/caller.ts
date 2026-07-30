@@ -3,6 +3,7 @@ import { Fn, Task } from 'awsless'
 
 export default async (event: { delay?: boolean }) => {
 	const result = await Fn.stack.function({ from: 'caller' })
+	const standalone = await Fn.stack.standalone({ from: 'caller' })
 
 	await Task.stack.work({ from: 'caller-immediate' })
 
@@ -14,6 +15,7 @@ export default async (event: { delay?: boolean }) => {
 
 	return {
 		fn: result,
+		standalone,
 		version: process.env.AWS_LAMBDA_FUNCTION_VERSION,
 	}
 }
