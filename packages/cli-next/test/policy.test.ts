@@ -123,7 +123,7 @@ describe('bundle policy', () => {
 	})
 
 	it('should only grant the app level config wildcard', async () => {
-		const { shared } = createTestApp({}, undefined, [{ name: 'stack-1', configs: ['secret'] }])
+		const { shared } = createTestApp({}, undefined, [{ name: 'stack-1' }], { configs: ['secret'] })
 
 		const statements = await resolveBundleStatements(shared, 'ssm:GetParameter')
 

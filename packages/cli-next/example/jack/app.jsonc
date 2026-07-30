@@ -5,6 +5,8 @@
 	"profile": "jacksclub",
 	// "protect": true,
 
+	"configs": ["test"],
+
 	"defaults": {
 		// "domains": {
 		// 	"main": {

@@ -75,7 +75,6 @@ export type StackContext = AppContext & {
 	stack: Stack
 
 	registerTest: RegisterTest
-	registerConfig: RegisterConfig
 
 	addFunction: (lambda: aws.lambda.Function) => void
 }
@@ -99,6 +98,7 @@ export type BeforeContext = {
 export type AppContext = BeforeContext & {
 	// registerTest: RegisterTest
 	registerBuild: RegisterBuild
+	registerConfig: RegisterConfig
 	registerCommand: RegisterCommand
 	registerDomainZone: (zone: aws.route53.Zone) => void
 	// registerPolicy: RegisterPolicy
