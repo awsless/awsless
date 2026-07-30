@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
+import { Minimatch } from 'minimatch'
 import { extname } from 'path'
 import { Plugin, rolldown } from 'rolldown'
 import { importAsString } from 'rollup-plugin-string-import'
@@ -21,13 +22,27 @@ export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'
 	minify?: boolean
 	external?: string[]
+	moduleSideEffects?: string[]
 	handler?: string
 	file: string
 	importAsString?: string[]
 }
 
+const createModuleMatcher = (patterns: string[] = []) => {
+	const globs = patterns.map(pattern => {
+		return new Minimatch(pattern.replaceAll('\\', '/'), { dot: true })
+	})
+
+	return (id: string) => {
+		const path = id.replaceAll('\\', '/')
+
+		return globs.some(glob => glob.match(path))
+	}
+}
+
 export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps) => {
 	const { format = 'esm', minify = true } = props
+	const hasModuleSideEffects = createModuleMatcher(props.moduleSideEffects)
 
 	const bundle = await rolldown({
 		input: props.file,
@@ -45,7 +60,8 @@ export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps)
 			moduleSideEffects: (id, isExternal) =>
 				isExternal
 					? props.external?.includes(id) === true
-					: id.startsWith(`${directories.root}/`) && !id.includes('/node_modules/'),
+					: hasModuleSideEffects(id) ||
+						(id.startsWith(`${directories.root}/`) && !id.includes('/node_modules/')),
 		},
 		onwarn: error => {
 			// Only a warning, so the bare specifier would ship & fail on first request.

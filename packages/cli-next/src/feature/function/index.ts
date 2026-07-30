@@ -1,3 +1,4 @@
+import { formatRouteEnvName } from 'awsless'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -5,7 +6,8 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { createLambdaFunction, isStandaloneFunction } from './util.js'
 import deepmerge from 'deepmerge'
 
 const typeGenCode = `
@@ -107,7 +109,20 @@ export const functionFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
-			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'function', id), props)
+			const routeKey = formatRouteKey(ctx.stack.name, 'function', id)
+
+			if (!isStandaloneFunction(props)) {
+				registerBundleFunction(ctx, routeKey, props)
+				continue
+			}
+
+			// The function defines its own lambda config, so it deploys as
+			// its own stand-alone lambda & the bundle invokes it directly
+			// by name instead of dispatching to a bundled handler.
+			createLambdaFunction(ctx, id, props)
+
+			const bundle = ctx.shared.get('bundle', 'main')
+			bundle.addEnv(formatRouteEnvName(routeKey, 'STANDALONE'), 'true')
 		}
 	},
 })

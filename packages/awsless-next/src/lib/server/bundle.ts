@@ -38,14 +38,17 @@ type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 }
 
 // Invoke the bundle lambda & let it dispatch to the route handler.
-// Inside a lambda we call the exact version we are running ourselves,
-// so one deployment never calls into code of another. Outside a
-// lambda we call the latest promoted deployment.
+// Inside the bundle we call the exact version we are running ourselves,
+// so one deployment never calls into code of another. Stand-alone
+// lambdas run unversioned & call the latest promoted deployment, like
+// every caller outside of a lambda.
 export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProps) => {
+	const version = process.env.STANDALONE === 'true' ? undefined : process.env.AWS_LAMBDA_FUNCTION_VERSION
+
 	return invoke({
 		...options,
 		name: getBundleName(),
-		qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LIVE_BUNDLE_ALIAS,
+		qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
 		payload: formatRoutePayload(routeKey, payload),
 	})
 }
@@ -93,6 +96,12 @@ export const internalInvoke = (routeKey: string, payload: unknown) => {
 
 export const formatRouteEnvName = (routeKey: string, name: string) => {
 	return `${routeKey}:${name}`
+}
+
+// True when the route is served by its own stand-alone lambda instead
+// of the bundle. Stand-alone functions are invoked directly by name.
+export const isStandaloneRoute = (routeKey: string) => {
+	return process.env[formatRouteEnvName(routeKey, 'STANDALONE')] === 'true'
 }
 
 export const getRouteEnv = (name: string) => {

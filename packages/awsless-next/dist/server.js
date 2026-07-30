@@ -32,10 +32,11 @@ var formatRoutePayload = (routeKey, event) => {
   };
 };
 var invokeBundle = ({ routeKey, payload, ...options }) => {
+  const version = process.env.STANDALONE === "true" ? void 0 : process.env.AWS_LAMBDA_FUNCTION_VERSION;
   return invoke({
     ...options,
     name: getBundleName(),
-    qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LIVE_BUNDLE_ALIAS,
+    qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
     payload: formatRoutePayload(routeKey, payload)
   });
 };
@@ -54,6 +55,9 @@ var internalInvoke = (routeKey, payload) => {
 };
 var formatRouteEnvName = (routeKey, name) => {
   return `${routeKey}:${name}`;
+};
+var isStandaloneRoute = (routeKey) => {
+  return process.env[formatRouteEnvName(routeKey, "STANDALONE")] === "true";
 };
 var getRouteEnv = (name) => {
   const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
@@ -213,6 +217,13 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
     const routeKey = formatRouteKey(stackName, "function", funcName);
     const send = async (payload, options = {}) => {
       if (IS_TEST) {
+        return invoke2({
+          ...options,
+          name,
+          payload
+        });
+      }
+      if (isStandaloneRoute(routeKey)) {
         return invoke2({
           ...options,
           name,
@@ -922,6 +933,7 @@ export {
   internalInvoke,
   invokeBundle,
   isInsideBundle,
+  isStandaloneRoute,
   mockAlert,
   mockCache,
   mockFunction,

@@ -48,6 +48,7 @@ type SharedState = {
 				exportName: string // The name of the exported method within the handler code.
 				external?: string[]
 				importAsString?: string[]
+				moduleSideEffects?: string[]
 			}) => void
 			addEnv: (name: string, value: Input<string>) => void
 			addLayer: (layer: Input<string>) => void
