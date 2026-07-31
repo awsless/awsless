@@ -121,11 +121,14 @@ export const siteFeature = defineFeature({
 				const fn = createLambdaFunction(ctx, `${id}-ssr`, props.ssr)
 
 				// Sandboxed lambdas are cut off from the app wide binds, so
-				// pass the site's own router endpoint explicitly.
-				fn.setEnvironment(
-					`ROUTER_${constantCase(props.router)}_ENDPOINT`,
-					ctx.shared.entry('router', 'endpoint', props.router)
-				)
+				// pass the site's own router endpoint explicitly. Routers
+				// without a domain don't have an endpoint.
+				if (ctx.shared.has('router', 'endpoint', props.router)) {
+					fn.setEnvironment(
+						`ROUTER_${constantCase(props.router)}_ENDPOINT`,
+						ctx.shared.entry('router', 'endpoint', props.router)
+					)
+				}
 
 				const url = new aws.lambda.FunctionUrl(group, 'ssr-url', {
 					functionName: fn.lambda.functionName,

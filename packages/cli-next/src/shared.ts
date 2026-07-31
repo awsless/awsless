@@ -135,10 +135,20 @@ export class SharedData {
 		return this.data.get(key)
 	}
 
-	has<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): boolean {
-		const key = `${feature}/${name.toString()}`
+	has<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): boolean
+	has<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(
+		feature: F,
+		name: K,
+		entry: number | string
+	): boolean
+	has(feature: string, name: string, entry?: number | string): boolean {
+		const key = `${feature}/${name}`
 
-		return this.data.has(key)
+		if (typeof entry === 'undefined') {
+			return this.data.has(key)
+		}
+
+		return this.entries.get(key)?.has(entry) ?? false
 	}
 
 	set<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K, value: SharedState[F][K]) {
