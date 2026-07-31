@@ -3,7 +3,7 @@ import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, Resource, resolveInputs } from '@terraforge/core'
-import { constantCase, pascalCase } from 'change-case'
+import { constantCase, kebabCase, pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { dirname, join } from 'path'
@@ -345,14 +345,16 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// Sandbox
 
 	if (typeof local.sandbox === 'object') {
+		// The bundle route keys are kebab-cased, so the allowlist entries
+		// are normalized the same way to make the proxy route match exact.
 		const routes = [
 			...(local.sandbox.functions ?? []).map(route => {
 				const [stack, resource] = route.split(':')
-				return `${stack}:function:${resource}`
+				return `${kebabCase(stack!)}:function:${kebabCase(resource!)}`
 			}),
 			...(local.sandbox.tasks ?? []).map(route => {
 				const [stack, resource] = route.split(':')
-				return `${stack}:task:${resource}`
+				return `${kebabCase(stack!)}:task:${kebabCase(resource!)}`
 			}),
 		]
 

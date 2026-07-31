@@ -229,6 +229,29 @@ describe('sandbox', () => {
 		expect(StackFunctionSchema.parse({ code, sandbox: { configs: ['SECRET'] } })).toBeDefined()
 		expect(StackFunctionSchema.parse({ code, sandbox: true })).toBeDefined()
 	})
+
+	it('kebab-cases the sandbox routes to match the bundle route keys', () => {
+		const { app } = createTestApp({}, undefined, [
+			{
+				name: 'stack-1',
+				functions: {
+					echo: { code, sandbox: { functions: ['stack-1:myFunc'], tasks: ['stack-1:myWork'] } },
+				},
+			},
+		])
+
+		const proxy = app.resources
+			.map(getMeta)
+			.find(
+				meta =>
+					meta.type === 'aws_lambda_function' &&
+					meta.input.functionName === 'test-app--stack-1--function--echo-proxy'
+			)!
+
+		expect(proxy.input.environment.variables.SANDBOX_ROUTES).toBe(
+			JSON.stringify(['stack-1:function:my-func', 'stack-1:task:my-work'])
+		)
+	})
 })
 
 describe('isStandaloneFunction', () => {
