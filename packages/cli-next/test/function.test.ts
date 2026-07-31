@@ -130,6 +130,10 @@ describe('sandbox', () => {
 				name: 'stack-1',
 				functions: {
 					echo: { code, sandbox: ['stack-1:function:other', 'stack-1:task:work'] },
+					standalone: { code, memorySize: '256 MB' },
+				},
+				queues: {
+					jobs: { consumer: { code } },
 				},
 			},
 		])
@@ -150,6 +154,17 @@ describe('sandbox', () => {
 		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--echo-proxy')
 		expect(lambda.input.environment.variables.SANDBOX).toBe('true')
 		expect(lambda.input.environment.variables.STANDALONE).toBeUndefined()
+
+		// The app wide env stays out of the sandbox, only stand-alone
+		// functions receive it.
+		const standalone = metas.find(
+			meta =>
+				meta.type === 'aws_lambda_function' &&
+				meta.input.functionName === 'test-app--stack-1--function--standalone'
+		)!
+
+		expect(lambda.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeUndefined()
+		expect(standalone.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeDefined()
 	})
 
 	it('creates no proxy for a fully sandboxed function', () => {

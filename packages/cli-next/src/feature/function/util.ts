@@ -327,13 +327,18 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		variables[key] = value
 	}
 
-	ctx.onEnv((name, value) => {
-		variables[name] = value
-	})
+	// Sandboxed functions don't receive the app wide env vars, since
+	// they can only reach allowlisted routes through the sandbox proxy
+	// & the full app env can outgrow the 4KB lambda env limit.
+	if (!sandboxed) {
+		ctx.onEnv((name, value) => {
+			variables[name] = value
+		})
 
-	ctx.onBind((name, value) => {
-		variables[name] = value
-	})
+		ctx.onBind((name, value) => {
+			variables[name] = value
+		})
+	}
 
 	// ------------------------------------------------------------
 	// Sandbox
