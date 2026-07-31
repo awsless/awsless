@@ -1,5 +1,4 @@
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
-import { stringify } from '@awsless/json'
 import { getBundleName, LIVE_BUNDLE_ALIAS } from '../../bundle/config.js'
 
 const client = new LambdaClient({})
@@ -11,8 +10,8 @@ type SandboxEvent = {
 
 // Forwards the allowlisted bundle routes for a sandboxed function,
 // which only holds iam permission to invoke this proxy. The payload
-// passes through untouched in both directions, so the bundle wire
-// format is preserved exactly.
+// passes through untouched in both directions with plain JSON, so
+// the patched bundle wire format is preserved exactly & never decoded.
 export default async (event: SandboxEvent) => {
 	const route = event?.['$awsless-route']
 
@@ -29,7 +28,7 @@ export default async (event: SandboxEvent) => {
 			FunctionName: getBundleName(),
 			Qualifier: LIVE_BUNDLE_ALIAS,
 			InvocationType: asynchronous ? 'Event' : 'RequestResponse',
-			Payload: stringify(event),
+			Payload: JSON.stringify(event),
 		})
 	)
 
