@@ -113,6 +113,7 @@ type SharedEntries = {
 	router: {
 		id: Output<string>
 		'preview-id': Output<string>
+		endpoint: string
 		addRoutes: (
 			routes: Record<string, Route | Route[]>,
 			options?: { dependsOn?: Array<Resource | DataSource> }

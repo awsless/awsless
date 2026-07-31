@@ -654,6 +654,7 @@ export const routerFeature = defineFeature({
 				}
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
+				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
 		}
 	},

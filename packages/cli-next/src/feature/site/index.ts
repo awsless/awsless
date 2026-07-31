@@ -120,6 +120,13 @@ export const siteFeature = defineFeature({
 				// same cloudfront signing as the shared bundle url.
 				const fn = createLambdaFunction(ctx, `${id}-ssr`, props.ssr)
 
+				// Sandboxed lambdas are cut off from the app wide binds, so
+				// pass the site's own router endpoint explicitly.
+				fn.setEnvironment(
+					`ROUTER_${constantCase(props.router)}_ENDPOINT`,
+					ctx.shared.entry('router', 'endpoint', props.router)
+				)
+
 				const url = new aws.lambda.FunctionUrl(group, 'ssr-url', {
 					functionName: fn.lambda.functionName,
 					authorizationType: 'AWS_IAM',
