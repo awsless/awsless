@@ -466,6 +466,9 @@ importers:
 
   packages/cli-next:
     dependencies:
+      '@aws-sdk/client-cloudfront-keyvaluestore':
+        specifier: ^3.817.0
+        version: 3.1023.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
       '@aws-sdk/signature-v4-crt':
         specifier: ^3.816.0
         version: 3.1023.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -484,9 +487,6 @@ importers:
         version: 3.1023.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
       '@aws-sdk/client-cloudfront':
         specifier: ^3.991.0
-        version: 3.1023.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
-      '@aws-sdk/client-cloudfront-keyvaluestore':
-        specifier: ^3.817.0
         version: 3.1023.0(aws-crt@1.30.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
       '@aws-sdk/client-cloudwatch-logs':
         specifier: ^3.806.0

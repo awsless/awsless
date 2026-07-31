@@ -25,8 +25,8 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
+		"@aws-sdk/client-cloudfront-keyvaluestore": "^3.817.0",
 		"@aws-sdk/signature-v4-crt": "^3.816.0",
-		"@aws-sdk/signature-v4-multi-region": "3.991.0",
 		"@awsless/ts-file-cache": "workspace:^",
 		"rolldown": "1.2.1",
 		"vitest": "4.1.10"
@@ -45,7 +45,6 @@
 	"devDependencies": {
 		"@aws-sdk/client-cloudformation": "^3.369.0",
 		"@aws-sdk/client-cloudfront": "^3.991.0",
-		"@aws-sdk/client-cloudfront-keyvaluestore": "^3.817.0",
 		"@aws-sdk/client-cloudwatch-logs": "^3.806.0",
 		"@aws-sdk/client-cognito-identity-provider": "^3.840.0",
 		"@aws-sdk/client-dynamodb": "3.363.0",

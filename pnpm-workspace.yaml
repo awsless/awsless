@@ -7,6 +7,8 @@ minimumReleaseAgeExclude:
     - rolldown
     - '@oxc-project/*'
     - '@rolldown/*'
+    - '@napi-rs/*'
+    - '@emnapi/*'
 
 strictPeerDependencies: false
 gitChecks: false
