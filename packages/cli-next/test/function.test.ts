@@ -58,8 +58,8 @@ describe('stack functions', () => {
 		// Stand-alone functions deploy in place & stay out of blue-green.
 		expect(lambda.input.publish).toBeUndefined()
 
-		// Stand-alone functions match the bundle's vpc posture by default.
-		expect(lambda.input.vpcConfig).toBeDefined()
+		// Stand-alone functions live outside the vpc by default.
+		expect(lambda.input.vpcConfig).toBeUndefined()
 
 		const role = metas.find(meta => meta.type === 'aws_iam_role' && meta.input.description === 'test-app--stack-1--function--echo')
 		const logGroup = metas.find(
@@ -102,12 +102,12 @@ describe('stack functions', () => {
 		expect(variables['stack-1:function:echo:STANDALONE']).toBeUndefined()
 	})
 
-	it('deploys outside the vpc when the function opts out', () => {
+	it('deploys inside the vpc when the function opts in', () => {
 		const { app } = createTestApp({}, undefined, [
 			{
 				name: 'stack-1',
 				functions: {
-					echo: { code, vpc: false },
+					echo: { code, memorySize: '256 MB', vpc: true },
 				},
 			},
 		])
@@ -118,7 +118,7 @@ describe('stack functions', () => {
 				meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 			)!
 
-		expect(lambda.input.vpcConfig).toBeUndefined()
+		expect(lambda.input.vpcConfig).toBeDefined()
 	})
 
 })
@@ -196,9 +196,11 @@ describe('isStandaloneFunction', () => {
 			)
 		).toBe(false)
 
+		// The vpc flag only applies to an already stand-alone lambda.
+		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, vpc: true }))).toBe(false)
+
 		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, memorySize: '256 MB' }))).toBe(true)
 		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, timeout: '30 seconds' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, vpc: true }))).toBe(true)
 		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, log: false }))).toBe(true)
 		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, runtime: 'nodejs22.x' }))).toBe(true)
 		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, description: 'desc' }))).toBe(true)
