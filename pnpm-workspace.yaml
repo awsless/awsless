@@ -1,4 +1,4 @@
-minimumReleaseAge: 8640
+minimumReleaseAge: 1000
 minimumReleaseAgeExclude:
     - '@types/bun'
     - '@awsless/*'

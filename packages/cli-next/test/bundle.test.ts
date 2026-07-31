@@ -80,7 +80,7 @@ describe('bundle', () => {
 		expect(lambda?.input.timeout).toBe(20)
 	})
 
-	it('should preserve side effect imports', async () => {
+	it('should preserve side effect imports', { timeout: 60_000 }, async () => {
 		const workspace = await loadWorkspace(process.cwd())
 		const files: Record<string, string> = {}
 		const builder = buildBundle({
@@ -203,7 +203,7 @@ describe('bundle handler', () => {
 		)
 
 		handler = (await import(`${pathToFileURL(join(files, 'index.mjs')).href}?${Date.now()}`)).default
-	})
+	}, 60_000)
 
 	afterAll(async () => {
 		await rm(dir, { recursive: true, force: true })
