@@ -15,7 +15,10 @@
 		},
 		"sandboxed": {
 			"code": "./function/sandboxed.ts",
-			"sandbox": ["stack:function:function", "stack:task:work"]
+			"sandbox": {
+				"functions": ["stack:function"],
+				"tasks": ["stack:work"]
+			}
 		},
 		"caller": "./function/caller.ts"
 	},

@@ -43,14 +43,27 @@ const LayersSchema = z
 		`A list of function layers to add to the function's execution environment. Specify each layer by its name.`
 	)
 
-const SandboxRouteKeySchema = z
+const SandboxRouteSchema = z
 	.string()
-	.regex(/^[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/i, 'Invalid route key. Use the "stack:type:name" format.')
+	.regex(/^[a-z0-9-]+:[a-z0-9-]+$/i, 'Invalid route. Use the "stack:name" format.')
 
 const SandboxSchema = z
-	.union([z.boolean(), SandboxRouteKeySchema.array()])
+	.union([
+		z.boolean(),
+		z
+			.object({
+				functions: SandboxRouteSchema.array()
+					.optional()
+					.describe('The "stack:name" functions the sandbox may invoke through the sandbox proxy.'),
+				tasks: SandboxRouteSchema.array()
+					.optional()
+					.describe('The "stack:name" tasks the sandbox may start through the sandbox proxy.'),
+				configs: z.string().array().optional().describe('The config values the sandbox may read.'),
+			})
+			.strict(),
+	])
 	.describe(
-		'Block the function from invoking other lambdas. Pass a list of route keys like "my-stack:function:my-name" to allow only those routes through a private sandbox gateway.'
+		'Block the function from invoking other lambdas & reading the app wide env. Pass an object with functions, tasks & configs to allow only those through.'
 	)
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')

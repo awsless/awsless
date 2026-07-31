@@ -1,4 +1,4 @@
-import { getMeta } from '@terraforge/core'
+import { getMeta, resolveInputs } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
 import { FunctionSchema, StackFunctionSchema } from '../src/feature/function/schema'
 import { isStandaloneFunction } from '../src/feature/function/util'
@@ -129,7 +129,7 @@ describe('sandbox', () => {
 			{
 				name: 'stack-1',
 				functions: {
-					echo: { code, sandbox: ['stack-1:function:other', 'stack-1:task:work'] },
+					echo: { code, sandbox: { functions: ['stack-1:other'], tasks: ['stack-1:work'] } },
 					standalone: { code, memorySize: '256 MB' },
 				},
 				queues: {
@@ -167,6 +167,34 @@ describe('sandbox', () => {
 		expect(standalone.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeDefined()
 	})
 
+	it('grants the sandbox access to the allowlisted configs', async () => {
+		const { app } = createTestApp({}, undefined, [
+			{
+				name: 'stack-1',
+				functions: {
+					echo: { code, log: false, sandbox: { configs: ['SECRET'] } },
+				},
+			},
+		])
+
+		const metas = app.resources.map(getMeta)
+		const lambda = metas.find(
+			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+		)!
+
+		expect(lambda.input.environment.variables.CONFIG_SECRET).toBe('SECRET')
+
+		const policies = await Promise.all(
+			metas
+				.filter(meta => meta.type === 'aws_iam_role_policy')
+				.map(meta => resolveInputs(meta.input.policy).catch(() => undefined))
+		)
+
+		const policy = policies.find(policy => String(policy).includes('parameter/.awsless/test-app/SECRET'))
+		expect(policy).toBeDefined()
+		expect(String(policy)).toContain('ssm:GetParameter')
+	})
+
 	it('creates no proxy for a fully sandboxed function', () => {
 		const { app } = createTestApp({}, undefined, [
 			{
@@ -192,9 +220,13 @@ describe('sandbox', () => {
 		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBeUndefined()
 	})
 
-	it('rejects invalid sandbox route keys', () => {
-		expect(() => StackFunctionSchema.parse({ code, sandbox: ['not-a-route-key'] })).toThrow()
-		expect(StackFunctionSchema.parse({ code, sandbox: ['stack:function:name'] })).toBeDefined()
+	it('rejects invalid sandbox routes', () => {
+		expect(() => StackFunctionSchema.parse({ code, sandbox: ['stack:function:name'] })).toThrow()
+		expect(() => StackFunctionSchema.parse({ code, sandbox: { functions: ['not a route'] } })).toThrow()
+		expect(() => StackFunctionSchema.parse({ code, sandbox: { queues: ['stack:name'] } })).toThrow()
+		expect(StackFunctionSchema.parse({ code, sandbox: { functions: ['stack:name'] } })).toBeDefined()
+		expect(StackFunctionSchema.parse({ code, sandbox: { tasks: ['stack:name'] } })).toBeDefined()
+		expect(StackFunctionSchema.parse({ code, sandbox: { configs: ['SECRET'] } })).toBeDefined()
 		expect(StackFunctionSchema.parse({ code, sandbox: true })).toBeDefined()
 	})
 })

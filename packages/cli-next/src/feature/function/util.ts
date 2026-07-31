@@ -3,7 +3,7 @@ import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, Resource, resolveInputs } from '@terraforge/core'
-import { pascalCase } from 'change-case'
+import { constantCase, pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { dirname, join } from 'path'
@@ -14,6 +14,7 @@ import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { configParameterPrefix } from '../../util/ssm.js'
 import { relativePath } from '../../util/path.js'
 import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
 import { zipFiles } from '../bundle/build/zip.js'
@@ -343,44 +344,80 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// ------------------------------------------------------------
 	// Sandbox
 
-	if (Array.isArray(local.sandbox) && local.sandbox.length > 0) {
-		// The allowlisted routes are served by a private sandbox proxy,
-		// the only lambda the sandboxed function is allowed to invoke.
-		// The proxy forwards allowlisted routes to the live bundle.
-		const bundle = ctx.shared.get('bundle', 'main')
-		const distDir = dirname(fileURLToPath(import.meta.url))
+	if (typeof local.sandbox === 'object') {
+		const routes = [
+			...(local.sandbox.functions ?? []).map(route => {
+				const [stack, resource] = route.split(':')
+				return `${stack}:function:${resource}`
+			}),
+			...(local.sandbox.tasks ?? []).map(route => {
+				const [stack, resource] = route.split(':')
+				return `${stack}:task:${resource}`
+			}),
+		]
 
-		const proxy = createPrebuildLambdaFunction(group, ctx, 'function', `${id}-proxy`, {
-			bundleFile: join(distDir, '/prebuild/sandbox-proxy/bundle.zip'),
-			bundleHash: join(distDir, '/prebuild/sandbox-proxy/HASH'),
-			runtime: 'nodejs24.x',
-			handler: 'index.default',
+		if (routes.length > 0) {
+			// The allowlisted routes are served by a private sandbox proxy,
+			// the only lambda the sandboxed function is allowed to invoke.
+			// The proxy forwards allowlisted routes to the live bundle.
+			const bundle = ctx.shared.get('bundle', 'main')
+			const distDir = dirname(fileURLToPath(import.meta.url))
 
-			// The proxy forwards synchronously, so it needs at least the
-			// same timeout as the bundle.
-			timeout: ctx.appConfig.defaults.function.timeout,
+			const proxy = createPrebuildLambdaFunction(group, ctx, 'function', `${id}-proxy`, {
+				bundleFile: join(distDir, '/prebuild/sandbox-proxy/bundle.zip'),
+				bundleHash: join(distDir, '/prebuild/sandbox-proxy/HASH'),
+				runtime: 'nodejs24.x',
+				handler: 'index.default',
 
-			log: {
-				format: 'json',
-				level: 'warn',
-				system: 'warn',
-				retention: days(3),
-			},
-		})
+				// The proxy forwards synchronously, so it needs at least the
+				// same timeout as the bundle.
+				timeout: ctx.appConfig.defaults.function.timeout,
 
-		proxy.setEnvironment('SANDBOX_ROUTES', JSON.stringify(local.sandbox))
+				log: {
+					format: 'json',
+					level: 'warn',
+					system: 'warn',
+					retention: days(3),
+				},
+			})
 
-		proxy.addPermission({
-			actions: ['lambda:InvokeFunction'],
-			resources: [bundle.alias.arn],
-		})
+			proxy.setEnvironment('SANDBOX_ROUTES', JSON.stringify(routes))
 
-		variables.SANDBOX_PROXY = proxy.name
+			proxy.addPermission({
+				actions: ['lambda:InvokeFunction'],
+				resources: [bundle.alias.arn],
+			})
 
-		addPermission({
-			actions: ['lambda:InvokeFunction'],
-			resources: [proxy.lambda.arn],
-		})
+			variables.SANDBOX_PROXY = proxy.name
+
+			addPermission({
+				actions: ['lambda:InvokeFunction'],
+				resources: [proxy.lambda.arn],
+			})
+		}
+
+		const configs = local.sandbox.configs ?? []
+
+		if (configs.length > 0) {
+			for (const configName of configs) {
+				variables[`CONFIG_${constantCase(configName)}`] = configName
+			}
+
+			addPermission({
+				actions: [
+					//
+					'ssm:GetParameter',
+					'ssm:GetParameters',
+					'ssm:GetParametersByPath',
+					'ssm:GetParameterHistory',
+				],
+				resources: configs.map(configName => {
+					return `arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
+						ctx.app.name
+					)}/${configName}`
+				}),
+			})
+		}
 	}
 
 	// ------------------------------------------------------------

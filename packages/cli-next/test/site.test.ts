@@ -33,7 +33,7 @@ describe('site ssr', () => {
 					web: {
 						router: 'main',
 						path: '/',
-						ssr: { code, sandbox: ['stack-1:function:other'] },
+						ssr: { code, sandbox: { functions: ['stack-1:other'] } },
 					},
 				},
 			},
