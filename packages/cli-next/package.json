@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/cli",
-	"version": "0.0.46-next.20",
+	"version": "0.0.46-next.21",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
