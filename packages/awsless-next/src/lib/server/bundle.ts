@@ -16,7 +16,7 @@ export const ROUTE_PROPERTY = '$awsless-route'
 // The alias that every deploy promotes; matches the CLI's LIVE_LAMBDA_ALIAS.
 export const LIVE_BUNDLE_ALIAS = 'live'
 
-export const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
+export const getBundleName = () => `${process.env.APP!}--function--bundle`
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
 	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
@@ -43,6 +43,19 @@ type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 // lambdas run unversioned & call the latest promoted deployment, like
 // every caller outside of a lambda.
 export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProps) => {
+	// Inside a sandbox every bundle call goes to the sandbox proxy,
+	// the only lambda a sandboxed function is allowed to invoke. The
+	// proxy forwards the allowlisted routes to the live bundle.
+	const proxy = process.env.SANDBOX_PROXY
+
+	if (proxy) {
+		return invoke({
+			...options,
+			name: proxy,
+			payload: formatRoutePayload(routeKey, payload),
+		})
+	}
+
 	const version = process.env.STANDALONE === 'true' ? undefined : process.env.AWS_LAMBDA_FUNCTION_VERSION
 
 	return invoke({

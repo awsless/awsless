@@ -1,4 +1,4 @@
-import { Duration, seconds, toDays, toSeconds } from '@awsless/duration'
+import { days, Duration, seconds, toDays, toSeconds } from '@awsless/duration'
 import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
@@ -6,6 +6,8 @@ import { findInputDeps, Group, Input, Output, Resource, resolveInputs } from '@t
 import { pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
@@ -34,11 +36,13 @@ const standaloneFields = [
 	'layers',
 	'environment',
 	'permissions',
+	'sandbox',
 ] as const
 
 export const isStandaloneFunction = (props: StackFunctionProps) => {
 	return standaloneFields.some(field => typeof props[field] !== 'undefined')
 }
+
 
 // Deploy a stack function as its own stand-alone lambda, like the old
 // awsless did for every function. Callers invoke it directly by name, so
@@ -160,12 +164,18 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		}
 	}
 
-	// The defaults permissions are already folded in by the deepmerge.
-	addPermission(...(props.permissions ?? []))
+	const sandboxed = typeof local.sandbox !== 'undefined' && local.sandbox !== false
 
-	ctx.onPermission(statement => {
-		addPermission(statement)
-	})
+	// Sandboxed functions don't receive the app wide grants or the app
+	// level default permissions, only their own explicit permissions. So
+	// they can't touch any other lambda or resource inside the app.
+	addPermission(...((sandboxed ? local.permissions : props.permissions) ?? []))
+
+	if (!sandboxed) {
+		ctx.onPermission(statement => {
+			addPermission(statement)
+		})
+	}
 
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
@@ -301,7 +311,11 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	variables.STACK = ctx.stackConfig.name
 
 	// Mark the lambda as living outside of the shared bundle.
-	variables.STANDALONE = 'true'
+	if (sandboxed) {
+		variables.SANDBOX = 'true'
+	} else {
+		variables.STANDALONE = 'true'
+	}
 
 	if (props.vpc) {
 		// Tell all aws clients to use the dualstack endpoint when the
@@ -320,6 +334,49 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	ctx.onBind((name, value) => {
 		variables[name] = value
 	})
+
+	// ------------------------------------------------------------
+	// Sandbox
+
+	if (Array.isArray(local.sandbox) && local.sandbox.length > 0) {
+		// The allowlisted routes are served by a private sandbox proxy,
+		// the only lambda the sandboxed function is allowed to invoke.
+		// The proxy forwards allowlisted routes to the live bundle.
+		const bundle = ctx.shared.get('bundle', 'main')
+		const distDir = dirname(fileURLToPath(import.meta.url))
+
+		const proxy = createPrebuildLambdaFunction(group, ctx, 'function', `${id}-proxy`, {
+			bundleFile: join(distDir, '/prebuild/sandbox-proxy/bundle.zip'),
+			bundleHash: join(distDir, '/prebuild/sandbox-proxy/HASH'),
+			runtime: 'nodejs24.x',
+			handler: 'index.default',
+
+			// The proxy forwards synchronously, so it needs at least the
+			// same timeout as the bundle.
+			timeout: ctx.appConfig.defaults.function.timeout,
+
+			log: {
+				format: 'json',
+				level: 'warn',
+				system: 'warn',
+				retention: days(3),
+			},
+		})
+
+		proxy.setEnvironment('SANDBOX_ROUTES', JSON.stringify(local.sandbox))
+
+		proxy.addPermission({
+			actions: ['lambda:InvokeFunction'],
+			resources: [bundle.alias.arn],
+		})
+
+		variables.SANDBOX_PROXY = proxy.name
+
+		addPermission({
+			actions: ['lambda:InvokeFunction'],
+			resources: [proxy.lambda.arn],
+		})
+	}
 
 	// ------------------------------------------------------------
 	// Logging

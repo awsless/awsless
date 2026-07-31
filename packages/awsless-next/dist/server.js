@@ -21,7 +21,7 @@ import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
 var LIVE_BUNDLE_ALIAS = "live";
-var getBundleName = () => `${process.env.APP ?? "app"}--function--bundle`;
+var getBundleName = () => `${process.env.APP}--function--bundle`;
 var formatRouteKey = (stackName, resourceType, resourceName) => {
   return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
 };
@@ -32,6 +32,14 @@ var formatRoutePayload = (routeKey, event) => {
   };
 };
 var invokeBundle = ({ routeKey, payload, ...options }) => {
+  const proxy = process.env.SANDBOX_PROXY;
+  if (proxy) {
+    return invoke({
+      ...options,
+      name: proxy,
+      payload: formatRoutePayload(routeKey, payload)
+    });
+  }
   const version = process.env.STANDALONE === "true" ? void 0 : process.env.AWS_LAMBDA_FUNCTION_VERSION;
   return invoke({
     ...options,

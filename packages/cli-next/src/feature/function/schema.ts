@@ -43,6 +43,16 @@ const LayersSchema = z
 		`A list of function layers to add to the function's execution environment. Specify each layer by its name.`
 	)
 
+const SandboxRouteKeySchema = z
+	.string()
+	.regex(/^[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/i, 'Invalid route key. Use the "stack:type:name" format.')
+
+const SandboxSchema = z
+	.union([z.boolean(), SandboxRouteKeySchema.array()])
+	.describe(
+		'Block the function from invoking other lambdas. Pass a list of route keys like "my-stack:function:my-name" to allow only those routes through a private sandbox gateway.'
+	)
+
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
 const ArchitectureSchema = z
@@ -193,6 +203,7 @@ const StackFnSchema = z
 		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
+		sandbox: SandboxSchema.optional(),
 	})
 	.strict()
 

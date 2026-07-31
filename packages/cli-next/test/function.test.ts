@@ -123,6 +123,67 @@ describe('stack functions', () => {
 
 })
 
+describe('sandbox', () => {
+	it('creates a sandbox proxy for the allowlisted routes', () => {
+		const { app } = createTestApp({}, undefined, [
+			{
+				name: 'stack-1',
+				functions: {
+					echo: { code, sandbox: ['stack-1:function:other', 'stack-1:task:work'] },
+				},
+			},
+		])
+
+		const metas = app.resources.map(getMeta)
+		const lambda = metas.find(
+			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+		)!
+		const proxy = metas.find(
+			meta =>
+				meta.type === 'aws_lambda_function' &&
+				meta.input.functionName === 'test-app--stack-1--function--echo-proxy'
+		)!
+
+		expect(proxy).toBeDefined()
+		expect(proxy.input.environment.variables.SANDBOX_ROUTES).toBe(JSON.stringify(['stack-1:function:other', 'stack-1:task:work']))
+
+		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--echo-proxy')
+		expect(lambda.input.environment.variables.SANDBOX).toBe('true')
+		expect(lambda.input.environment.variables.STANDALONE).toBeUndefined()
+	})
+
+	it('creates no proxy for a fully sandboxed function', () => {
+		const { app } = createTestApp({}, undefined, [
+			{
+				name: 'stack-1',
+				functions: {
+					echo: { code, sandbox: true },
+				},
+			},
+		])
+
+		const metas = app.resources.map(getMeta)
+		const lambda = metas.find(
+			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+		)!
+		const proxy = metas.find(
+			meta =>
+				meta.type === 'aws_lambda_function' &&
+				meta.input.functionName === 'test-app--stack-1--function--echo-proxy'
+		)
+
+		expect(lambda).toBeDefined()
+		expect(proxy).toBeUndefined()
+		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBeUndefined()
+	})
+
+	it('rejects invalid sandbox route keys', () => {
+		expect(() => StackFunctionSchema.parse({ code, sandbox: ['not-a-route-key'] })).toThrow()
+		expect(StackFunctionSchema.parse({ code, sandbox: ['stack:function:name'] })).toBeDefined()
+		expect(StackFunctionSchema.parse({ code, sandbox: true })).toBeDefined()
+	})
+})
+
 describe('isStandaloneFunction', () => {
 	it('triggers on every lambda infra field', () => {
 		expect(isStandaloneFunction(StackFunctionSchema.parse({ code }))).toBe(false)
@@ -151,6 +212,7 @@ describe('isStandaloneFunction', () => {
 				StackFunctionSchema.parse({ code, permissions: { actions: 's3:GetObject', resources: '*' } })
 			)
 		).toBe(true)
+		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, sandbox: true }))).toBe(true)
 	})
 })
 

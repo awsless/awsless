@@ -2,6 +2,7 @@ import { parse, patch } from '@awsless/json'
 import { invoke } from '@awsless/lambda'
 import { deleteObject, getObject } from '@awsless/s3'
 import { S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
+import { getBundleName, LIVE_BUNDLE_ALIAS } from '../../bundle/config.js'
 import {
 	AsyncLambdaFailureEvent,
 	DynamoDBStreamFailureEvent,
@@ -11,10 +12,6 @@ import {
 } from './types'
 import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from './util'
 
-// The wire constants mirror the awsless bundle runtime, without pulling
-// the whole awsless package into the prebuilt zip.
-const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
-const LIVE_BUNDLE_ALIAS = 'live'
 const CONSUMER_ROUTE = 'base:on-failure:consumer'
 
 export default async (event: S3CreateEvent | SQSEvent) => {

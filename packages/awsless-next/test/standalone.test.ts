@@ -65,6 +65,22 @@ describe('standalone routes', () => {
 		expect(invoke).toHaveBeenLastCalledWith(expect.objectContaining({ qualifier: 'live' }))
 	})
 
+	it('routes sandboxed calls through the sandbox proxy', async () => {
+		const { invokeBundle } = await import('../src/lib/server/bundle')
+
+		vi.stubEnv('SANDBOX_PROXY', 'app--stack--function--echo-proxy')
+		vi.stubEnv('AWS_LAMBDA_FUNCTION_VERSION', '$LATEST')
+		await invokeBundle({ routeKey: 'stack:function:echo', payload: { n: 1 } })
+
+		expect(invoke).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				name: 'app--stack--function--echo-proxy',
+				payload: { '$awsless-route': 'stack:function:echo', event: { n: 1 } },
+			})
+		)
+		expect(vi.mocked(invoke).mock.calls.at(-1)![0]).not.toHaveProperty('qualifier')
+	})
+
 	it('pins the bundle qualifier to the running version inside the bundle', async () => {
 		const { invokeBundle } = await import('../src/lib/server/bundle')
 

@@ -13,6 +13,10 @@
 			"code": "./function/standalone-caller.ts",
 			"memorySize": "256 MB"
 		},
+		"sandboxed": {
+			"code": "./function/sandboxed.ts",
+			"sandbox": ["stack:function:function", "stack:task:work"]
+		},
 		"caller": "./function/caller.ts"
 	},
 	"crons": {
