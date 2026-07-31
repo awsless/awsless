@@ -1,3 +1,4 @@
+import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
@@ -11,6 +12,7 @@ import { generateCacheKey } from '../../util/cache.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { createLambdaFunction, isStandaloneFunction } from '../function/util.js'
 import { Route } from '../router/route.js'
 import { planStaticRoutes } from './static-routes.js'
 import { getFeatureFolder } from '../asset/index.js'
@@ -112,7 +114,44 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Server Side Rendering
 
-			if (props.ssr) {
+			if (props.ssr && isStandaloneFunction(props.ssr)) {
+				// A custom lambda config deploys the ssr as its own stand-alone
+				// lambda & the router hits its function url directly, with the
+				// same cloudfront signing as the shared bundle url.
+				const fn = createLambdaFunction(ctx, `${id}-ssr`, props.ssr)
+
+				const url = new aws.lambda.FunctionUrl(group, 'ssr-url', {
+					functionName: fn.lambda.functionName,
+					authorizationType: 'AWS_IAM',
+				})
+
+				new aws.lambda.Permission(group, 'ssr-url-permission', {
+					functionName: fn.lambda.functionName,
+					statementId: 'cloudfront-url',
+					principal: 'cloudfront.amazonaws.com',
+					sourceAccount: ctx.accountId,
+					action: 'lambda:InvokeFunctionUrl',
+					functionUrlAuthType: 'AWS_IAM',
+				})
+
+				new aws.lambda.Permission(group, 'ssr-invoke-permission', {
+					functionName: fn.lambda.functionName,
+					statementId: 'cloudfront-invoke',
+					principal: 'cloudfront.amazonaws.com',
+					sourceAccount: ctx.accountId,
+					action: 'lambda:InvokeFunction',
+					invokedViaFunctionUrl: true,
+				})
+
+				addRoutes({
+					[routeKey]: {
+						type: 'lambda',
+						forwardHost: true,
+						urlEncodedQueryString: true,
+						domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
+					},
+				})
+			} else if (props.ssr) {
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
