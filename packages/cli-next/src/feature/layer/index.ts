@@ -73,7 +73,7 @@ export const layerFeature = defineFeature({
 				},
 				{
 					dependsOn: [zip],
-					replaceOnChanges: ['sourceCodeHash', 's3ObjectVersion'],
+					replaceOnChanges: ['sourceCodeHash'],
 				}
 			)
 

@@ -76,7 +76,7 @@ export const imageFeature = defineFeature({
 			},
 			{
 				dependsOn: [zipFile],
-				replaceOnChanges: ['sourceCodeHash', 's3ObjectVersion'],
+				replaceOnChanges: ['sourceCodeHash'],
 			}
 		)
 
