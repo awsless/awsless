@@ -55,7 +55,7 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, tests, warnings, builders, ready } = createApp({
+				const { app, tests, warnings, builders, ready, appId } = createApp({
 					appConfig,
 					stackConfigs,
 					accountId,
@@ -81,6 +81,12 @@ export const deploy = (program: Command) => {
 				if (!options.skipTests) {
 					const passed = await runTests(tests, [], [], {
 						showLogs: false,
+						env: {
+							APP: appConfig.name,
+							APP_ID: appId,
+							AWS_REGION: appConfig.region,
+							AWS_ACCOUNT_ID: accountId,
+						},
 					})
 
 					if (!passed) {

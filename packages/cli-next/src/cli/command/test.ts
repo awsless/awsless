@@ -17,7 +17,7 @@ export const test = (program: Command) => {
 				const credentials = await getCredentials(props.appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const { tests } = createApp({ ...props, accountId })
+				const { tests, appId } = createApp({ ...props, accountId })
 
 				if (tests.length === 0) {
 					return 'No tests found.'
@@ -25,6 +25,12 @@ export const test = (program: Command) => {
 
 				const passed = await runTests(tests, stacks, options?.filters, {
 					showLogs: true,
+					env: {
+						APP: props.appConfig.name,
+						APP_ID: appId,
+						AWS_REGION: region,
+						AWS_ACCOUNT_ID: accountId,
+					},
 				})
 
 				if (!passed) {

@@ -78,12 +78,12 @@ declare const formatRouteEnvName: (routeKey: string, name: string) => string;
 declare const isStandaloneRoute: (routeKey: string) => boolean;
 declare const getRouteEnv: (name: string) => string | undefined;
 
-declare const getJobName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--job--${N}`;
+declare const getJobName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--job--${N}`;
 interface JobResources {
 }
 declare const Job: JobResources;
 
-declare const getAlertName: <N extends string>(resourceName: N) => `app--alert--${N}`;
+declare const getAlertName: <N extends string>(resourceName: N) => `${string}--alert--${N}`;
 interface AlertResources {
 }
 declare const Alert: AlertResources;
@@ -111,17 +111,17 @@ interface ConfigResources {
 }
 declare const Config: ConfigResources;
 
-declare const getCronName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--cron--${N}`;
+declare const getCronName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--cron--${N}`;
 interface CronResources {
 }
 declare const Cron: CronResources;
 
-declare const getFunctionName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--function--${N}`;
+declare const getFunctionName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--function--${N}`;
 interface FunctionResources {
 }
 declare const Fn: FunctionResources;
 
-declare const getInstanceQueueName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--instance--${N}`;
+declare const getInstanceQueueName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--instance--${N}`;
 declare const getInstanceQueueUrl: (name: string, stack?: string) => string | undefined;
 interface InstanceResources {
 }
@@ -150,7 +150,7 @@ declare const onFailureQueueName: string;
 declare const onFailureBucketArn: string;
 declare const onFailureQueueArn: string;
 
-declare const getPubSubPublisherName: <N extends string>(resourceName: N) => `app--pubsub-publisher--${N}`;
+declare const getPubSubPublisherName: <N extends string>(resourceName: N) => `${string}--pubsub-publisher--${N}`;
 interface PubSubResources {
 }
 declare const PubSub: PubSubResources;
@@ -244,7 +244,7 @@ type RpcAuthorizerResponse = {
     ttl: Duration;
 };
 
-declare const getSearchName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--search--${N}`;
+declare const getSearchName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--search--${N}`;
 declare const getSearchProps: (name: string, stack?: string) => {
     readonly domain: string | undefined;
 };
@@ -256,22 +256,22 @@ interface StoreResources {
 }
 declare const Store: StoreResources;
 
-declare const getTableName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--table--${N}`;
+declare const getTableName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--table--${N}`;
 interface TableResources {
 }
 declare const Table: TableResources;
 
-declare const getTaskName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--task--${N}`;
+declare const getTaskName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--task--${N}`;
 interface TaskResources {
 }
 declare const Task: TaskResources;
 
-declare const getTopicName: <N extends string>(resourceName: N) => `app--topic--${N}`;
+declare const getTopicName: <N extends string>(resourceName: N) => `${string}--topic--${N}`;
 interface TopicResources {
 }
 declare const Topic: TopicResources;
 
-declare const APP: "app";
-declare const getStack: () => "stack";
+declare const APP: string;
+declare const getStack: () => string;
 
 export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, type InternalInvoke, Job, type JobMock, type JobMockResponse, type JobResources, LIVE_BUNDLE_ALIAS, Metric, type MetricResources, PubSub, type PubSubAuthorizerEvent, type PubSubAuthorizerResponse, type PubSubConnectedEvent, type PubSubDisconnectedEvent, type PubSubMock, type PubSubMockResponse, type PubSubResources, type PubSubSubscribedEvent, type PubSubUnsubscribedEvent, Queue, type QueueMock, type QueueMockResponse, type QueueResources, ROUTE_PROPERTY, type RouteEvent, type RouteResponse, type RpcAuthorizerResponse, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, formatRouteEnvName, formatRouteKey, formatRoutePayload, getAlertName, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getRouteEnv, getSearchName, getSearchProps, getStack, getTableName, getTaskName, getTopicName, internalInvoke, invokeBundle, isInsideBundle, isStandaloneRoute, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, setConfigValue, withBundleRouteContext };

@@ -9,7 +9,11 @@ import { Reporter, RunnerTask, startVitest } from 'vitest/node'
 
 class NullReporter implements Reporter {}
 
-export const startTest = async (props: { dir: string; filters: string[] }): Promise<TestResponse> => {
+export const startTest = async (props: {
+	dir: string
+	filters: string[]
+	env?: Record<string, string>
+}): Promise<TestResponse> => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
 	const startTime = process.hrtime.bigint()
 
@@ -41,6 +45,8 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 			// 	checker: 'tsc',
 			// 	enabled: true,
 			// },
+			env: props.env,
+
 			setupFiles: [
 				//
 				join(__dirname, 'test-global-setup.js'),

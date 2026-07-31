@@ -73,26 +73,28 @@ var getRouteEnv = (name) => {
 };
 
 // src/lib/server/util.ts
-var APP = process.env.APP ?? "app";
-var APP_ID = process.env.APP_ID ?? "app-id";
-var getStack = () => (getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(":")[0] ?? "stack";
+var APP = process.env.APP;
+var APP_ID = process.env.APP_ID;
 var IS_TEST = process.env.NODE_ENV === "test";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
-var build = (opt) => {
+var STACK = process.env.STACK;
+var getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
+var getStack = () => getRoute()?.split(":")[0] ?? STACK;
+var formatResourceName = (opt) => {
   return [
     //
-    opt?.prefix,
+    opt.prefix,
     APP,
     opt.stackName,
     opt.resourceType,
     opt.resourceName,
-    opt?.postfix
-  ].filter((v) => typeof v === "string").map((v) => kebabCase2(v)).join(opt.seperator ?? "--");
+    opt.postfix
+  ].filter((v) => typeof v === "string").map((v) => kebabCase2(v)).join(opt.separator ?? "--");
 };
 var bindLocalResourceName = (resourceType) => {
   return (resourceName, stackName = getStack()) => {
-    return build({
+    return formatResourceName({
       stackName,
       resourceType,
       resourceName
@@ -101,7 +103,7 @@ var bindLocalResourceName = (resourceType) => {
 };
 var bindGlobalResourceName = (resourceType) => {
   return (resourceName) => {
-    return build({
+    return formatResourceName({
       resourceType,
       resourceName
     });
@@ -486,12 +488,12 @@ import { invoke as invoke4 } from "@awsless/lambda";
 import { schedule } from "@awsless/scheduler";
 
 // src/lib/server/on-failure.ts
-var onFailureBucketName = build({
+var onFailureBucketName = formatResourceName({
   resourceType: "on-failure",
   resourceName: "failure",
   postfix: APP_ID
 });
-var onFailureQueueName = build({
+var onFailureQueueName = formatResourceName({
   resourceType: "on-failure",
   resourceName: "failure"
 });
