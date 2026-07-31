@@ -22,11 +22,11 @@ import { filterPattern } from '../on-error-log/util.js'
 import { StackFunctionProps } from './schema.js'
 
 // Any lambda infra field opts the function out of the shared bundle.
-// The handler & code fields only describe the build, so they don't count.
+// The handler & code fields only describe the build & the vpc flag only
+// applies to an already stand-alone lambda, so they don't count.
 const standaloneFields = [
 	'runtime',
 	'description',
-	'vpc',
 	'log',
 	'timeout',
 	'memorySize',

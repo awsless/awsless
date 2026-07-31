@@ -242,9 +242,8 @@ export const FunctionDefaultSchema = z
 		timeout: TimeoutSchema.default('15 minutes'),
 		memorySize: MemorySizeSchema.default('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
-		// The bundle always lives inside the app vpc, so stand-alone
-		// functions match its network posture unless they opt out.
-		vpc: VPCSchema.default(true),
+		// Stand-alone functions live outside the vpc unless they opt in.
+		vpc: VPCSchema.default(false),
 		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
 		reserved: ReservedConcurrentExecutionsSchema.optional(),
 		layers: LayersSchema.optional(),
