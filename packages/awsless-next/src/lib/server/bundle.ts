@@ -16,7 +16,7 @@ export const ROUTE_PROPERTY = '$awsless-route'
 // The alias that every deploy promotes; matches the CLI's LIVE_LAMBDA_ALIAS.
 export const LIVE_BUNDLE_ALIAS = 'live'
 
-export const getBundleName = () => `${process.env.APP!}--function--bundle`
+export const getBundleName = () => `${kebabCase(process.env.APP!)}--function--bundle`
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
 	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
