@@ -68,6 +68,7 @@ describe('sandbox proxy handler', () => {
 	})
 
 	it('rethrows bundle errors with their original name', async () => {
+		vi.stubEnv('APP', 'test-app')
 		vi.stubEnv('SANDBOX_ROUTES', JSON.stringify(['stack:function:allowed']))
 		sendMock.mockResolvedValue({
 			FunctionError: 'Unhandled',
