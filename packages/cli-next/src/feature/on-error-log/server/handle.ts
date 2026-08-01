@@ -74,6 +74,7 @@ const EventSchema = object({
 type ErrorLog = {
 	hash: string
 	requestId: UUID
+	origin: string
 	level: 'warn' | 'error' | 'fatal'
 	type: string
 	message: string
@@ -157,7 +158,6 @@ export default async (event: CloudWatchLogsEvent, context: Context) => {
 			// instead of timing out the whole invocation.
 			const invoke = internalInvoke(consumerRoute, {
 				...error,
-				origin,
 				date: logEvent.timestamp,
 			})
 
@@ -188,11 +188,21 @@ const parseError = (message: string, origin: string): ErrorLog | undefined => {
 	if (runtimeError.success) {
 		const { requestId, level } = runtimeError.output
 		const { errorType, errorMessage, stackTrace, ...extra } = runtimeError.output.message
+
+		// Errors thrown inside the shared bundle carry the route key of the
+		// logical resource that was running, which names the origin better
+		// than the bundles own function name.
+		if (typeof extra.route === 'string') {
+			origin = extra.route
+			delete extra.route
+		}
+
 		const hash = createHash('sha256').update([origin, errorType, errorMessage, stackTrace].join('-')).digest('hex')
 
 		return {
 			hash,
 			requestId,
+			origin,
 			level,
 			type: errorType,
 			message: errorMessage,
@@ -209,6 +219,7 @@ const parseError = (message: string, origin: string): ErrorLog | undefined => {
 		return {
 			hash,
 			requestId,
+			origin,
 			level: 'fatal',
 			type: errorType ?? status,
 			message: `Fatal system error: ${errorType ?? status}`,
@@ -224,6 +235,7 @@ const parseError = (message: string, origin: string): ErrorLog | undefined => {
 		return {
 			hash,
 			requestId,
+			origin,
 			level,
 			type: 'Error',
 			message,
