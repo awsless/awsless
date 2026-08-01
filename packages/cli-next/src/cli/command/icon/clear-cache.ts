@@ -32,6 +32,14 @@ export const clearCache = (program: Command) => {
 						return
 					})
 
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the stack argument when running with --skip-prompt: [ ${iconStacks
+								.map(stack => stack.name)
+								.join(', ')} ]`
+						)
+					}
+
 					stack = await prompt.select({
 						message: 'Select the stack:',
 						options: iconStacks.map(stack => ({
@@ -52,6 +60,12 @@ export const clearCache = (program: Command) => {
 						throw new ExpectedError(`No icon resources are defined in stack "${stack}".`)
 					}
 
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the icon name argument when running with --skip-prompt: [ ${names.join(', ')} ]`
+						)
+					}
+
 					name = await prompt.select({
 						message: 'Select the icon resource:',
 						options: names.map(name => ({
@@ -61,12 +75,14 @@ export const clearCache = (program: Command) => {
 					})
 				}
 
-				const ok = await prompt.confirm({
-					message: `Are you sure you want to clear the cache`,
-				})
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message: `Are you sure you want to clear the cache`,
+					})
 
-				if (!ok) {
-					throw new Cancelled()
+					if (!ok) {
+						throw new Cancelled()
+					}
 				}
 
 				// ------------------------------------------------

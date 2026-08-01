@@ -14,7 +14,7 @@ export const showWarnings = async (warnings: Warning[]) => {
 		)
 	}
 
-	if (warnings.length > 0) {
+	if (warnings.length > 0 && !process.env.SKIP_PROMPT) {
 		const result = await prompt.confirm({
 			initialValue: false,
 			message: `Some issues remain unresolved. If you continue, your app may not function correctly. Do you still want to proceed?`,

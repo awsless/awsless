@@ -18,13 +18,15 @@ export const del = (program: Command) => {
 					appConfig,
 				})
 
-				const ok = await prompt.confirm({
-					message: `Your deleting the ${color.info(name)} config parameter. Are you sure?`,
-					initialValue: false,
-				})
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message: `Your deleting the ${color.info(name)} config parameter. Are you sure?`,
+						initialValue: false,
+					})
 
-				if (!ok) {
-					throw new Cancelled()
+					if (!ok) {
+						throw new Cancelled()
+					}
 				}
 
 				await log.task({

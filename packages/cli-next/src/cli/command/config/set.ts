@@ -1,6 +1,7 @@
 import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
+import { ExpectedError } from '../../../error.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { restartLambdaFunctions } from '../../../util/lambda.js'
 import { SsmStore } from '../../../util/ssm.js'
@@ -11,8 +12,10 @@ export const set = (program: Command) => {
 	program
 		.command('set <name>')
 		.description('Set a config value')
+		.option('--value <value>', 'The config value, skips the interactive prompt')
+		.option('--no-restart', `Don't restart active functions that use this config`)
 		// .option('-e --encrypt', 'Encrypt the config value')
-		.action(async (name: string) => {
+		.action(async (name: string, options: { value?: string; restart: boolean }) => {
 			await layout('config set', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
@@ -34,19 +37,31 @@ export const set = (program: Command) => {
 
 				// console.log(functionsByConfig)
 
-				const initialValue = await params.get(name)
+				let value = options.value
 
-				const value = await prompt.text({
-					message: 'Enter the config value:',
-					initialValue,
-					validate(value) {
-						if (value === '') {
-							return `Value can't be empty`
-						}
+				if (typeof value === 'undefined') {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError('Pass --value <value> when running with --skip-prompt.')
+					}
 
-						return
-					},
-				})
+					const initialValue = await params.get(name)
+
+					value = await prompt.text({
+						message: 'Enter the config value:',
+						initialValue,
+						validate(value) {
+							if (value === '') {
+								return `Value can't be empty`
+							}
+
+							return
+						},
+					})
+				}
+
+				if (value === '') {
+					throw new ExpectedError(`Value can't be empty`)
+				}
 
 				await log.task({
 					initialMessage: 'Saving remote config parameter...',
@@ -57,10 +72,16 @@ export const set = (program: Command) => {
 					},
 				})
 
-				const restart = await prompt.confirm({
-					message: 'Want to restart active functions that are using this config?',
-					initialValue: true,
-				})
+				// The restart flag defaults to true, so only an interactive
+				// run without an explicit no-restart flag prompts.
+				let restart = options.restart
+
+				if (restart && !process.env.SKIP_PROMPT) {
+					restart = await prompt.confirm({
+						message: 'Want to restart active functions that are using this config?',
+						initialValue: true,
+					})
+				}
 
 				if (restart) {
 					await log.task({
