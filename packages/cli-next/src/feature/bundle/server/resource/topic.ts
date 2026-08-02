@@ -24,7 +24,15 @@ export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 		return
 	}
 
-	const topicId = record.Sns.TopicArn.split(':').at(-1)!.split('--').at(-1)!
+	const topicName = record.Sns.TopicArn.split(':').at(-1)!
+	const [, resourceType, topicId] = topicName.split('--')
+
+	// Other features publish to their own topics, like the pubsub events topic,
+	// so we only claim the events of a topic resource.
+	if (resourceType !== 'topic') {
+		return
+	}
+
 	const subscribers = routes.filter(route => {
 		const [, type, id] = route.split(':')
 

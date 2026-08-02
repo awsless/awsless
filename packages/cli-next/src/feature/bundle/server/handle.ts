@@ -34,7 +34,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		onFailureHandler,
 		logHandler,
 		queueHandler,
-		pubsubHandler, // The pubsub matcher must claim its SNS events before the generic topic matcher.
+		pubsubHandler,
 		topicHandler,
 		taskHandler,
 		restHandler,
