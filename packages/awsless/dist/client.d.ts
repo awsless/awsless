@@ -1,6 +1,3 @@
-import * as _awsless_mqtt from '@awsless/mqtt';
-import { DebugCallback, QoS } from '@awsless/mqtt';
-
 interface AuthResources {
 }
 declare const Auth: AuthResources;
@@ -54,22 +51,7 @@ declare const createHttpClient: <S extends Schema>(fetcher: HttpFetcher) => {
     post<P_1 extends keyof S["POST"]>(routeKey: Extract<P_1, string>, props?: Props<GetRoute<S, "POST", P_1>>): Promise<GetRoute<S, "POST", P_1>["response"]>;
 };
 
-type MessageCallback = (payload: any) => void;
-type ClientProps = {
-    endpoint: string;
-    authorizer: string;
-    token?: string;
-};
-type ClientPropsProvider = () => Promise<ClientProps> | ClientProps;
-declare const createPubSubClient: (app: string | (() => string), props: ClientProps | ClientPropsProvider, debug?: DebugCallback) => {
-    connected: boolean;
-    topics: string[];
-    publish(topic: string, event: string, payload: unknown, qos: QoS): Promise<void>;
-    subscribe(topic: string, event: string, callback: MessageCallback): Promise<_awsless_mqtt.Unsubscribe>;
-    destroy(): Promise<void>;
-};
-
 interface RpcSchema {
 }
 
-export { Auth, type AuthResources, type HTTP, type HttpFetcher, type RpcSchema, createHttpClient, createHttpFetcher, createPubSubClient, getAuthProps };
+export { Auth, type AuthResources, type HTTP, type HttpFetcher, type RpcSchema, createHttpClient, createHttpFetcher, getAuthProps };

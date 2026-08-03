@@ -15,8 +15,9 @@ export declare const invokeBundle: ({ routeKey, payload, ...options }: InvokeBun
 export type InternalInvoke = (routeKey: string, payload: unknown) => Promise<unknown>;
 export declare const isInsideBundle: () => boolean;
 export declare const getCurrentRoute: () => string | undefined;
-export declare const withBundleRoute: <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => T;
+export declare const withBundleRouteContext: <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => T;
 export declare const internalInvoke: (routeKey: string, payload: unknown) => Promise<unknown>;
 export declare const formatRouteEnvName: (routeKey: string, name: string) => string;
+export declare const isStandaloneRoute: (routeKey: string) => boolean;
 export declare const getRouteEnv: (name: string) => string | undefined;
 export {};

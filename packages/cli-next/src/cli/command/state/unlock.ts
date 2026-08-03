@@ -37,14 +37,16 @@ export const unlock = (program: Command) => {
 					return 'No lock exists.'
 				}
 
-				const ok = await prompt.confirm({
-					message:
-						'Releasing the lock that ensures sequential deployments might result in corrupt state if a deployment is still running. Are you sure?',
-					initialValue: false,
-				})
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message:
+							'Releasing the lock that ensures sequential deployments might result in corrupt state if a deployment is still running. Are you sure?',
+						initialValue: false,
+					})
 
-				if (!ok) {
-					throw new Cancelled()
+					if (!ok) {
+						throw new Cancelled()
+					}
 				}
 
 				for (const urn of lockedUrns) {

@@ -432,7 +432,7 @@ import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
 var LIVE_BUNDLE_ALIAS = "live";
-var getBundleName = () => `${process.env.APP ?? "app"}--function--bundle`;
+var getBundleName = () => `${process.env.APP}--function--bundle`;
 var formatRouteKey = (stackName, resourceType, resourceName) => {
   return [stackName, resourceType, resourceName].map((v2) => kebabCase(v2)).join(":");
 };
@@ -443,17 +443,26 @@ var formatRoutePayload = (routeKey, event2) => {
   };
 };
 var invokeBundle = ({ routeKey, payload, ...options }) => {
+  const proxy = process.env.SANDBOX_PROXY;
+  if (proxy) {
+    return invoke({
+      ...options,
+      name: proxy,
+      payload: formatRoutePayload(routeKey, payload)
+    });
+  }
+  const version = process.env.STANDALONE === "true" ? void 0 : process.env.AWS_LAMBDA_FUNCTION_VERSION;
   return invoke({
     ...options,
     name: getBundleName(),
-    qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LIVE_BUNDLE_ALIAS,
+    qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
     payload: formatRoutePayload(routeKey, payload)
   });
 };
 var bundleContext = new AsyncLocalStorage();
 var isInsideBundle = () => bundleContext.getStore() !== void 0;
 var getCurrentRoute = () => bundleContext.getStore()?.routeKey;
-var withBundleRoute = (routeKey, internalInvoke2, callback) => {
+var withBundleRouteContext = (routeKey, internalInvoke2, callback) => {
   return bundleContext.run({ routeKey, internalInvoke: internalInvoke2 }, callback);
 };
 var internalInvoke = (routeKey, payload) => {
@@ -466,33 +475,38 @@ var internalInvoke = (routeKey, payload) => {
 var formatRouteEnvName = (routeKey, name) => {
   return `${routeKey}:${name}`;
 };
+var isStandaloneRoute = (routeKey) => {
+  return process.env[formatRouteEnvName(routeKey, "STANDALONE")] === "true";
+};
 var getRouteEnv = (name) => {
   const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
   return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
 };
 
 // src/lib/server/util.ts
-var APP = process.env.APP ?? "app";
-var APP_ID = process.env.APP_ID ?? "app-id";
-var getStack = () => (getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(":")[0] ?? "stack";
+var APP = process.env.APP;
+var APP_ID = process.env.APP_ID;
 var IS_TEST = process.env.NODE_ENV === "test";
 var IS_LOCAL = process.env.AWSLESS_ENV === "local";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
-var build = (opt) => {
+var STACK = process.env.STACK;
+var getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
+var getStack = () => getRoute()?.split(":")[0] ?? STACK;
+var formatResourceName = (opt) => {
   return [
     //
-    opt?.prefix,
+    opt.prefix,
     APP,
     opt.stackName,
     opt.resourceType,
     opt.resourceName,
-    opt?.postfix
-  ].filter((v2) => typeof v2 === "string").map((v2) => kebabCase2(v2)).join(opt.seperator ?? "--");
+    opt.postfix
+  ].filter((v2) => typeof v2 === "string").map((v2) => kebabCase2(v2)).join(opt.separator ?? "--");
 };
 var bindLocalResourceName = (resourceType) => {
   return (resourceName, stackName = getStack()) => {
-    return build({
+    return formatResourceName({
       stackName,
       resourceType,
       resourceName
@@ -501,7 +515,7 @@ var bindLocalResourceName = (resourceType) => {
 };
 var bindGlobalResourceName = (resourceType) => {
   return (resourceName) => {
-    return build({
+    return formatResourceName({
       resourceType,
       resourceName
     });
@@ -590,6 +604,13 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
     const routeKey = formatRouteKey(stackName, "function", funcName);
     const send = async (payload, options = {}) => {
       if (IS_TEST) {
+        return invoke2({
+          ...options,
+          name,
+          payload
+        });
+      }
+      if (isStandaloneRoute(routeKey)) {
         return invoke2({
           ...options,
           name,
@@ -694,7 +715,9 @@ var Job = /* @__PURE__ */ createProxy((stackName) => {
           subnets,
           securityGroups: [securityGroup],
           container: `container-${kebabCase4(jobName)}`,
-          payload: storedPayload
+          payload: storedPayload,
+          // Jobs run in private subnets and reach the internet through the NAT gateway.
+          assignPublicIp: false
         });
       }
     };
@@ -787,12 +810,12 @@ import { invoke as invoke4 } from "@awsless/lambda";
 import { schedule } from "@awsless/scheduler";
 
 // src/lib/server/on-failure.ts
-var onFailureBucketName = build({
+var onFailureBucketName = formatResourceName({
   resourceType: "on-failure",
   resourceName: "failure",
   postfix: APP_ID
 });
-var onFailureQueueName = build({
+var onFailureQueueName = formatResourceName({
   resourceType: "on-failure",
   resourceName: "failure"
 });
@@ -1392,6 +1415,7 @@ export {
   internalInvoke,
   invokeBundle,
   isInsideBundle,
+  isStandaloneRoute,
   mock,
   onFailureBucketArn,
   onFailureBucketName,
@@ -1403,5 +1427,5 @@ export {
   t,
   testRegistry,
   v,
-  withBundleRoute
+  withBundleRouteContext
 };

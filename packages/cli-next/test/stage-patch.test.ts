@@ -18,13 +18,13 @@ const createWorkspace = async () => {
 			name: 'demo',
 			region: 'us-east-1',
 			profile: 'default',
+			configs: ['core'],
 		})
 	)
 	await writeFile(
 		join(root, 'api', 'stack.jsonc'),
 		JSON.stringify({
 			name: 'api',
-			configs: ['core'],
 		})
 	)
 
@@ -118,24 +118,30 @@ describe('stage patch config loading', () => {
 		})
 	})
 
-	it('applies full RFC 6902 stack stage patches', async () => {
+	it('applies full RFC 6902 stage patches', async () => {
 		await withWorkspace(async root => {
 			await writeFile(
-				join(root, 'api', 'stack.prod.jsonc'),
+				join(root, 'app.prod.jsonc'),
 				JSON.stringify({
-					$schema: '../../dist/stack.stage.json',
+					$schema: './dist/app.stage.json',
 					operations: [
 						{ op: 'copy', from: '/name', path: '/configs/1' },
 						{ op: 'move', from: '/configs/1', path: '/configs/0' },
-						{ op: 'replace', path: '/name', value: 'jobs' },
 						{ op: 'remove', path: '/configs/1' },
-						{ op: 'test', path: '/configs/0', value: 'api' },
+						{ op: 'test', path: '/configs/0', value: 'demo' },
 						{ op: 'add', path: '/configs/1', value: 'worker' },
 					],
 				})
 			)
+			await writeFile(
+				join(root, 'api', 'stack.prod.jsonc'),
+				JSON.stringify({
+					$schema: '../../dist/stack.stage.json',
+					operations: [{ op: 'replace', path: '/name', value: 'jobs' }],
+				})
+			)
 
-			await loadAppConfig({
+			const app = await loadAppConfig({
 				configFile: './app.jsonc',
 				stage: 'prod',
 			})
@@ -145,9 +151,9 @@ describe('stage patch config loading', () => {
 				stage: 'prod',
 			})
 
+			expect(app.configs).toEqual(['demo', 'worker'])
 			expect(stacks).toHaveLength(1)
 			expect(stacks[0]?.name).toBe('jobs')
-			expect(stacks[0]?.configs).toEqual(['api', 'worker'])
 		})
 	})
 

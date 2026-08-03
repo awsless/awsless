@@ -3,8 +3,10 @@ import { getObject, mockS3, putObject } from '@awsless/s3'
 import { beforeEach, describe, expect, it } from 'vitest'
 import handle from '../src/feature/on-failure/server/handle'
 
+process.env.APP ??= 'app'
+
 describe('on failure handler', () => {
-	const BUNDLE_NAME = `${process.env.APP ?? 'app'}--function--bundle`
+	const BUNDLE_NAME = `${process.env.APP}--function--bundle`
 	const consumerRoute = 'base:on-failure:consumer'
 	const invokes: unknown[] = []
 	let consumerError: Error | undefined

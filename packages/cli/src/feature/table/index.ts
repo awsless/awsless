@@ -236,7 +236,6 @@ export const tableFeature = defineFeature({
 					'dynamodb:GetItem',
 					'dynamodb:UpdateItem',
 					'dynamodb:DeleteItem',
-					'dynamodb:TransactWrite',
 					'dynamodb:BatchWriteItem',
 					'dynamodb:BatchGetItem',
 					'dynamodb:ConditionCheckItem',

@@ -6,6 +6,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 
 const typeGenCode = `
+import type { Mock } from 'vitest'
 import type { PublishOptions } from '@awsless/sns'
 
 type Alert<Name extends string> = {

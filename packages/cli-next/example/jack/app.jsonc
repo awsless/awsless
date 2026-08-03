@@ -5,6 +5,8 @@
 	"profile": "jacksclub",
 	// "protect": true,
 
+	"configs": ["admin-secret"],
+
 	"defaults": {
 		"onFailure": "./on-failure.ts",
 		"test": {

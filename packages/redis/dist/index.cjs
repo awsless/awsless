@@ -239,6 +239,7 @@ __export(command_exports, {
   db: () => db_exports,
   key: () => key_exports,
   map: () => map_exports,
+  pubsub: () => pubsub_exports,
   script: () => script_exports,
   server: () => server_exports,
   set: () => set_exports,
@@ -941,6 +942,15 @@ var scan5 = (client, key, options = {}) => {
       return formatScanResult5(c, result);
     })
   };
+};
+
+// src/command/pubsub.ts
+var pubsub_exports = {};
+__export(pubsub_exports, {
+  publish: () => publish
+});
+var publish = (client, channel, message, options = {}) => {
+  return command(client, options.sharded ? "SPUBLISH" : "PUBLISH", [channel, message], returnInt);
 };
 
 // src/command/script.ts

@@ -1,9 +1,7 @@
-import * as vitest from 'vitest';
 import * as _awsless_validate from '@awsless/validate';
 import { Duration } from '@awsless/duration';
-import { QoS } from '@awsless/iot';
-export { QoS } from '@awsless/iot';
-import { IoTCustomAuthorizerResult } from 'aws-lambda';
+import { UUID } from 'node:crypto';
+import { LambdaFunctionURLEvent, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
 interface JobMock {
 }
@@ -33,7 +31,11 @@ interface InstanceMockResponse {
 }
 declare const mockInstance: (cb: (mock: InstanceMock) => void) => InstanceMockResponse;
 
-declare const mockPubSub: () => vitest.Mock;
+interface PubSubMock {
+}
+interface PubSubMockResponse {
+}
+declare const mockPubSub: (cb: (mock: PubSubMock) => void) => PubSubMockResponse;
 
 interface QueueMock {
 }
@@ -125,37 +127,89 @@ declare const onFailureQueueName: string;
 declare const onFailureBucketArn: string;
 declare const onFailureQueueArn: string;
 
-declare const getPubSubTopic: <N extends string>(name: N) => `app/pubsub/${N}`;
-
-type PublishOptions = {
-    qos?: QoS;
-};
-declare const PubSub: {
-    publish(topic: string, event: string, payload: unknown, opts?: PublishOptions): Promise<void>;
-};
-type PubsubAuthorizerResponse = {
-    authorized: boolean;
-    principalId?: string;
-    publish?: string[];
-    subscribe?: string[];
+declare const getPubSubPublisherName: <N extends string>(resourceName: N) => `app--pubsub-publisher--${N}`;
+interface PubSubResources {
+}
+declare const PubSub: PubSubResources;
+type PubSubAuthorizerResponse = {
+    authorized: true;
+    allowed: string[];
+    context?: Record<string, unknown>;
+    ttl?: Duration;
     disconnectAfter?: Duration;
-    refreshAfter?: Duration;
+} | {
+    authorized: false;
 };
-type PubsubAuthorizerEvent = {
-    protocolData: {
-        mqtt?: {
-            password?: string;
-        };
-    };
+type PubSubAuthorizerEvent = {
+    token?: string;
 };
-declare const pubsubAuthorizerHandle: (cb: (token: string) => PubsubAuthorizerResponse | Promise<PubsubAuthorizerResponse>) => Promise<(event: PubsubAuthorizerEvent) => Promise<IoTCustomAuthorizerResult>>;
-declare const pubsubAuthorizerResponse: (props: PubsubAuthorizerResponse) => IoTCustomAuthorizerResult;
+type PubSubConnectedEvent = {
+    event: 'connected';
+    socketId: UUID;
+    ip: string;
+    context?: Record<string, unknown>;
+    date: Date;
+};
+type PubSubDisconnectedEvent = {
+    event: 'disconnected';
+    socketId: UUID;
+    ip: string;
+    context?: Record<string, unknown>;
+    date: Date;
+};
+type PubSubSubscribedEvent = {
+    event: 'subscribed';
+    socketId: UUID;
+    ip: string;
+    context?: Record<string, unknown>;
+    topics: string[];
+    date: Date;
+};
+type PubSubUnsubscribedEvent = {
+    event: 'unsubscribed';
+    socketId: UUID;
+    ip: string;
+    context?: Record<string, unknown>;
+    topics: string[];
+    date: Date;
+};
 
 declare const getQueueName: (name: string, stack?: string) => string;
 declare const getQueueUrl: (name: string, stack?: string) => string | undefined;
 interface QueueResources {
 }
 declare const Queue: QueueResources;
+
+type RouteParams<Pattern extends string> = Pattern extends `${string}{${infer Param}}${infer Rest}` ? Param | RouteParams<Rest> : never;
+type RouteParamHeaders<Pattern extends string> = [RouteParams<Pattern>] extends [never] ? {} : {
+    [Param in RouteParams<Pattern> as `x-param-${Lowercase<Param>}`]: string;
+};
+/**
+ * The request that a route function receives.
+ *
+ * Passing the route pattern will type the params that are
+ * passed as "x-param-[NAME]" request headers.
+ * Param values are URI encoded.
+ *
+ * @example
+ * export default async (event: RouteInput<'/sitemap/{locale}/{page}.xml'>) => {
+ *   const locale = decodeURIComponent(event.headers['x-param-locale'])
+ *   ...
+ * }
+ */
+type RouteEvent<Pattern extends string = string> = LambdaFunctionURLEvent & {
+    headers: LambdaFunctionURLEvent['headers'] & RouteParamHeaders<Pattern>;
+};
+/**
+ * The response that a route function can return.
+ *
+ * The statusCode is required because Lambda function urls only treat
+ * the returned object as an HTTP response when it contains a statusCode.
+ * Without it, the whole return value is serialized as a JSON body.
+ */
+type RouteResponse = string | (APIGatewayProxyStructuredResultV2 & {
+    statusCode: number;
+});
 
 type RpcAuthorizerResponse = {
     authorized: false;
@@ -200,4 +254,4 @@ declare const Topic: TopicResources;
 declare const APP: "app";
 declare const STACK: "stack";
 
-export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PublishOptions, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubTopic, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, pubsubAuthorizerHandle, pubsubAuthorizerResponse, setConfigValue };
+export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PubSubAuthorizerEvent, type PubSubAuthorizerResponse, type PubSubConnectedEvent, type PubSubDisconnectedEvent, type PubSubMock, type PubSubMockResponse, type PubSubResources, type PubSubSubscribedEvent, type PubSubUnsubscribedEvent, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RouteEvent, type RouteResponse, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, setConfigValue };

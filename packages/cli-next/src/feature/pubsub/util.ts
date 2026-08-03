@@ -24,7 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // Capacity is handled by the autoscaling policy.
 export const WS_PORT = 3000
 const ARCHITECTURE = 'arm64'
-const CPU = '0.25 vCPU'
+const CPU = '256'
 const MEMORY = '512'
 const MIN_CAPACITY = 1
 const MAX_CAPACITY = 10
@@ -333,9 +333,9 @@ export const createPubSubService = (
 			taskDefinition: task.arn,
 			launchType: 'FARGATE',
 			networkConfiguration: {
-				subnets: ctx.shared.get('vpc', 'public-subnets'),
+				subnets: ctx.shared.get('vpc', 'private-subnets'),
 				securityGroups: [inputs.securityGroupId],
-				assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+				assignPublicIp: false,
 			},
 
 			loadBalancer: [

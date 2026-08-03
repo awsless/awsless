@@ -22,7 +22,7 @@ const ORIGIN_PLACEHOLDER = 'x'.repeat(64)
 
 const assertRouteValueSize = (key: string, route: Route | Route[]) => {
 	const withOrigin = (entry: Route) => {
-		return entry.type === 'lambda' ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
+		return entry.type === 'lambda' && !entry.domainName ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
 	}
 
 	// Route lists shard over multiple entries, so only a single route can outgrow one.
@@ -123,7 +123,7 @@ export const routerFeature = defineFeature({
 				if (
 					Object.values(newRoutes)
 						.flat()
-						.some(route => route.type === 'lambda')
+						.some(route => route.type === 'lambda' && !route.domainName)
 				) {
 					hasLambdaRoutes = true
 				}
@@ -574,7 +574,9 @@ export const routerFeature = defineFeature({
 							functionVersion: bundle.lambda.version,
 							routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
 								const withOrigin = (route: Route) => {
-									return route.type === 'lambda' ? { ...route, domainName: lambdaUrlHost } : route
+									return route.type === 'lambda' && !route.domainName
+										? { ...route, domainName: lambdaUrlHost }
+										: route
 								}
 
 								return Object.entries(routes).flatMap(([key, route]) =>
@@ -652,6 +654,7 @@ export const routerFeature = defineFeature({
 				}
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
+				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
 		}
 	},

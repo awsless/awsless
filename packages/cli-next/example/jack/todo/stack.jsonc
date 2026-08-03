@@ -2,7 +2,6 @@
 	"$schema": "../../../dist/stack.json",
 	"name": "todo",
 	"tests": "./test",
-	"configs": ["admin-secret", "api-key"],
 
 	"rpc": {
 		"main": {

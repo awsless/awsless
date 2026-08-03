@@ -1,10 +1,12 @@
 export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
+	redirectWww?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
 }): string => {
 	return CODE([
 		props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
+		props.redirectWww ? REDIRECT_WWW : '',
 		(props.passwordAuth ?? props.basicAuth)
 			? AUTH_WRAPPER(
 					[
@@ -22,6 +24,39 @@ if (headers.host && headers.host.value.includes('cloudfront.net')) {
 	return {
 		statusCode: 403,
 		statusDescription: 'Forbidden'
+	};
+}`
+
+const REDIRECT_WWW = `
+if (headers.host && headers.host.value.startsWith('www.')) {
+	let location = 'https://' + headers.host.value.slice(4) + request.uri;
+	const query = [];
+
+	for(const key in request.querystring) {
+		const item = request.querystring[key];
+
+		if(item.multiValue) {
+			for(const i in item.multiValue) {
+				query.push(key + '=' + item.multiValue[i].value);
+			}
+		} else if(item.value === '') {
+			query.push(key);
+		} else {
+			query.push(key + '=' + item.value);
+		}
+	}
+
+	if(query.length > 0) {
+		location += '?' + query.join('&');
+	}
+
+	return {
+		statusCode: 301,
+		statusDescription: 'Moved Permanently',
+		headers: {
+			'location': { value: location },
+			'strict-transport-security': { value: 'max-age=31536000; includeSubdomains; preload' }
+		}
 	};
 }`
 
@@ -96,20 +131,74 @@ function isValidRoute(route, method) {
 	return true;
 }
 
+function matchRoute(value, path, method) {
+	const list = Array.isArray(value) ? value : [value];
+
+	for(const i in list) {
+		const route = list[i];
+
+		if(!isValidRoute(route, method)) {
+			continue;
+		}
+
+		if(route.match) {
+			const found = path.match(new RegExp(route.match));
+
+			if(!found) {
+				continue;
+			}
+
+			const params = {};
+
+			if(route.params) {
+				for(const p in route.params) {
+					params[route.params[p]] = found[Number(p) + 1];
+				}
+			}
+
+			return { route, params };
+		}
+
+		return { route };
+	}
+}
+
 async function findRoute(path, method) {
 	const store = cf.kvs();
 	const keys = getPossibleRouteKeys(path);
 
 	for(const i in keys) {
 		const key = keys[i];
+		let value;
 
 		try {
-			const route = await store.get(key, { format: 'json' });
+			value = await store.get(key, { format: 'json' });
+		} catch (e) {
+			continue;
+		}
 
-			if(isValidRoute(route, method)) {
-				return route;
+		// Route lists that are too big for a single key value pair
+		// are sharded over multiple entries behind a route index.
+		if(value && value.list) {
+			for(let n = 0; n < value.list; n++) {
+				try {
+					const route = await store.get(key + '#' + n, { format: 'json' });
+					const result = matchRoute(route, path, method);
+
+					if(result) {
+						return result;
+					}
+				} catch (e) {}
 			}
-		} catch (e) {}
+
+			continue;
+		}
+
+		const result = matchRoute(value, path, method);
+
+		if(result) {
+			return result;
+		}
 	}
 }
 
@@ -214,10 +303,18 @@ async function handler(event) {
 
 	${injection.join('\n')}
 
-	const route = await findRoute(path, request.method);
+	const result = await findRoute(path, request.method);
 
-	if(route) {
+	if(result) {
+		const route = result.route;
+
 		setRouteOrigin(route);
+
+		if(result.params) {
+			for(const name in result.params) {
+				headers['x-param-' + name.toLowerCase()] = { value: encodeURIComponent(result.params[name]) };
+			}
+		}
 
 		if(route.forwardHost && headers.host && headers.host.value) {
 			headers['x-forwarded-host'] = { value: headers.host.value };

@@ -33,6 +33,14 @@ export const invoke = (program: Command) => {
 						throw new ExpectedError('There are no crons defined inside your app.')
 					}
 
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the stack argument when running with --skip-prompt: [ ${cronStacks
+								.map(stack => stack.name)
+								.join(', ')} ]`
+						)
+					}
+
 					stack = await prompt.select({
 						message: 'Select the stack:',
 						options: cronStacks.map(stack => ({
@@ -55,6 +63,12 @@ export const invoke = (program: Command) => {
 				}
 
 				if (!name) {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the cron name argument when running with --skip-prompt: [ ${names.join(', ')} ]`
+						)
+					}
+
 					name = await prompt.select({
 						message: 'Select the cron:',
 						options: names.map(name => ({

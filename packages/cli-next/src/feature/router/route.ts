@@ -33,6 +33,9 @@ type RouteProps = {
 export type Route =
 	| (RouteProps & {
 			type: 'lambda'
+			// A stand-alone lambda route brings its own function url host,
+			// without one the route targets the shared bundle url.
+			domainName?: Input<string>
 	  })
 	| (RouteProps & {
 			type: 's3'

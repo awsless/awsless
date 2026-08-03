@@ -15,6 +15,7 @@ import {
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
+import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
@@ -55,13 +56,28 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, tests, warnings, builders, ready } = createApp({
+				const { app, tests, warnings, builders, ready, appId, configs } = createApp({
 					appConfig,
 					stackConfigs,
 					accountId,
 					deploymentId: deployment.id,
 					import: options.import,
 				})
+
+				// Warn when a config value the app depends on hasn't been set.
+				if (configs.size > 0) {
+					const params = new SsmStore({ credentials, appConfig })
+					const values = await params.list()
+					const missing = [...configs].filter(name => !(name in values))
+
+					if (missing.length > 0) {
+						warnings.push({
+							message: `The following config values haven't been set yet: [ ${missing.join(
+								', '
+							)} ]. Set them with "awsless config set <name>".`,
+						})
+					}
+				}
 
 				await showWarnings(warnings)
 
@@ -81,6 +97,12 @@ export const deploy = (program: Command) => {
 				if (!options.skipTests) {
 					const passed = await runTests(tests, [], [], {
 						showLogs: false,
+						env: {
+							APP: appConfig.name,
+							APP_ID: appId,
+							AWS_REGION: appConfig.region,
+							AWS_ACCOUNT_ID: accountId,
+						},
 					})
 
 					if (!passed) {

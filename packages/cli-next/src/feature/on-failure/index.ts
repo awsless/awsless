@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createPrebuildLambdaFunction } from '../function/prebuild.js'
+import { createPrebuildLambdaFunction } from '../function/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',

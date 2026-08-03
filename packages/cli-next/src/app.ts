@@ -132,6 +132,9 @@ export const createApp = (props: CreateAppProps) => {
 					builder,
 				})
 			},
+			registerConfig(name) {
+				configs.add(name)
+			},
 			registerCommand(command) {
 				commands.push(command)
 			},
@@ -177,6 +180,7 @@ export const createApp = (props: CreateAppProps) => {
 				shared,
 				onPermission(callback) {
 					globalPermissionCallbacks.push(callback)
+					appPermissionCallbacks.push(callback)
 				},
 				addGlobalPermission(permission) {
 					globalPermissions.push(permission)
@@ -188,7 +192,7 @@ export const createApp = (props: CreateAppProps) => {
 					warnings.push(props)
 				},
 				addFunction(lambda) {
-					for (const configName of stackConfig.configs ?? []) {
+					for (const configName of props.appConfig.configs ?? []) {
 						functionsByConfig[configName] ??= []
 						functionsByConfig[configName].push(lambda)
 					}

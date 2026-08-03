@@ -56,7 +56,10 @@ for (const { name, entry, ...options } of handlers) {
 // as fully self-contained zip archives, with only the packages provided
 // by the lambda runtime left out.
 
-const prebuilds = [{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' }]
+const prebuilds = [
+	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
+	{ name: 'sandbox-proxy', entry: 'src/feature/function/server/sandbox-proxy.ts' },
+]
 
 for (const { name, entry } of prebuilds) {
 	const result = await Bun.build({

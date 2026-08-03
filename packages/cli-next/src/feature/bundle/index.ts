@@ -35,6 +35,7 @@ export const bundleFeature = defineFeature({
 			exportName: string // The name of the exported method within the handler code.
 			external?: string[]
 			importAsString?: string[]
+			moduleSideEffects?: string[]
 		}[] = []
 		const env: Record<string, Input<string>> = {}
 		const envDeps = new Set<any>()
@@ -253,10 +254,22 @@ export const bundleFeature = defineFeature({
 
 			sourceCodeHash: sourceHash,
 
-			// The bundle doesn't have any env vars, because the env
-			// is bundled inside the awsless-env.mjs file.
+			// Only the basics live on the lambda itself, the rest is
+			// delivered through the awsless-env.mjs file inside the code
+			// bundle, because the lambda env size is limited.
 			environment: {
-				variables: {},
+				variables: {
+					APP: ctx.appConfig.name,
+					APP_ID: ctx.appId,
+					AWS_ACCOUNT_ID: ctx.accountId,
+					REGION: ctx.appConfig.region,
+					STAGE: ctx.appConfig.stage ?? 'default',
+					STANDALONE: 'false',
+
+					// The bundle always lives inside a vpc, so use the
+					// dualstack aws endpoints.
+					AWS_USE_DUALSTACK_ENDPOINT: 'true',
+				},
 			},
 
 			// The bundle always lives inside the app vpc.
@@ -365,13 +378,6 @@ export const bundleFeature = defineFeature({
 
 		// ------------------------------------------------------
 		// The app level env vars & permissions apply to every handler.
-
-		addEnv('APP', ctx.appConfig.name)
-		addEnv('APP_ID', ctx.appId)
-		addEnv('AWS_ACCOUNT_ID', ctx.accountId)
-
-		// The bundle always lives inside a vpc, so use the dualstack aws endpoints.
-		addEnv('AWS_USE_DUALSTACK_ENDPOINT', 'true')
 
 		for (const [name, value] of Object.entries(defaults.environment ?? {})) {
 			addEnv(name, value)

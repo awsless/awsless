@@ -82,7 +82,11 @@ export const createWorkSpace = async (props: BackendProps) => {
 
 					// profile: props.profile,
 					region: props.region,
-					maxRetries: 5,
+
+					// Control plane calls like dynamodb DescribeTimeToLive
+					// throttle hard when we refresh many resources at once,
+					// so match the terraform aws provider default of 25.
+					maxRetries: 25,
 				}
 				// {
 				// 	debug: true,
@@ -96,7 +100,7 @@ export const createWorkSpace = async (props: BackendProps) => {
 
 					// profile: props.profile,
 					region: 'us-east-1',
-					maxRetries: 5,
+					maxRetries: 25,
 				},
 				{
 					id: 'global-aws',

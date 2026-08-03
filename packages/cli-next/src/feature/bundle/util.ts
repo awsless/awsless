@@ -29,6 +29,7 @@ export const registerBundleFunction = (
 			file: string
 			external?: string[]
 			importAsString?: string[]
+			moduleSideEffects?: string[]
 		}
 		handler?: string
 	}
@@ -41,6 +42,7 @@ export const registerBundleFunction = (
 		exportName: parseExportName(props.handler ?? ctx.appConfig.defaults.function.handler!),
 		external: props.code.external,
 		importAsString: props.code.importAsString,
+		moduleSideEffects: props.code.moduleSideEffects,
 	})
 
 	return bundle
@@ -56,6 +58,7 @@ export const buildBundle = (props: {
 		exportName: string // The name of the exported method within the handler code.
 		external?: string[]
 		importAsString?: string[]
+		moduleSideEffects?: string[]
 	}[]
 
 	// Overwrite the bundle runtime location for testing purposes.
@@ -106,7 +109,13 @@ ${entries.join('\n')}
 
 		const hash = createHash('sha1')
 			.update(entry)
-			.update(JSON.stringify([props.external, props.minify, handlers.map(h => [h.external, h.importAsString])]))
+			.update(
+				JSON.stringify([
+					props.external,
+					props.minify,
+					handlers.map(h => [h.external, h.importAsString, h.moduleSideEffects]),
+				])
+			)
 
 		for (const item of hashes) {
 			hash.update(item)
@@ -121,6 +130,7 @@ ${entries.join('\n')}
 			await writeFile(entryFile, entry)
 
 			const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
+			const moduleSideEffects = handlers.flatMap(handler => handler.moduleSideEffects ?? [])
 			const bundle = await bundleTypeScriptWithRolldown({
 				file: entryFile,
 				minify: props.minify,
@@ -130,6 +140,7 @@ ${entries.join('\n')}
 					...handlers.flatMap(handler => handler.external ?? []),
 				],
 				importAsString: importAsString.length > 0 ? importAsString : undefined,
+				moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
 			})
 
 			await temp.delete()

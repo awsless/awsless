@@ -2,6 +2,7 @@ import { z } from 'zod'
 // import { InstanceDefaultSchema } from '../feature/__instance/schema.js'
 import { AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
+import { ConfigsSchema } from '../feature/config/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 // import { FunctionDefaultSchema } from ../feature/__graphql/schema.jsjs'
 // import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
@@ -34,6 +35,8 @@ export const AppSchema = z
 		profile: z.string().describe('The AWS profile to deploy to.'),
 
 		protect: z.boolean().default(false).describe('Protect your app & stacks from being deleted.'),
+
+		configs: ConfigsSchema,
 		removal: z
 			.enum(['remove', 'retain'])
 			.default('remove')
@@ -86,4 +89,4 @@ export const AppSchema = z
 	.strict()
 
 // export type AppConfigInput = z.input<typeof AppSchema>
-export type AppConfig = z.output<typeof AppSchema>
+export type AppConfig = z.output<typeof AppSchema> & { stage?: string }

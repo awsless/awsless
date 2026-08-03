@@ -16,7 +16,7 @@ export const ROUTE_PROPERTY = '$awsless-route'
 // The alias that every deploy promotes; matches the CLI's LIVE_LAMBDA_ALIAS.
 export const LIVE_BUNDLE_ALIAS = 'live'
 
-export const getBundleName = () => `${process.env.APP ?? 'app'}--function--bundle`
+export const getBundleName = () => `${process.env.APP!}--function--bundle`
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
 	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
@@ -38,14 +38,30 @@ type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 }
 
 // Invoke the bundle lambda & let it dispatch to the route handler.
-// Inside a lambda we call the exact version we are running ourselves,
-// so one deployment never calls into code of another. Outside a
-// lambda we call the latest promoted deployment.
+// Inside the bundle we call the exact version we are running ourselves,
+// so one deployment never calls into code of another. Stand-alone
+// lambdas run unversioned & call the latest promoted deployment, like
+// every caller outside of a lambda.
 export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProps) => {
+	// Inside a sandbox every bundle call goes to the sandbox proxy,
+	// the only lambda a sandboxed function is allowed to invoke. The
+	// proxy forwards the allowlisted routes to the live bundle.
+	const proxy = process.env.SANDBOX_PROXY
+
+	if (proxy) {
+		return invoke({
+			...options,
+			name: proxy,
+			payload: formatRoutePayload(routeKey, payload),
+		})
+	}
+
+	const version = process.env.STANDALONE === 'true' ? undefined : process.env.AWS_LAMBDA_FUNCTION_VERSION
+
 	return invoke({
 		...options,
 		name: getBundleName(),
-		qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? LIVE_BUNDLE_ALIAS,
+		qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
 		payload: formatRoutePayload(routeKey, payload),
 	})
 }
@@ -72,7 +88,7 @@ export const isInsideBundle = () => bundleContext.getStore() !== undefined
 export const getCurrentRoute = () => bundleContext.getStore()?.routeKey
 
 // The bundle runtime wraps every route handler in this context.
-export const withBundleRoute = <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => {
+export const withBundleRouteContext = <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => {
 	return bundleContext.run({ routeKey, internalInvoke }, callback)
 }
 
@@ -93,6 +109,12 @@ export const internalInvoke = (routeKey: string, payload: unknown) => {
 
 export const formatRouteEnvName = (routeKey: string, name: string) => {
 	return `${routeKey}:${name}`
+}
+
+// True when the route is served by its own stand-alone lambda instead
+// of the bundle. Stand-alone functions are invoked directly by name.
+export const isStandaloneRoute = (routeKey: string) => {
+	return process.env[formatRouteEnvName(routeKey, 'STANDALONE')] === 'true'
 }
 
 export const getRouteEnv = (name: string) => {

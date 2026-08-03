@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalEntrySchema } from '../../config/schema/local-entry.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { StackFunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 export const SitesSchema = z
@@ -36,7 +36,7 @@ export const SitesSchema = z
 					"Specifies the path to the static files directory. Additionally you can also pass `true` when you don't have local static files, but still want to make an S3 bucket."
 				),
 
-			ssr: FunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
+			ssr: StackFunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
 
 			dev: z
 				.object({

@@ -718,6 +718,13 @@ var migrate = (client, tables) => {
 // src/command/put-items.ts
 import { BatchWriteItemCommand } from "@aws-sdk/client-dynamodb";
 
+// src/helper/backoff.ts
+var backoff = (attempt, base = 100, max = 5e3) => {
+  const delay = Math.min(base * 2 ** attempt, max);
+  const time = delay / 2 + Math.random() * (delay / 2);
+  return new Promise((resolve) => setTimeout(resolve, time));
+};
+
 // src/command/command.ts
 var thenable = (callback) => {
   let promise;
@@ -764,6 +771,7 @@ var putItems = (table, items, options = {}) => {
         Item: table.marshall(item)
       }
     }));
+    let attempt = 0;
     while (unprocessedItems.length) {
       const command = new BatchWriteItemCommand({
         RequestItems: {
@@ -773,6 +781,11 @@ var putItems = (table, items, options = {}) => {
       const result = await client.send(command);
       const resultUnprocessedItems = result.UnprocessedItems?.[table.name] ?? [];
       unprocessedItems.push(...resultUnprocessedItems);
+      if (resultUnprocessedItems.length) {
+        await backoff(attempt++);
+      } else {
+        attempt = 0;
+      }
     }
   });
 };
@@ -1575,6 +1588,7 @@ var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
     const attrs = new ExpressionAttributes(table);
     const projection = buildProjectionExpression(attrs, options.select);
     const attributes = attrs.attributeNames();
+    let attempt = 0;
     while (unprocessedKeys.length) {
       const command = new BatchGetItemCommand2({
         RequestItems: {
@@ -1593,6 +1607,11 @@ var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
       );
       unprocessedKeys.push(...resultUnprocessedKeys);
       response.push(...resultProcessedItems);
+      if (resultUnprocessedKeys.length && resultProcessedItems.length === 0) {
+        await backoff(attempt++);
+      } else {
+        attempt = 0;
+      }
     }
     const list = keys.map((key) => {
       return response.find((item) => {
@@ -1622,6 +1641,7 @@ var deleteItems = (table, keys, options = {}) => {
         Key: table.marshall(key)
       }
     }));
+    let attempt = 0;
     while (unprocessedItems.length) {
       const command = new BatchWriteItemCommand4({
         RequestItems: {
@@ -1631,6 +1651,11 @@ var deleteItems = (table, keys, options = {}) => {
       const result = await client.send(command);
       const resultUnprocessedItems = result.UnprocessedItems?.[table.name] ?? [];
       unprocessedItems.push(...resultUnprocessedItems);
+      if (resultUnprocessedItems.length) {
+        await backoff(attempt++);
+      } else {
+        attempt = 0;
+      }
     }
   });
 };

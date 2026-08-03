@@ -1,5 +1,6 @@
 // import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
+import { Minimatch } from 'minimatch'
 import { rolldown } from 'rolldown'
 // import natives from 'rollup-plugin-natives'
 import { importAsString } from 'rollup-plugin-string-import'
@@ -10,10 +11,24 @@ export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'
 	minify?: boolean
 	external?: string[]
+	externalAwsSdk?: boolean
+	moduleSideEffects?: string[]
+	codeSplitting?: boolean
 	handler?: string
 	file: string
 	nativeDir?: string
 	importAsString?: string[]
+}
+
+const createModuleMatcher = (patterns: string[] = []) => {
+	const globs = patterns.map(pattern => {
+		return new Minimatch(pattern.replaceAll('\\', '/'), { dot: true })
+	})
+
+	return (id: string) => {
+		const path = id.replaceAll('\\', '/')
+		return globs.some(glob => glob.match(path))
+	}
 }
 
 export const bundleTypeScriptWithRolldown = async ({
@@ -22,19 +37,26 @@ export const bundleTypeScriptWithRolldown = async ({
 	file,
 	nativeDir,
 	external,
+	moduleSideEffects,
+	externalAwsSdk = true,
+	codeSplitting = true,
 	importAsString: importAsStringList,
 }: BundleTypeScriptProps) => {
+	const hasModuleSideEffects = createModuleMatcher(moduleSideEffects)
 	const bundle = await rolldown({
 		input: file,
 		platform: 'node',
 		external: importee => {
-			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
+			return (
+				(externalAwsSdk && (importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk'))) ||
+				external?.includes(importee)
+			)
 		},
 		onwarn: error => {
 			debugError(error.message)
 		},
 		treeshake: {
-			moduleSideEffects: id => file === id,
+			moduleSideEffects: id => file === id || hasModuleSideEffects(id),
 		},
 		plugins: [
 			// nodeResolve({ preferBuiltins: true }),
@@ -60,6 +82,7 @@ export const bundleTypeScriptWithRolldown = async ({
 		exports: 'auto',
 		entryFileNames: `index.${ext}`,
 		chunkFileNames: `[name].${ext}`,
+		codeSplitting,
 		minify,
 	})
 

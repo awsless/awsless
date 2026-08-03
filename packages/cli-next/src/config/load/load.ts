@@ -31,7 +31,9 @@ export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig>
 
 	debug('Validate app config file')
 
-	const app = await validateConfig(AppSchema, appConfig.file, appConfig.data)
+	const app: AppConfig = await validateConfig(AppSchema, appConfig.file, appConfig.data)
+
+	app.stage = options.stage
 
 	// debug('Load credentials', style.info(app.profile))
 	// const credentials = getCredentials(app.profile)

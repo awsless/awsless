@@ -3,12 +3,17 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { kebabCase } from 'change-case'
+import { createHash } from 'crypto'
+import { readFile } from 'fs/promises'
 import { glob } from 'glob'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
+import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error'
 import { defineFeature } from '../../feature'
+import { formatByteSize } from '../../util/byte-size.js'
 import { formatGlobalResourceName } from '../../util/name'
+import { relativePath } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { getFeatureFolder } from '../asset/index.js'
 import { imageOnDev } from './dev.js'
@@ -42,6 +47,28 @@ export const imageFeature = defineFeature({
 			resourceName: 'sharp',
 		})
 
+		// The cli package path changes with every release, so the zip is
+		// copied into the build folder to keep a stable upload source.
+		ctx.registerBuild('image', layerId, async build => {
+			const file = await readFile(path)
+			const fingerprint = createHash('sha1').update(file).digest('hex')
+
+			return build(fingerprint, async write => {
+				await Promise.all([
+					//
+					write('HASH', fingerprint),
+					write('layer.zip', file),
+				])
+
+				return {
+					size: formatByteSize(file.byteLength),
+				}
+			})
+		})
+
+		const source = relativePath(getBuildPath('image', layerId, 'layer.zip'))
+		const sourceHash = $file(getBuildPath('image', layerId, 'HASH'))
+
 		const zipFile = new aws.s3.BucketObject(
 			group,
 			'layer',
@@ -49,8 +76,8 @@ export const imageFeature = defineFeature({
 				bucket: ctx.shared.get('asset', 'bucket').name,
 				key: `layer/${layerId}.zip`,
 				contentType: 'application/zip',
-				source: path,
-				sourceHash: $hash(path),
+				source,
+				sourceHash,
 			},
 			{
 				replaceOnChanges: ['bucket', 'key'],
@@ -73,7 +100,7 @@ export const imageFeature = defineFeature({
 
 					return name
 				}),
-				sourceCodeHash: $hash(path),
+				sourceCodeHash: sourceHash,
 				skipDestroy: true,
 			},
 			{

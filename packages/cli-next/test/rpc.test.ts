@@ -1,5 +1,5 @@
 import { hours } from '@awsless/duration'
-import { formatRouteEnvName, InternalInvoke, withBundleRoute } from 'awsless'
+import { formatRouteEnvName, InternalInvoke, withBundleRouteContext } from 'awsless'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import handle from '../src/feature/rpc/server/handle'
 
@@ -91,7 +91,9 @@ describe('RPC server', () => {
 		} as any
 	}
 	const invoke = (payload: unknown, token?: string) => {
-		return withBundleRoute(process.env.AWSLESS_ROUTE!, internalInvoke, () => handle(createRequest(payload, token)))
+		return withBundleRouteContext(process.env.AWSLESS_ROUTE!, internalInvoke, () =>
+			handle(createRequest(payload, token))
+		)
 	}
 
 	describe('lock', () => {

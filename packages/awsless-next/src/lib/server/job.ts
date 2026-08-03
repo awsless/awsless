@@ -36,6 +36,8 @@ export const Job: JobResources = /*@__PURE__*/ createProxy(stackName => {
 					securityGroups: [securityGroup],
 					container: `container-${kebabCase(jobName)}`,
 					payload: storedPayload,
+					// Jobs run in private subnets and reach the internet through the NAT gateway.
+					assignPublicIp: false,
 				})
 			},
 		}

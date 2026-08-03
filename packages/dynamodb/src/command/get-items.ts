@@ -1,5 +1,6 @@
 import { AttributeValue, BatchGetItemCommand } from '@aws-sdk/client-dynamodb'
 import { getClient } from '../client'
+import { backoff } from '../helper/backoff'
 import { ExpressionAttributes } from '../expression/attributes'
 import { buildProjectionExpression, ProjectionExpression, ProjectionResponse } from '../expression/projection'
 import { AnyTable } from '../table'
@@ -44,6 +45,8 @@ export const getItems: BatchGetItem = <T extends AnyTable, P extends ProjectionE
 		const projection = buildProjectionExpression(attrs, options.select)
 		const attributes = attrs.attributeNames()
 
+		let attempt = 0
+
 		while (unprocessedKeys.length) {
 			const command = new BatchGetItemCommand({
 				RequestItems: {
@@ -65,6 +68,15 @@ export const getItems: BatchGetItem = <T extends AnyTable, P extends ProjectionE
 
 			unprocessedKeys.push(...resultUnprocessedKeys)
 			response.push(...resultProcessedItems)
+
+			// Unprocessed keys with zero progress mean we got throttled;
+			// with partial progress they are just the response size limit
+			// cutting the batch short, which is safe to continue immediately.
+			if (resultUnprocessedKeys.length && resultProcessedItems.length === 0) {
+				await backoff(attempt++)
+			} else {
+				attempt = 0
+			}
 		}
 
 		const list = keys.map(key => {

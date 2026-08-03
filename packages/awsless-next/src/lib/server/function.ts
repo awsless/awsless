@@ -3,7 +3,7 @@ import { stringify } from '@awsless/json'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
-import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle } from './bundle.js'
+import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle, isStandaloneRoute } from './bundle.js'
 import { bindLocalResourceName, IS_TEST } from './util.js'
 
 const cache = new WeakCache<string, Promise<unknown>>()
@@ -27,6 +27,16 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 			// In tests we keep invoking the per-function name
 			// so that the function mocks keep working.
 			if (IS_TEST) {
+				return invoke({
+					...options,
+					name,
+					payload,
+				})
+			}
+
+			// Stand-alone functions live outside the bundle & are
+			// invoked directly, like the old awsless did.
+			if (isStandaloneRoute(routeKey)) {
 				return invoke({
 					...options,
 					name,

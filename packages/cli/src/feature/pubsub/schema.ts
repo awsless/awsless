@@ -1,59 +1,45 @@
+import { days } from '@awsless/duration'
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
-
-const DomainSchema = ResourceIdSchema.describe('The domain id to link your Pubsub API with.')
+import { LogSchema } from '../instance/schema.js'
+import { RouteSchema } from '../router/schema.js'
 
 export const PubSubDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			auth: FunctionSchema,
-			domain: DomainSchema.optional(),
-			subDomain: z.string().optional(),
-
-			// auth: z.union([
-			// 	ResourceIdSchema,
-			// 	z.object({
-			// 		authorizer: FunctionSchema,
-			// 		// ttl: AuthorizerTtl.default('1 hour'),
-			// 	}),
-			// ]),
-
-			// policy: z
-			// 	.object({
-			// 		publish: z.array(z.string()).optional(),
-			// 		subscribe: z.array(z.string()).optional(),
-			// 	})
-			// 	.optional(),
+			auth: FunctionSchema.describe(
+				'The authorizer that validates the client auth token and returns the allowed topics.'
+			),
+			router: ResourceIdSchema.describe('The router id to route pubsub traffic through.'),
+			path: RouteSchema.default('/ws').describe('The base path on the router that exposes the pubsub endpoint.'),
+			log: LogSchema.default(true).transform(log => ({
+				retention: log.retention ?? days(7),
+			})),
 		})
 	)
 	.optional()
-	.describe('Define the pubsub subscriber in your stack.')
-
-const RetryAttemptsSchema = z
-	.number()
-	.int()
-	.min(0)
-	.max(2)
-	.describe(
-		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
-	)
+	.describe('Define the pubsub API for your app. Backed by a websocket server on AWS Fargate.')
 
 export const PubSubSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			sql: z.string().describe('The SQL statement used to query the IOT topic.'),
-
-			sqlVersion: z
-				.enum(['2015-10-08', '2016-03-23', 'beta'])
-				.default('2016-03-23')
-				.describe('The version of the SQL rules engine to use when evaluating the rule.'),
-
-			consumer: FunctionSchema.describe('The consuming lambda function properties.'),
-			retryAttempts: RetryAttemptsSchema.default(2),
+			connected: FunctionSchema.optional().describe('Subscribe to the event when a client connects.'),
+			disconnected: FunctionSchema.optional().describe('Subscribe to the event when a client disconnects.'),
+			subscribed: FunctionSchema.optional().describe(
+				'Subscribe to the event when a client subscribes to topics.'
+			),
+			unsubscribed: FunctionSchema.optional().describe(
+				'Subscribe to the event when a client unsubscribes from topics.'
+			),
 		})
 	)
 	.optional()
-	.describe('Define the pubsub subscriber in your stack.')
+	.describe('Define the pubsub event listeners in your stack.')
+
+export type PubSubDefaultProps = NonNullable<z.output<typeof PubSubDefaultSchema>>[string]
+export type PubSubEventType = 'connected' | 'disconnected' | 'subscribed' | 'unsubscribed'
+
+export const pubsubEventTypes = ['connected', 'disconnected', 'subscribed', 'unsubscribed'] as const

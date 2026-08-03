@@ -15,11 +15,11 @@ export const configFeature = defineFeature({
 		const resources = new TypeObject(0, false)
 
 		// Camel case props, matching the runtime proxy & the mock api.
-		for (const stack of ctx.stackConfigs) {
-			for (const name of stack.configs ?? []) {
-				resources.addType(name, 'string')
-			}
+		for (const name of ctx.appConfig.configs ?? []) {
+			resources.addType(name, 'string')
+		}
 
+		for (const stack of ctx.stackConfigs) {
 			for (const site of Object.values(stack.sites ?? {})) {
 				for (const name of site.build?.configs ?? []) {
 					resources.addType(name, 'string')
@@ -32,10 +32,8 @@ export const configFeature = defineFeature({
 		// The hoistable per test config overrides.
 		const testConfigs = new TypeObject(2)
 
-		for (const stack of ctx.stackConfigs) {
-			for (const name of stack.configs ?? []) {
-				testConfigs.addType(name, '(value: string) => void')
-			}
+		for (const name of ctx.appConfig.configs ?? []) {
+			testConfigs.addType(name, '(value: string) => void')
 		}
 
 		const testMock = new TypeObject(1)
@@ -46,6 +44,8 @@ export const configFeature = defineFeature({
 		await ctx.write('config.d.ts', gen, true)
 	},
 	onApp(ctx) {
+		// The wildcard grant covers every config parameter, so the
+		// individual configs don't need their own grants.
 		ctx.addAppPermission({
 			actions: [
 				//
@@ -60,25 +60,14 @@ export const configFeature = defineFeature({
 				)}/*`,
 			],
 		})
-	},
-	onStack(ctx) {
-		// The app level wildcard grant above already covers every config
-		// parameter, so the stacks don't need their own grants.
-		const configs = ctx.stackConfig.configs ?? []
 
-		for (const name of configs) {
+		for (const name of ctx.appConfig.configs ?? []) {
 			ctx.registerConfig(name)
 			ctx.addEnv(`CONFIG_${constantCase(name)}`, name)
 		}
 	},
 	async onDev(ctx) {
-		const names = new Set<string>()
-
-		for (const stack of ctx.stackConfigs) {
-			for (const name of stack.configs ?? []) {
-				names.add(name)
-			}
-		}
+		const names = new Set<string>(ctx.appConfig.configs ?? [])
 
 		if (names.size === 0) {
 			return

@@ -39,7 +39,8 @@ export const test = (program: Command) => {
 				// Tests run fully local against the auto test environment,
 				// so they never need aws credentials - the same fake
 				// account as the dev environment feeds the synth.
-				const { tests } = createApp({ ...props, accountId: '000000000000' })
+				const accountId = '000000000000'
+				const { tests, appId } = createApp({ ...props, accountId })
 
 				if (tests.length === 0) {
 					return 'No tests found.'
@@ -101,6 +102,12 @@ export const test = (program: Command) => {
 				try {
 					passed = await runTests(tests, stacks, options?.filters, {
 						showLogs: true,
+						env: {
+							APP: props.appConfig.name,
+							APP_ID: appId,
+							AWS_REGION: props.appConfig.region,
+							AWS_ACCOUNT_ID: accountId,
+						},
 					})
 				} finally {
 					await redis?.kill()

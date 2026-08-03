@@ -4,7 +4,6 @@ import { JobsSchema } from '../feature/job/schema.js'
 // import { AuthSchema } from '../feature/auth/schema.js'
 import { CachesSchema } from '../feature/cache/schema.js'
 import { CommandsSchema } from '../feature/command/schema.js'
-import { ConfigsSchema } from '../feature/config/schema.js'
 import { CronsSchema } from '../feature/cron/schema/index.js'
 // import { FunctionsSchema } from../feature/__graphql/schema.js.js'
 // import { GraphQLSchema } from '../feature/graphql/schema.js'
@@ -45,7 +44,6 @@ export const StackSchema = z
 		// http: HttpSchema,
 		rest: RestSchema,
 		rpc: RpcSchema,
-		configs: ConfigsSchema,
 		crons: CronsSchema,
 		caches: CachesSchema,
 		// topics: TopicsSchema,

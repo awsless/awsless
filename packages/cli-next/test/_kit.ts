@@ -17,13 +17,15 @@ export const notFound = (name = 'ResourceNotFoundException') => {
 export const createTestApp = (
 	defaults: Record<string, unknown> = {},
 	deploymentId?: string,
-	stacks: Record<string, unknown>[] = []
+	stacks: Record<string, unknown>[] = [],
+	app: Record<string, unknown> = {}
 ) => {
 	const appConfig = AppSchema.parse({
 		name: 'test-app',
 		region: 'us-east-1',
 		profile: 'test',
 		defaults,
+		...app,
 	})
 
 	return {

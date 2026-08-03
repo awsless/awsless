@@ -3,6 +3,7 @@ import { gibibytes, mebibytes } from '@awsless/size'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
+import { RelativePathSchema } from '../../config/schema/relative-path.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 
@@ -16,6 +17,53 @@ const TimeoutSchema = DurationSchema.refine(durationMin(seconds(10)), 'Minimum t
 	.refine(durationMax(minutes(15)), 'Maximum timeout duration is 15 minutes')
 	.describe(
 		'The amount of time that Lambda allows a function to run before stopping it. You can specify a size value from 1 second to 15 minutes.'
+	)
+
+const EphemeralStorageSizeSchema = SizeSchema.refine(
+	sizeMin(mebibytes(512)),
+	'Minimum ephemeral storage size is 512 MB'
+)
+	.refine(sizeMax(gibibytes(10)), 'Minimum ephemeral storage size is 10 GB')
+	.describe("The size of the function's /tmp directory. You can specify a size value from 512 MB to 10 GB.")
+
+const ReservedConcurrentExecutionsSchema = z
+	.number()
+	.int()
+	.min(0)
+	.describe('The number of simultaneous executions to reserve for the function. You can specify a number from 0.')
+
+const VPCSchema = z.boolean().describe('Put the function inside your global VPC.')
+
+const DescriptionSchema = z.string().describe('A description of the function.')
+
+const LayersSchema = z
+	.string()
+	.array()
+	.describe(
+		`A list of function layers to add to the function's execution environment. Specify each layer by its name.`
+	)
+
+const SandboxRouteSchema = z
+	.string()
+	.regex(/^[a-z0-9-]+:[a-z0-9-]+$/i, 'Invalid route. Use the "stack:name" format.')
+
+const SandboxSchema = z
+	.union([
+		z.boolean(),
+		z
+			.object({
+				functions: SandboxRouteSchema.array()
+					.optional()
+					.describe('The "stack:name" functions the sandbox may invoke through the sandbox proxy.'),
+				tasks: SandboxRouteSchema.array()
+					.optional()
+					.describe('The "stack:name" tasks the sandbox may start through the sandbox proxy.'),
+				configs: z.string().array().optional().describe('The config values the sandbox may read.'),
+			})
+			.strict(),
+	])
+	.describe(
+		'Block the function from invoking other lambdas & reading the app wide env. Pass an object with functions, tasks & configs to allow only those through.'
 	)
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
@@ -104,6 +152,11 @@ const LogSchema = z
 const FileCodeSchema = z.object({
 	file: LocalFileSchema.describe('The file path of the function code.'),
 	minify: MinifySchema.optional().default(true),
+	moduleSideEffects: RelativePathSchema.array()
+		.default([])
+		.describe(
+			`A list of glob patterns for modules that should be flagged as having potential side effects. For example "./.svelte-kit/**" will flag every file inside the .svelte-kit folder.`
+		),
 	external: z
 		.string()
 		.array()
@@ -143,8 +196,41 @@ export const FunctionSchema = z.union([
 	FnSchema,
 ])
 
+// The rich per-function schema for stack functions. Setting any of the
+// lambda infra fields deploys the function as its own stand-alone lambda
+// instead of registering it inside the shared bundle.
+const StackFnSchema = z
+	.object({
+		code: CodeSchema,
+		handler: HandlerSchema.optional(),
+
+		runtime: RuntimeSchema.optional(),
+		description: DescriptionSchema.optional(),
+		vpc: VPCSchema.optional(),
+		log: LogSchema.optional(),
+		timeout: TimeoutSchema.optional(),
+		memorySize: MemorySizeSchema.optional(),
+		architecture: ArchitectureSchema.optional(),
+		ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
+		reserved: ReservedConcurrentExecutionsSchema.optional(),
+		layers: LayersSchema.optional(),
+		environment: EnvironmentSchema.optional(),
+		permissions: PermissionsSchema.optional(),
+		sandbox: SandboxSchema.optional(),
+	})
+	.strict()
+
+export type StackFunctionProps = z.output<typeof StackFnSchema>
+
+export const StackFunctionSchema = z.union([
+	LocalFileSchema.transform(code => ({
+		code,
+	})).pipe(StackFnSchema),
+	StackFnSchema,
+])
+
 export const FunctionsSchema = z
-	.record(ResourceIdSchema, FunctionSchema)
+	.record(ResourceIdSchema, StackFunctionSchema)
 	.optional()
 	.describe('Define the functions in your stack.')
 
@@ -164,10 +250,16 @@ export const FunctionDefaultSchema = z
 			system: 'system' in log ? log.system : 'warn',
 			format: 'format' in log ? log.format : 'json',
 		})),
-		// The defaults size the shared bundle lambda, which also serves queues, crons & tasks.
+		// The defaults size the shared bundle lambda, which also serves queues,
+		// crons & tasks. Stand-alone functions inherit them as well.
 		timeout: TimeoutSchema.default('15 minutes'),
 		memorySize: MemorySizeSchema.default('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
+		// Stand-alone functions live outside the vpc unless they opt in.
+		vpc: VPCSchema.default(false),
+		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
+		reserved: ReservedConcurrentExecutionsSchema.optional(),
+		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 	})

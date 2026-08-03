@@ -1,4 +1,4 @@
-export declare const getTableName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--table--${N}`;
+export declare const getTableName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `${string}--${S}--table--${N}`;
 type TableKeys = {
     hash: string;
     sort?: string;
@@ -8,7 +8,7 @@ type TableKeys = {
     }>;
 };
 export declare const getTableProps: (name: string, stack?: string) => {
-    readonly name: `app--${string}--table--${string}`;
+    readonly name: `${string}--${string}--table--${string}`;
     readonly keys: TableKeys | undefined;
 };
 export interface TableResources {

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
+import { RelativePathSchema } from '../../config/schema/relative-path.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 
@@ -175,6 +176,11 @@ const LayersSchema = z.string().array().describe(
 const FileCodeSchema = z.object({
 	file: LocalFileSchema.describe('The file path of the function code.'),
 	minify: MinifySchema.optional().default(true),
+	moduleSideEffects: RelativePathSchema.array()
+		.default([])
+		.describe(
+			`A list of glob patterns for modules that should be flagged as having potential side effects. For example "./.svelte-kit/**" will flag every file inside the .svelte-kit folder.`
+		),
 	external: z
 		.string()
 		.array()
