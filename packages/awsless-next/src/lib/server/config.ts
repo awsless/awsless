@@ -41,7 +41,7 @@ export const getConfigValue = (name: string) => {
 		throw new Error(
 			`The "${name}" config value hasn't been set yet. ${
 				IS_TEST
-					? `Use "Config.${name} = 'VAlUE'" to define your mock value.`
+					? `Use "mock.config.${name}('VAlUE')" to define your mock value.`
 					: `Define access to the desired config value inside your awsless stack file.`
 			}`
 		)
@@ -50,10 +50,10 @@ export const getConfigValue = (name: string) => {
 	return value
 }
 
-export const setConfigValue = (name: string, value: string) => {
-	const key = kebabCase(name)
-	data[key] = value
-}
+// export const setConfigValue = (name: string, value: string) => {
+// 	const key = kebabCase(name)
+// 	data[key] = value
+// }
 
 export interface ConfigResources {}
 
@@ -63,10 +63,10 @@ export const Config: ConfigResources = /*@__PURE__*/ new Proxy(
 		get(_, name: string) {
 			return getConfigValue(name)
 		},
-		set(_, name: string, value: string) {
-			setConfigValue(name, value)
+		// set(_, name: string, value: string) {
+		// 	setConfigValue(name, value)
 
-			return true
-		},
+		// 	return true
+		// },
 	}
 )
