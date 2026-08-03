@@ -8,16 +8,25 @@ import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { constantCase } from 'change-case'
 import { toSeconds } from '@awsless/duration'
+import { tableOnDev } from './dev.js'
+import { formatTableKeys } from './util.js'
+
+const tableTypeGenCode = `
+import { GenericMapSchema, Table as DynamoTable } from '@awsless/dynamodb'
+`
 
 export const tableFeature = defineFeature({
 	name: 'table',
+	onDev: tableOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
 
+		const typeValue = (value: unknown): string => JSON.stringify(value)
+
 		for (const stack of ctx.stackConfigs) {
 			const list = new TypeObject(2)
-			for (const name of Object.keys(stack.tables || {})) {
+			for (const [name, props] of Object.entries(stack.tables || {})) {
 				const tableName = formatLocalResourceName({
 					appName: ctx.appConfig.name,
 					stackName: stack.name,
@@ -25,11 +34,32 @@ export const tableFeature = defineFeature({
 					resourceName: name,
 				})
 
-				list.addType(name, `'${tableName}'`)
+				// The generated define only takes the runtime schema - the
+				// hash, sort & index literals come from the stack config.
+				const sort = props.sort ? typeValue(props.sort) : 'undefined'
+				const indexes =
+					props.indexes && Object.keys(props.indexes).length > 0
+						? `{ ${Object.entries(props.indexes)
+								.map(([indexName, index]) => {
+									const indexSort = index.sort ? `; sort: ${typeValue(index.sort)}` : ''
+
+									return `${indexName}: { hash: ${typeValue(index.hash)}${indexSort} }`
+								})
+								.join('; ')} }`
+						: 'undefined'
+
+				list.addType(
+					name,
+					`{
+			readonly name: '${tableName}'
+			readonly define: <S extends GenericMapSchema>(schema: S) => DynamoTable<S, ${typeValue(props.hash)}, ${sort}, ${indexes}>
+		}`
+				)
 			}
 			resources.addType(stack.name, list)
 		}
 
+		gen.addCode(tableTypeGenCode)
 		gen.addInterface('TableResources', resources)
 
 		await ctx.write('table.d.ts', gen, true)
@@ -81,6 +111,13 @@ export const tableFeature = defineFeature({
 				resourceType: 'table',
 				resourceName: id,
 			})
+
+			// App code defines tables with only a schema - the keys stay
+			// single sourced in the stack config through this env.
+			ctx.addEnv(
+				`TABLE_${constantCase(ctx.stack.name)}_${constantCase(id)}_KEYS`,
+				JSON.stringify(formatTableKeys(props))
+			)
 
 			// const deletionProtection = ctx.appConfig.removal === 'retain'
 

@@ -6,26 +6,87 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { FileError } from '../../error.js'
+import { createSnsServer } from '../../dev/servers/sns.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
+import type { GenericSchema, InferInput } from '@awsless/validate'
+import type { Mock } from 'vitest'
+
+type PublishTopicOptions = Omit<PublishOptions, 'topic' | 'payload'>
+
+type TopicPublisher<Name extends string, S extends GenericSchema> = {
+	(payload: InferInput<S>, options?: PublishTopicOptions): Promise<void>
+	readonly name: Name
+	readonly schema: S
+}
 
 type Publish<Name extends string> = {
 	readonly name: Name
-	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
+
+	// The payload schema lives with the topic: publishing only happens
+	// through a defined topic, so every message is validated at the
+	// source & the subscriber shares the exact same contract.
+	readonly define: <S extends GenericSchema>(schema: S) => TopicPublisher<Name, S>
 }
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry = MockBuilder & Mock<(payload: unknown) => unknown>
 `
 
 export const topicFeature = defineFeature({
 	name: 'topic',
+	async onDev(ctx) {
+		if ((ctx.appConfig.defaults.topics ?? []).length === 0) {
+			return
+		}
+
+		for (const id of ctx.appConfig.defaults.topics ?? []) {
+			ctx.registerResource({
+				kind: 'topic',
+				id,
+				detail: formatGlobalResourceName({
+					appName: ctx.appConfig.name,
+					resourceType: 'topic',
+					resourceName: id,
+				}),
+			})
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const id of Object.keys(stack.subscribers ?? {})) {
+				ctx.registerResource({
+					kind: 'subscriber',
+					stack: stack.name,
+					id,
+					routeKey: formatRouteKey(stack.name, 'topic', id),
+				})
+			}
+		}
+
+		const server = createSnsServer()
+		const port = await server.listen()
+
+		ctx.addEnv('AWS_ENDPOINT_URL_SNS', `http://127.0.0.1:${port}`)
+
+		ctx.registerServer({
+			name: 'sns',
+			start({ dispatch, reportFailure }) {
+				server.connect(dispatch, reportFailure)
+			},
+			stop() {
+				return server.stop()
+			},
+		})
+	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const topic of ctx.appConfig.defaults.topics ?? []) {
 			const name = formatGlobalResourceName({
@@ -34,15 +95,16 @@ export const topicFeature = defineFeature({
 				resourceName: topic,
 			})
 
-			mockResponses.addType(topic, 'Mock')
 			resources.addType(topic, `Publish<'${name}'>`)
-			mocks.addType(topic, `MockBuilder`)
+			testMocks.addType(topic, `TestMockEntry`)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('topic', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('TopicResources', resources)
-		gen.addInterface('TopicMock', mocks)
-		gen.addInterface('TopicMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('topic.d.ts', gen, true)
 	},

@@ -13,9 +13,11 @@ import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'url'
 import { toSeconds } from '@awsless/duration'
+import { rpcOnDev } from './dev.js'
 
 export const rpcFeature = defineFeature({
 	name: 'rpc',
+	onDev: rpcOnDev,
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless/client')
 

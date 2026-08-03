@@ -1,0 +1,14 @@
+{
+	"include": ["src/server.ts", "src/client.ts"],
+	"compilerOptions": {
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"outDir": "dist/types",
+		"rootDir": "src",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"target": "esnext",
+		"strict": true,
+		"skipLibCheck": true
+	}
+}

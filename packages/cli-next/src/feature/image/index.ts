@@ -11,9 +11,11 @@ import { defineFeature } from '../../feature'
 import { formatGlobalResourceName } from '../../util/name'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { getFeatureFolder } from '../asset/index.js'
+import { imageOnDev } from './dev.js'
 
 export const imageFeature = defineFeature({
 	name: 'image',
+	onDev: imageOnDev,
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {
 			return Object.keys(stack.images ?? {}).length > 0

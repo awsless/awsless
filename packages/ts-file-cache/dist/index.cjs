@@ -152,7 +152,7 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
     if (dependency.type === "package") {
       hashes.set(module2, Buffer.from(`${module2}:${dependency.version}`, "utf8"));
     } else {
-      const localPackage = workspace.packages[module2];
+      const localPackage = workspace.packages[dependency.link];
       if (!localPackage) {
         throw new Error(`Can't find the local workspace package for: ${file}`);
       }
@@ -190,7 +190,7 @@ var getPackageName = (importee) => {
   throw new Error(`Malformed importee: ${importee}`);
 };
 var findDependency = (workspace, module2, source) => {
-  const pkg = Object.values(workspace.packages).filter((p) => source.startsWith(p.path)).sort((a, b) => b.path.split("/").length - a.path.split("/").length).find((p) => p.dependencies[module2]);
+  const pkg = Object.values(workspace.packages).filter((p) => source === p.path || source.startsWith(p.path + import_path3.sep)).sort((a, b) => b.path.split(import_path3.sep).length - a.path.split(import_path3.sep).length).find((p) => p.dependencies[module2]);
   if (!pkg) {
     return;
   }
@@ -228,7 +228,7 @@ var pnpm = async (search) => {
         }
       }
       const entry = packageData.module ?? packageData.main;
-      packages[packageData.name] = {
+      packages[(0, import_path4.join)(cwd, path)] = {
         name: packageData.name,
         path: (0, import_path4.join)(cwd, path),
         main: entry ? (0, import_path4.join)(cwd, path, entry) : void 0,

@@ -19,6 +19,8 @@ import { RpcDefaultSchema } from '../feature/rpc/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { JobDefaultSchema } from '../feature/job/schema.js'
 import { RouterDefaultSchema } from '../feature/router/schema.js'
+import { SearchDefaultSchema } from '../feature/search/schema.js'
+import { TestDefaultSchema } from '../feature/test/schema.js'
 import { TopicsDefaultSchema } from '../feature/topic/schema.js'
 import { RegionSchema } from './schema/region.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
@@ -73,6 +75,8 @@ export const AppSchema = z
 				topics: TopicsDefaultSchema,
 				layers: LayerSchema,
 				router: RouterDefaultSchema,
+				search: SearchDefaultSchema,
+				test: TestDefaultSchema,
 				// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
 			})
 			.strict()

@@ -28,12 +28,22 @@ declare class Schema<Encoded, Input, Output> {
 }
 
 declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") => Client;
+declare const mockClient: (host: string, port: number) => void;
 
 type Settings = Record<string, string | number | boolean>;
+type Options$5 = {
+    path: string;
+    host: string;
+    port: number;
+    debug?: boolean;
+    version: VersionArgs;
+    javaHome?: string;
+};
+declare const launch: ({ path, host, port, version, debug, javaHome }: Options$5) => Promise<() => Promise<void>>;
 
-type Version = `${string}.${string}.${string}`;
+type Version$1 = `${string}.${string}.${string}`;
 type VersionArgs = {
-    version: Version;
+    version: Version$1;
     settings: (opts: {
         port: number;
         host: string;
@@ -41,12 +51,20 @@ type VersionArgs = {
     }) => Settings;
     started: (line: string) => boolean;
 };
+declare const VERSION_2_8_0: VersionArgs;
 
 type Options$4 = {
     version?: VersionArgs;
     debug?: boolean;
 };
 declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
+
+type Version = `${string}.${string}.${string}`;
+declare const download: (version: Version) => Promise<string>;
+
+declare const downloadJdk: (version?: number) => Promise<string>;
+
+declare const wait: (times?: number) => Promise<void>;
 
 type Table<I extends string, S extends AnySchema> = {
     index: I;
@@ -173,4 +191,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_2_8_0, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, downloadJdk, indexItem, launch, mockClient, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid, wait };

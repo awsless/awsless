@@ -6,6 +6,7 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { configDefaults } from 'vitest/config'
 import { Reporter, RunnerTask, startVitest } from 'vitest/node'
+import { hoistConfigPlugin } from './hoist-config.js'
 
 class NullReporter implements Reporter {}
 
@@ -69,6 +70,9 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 		{
 			logLevel: 'silent',
 			plugins: [
+				// Hoists top level mock.config calls above the imports,
+				// like vitest does for vi.mock.
+				hoistConfigPlugin(),
 				// // @ts-ignore
 				// commonjs({ sourceMap: true }),
 				// // @ts-ignore

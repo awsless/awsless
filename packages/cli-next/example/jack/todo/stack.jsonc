@@ -1,0 +1,68 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "todo",
+	"tests": "./test",
+	"configs": ["admin-secret", "api-key"],
+
+	"rpc": {
+		"main": {
+			"createTask": "./src/rpc/create.ts",
+			"toggleTask": "./src/rpc/toggle.ts",
+			"searchTasks": "./src/rpc/search.ts",
+			"remindTask": "./src/rpc/remind.ts",
+			"tasksStats": "./src/rpc/stats.ts",
+			"tasks": "./src/rpc/list.ts"
+		}
+	},
+
+	"rest": {
+		"hooks": {
+			"POST /remind": "./src/rest/remind.ts"
+		}
+	},
+
+	"tables": {
+		"tasks": {
+			"hash": "id",
+			"stream": {
+				"type": "new-image",
+				"consumer": "./src/stream/task.ts"
+			}
+		}
+	},
+
+	"searchs": {
+		"tasks": {
+			"schema": {
+				"id": "keyword",
+				"name": "text",
+				"done": "boolean"
+			}
+		}
+	},
+
+	"queues": {
+		"reminders": "./src/queue/reminder.ts"
+	},
+
+	"stores": {
+		"exports": {
+			"events": {
+				"created:*": "./src/store/on-export.ts"
+			}
+		}
+	},
+
+	"crons": {
+		"cleanup": {
+			"schedule": "1 day",
+			"consumer": "./src/cron/cleanup.ts"
+		}
+	},
+
+	"pubsub": {
+		"main": {
+			"connected": "./src/pubsub/connected.ts"
+		}
+	}
+}

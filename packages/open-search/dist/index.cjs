@@ -32,6 +32,7 @@ var index_exports = {};
 __export(index_exports, {
   BulkError: () => BulkError,
   BulkItemError: () => BulkItemError,
+  VERSION_2_8_0: () => VERSION_2_8_0,
   array: () => array,
   bigfloat: () => bigfloat,
   bigint: () => bigint,
@@ -46,7 +47,11 @@ __export(index_exports, {
   define: () => define,
   deleteIndex: () => deleteIndex,
   deleteItem: () => deleteItem,
+  download: () => download,
+  downloadJdk: () => downloadJdk,
   indexItem: () => indexItem,
+  launch: () => launch,
+  mockClient: () => mockClient,
   mockOpenSearch: () => mockOpenSearch,
   number: () => number,
   object: () => object,
@@ -56,7 +61,8 @@ __export(index_exports, {
   string: () => string,
   total: () => total,
   updateItem: () => updateItem,
-  uuid: () => uuid
+  uuid: () => uuid,
+  wait: () => wait
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -131,13 +137,25 @@ var download = async (version) => {
   const response = await fetch(url, { method: "GET" });
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
-  await (0, import_promises.mkdir)(path, { recursive: true, mode: "0777" });
-  await (0, import_decompress.default)(buffer, path);
+  const temp = (0, import_path.join)(path, `.${name}-${process.pid}`);
+  await (0, import_promises.rm)(temp, { recursive: true, force: true });
+  await (0, import_promises.mkdir)(temp, { recursive: true, mode: "0777" });
+  await (0, import_decompress.default)(buffer, temp);
+  try {
+    await (0, import_promises.rename)((0, import_path.join)(temp, name), file);
+  } catch (error) {
+    if (!await exists(file)) {
+      throw error;
+    }
+  } finally {
+    await (0, import_promises.rm)(temp, { recursive: true, force: true });
+  }
   return file;
 };
 
-// src/server/launch.ts
-var import_child_process = require("child_process");
+// src/server/jdk.ts
+var import_decompress2 = __toESM(require("decompress"), 1);
+var import_find_cache_dir2 = __toESM(require("find-cache-dir"), 1);
 var import_promises2 = require("fs/promises");
 var import_path2 = require("path");
 var exists2 = async (path) => {
@@ -148,34 +166,88 @@ var exists2 = async (path) => {
   }
   return true;
 };
+var findJavaHome = async (dir) => {
+  const [root] = await (0, import_promises2.readdir)(dir);
+  const base = (0, import_path2.join)(dir, root);
+  const macHome = (0, import_path2.join)(base, "Contents", "Home");
+  return await exists2(macHome) ? macHome : base;
+};
+var downloadJdk = async (version = 17) => {
+  const path = (0, import_path2.resolve)(
+    (0, import_find_cache_dir2.default)({
+      name: "@awsless/open-search",
+      cwd: process.cwd()
+    }) || ""
+  );
+  const dir = (0, import_path2.join)(path, `jdk-${version}-${process.platform}-${process.arch}`);
+  if (await exists2(dir)) {
+    return findJavaHome(dir);
+  }
+  console.log(`Downloading JDK ${version}`);
+  const os = process.platform === "darwin" ? "mac" : process.platform === "win32" ? "windows" : "linux";
+  const arch = process.arch === "arm64" ? "aarch64" : "x64";
+  const url = `https://api.adoptium.net/v3/binary/latest/${version}/ga/${os}/${arch}/jdk/hotspot/normal/eclipse`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Downloading JDK ${version} for ${os}-${arch} failed: ${response.status}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const temp = (0, import_path2.join)(path, `.jdk-${version}-${process.platform}-${process.arch}-${process.pid}`);
+  await (0, import_promises2.rm)(temp, { recursive: true, force: true });
+  await (0, import_promises2.mkdir)(temp, { recursive: true, mode: "0777" });
+  await (0, import_decompress2.default)(buffer, temp);
+  try {
+    await (0, import_promises2.rename)(temp, dir);
+  } catch (error) {
+    if (!await exists2(dir)) {
+      throw error;
+    }
+    await (0, import_promises2.rm)(temp, { recursive: true, force: true });
+  }
+  return findJavaHome(dir);
+};
+
+// src/server/launch.ts
+var import_child_process = require("child_process");
+var import_promises3 = require("fs/promises");
+var import_path3 = require("path");
+var exists3 = async (path) => {
+  try {
+    await (0, import_promises3.stat)(path);
+  } catch (error) {
+    return false;
+  }
+  return true;
+};
 var parseSettings = (settings) => {
   return Object.entries(settings).map(([key, value]) => {
     return ["-E", `${key}=${value}`];
   }).flat();
 };
-var launch = ({ path, host, port, version, debug }) => {
-  return new Promise(async (resolve2, reject) => {
-    const cache = (0, import_path2.join)(path, "cache", String(port));
+var launch = ({ path, host, port, version, debug, javaHome }) => {
+  return new Promise(async (resolve3, reject) => {
+    const cache = (0, import_path3.join)(path, "cache", String(port));
     const cleanUp = async () => {
-      if (await exists2(cache)) {
-        await (0, import_promises2.rm)(cache, {
+      if (await exists3(cache)) {
+        await (0, import_promises3.rm)(cache, {
           recursive: true
         });
       }
     };
     await cleanUp();
-    const binary = (0, import_path2.join)(path, "opensearch-tar-install.sh");
+    const binary = javaHome ? (0, import_path3.join)(path, "bin", "opensearch") : (0, import_path3.join)(path, "opensearch-tar-install.sh");
     const child = (0, import_child_process.spawn)(
-      // `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
       binary,
-      parseSettings(version.settings({ host, port, cache }))
-      // {
-      // 	env: {
-      // 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
-      // 	},
-      // }
+      parseSettings(version.settings({ host, port, cache })),
+      javaHome ? {
+        env: {
+          ...process.env,
+          OPENSEARCH_JAVA_HOME: javaHome
+        }
+      } : {}
     );
     const onError = (error) => fail(error);
+    const onExit = (code) => fail(`OpenSearch exited with code ${code} during startup.`);
     const onMessage = (message) => {
       const line = message.toString("utf8").toLowerCase();
       if (debug) {
@@ -186,12 +258,14 @@ var launch = ({ path, host, port, version, debug }) => {
       }
     };
     const kill = async () => {
-      await new Promise((resolve3) => {
-        child.once(`exit`, () => {
-          resolve3(void 0);
+      if (child.exitCode === null && child.signalCode === null) {
+        await new Promise((resolve4) => {
+          child.once(`exit`, () => {
+            resolve4(void 0);
+          });
+          child.kill();
         });
-        child.kill();
-      });
+      }
       await cleanUp();
     };
     process.on("beforeExit", async () => {
@@ -202,15 +276,17 @@ var launch = ({ path, host, port, version, debug }) => {
       child.stderr.off("data", onMessage);
       child.stdout.off("data", onMessage);
       child.off("error", onError);
+      child.off("exit", onExit);
     };
     const on = () => {
       child.stderr.on("data", onMessage);
       child.stdout.on("data", onMessage);
       child.on("error", onError);
+      child.on("exit", onExit);
     };
     const done = async () => {
       off();
-      resolve2(kill);
+      resolve3(kill);
     };
     const fail = async (error) => {
       off();
@@ -262,12 +338,15 @@ var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
     const [port, release] = await (0, import_request_port.requestPort)();
     const host = "localhost";
     const path = await download(version.version);
+    const native = process.platform === "linux" || process.platform === "win32";
+    const javaHome = native ? void 0 : await downloadJdk();
     const kill = await launch({
       path,
       port,
       host,
       version,
-      debug
+      debug,
+      javaHome
     });
     mockClient(host, port);
     await wait();
@@ -352,6 +431,7 @@ var BulkError = class extends Error {
     super("Bulk error");
     this.items = items;
   }
+  items;
 };
 var BulkItemError = class extends Error {
   constructor(index, id, type, message) {
@@ -360,6 +440,9 @@ var BulkItemError = class extends Error {
     this.id = id;
     this.type = type;
   }
+  index;
+  id;
+  type;
 };
 var findBulkItemErrors = (items) => {
   const errors = [];
@@ -501,6 +584,9 @@ var Schema = class {
     this.decode = decode;
     this.mapping = mapping;
   }
+  encode;
+  decode;
+  mapping;
 };
 
 // src/schema/array.ts
@@ -607,6 +693,7 @@ var uuid = (props = {}) => new Schema(
 0 && (module.exports = {
   BulkError,
   BulkItemError,
+  VERSION_2_8_0,
   array,
   bigfloat,
   bigint,
@@ -621,7 +708,11 @@ var uuid = (props = {}) => new Schema(
   define,
   deleteIndex,
   deleteItem,
+  download,
+  downloadJdk,
   indexItem,
+  launch,
+  mockClient,
   mockOpenSearch,
   number,
   object,
@@ -631,5 +722,6 @@ var uuid = (props = {}) => new Schema(
   string,
   total,
   updateItem,
-  uuid
+  uuid,
+  wait
 });

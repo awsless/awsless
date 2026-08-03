@@ -6,6 +6,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { toGibibytes } from '@awsless/size'
+import { cacheOnDev } from './dev.js'
 
 const typeGenCode = `
 import { RedisClient } from '@awsless/redis'
@@ -15,6 +16,7 @@ type RedisClientFactory = (db?: number) => RedisClient
 
 export const cacheFeature = defineFeature({
 	name: 'cache',
+	onDev: cacheOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)

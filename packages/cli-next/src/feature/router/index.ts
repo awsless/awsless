@@ -667,7 +667,9 @@ export const routerFeature = defineFeature({
 			for (const [pattern, props] of Object.entries(patterns)) {
 				const compiled = compileRoutePattern(pattern)
 				const slug = kebabCase(pattern).slice(0, 20)
-				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
+				// The router id is part of the key so that different routers
+				// can define the same route pattern within a single stack.
+				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(`${id}:${pattern}`)}`)
 
 				registerBundleFunction(ctx, routeKey, props)
 
@@ -697,6 +699,24 @@ export const routerFeature = defineFeature({
 			}
 
 			addRoutes(merged)
+		}
+	},
+	onDev(ctx) {
+		// Register every route pattern on the local dev router with the
+		// same route key derivation as the deployed route store.
+		for (const stackConfig of ctx.stackConfigs) {
+			for (const [id, patterns] of Object.entries(stackConfig.routes ?? {})) {
+				for (const pattern of Object.keys(patterns)) {
+					const slug = kebabCase(pattern).slice(0, 20)
+					const routeKey = formatRouteKey(stackConfig.name, 'route', `${slug || 'root'}-${shortId(`${id}:${pattern}`)}`)
+
+					ctx.addRoute({
+						routerId: id,
+						pattern,
+						routeKey,
+					})
+				}
+			}
 		}
 	},
 })

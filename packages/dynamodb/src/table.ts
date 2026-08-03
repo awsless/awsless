@@ -1,7 +1,7 @@
 import { AttributeValue } from '@aws-sdk/client-dynamodb'
 import { BaseSchema } from './schema/schema'
 
-type GenericMapSchema = BaseSchema<'M'>
+export type GenericMapSchema = BaseSchema<'M'>
 
 export type Infer<T extends AnyTable> = T['schema'][symbol]['Type']
 

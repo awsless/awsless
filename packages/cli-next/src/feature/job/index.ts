@@ -34,6 +34,10 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
 type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const jobFeature = defineFeature({
@@ -41,13 +45,11 @@ export const jobFeature = defineFeature({
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.jobs || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -62,19 +64,19 @@ export const jobFeature = defineFeature({
 
 				types.addImport(varName, relFile)
 				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				mock.addType(name, `MockBuilder<typeof ${varName}>`)
-				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('job', testMocks)
 
 		types.addCode(typeGenCode)
 		types.addInterface('JobResources', resources)
-		types.addInterface('JobMock', mocks)
-		types.addInterface('JobMockResponse', mockResponses)
+		types.addInterface('TestMock', testMock)
 
 		await ctx.write('job.d.ts', types, true)
 	},

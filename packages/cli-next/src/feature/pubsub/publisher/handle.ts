@@ -8,7 +8,8 @@ const createClient = () => {
 	return new Redis({
 		host: getRouteEnv('REDIS_HOST')!,
 		port: Number(getRouteEnv('REDIS_PORT') ?? 6379),
-		tls: {},
+		// The local dev environment runs a plain redis without tls.
+		tls: getRouteEnv('REDIS_TLS') === 'disabled' ? undefined : {},
 		lazyConnect: true,
 		keepAlive: 0,
 		noDelay: true,

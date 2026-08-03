@@ -1,4 +1,5 @@
 export { mockRedis } from './test/mock'
+export { RedisServer } from './test/server'
 export * as redis from './command'
 export * from './type'
 export * from './client'

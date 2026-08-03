@@ -1,6 +1,5 @@
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
-import { constantCase } from 'change-case'
 import { createHmac } from 'crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
@@ -13,9 +12,9 @@ import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { formatFullDomainName } from '../domain/util.js'
 import { pubsubEventTypes } from './schema.js'
 import { createPubSubService, WS_PORT } from './util.js'
+import { pubsubOnDev } from './dev.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -30,26 +29,31 @@ type PubSubInstance = {
 type MockHandle = (payload: { topic: string; event: string; payload?: unknown }) => void
 type MockBuilder = (handle?: MockHandle) => void
 type MockObject = Mock<(payload: unknown) => unknown>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry = MockBuilder & MockObject
 `
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
+	onDev: pubsubOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const id of Object.keys(ctx.appConfig.defaults.pubsub ?? {})) {
 			resources.addType(id, `PubSubInstance`)
-			mocks.addType(id, `MockBuilder`)
-			mockResponses.addType(id, `MockObject`)
+			testMocks.addType(id, `TestMockEntry`)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('pubsub', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('PubSubResources', resources)
-		gen.addInterface('PubSubMock', mocks)
-		gen.addInterface('PubSubMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('pubsub.d.ts', gen, true)
 	},
@@ -383,19 +387,18 @@ export const pubsubFeature = defineFeature({
 					customHeaders: {
 						'x-origin-secret': secret,
 					},
+					// The bare mount path maps to the websocket route at the
+					// server root, deeper paths keep their sub path.
 					rewrite: {
-						regex: `^${props.path}/(.*)$`,
+						regex: `^${props.path}(?:/(.*))?$`,
 						to: '/$1',
 					},
 				},
 			})
 
-			// ------------------------------------------------------------
-			// Bind the pubsub env vars
-
-			const domainName = formatFullDomainName(ctx.appConfig, routerProps.domain, routerProps.subDomain)
-
-			ctx.bind(`PUBSUB_${constantCase(id)}_ENDPOINT`, `wss://${domainName}${props.path}/ws`)
+			// No endpoint bind is needed - the pubsub instance always
+			// lives on its router at the configured path, and the router
+			// endpoint is already bound.
 		}
 	},
 	onStack(ctx) {

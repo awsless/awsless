@@ -6,6 +6,6 @@ describe('PNPM', () => {
 
 		expect(workspace.cwd).toBe('../..')
 		expect(workspace.packages).toBeDefined()
-		expect(workspace.packages['@awsless/ts-file-cache']).toBeDefined()
+		expect(Object.values(workspace.packages).find(p => p.name === '@awsless/ts-file-cache')).toBeDefined()
 	})
 })

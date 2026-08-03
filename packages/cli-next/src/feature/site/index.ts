@@ -12,11 +12,13 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { Route } from '../router/route.js'
+import { binPath, siteOnDev } from './dev.js'
 import { planStaticRoutes } from './static-routes.js'
 import { getFeatureFolder } from '../asset/index.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
+	onDev: siteOnDev,
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
 			const group = new Group(ctx.stack, 'site', id)
@@ -46,6 +48,10 @@ export const siteFeature = defineFeature({
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
 						const env: Record<string, string | undefined> = {
 							...process.env,
+
+							// Resolve bins from every ancestor node_modules/.bin,
+							// like npm scripts do.
+							PATH: binPath(cwd),
 
 							// Pass the app config name
 							APP: ctx.appConfig.name,

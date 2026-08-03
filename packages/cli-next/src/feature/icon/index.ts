@@ -9,9 +9,11 @@ import { fileURLToPath } from 'url'
 import { defineFeature } from '../../feature'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { getFeatureFolder } from '../asset/index.js'
+import { iconOnDev } from './dev.js'
 
 export const iconFeature = defineFeature({
 	name: 'icon',
+	onDev: iconOnDev,
 	onStack(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
 		const bucket = ctx.shared.get('asset', 'bucket')

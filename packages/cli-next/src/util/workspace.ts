@@ -7,6 +7,7 @@ import { Region } from '../config/schema/region.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
+import { createOpenSearchProvider } from '../formation/open-search.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
@@ -72,6 +73,7 @@ export const createWorkSpace = async (props: BackendProps) => {
 			createCloudFrontKvsProvider(props),
 			createS3Provider(props),
 			createNameServersProvider(props),
+			createOpenSearchProvider(props),
 			aws(
 				{
 					accessKey: cred.accessKeyId,

@@ -30,6 +30,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  RedisServer: () => RedisServer,
   createIoRedisClient: () => createIoRedisClient,
   createLazyClient: () => createLazyClient,
   createRedisClient: () => createRedisClient,
@@ -73,11 +74,9 @@ var createIoRedisClient = (options) => {
       autoResendUnfulfilledCommands: false,
       connectTimeout: 5e3,
       commandTimeout: 5e3,
-      // reconnectOnError(err) {
-      // 	// After an ElastiCache failover the old primary is demoted to a
-      // 	// replica; the open socket must be dropped to re-resolve DNS.
-      // 	return err.message.includes('READONLY') ? 2 : false
-      // },
+      reconnectOnError(err) {
+        return err.message.includes("READONLY") ? 2 : false;
+      },
       // commandQueue: false,
       // offlineQueue: false,
       ...options,
@@ -101,12 +100,7 @@ var createIoRedisClient = (options) => {
             if (times > 5) return null;
             return Math.min(times * 200, 2e3);
           },
-          redisOptions: {
-            ...props,
-            reconnectOnError(err) {
-              return err.message.includes("READONLY") ? 2 : false;
-            }
-          }
+          redisOptions: props
         }
       );
     }
@@ -153,7 +147,7 @@ var import_redis_memory_server = require("redis-memory-server");
 var RedisServer = class {
   client;
   process;
-  async start(port) {
+  async start(port, version = "7.2.4", args = []) {
     if (this.process) {
       throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
     }
@@ -163,8 +157,12 @@ var RedisServer = class {
     this.process = await import_redis_memory_server.RedisMemoryServer.create({
       instance: {
         port,
-        args: []
-      }
+        args
+      },
+      // The default "stable" resolves to redis 8, which bundles
+      // native modules that fail to build on macos. Redis 7 builds
+      // everywhere & matches the elasticache engine.
+      binary: { version }
       // binary: { systemBinary: '/usr/local/bin/redis-server' },
     });
   }
@@ -174,6 +172,13 @@ var RedisServer = class {
       await this.process.stop();
       this.process = void 0;
     }
+  }
+  async getPort() {
+    const port = await this.process?.getPort();
+    if (!port) {
+      throw new Error("The redis server is not running.");
+    }
+    return port;
   }
   async ping() {
     const client = await this.getClient();
@@ -188,10 +193,14 @@ var RedisServer = class {
         keepAlive: 0,
         noDelay: true,
         enableReadyCheck: false,
-        maxRetriesPerRequest: null
-        // retryStrategy: (options) => {
-        // 	return
-        // },
+        maxRetriesPerRequest: null,
+        // A dead local server must never trigger an endless
+        // reconnect loop.
+        retryStrategy(times) {
+          return times > 3 ? null : Math.min(times * 200, 1e3);
+        }
+      });
+      this.client.on("error", () => {
       });
     }
     return this.client;
@@ -1115,6 +1124,7 @@ var createRedisClient = (options) => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  RedisServer,
   createIoRedisClient,
   createLazyClient,
   createRedisClient,

@@ -8,6 +8,10 @@ export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
 // so we need to read it live instead of at module load.
 export const getStack = () => ((getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(':')[0] ?? 'stack') as 'stack'
 export const IS_TEST = process.env.NODE_ENV === 'test'
+// Local dev mode (`awsless dev`) is a third mode, separate from IS_TEST:
+// tests bypass bundle routing to keep name-keyed mocks working, while local
+// dev keeps the production code paths and redirects the AWS boundary instead.
+export const IS_LOCAL = process.env.AWSLESS_ENV === 'local'
 export const REGION = process.env.AWS_REGION
 export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
 

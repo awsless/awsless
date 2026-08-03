@@ -38,6 +38,47 @@ const eventMap: Record<string, string> = {
 
 export const storeFeature = defineFeature({
 	name: 'store',
+	async onDev(ctx) {
+		const stores = ctx.stackConfigs.flatMap(stack => Object.entries(stack.stores ?? {}))
+
+		if (stores.length === 0) {
+			return
+		}
+
+		// The same notification rules as the deployed bucket notification.
+		const rules = ctx.stackConfigs.flatMap(stack => {
+			return Object.entries(stack.stores ?? {}).flatMap(([id, props]) => {
+				const folder = getFeatureFolder('store', stack.name, id)
+
+				return Object.keys(props.events ?? {}).map(event => {
+					const eventId = kebabCase(`${id}-${shortId(event)}`)
+
+					return {
+						id: formatRouteKey(stack.name, 'store', eventId),
+						events: [eventMap[event]!],
+						prefix: folder,
+					}
+				})
+			})
+		})
+
+		for (const stack of ctx.stackConfigs) {
+			for (const id of Object.keys(stack.stores ?? {})) {
+				ctx.registerResource({
+					kind: 'store',
+					stack: stack.name,
+					id,
+					detail: getFeatureFolder('store', stack.name, id),
+				})
+			}
+		}
+
+		// The shared store server carries every feature's bucket data -
+		// this feature only contributes its notification rules.
+		const shared = await ctx.useStore()
+
+		shared.rules.push(...rules)
+	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)

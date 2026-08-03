@@ -35,20 +35,34 @@ type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Respons
 type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
 type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
 type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const functionFeature = defineFeature({
 	name: 'function',
+	onDev(ctx) {
+		for (const stack of ctx.stackConfigs) {
+			for (const id of Object.keys(stack.functions ?? {})) {
+				ctx.registerResource({
+					kind: 'function',
+					stack: stack.name,
+					id,
+					routeKey: formatRouteKey(stack.name, 'function', id),
+				})
+			}
+		}
+	},
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, local] of Object.entries(stack.functions || {})) {
 				const props = deepmerge(ctx.appConfig.defaults.function, local)
@@ -64,25 +78,24 @@ export const functionFeature = defineFeature({
 
 				if (props.runtime === 'container') {
 					resource.addType(name, `Invoke<'${funcName}', Func>`)
-					mock.addType(name, `MockBuilder<Func>`)
-					mockResponse.addType(name, `MockObject<Func>`)
+					testMock.addType(name, `TestMockEntry<Func>`)
 				} else {
 					types.addImport(varName, relFile)
 					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 				}
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('function', testMocks)
 
 		types.addCode(typeGenCode)
 		types.addInterface('FunctionResources', resources)
-		types.addInterface('FunctionMock', mocks)
-		types.addInterface('FunctionMockResponse', mockResponses)
+		types.addInterface('TestMock', testMock)
 
 		await ctx.write('function.d.ts', types, true)
 	},

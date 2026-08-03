@@ -33,6 +33,22 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 export const cronFeature = defineFeature({
 	name: 'cron',
+	onDev(ctx) {
+		// Crons never fire on a timer locally, they only run through a
+		// manual trigger on the dev dashboard.
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, props] of Object.entries(stack.crons ?? {})) {
+				ctx.registerResource({
+					kind: 'cron',
+					stack: stack.name,
+					id,
+					routeKey: formatRouteKey(stack.name, 'cron', id),
+					envelope: props.payload,
+					detail: props.schedule,
+				})
+			}
+		}
+	},
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)

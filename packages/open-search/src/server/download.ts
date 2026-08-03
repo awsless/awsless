@@ -1,6 +1,6 @@
 import decompress from 'decompress'
 import findCacheDir from 'find-cache-dir'
-import { mkdir, stat } from 'fs/promises'
+import { mkdir, rename, rm, stat } from 'fs/promises'
 import { join, resolve } from 'path'
 // import { exec } from 'child_process';
 // import { promisify } from 'util';
@@ -52,8 +52,25 @@ export const download = async (version: Version) => {
 	const data = await response.arrayBuffer()
 	const buffer = Buffer.from(data)
 
-	await mkdir(path, { recursive: true, mode: '0777' })
-	await decompress(buffer, path)
+	// Extract into a temp dir & atomically rename into place, so an
+	// interrupted or concurrent extraction never leaves a partial tree
+	// behind that later runs trip over.
+	const temp = join(path, `.${name}-${process.pid}`)
+
+	await rm(temp, { recursive: true, force: true })
+	await mkdir(temp, { recursive: true, mode: '0777' })
+	await decompress(buffer, temp)
+
+	try {
+		await rename(join(temp, name), file)
+	} catch (error) {
+		// Another process finished the same extraction first.
+		if (!(await exists(file))) {
+			throw error
+		}
+	} finally {
+		await rm(temp, { recursive: true, force: true })
+	}
 
 	return file
 }

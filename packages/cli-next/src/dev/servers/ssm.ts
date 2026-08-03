@@ -1,0 +1,87 @@
+import { readFile } from 'fs/promises'
+import { createServer, Server } from 'http'
+import { trackConnections } from '../util.js'
+
+// A minimal SSM emulator that only supports the GetParameters call the
+// awsless config runtime uses. Values come from a local json file, so
+// the file is read fresh on every request.
+export const createSsmServer = (props: { file: string }) => {
+	let server: Server | undefined
+	let closeServer: (() => Promise<void>) | undefined
+	let log: ((message: string) => void) | undefined
+
+	const warned = new Set<string>()
+
+	const loadValues = async (): Promise<Record<string, string>> => {
+		try {
+			return JSON.parse(await readFile(props.file, 'utf8'))
+		} catch (_) {
+			return {}
+		}
+	}
+
+	return {
+		connect(logFn?: (message: string) => void) {
+			log = logFn
+		},
+		// Binds immediately on a free port & returns the actual port, so
+		// a stale reserved port can never end up in the environment.
+		async listen(port = 0) {
+			server = createServer((req, res) => {
+				const chunks: Buffer[] = []
+				req.on('data', chunk => chunks.push(chunk))
+				req.on('end', async () => {
+					const target = req.headers['x-amz-target']
+
+					if (target !== 'AmazonSSM.GetParameters') {
+						res.writeHead(400, { 'content-type': 'application/x-amz-json-1.1' })
+						res.end(
+							JSON.stringify({
+								__type: 'InvalidAction',
+								message: `The local dev SSM emulator only supports GetParameters, got: ${target}`,
+							})
+						)
+						return
+					}
+
+					const { Names } = JSON.parse(Buffer.concat(chunks).toString() || '{}') as { Names?: string[] }
+					const values = await loadValues()
+
+					const parameters: { Name: string; Type: string; Value: string }[] = []
+
+					for (const name of Names ?? []) {
+						// Config parameters live at /.awsless/<app>/<name>
+						const key = name.split('/').at(-1)!
+						const value = values[key]
+
+						if (typeof value === 'string') {
+							parameters.push({ Name: name, Type: 'SecureString', Value: value })
+						} else if (!warned.has(key)) {
+							// A missing value is deliberately NOT an invalid
+							// parameter, so the worker boots & only fails when a
+							// handler actually reads the missing config value.
+							warned.add(key)
+							log?.(
+								`The "${key}" config has no local value yet. Set it on the dashboard or in ${props.file}`
+							)
+						}
+					}
+
+					res.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' })
+					res.end(JSON.stringify({ Parameters: parameters, InvalidParameters: [] }))
+				})
+			})
+
+			await new Promise<void>((resolve, reject) => {
+				server!.once('error', reject)
+				closeServer = trackConnections(server!)
+				server!.listen(port, '127.0.0.1', () => resolve())
+			})
+
+			return (server!.address() as { port: number }).port
+		},
+		stop() {
+			return closeServer?.() ?? Promise.resolve()
+		},
+	}
+}

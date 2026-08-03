@@ -1,5 +1,6 @@
 import { Client } from '@opensearch-project/opensearch'
 import { download } from '../src/server/download'
+import { downloadJdk } from '../src/server/jdk'
 import { launch } from '../src/server/launch'
 import { VERSION_2_8_0 } from '../src/server/version'
 
@@ -26,15 +27,21 @@ describe('Download & Launch', () => {
 	it(
 		'launch',
 		async () => {
+			// The bundle only ships a linux or windows jdk, so on other
+			// platforms a matching jdk is downloaded next to it.
+			const native = process.platform === 'linux' || process.platform === 'win32'
+			const javaHome = native ? undefined : await downloadJdk()
+
 			kill = await launch({
 				path,
 				port,
 				host,
 				// debug: true,
 				version,
+				javaHome,
 			})
 		},
-		100 * 1000
+		1000 * 1000
 	)
 
 	it(

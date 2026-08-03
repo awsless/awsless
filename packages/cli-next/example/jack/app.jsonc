@@ -6,82 +6,46 @@
 	// "protect": true,
 
 	"defaults": {
-		// "domains": {
-		// 	"main": {
-		// 		"domain": "awsless.com"
-		// 	}
-		// },
-		// "router": {
-		// 	"main": {
-		// 		"domain": "main",
-		// 		"passwordAuth": {
-		// 			"password": "test"
-		// 		}
-		// 		// "waf": {
-		// 		// 	"rateLimiter": {
-		// 		// 		"limit": 10,
-		// 		// 		"window": "1 minute"
-		// 		// 	}
-		// 		// }
-		// 	}
-		// },
-		// "rpc": {
-		// 	"main": {
-		// 		"router": "main",
-		// 		"path": "/api"
-		// 	}
-		// },
-		// "topics": ["topic"],
-		// "alerts": {
-		// 	"debug": "info@jacksclub.io"
-		// },
-		// "domains": {
-		// 	"main": {
-		// 		"domain": "getblockalert.com"
-		// 	}
-		// },
+		"onFailure": "./on-failure.ts",
+		"test": {
+			"configs": {
+				"admin-secret": "test-secret"
+			}
+		},
+		"domains": {
+			"main": {
+				"domain": "awsless.com"
+			}
+		},
+		"router": {
+			"main": {
+				"domain": "main"
+			}
+		},
+		"rpc": {
+			"main": {
+				"router": "main",
+				"path": "/api",
+				"auth": "./rpc-auth.ts"
+			}
+		},
+		"rest": {
+			"hooks": {}
+		},
+
 		// "auth": {
 		// 	"users": {
 		// 		"groups": ["admin", "support", "marketing"]
 		// 	}
 		// },
-		// "pubsub": {
-		// 	"admin": {
-		// 		// "domain": "main",
-		// 		// "subDomain": "realtime",
-		// 		"auth": "./pubsub-auth.ts"
-		// 		// "policy": {
-		// 		// 	"publish": ["user", "game/*"],
-		// 		// 	"subscribe": ["user", "game/*"]
-		// 		// }
-		// 	}
-		// },
-		// // "instance": {
-		// // 	// "connect": true
-		// // },
-		// "onFailure": {
-		// 	"consumer": "./on-log.ts",
-		// 	"notify": ["info@jacksclub.io"]
-		// },
-		// "onLog": {
-		// 	"consumer": "./on-log.ts",
-		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
-		// }
-		// "rpc": {
-		// 	"public": {},
-		// 	"api-lock": {
-		// 		"auth": "./rpc-auth.ts"
-		// 	},
-		// 	"api-unlock": {
-		// 		"auth": "./rpc-auth.ts"
-		// 	}
-		// },
-		// "rest": {
-		// 	"public": {
-		// 		"domain": "main",
-		// 		"subDomain": "rest"
-		// 	}
-		// },
+		"pubsub": {
+			"main": {
+				"router": "main",
+				"path": "/ws",
+				"auth": "./auth-pubsub.ts"
+			}
+		},
+		"topics": ["task-created"],
 		"function": {
 			"log": {
 				"retention": "1 days",

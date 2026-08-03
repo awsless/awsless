@@ -5,7 +5,7 @@ export class RedisServer {
 	private client?: Redis | Cluster
 	private process?: RedisMemoryServer
 
-	async start(port?: number) {
+	async start(port?: number, version = '7.2.4', args: string[] = []) {
 		if (this.process) {
 			throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`)
 		}
@@ -17,8 +17,12 @@ export class RedisServer {
 		this.process = await RedisMemoryServer.create({
 			instance: {
 				port,
-				args: [],
+				args,
 			},
+			// The default "stable" resolves to redis 8, which bundles
+			// native modules that fail to build on macos. Redis 7 builds
+			// everywhere & matches the elasticache engine.
+			binary: { version },
 			// binary: { systemBinary: '/usr/local/bin/redis-server' },
 		})
 	}
@@ -29,6 +33,16 @@ export class RedisServer {
 			await this.process.stop()
 			this.process = undefined
 		}
+	}
+
+	async getPort() {
+		const port = await this.process?.getPort()
+
+		if (!port) {
+			throw new Error('The redis server is not running.')
+		}
+
+		return port
 	}
 
 	async ping() {
@@ -46,10 +60,17 @@ export class RedisServer {
 				noDelay: true,
 				enableReadyCheck: false,
 				maxRetriesPerRequest: null,
-				// retryStrategy: (options) => {
-				// 	return
-				// },
+
+				// A dead local server must never trigger an endless
+				// reconnect loop.
+				retryStrategy(times) {
+					return times > 3 ? null : Math.min(times * 200, 1000)
+				},
 			})
+
+			// Without a listener every connection error logs an
+			// unhandled error event warning.
+			this.client.on('error', () => {})
 		}
 
 		return this.client

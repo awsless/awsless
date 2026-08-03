@@ -30,9 +30,13 @@ type Options = {
 	port: number
 	debug?: boolean
 	version: VersionArgs
+
+	// Run the bundle with a different jdk than the bundled one, for
+	// platforms the bundle doesn't ship a native jdk for.
+	javaHome?: string
 }
 
-export const launch = ({ path, host, port, version, debug }: Options): Promise<() => Promise<void>> => {
+export const launch = ({ path, host, port, version, debug, javaHome }: Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
 		const cache = join(path, 'cache', String(port))
 
@@ -48,20 +52,27 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 
 		// console.log(join(path, 'jdk'))
 
-		const binary = join(path, 'opensearch-tar-install.sh')
+		// With a custom jdk we skip the tar install script & run the
+		// opensearch binary directly, so the bundled linux jdk never runs.
+		const binary = javaHome ? join(path, 'bin', 'opensearch') : join(path, 'opensearch-tar-install.sh')
 		const child = spawn(
-			// `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
 			binary,
-			parseSettings(version.settings({ host, port, cache }))
-			// {
-			// 	env: {
-			// 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
-			// 	},
-			// }
+			parseSettings(version.settings({ host, port, cache })),
+			javaHome
+				? {
+						env: {
+							...process.env,
+							OPENSEARCH_JAVA_HOME: javaHome,
+						},
+					}
+				: {}
 		)
 		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
 
 		const onError = (error: string) => fail(error)
+		// A child that starts & dies before opensearch reports started
+		// must reject, instead of hanging the launch promise forever.
+		const onExit = (code: number | null) => fail(`OpenSearch exited with code ${code} during startup.`)
 		const onMessage = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
 
@@ -75,13 +86,18 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 		}
 
 		const kill = async (): Promise<void> => {
-			await new Promise(resolve => {
-				child.once(`exit`, () => {
-					resolve(void 0)
-				})
+			// The child may already be dead, like from the terminal group
+			// signal of a ctrl-c - node then keeps exitCode null with
+			// signalCode set, and waiting for its exit would hang forever.
+			if (child.exitCode === null && child.signalCode === null) {
+				await new Promise(resolve => {
+					child.once(`exit`, () => {
+						resolve(void 0)
+					})
 
-				child.kill()
-			})
+					child.kill()
+				})
+			}
 
 			await cleanUp()
 		}
@@ -95,12 +111,14 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 			child.stderr.off('data', onMessage)
 			child.stdout.off('data', onMessage)
 			child.off('error', onError)
+			child.off('exit', onExit)
 		}
 
 		const on = () => {
 			child.stderr.on('data', onMessage)
 			child.stdout.on('data', onMessage)
 			child.on('error', onError)
+			child.on('exit', onExit)
 		}
 
 		const done = async () => {
