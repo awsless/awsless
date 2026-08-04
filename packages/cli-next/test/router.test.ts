@@ -512,6 +512,68 @@ describe('router routes', () => {
 		expect(page.headers['x-origin']?.value).toBe('ssr.example.com')
 		expect(page.uri).toBe('/docs/getting-started')
 	})
+
+	// The route table of a real site, where every top level asset folder
+	// collapses into one wildcard. Each request pays one read for the active
+	// deployment pointer, plus one per probed route key.
+	it('should read the route store a fixed number of times per request', async () => {
+		const asset = JSON.stringify({
+			type: 's3',
+			domainName: 'site.s3.amazonaws.com',
+			rewrite: { regex: '^/?(.*)$', to: '/v-abc/$1' },
+		})
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/_app/*.', asset],
+			['v1:main:/country/*.', asset],
+			['v1:main:/homescreen/*.', asset],
+			['v1:main:/favicon.png', asset],
+			['v1:main:/sportsbook-terms.pdf', asset],
+			['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'ssr.example.com' })],
+		])
+
+		const { get, handler } = createRouter(values)
+		const reads = async (path: string) => {
+			get.mockClear()
+			await handler({ request: createRequest(path) })
+
+			return get.mock.calls.map(call => call[0])
+		}
+
+		// the home page: 3 reads
+		// old: 2 reads — ['/', '/*']
+		expect(await reads('/')).toStrictEqual(['$active', 'v1:main:/', 'v1:main:/*'])
+
+		// an ssr page: 4 reads
+		// old: 3 reads — ['/casino', '/casino/*', '/*']
+		expect(await reads('/casino')).toStrictEqual([
+			'$active',
+			'v1:main:/casino',
+			'v1:main:/casino/*',
+			'v1:main:/*',
+		])
+
+		// a hashed asset inside a folder: 3 reads
+		// old: 1 read — the file had its own route key
+		expect(await reads('/_app/immutable/chunks/206gktiV.js')).toStrictEqual([
+			'$active',
+			'v1:main:/_app/immutable/chunks/206gktiV.js',
+			'v1:main:/_app/*.',
+		])
+
+		// a loose root file: 2 reads
+		// old: 1 read
+		expect(await reads('/favicon.png')).toStrictEqual(['$active', 'v1:main:/favicon.png'])
+
+		// an unregistered dotted path falling through to ssr: 4 reads
+		// old: 2 reads — ['/robots.txt', '/*']
+		expect(await reads('/robots.txt')).toStrictEqual([
+			'$active',
+			'v1:main:/robots.txt',
+			'v1:main:/*.',
+			'v1:main:/*',
+		])
+	})
 })
 
 describe('router route patterns', () => {
