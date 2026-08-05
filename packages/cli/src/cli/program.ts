@@ -24,8 +24,8 @@ program.option('-s --skip-prompt', 'Skip prompts')
 program.option('-v --verbose', 'Print verbose logs')
 // program.option('-m --mute', 'Mute sound effects')
 
-program.exitOverride(() => {
-	process.exit(0)
+program.exitOverride(error => {
+	process.exit(error.exitCode)
 })
 
 program.on('option:verbose', () => {

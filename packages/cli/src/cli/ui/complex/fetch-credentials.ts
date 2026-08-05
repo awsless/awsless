@@ -22,6 +22,13 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 	})
 
 	if (!credentialsString) {
+		if (process.env.SKIP_PROMPT) {
+			throw new ExpectedError(
+				`No AWS credentials are configured for the ${profile} profile. ` +
+					`Run any awsless command without --skip-prompt to store them.`
+			)
+		}
+
 		log.warning(`You haven't configured AWS credentials for the ${color.info(profile)} profile.`)
 
 		const accessKeyId = await prompt.password({

@@ -83,9 +83,14 @@ export const vpcFeature = defineFeature({
 		}
 		let ipv6Identifier = 0
 
+		const subnetIdsByType: Record<'private' | 'public', Output<string>[]> = {
+			private: [],
+			public: [],
+		}
+
 		for (const [_type, table] of Object.entries(tables)) {
 			const type = _type as 'private' | 'public'
-			const subnetIds: Output<string>[] = []
+			const subnetIds = subnetIdsByType[type]
 
 			for (const i in zones) {
 				const index = Number(i) + 1
@@ -117,5 +122,38 @@ export const vpcFeature = defineFeature({
 
 			ctx.shared.set('vpc', `${type}-subnets`, subnetIds)
 		}
+
+		// The private subnets only have an ipv6 route to the internet.
+		// A NAT gateway is needed to reach ipv4-only endpoints.
+
+		const eip = new aws.Eip(group, 'nat', {
+			domain: 'vpc',
+			tags: {
+				Name: ctx.app.name,
+			},
+		})
+
+		const natGateway = new aws.nat.Gateway(
+			group,
+			'nat',
+			{
+				allocationId: eip.allocationId,
+				subnetId: subnetIdsByType.public[0],
+				tags: {
+					Name: ctx.app.name,
+				},
+			},
+			{
+				// The internet gateway needs to be attached before
+				// a NAT gateway can be created.
+				dependsOn: [attachment],
+			}
+		)
+
+		new aws.Route(group, 'nat-ipv4', {
+			routeTableId: privateRouteTable.id,
+			destinationCidrBlock: '0.0.0.0/0',
+			natGatewayId: natGateway.id,
+		})
 	},
 })

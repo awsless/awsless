@@ -5,21 +5,26 @@
 	"profile": "jacksclub",
 	// "protect": true,
 
+	"configs": ["test"],
+
 	"defaults": {
-		"domains": {
-			"main": {
-				"domain": "awsless.com"
-			}
-		},
-		"router": {
-			"main": {
-				"domain": "main"
-			}
-		},
-		// "pubsub": {
-		// 	"test": {
-		// 		"router": "main",
-		// 		"auth": "./socket/auth.ts"
+		// "domains": {
+		// 	"main": {
+		// 		"domain": "awsless.com"
+		// 	}
+		// },
+		// "router": {
+		// 	"main": {
+		// 		"domain": "main",
+		// 		"passwordAuth": {
+		// 			"password": "test"
+		// 		}
+		// 		// "waf": {
+		// 		// 	"rateLimiter": {
+		// 		// 		"limit": 10,
+		// 		// 		"window": "1 minute"
+		// 		// 	}
+		// 		// }
 		// 	}
 		// },
 		// "rpc": {

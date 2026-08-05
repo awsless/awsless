@@ -22,6 +22,15 @@ export const formatGlobalResourceName = (opt: {
 		.join(opt.seperator ?? '--')
 }
 
+// The name of the shared bundle lambda that contains all handler code.
+export const getBundleFunctionName = (appName: string) => {
+	return formatGlobalResourceName({
+		appName,
+		resourceType: 'function',
+		resourceName: 'bundle',
+	})
+}
+
 export const formatLocalResourceName = (opt: {
 	appName: string
 	stackName: string

@@ -24,6 +24,10 @@ export const buildAssets = async (builders: BuildTask[], stackFilters: string[],
 		return
 	}
 
+	// The bundle inlines the build output of other features, like the
+	// SSR server code of the sites, so the bundle must build last.
+	filteredBuilders.sort((a, b) => Number(a.type === 'bundle') - Number(b.type === 'bundle'))
+
 	const results: Array<
 		BuildTask & {
 			result: Metadata

@@ -1,7 +1,7 @@
 import { toSeconds } from '@awsless/duration'
-import { invoke } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { addSeconds, isFuture } from 'date-fns'
+import { getRouteEnv, internalInvoke } from 'awsless'
 import { parseAuthResponse } from './validate'
 
 const cache = new WeakCache<
@@ -30,7 +30,9 @@ export const authenticate = async (token?: string): Promise<Session> => {
 	// ------------------------------------------
 	// Ignore when no custom auth lambda is set.
 
-	if (!process.env.AUTH) {
+	const authRoute = getRouteEnv('AUTH')
+
+	if (!authRoute) {
 		return {
 			authorized: true,
 			context: {},
@@ -50,7 +52,8 @@ export const authenticate = async (token?: string): Promise<Session> => {
 	// ------------------------------------------
 	// Return cached response
 
-	const entry = cache.get(token)
+	const cacheKey = `${authRoute}:${token}`
+	const entry = cache.get(cacheKey)
 
 	if (entry) {
 		if (isFuture(entry.ttl)) {
@@ -61,20 +64,17 @@ export const authenticate = async (token?: string): Promise<Session> => {
 				allowedFunctions: entry.allowedFunctions,
 			}
 		} else {
-			cache.delete(token)
+			cache.delete(cacheKey)
 		}
 	}
 
 	// ------------------------------------------
-	// Invoke the custom auth lambda
+	// Call the custom auth handler in-process
 
 	let response: unknown
 
 	try {
-		response = await invoke({
-			name: process.env.AUTH,
-			payload: { token },
-		})
+		response = await internalInvoke(authRoute, { token })
 	} catch (error) {
 		console.error(error)
 
@@ -115,7 +115,7 @@ export const authenticate = async (token?: string): Promise<Session> => {
 	const allowedFunctions = result.output.allowedFunctions
 	const lockKey = result.output.lockKey
 
-	cache.set(token, {
+	cache.set(cacheKey, {
 		ttl,
 		context,
 		lockKey,

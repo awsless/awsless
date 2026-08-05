@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { constantCase } from 'change-case'
 import { toSeconds } from '@awsless/duration'
@@ -44,6 +44,7 @@ export const tableFeature = defineFeature({
 
 		ctx.addAppPermission({
 			actions: [
+				'dynamodb:DescribeTable',
 				'dynamodb:PutItem',
 				'dynamodb:UpdateItem',
 				'dynamodb:DeleteItem',
@@ -53,14 +54,25 @@ export const tableFeature = defineFeature({
 				'dynamodb:Scan',
 				'dynamodb:Query',
 				'dynamodb:ConditionCheckItem',
+				'dynamodb:DescribeStream',
+				'dynamodb:GetRecords',
+				'dynamodb:GetShardIterator',
 			],
 			resources: [
 				`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}`,
 				`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}/index/*`,
+				`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}/stream/*`,
 			],
+		})
+
+		ctx.addAppPermission({
+			actions: ['dynamodb:ListStreams'],
+			resources: ['*'],
 		})
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
 			const group = new Group(ctx.stack, 'table', id)
 			const name = formatLocalResourceName({
@@ -166,97 +178,39 @@ export const tableFeature = defineFeature({
 			// Stream support
 
 			if (props.stream) {
-				const result = createLambdaFunction(group, ctx, 'table', id, props.stream.consumer)
+				const consumer = props.stream.consumer
+				const routeKey = formatRouteKey(ctx.stack.name, 'table', id)
 
-				result.setEnvironment('THROW_EXPECTED_ERRORS', '1')
+				registerBundleFunction(ctx, routeKey, consumer)
 
 				const onFailure = getGlobalOnFailure(ctx)
 
-				new aws.lambda.EventSourceMapping(
-					group,
-					id,
-					{
-						functionName: result.lambda.functionName,
-						eventSourceArn: table.streamArn,
+				new aws.lambda.EventSourceMapping(group, id, {
+					functionName: bundle.alias.arn,
+					eventSourceArn: table.streamArn,
 
-						// tumblingWindowInSeconds
-						// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
-						// bisectBatchOnFunctionError: true,
+					// tumblingWindowInSeconds
+					// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
+					// bisectBatchOnFunctionError: true,
 
-						batchSize: props.stream.batchSize,
-						maximumBatchingWindowInSeconds: props.stream.batchWindow
-							? toSeconds(props.stream.batchWindow)
-							: undefined,
-						maximumRetryAttempts: props.stream.retryAttempts,
-						parallelizationFactor: props.stream.concurrencyPerShard,
-						functionResponseTypes: ['ReportBatchItemFailures'],
+					batchSize: props.stream.batchSize,
+					maximumBatchingWindowInSeconds: props.stream.batchWindow
+						? toSeconds(props.stream.batchWindow)
+						: undefined,
+					maximumRetryAttempts: props.stream.retryAttempts,
+					parallelizationFactor: props.stream.concurrencyPerShard,
+					functionResponseTypes: ['ReportBatchItemFailures'],
 
-						startingPosition: 'LATEST',
-						destinationConfig: {
-							onFailure: {
-								destinationArn: onFailure,
-							},
+					startingPosition: 'LATEST',
+					destinationConfig: {
+						onFailure: {
+							destinationArn: onFailure,
 						},
 					},
-					{ dependsOn: [result.policy] }
-				)
-
-				result.addPermission({
-					actions: ['s3:PutObject', 's3:ListBucket'],
-					resources: [onFailure, $interpolate`${onFailure}/*`],
-					conditions: {
-						StringEquals: {
-							// This will protect anyone from taking our bucket name,
-							// and us sending our failed items to the wrong s3 bucket
-							's3:ResourceAccount': ctx.accountId,
-						},
-					},
+				}, {
+					dependsOn: [bundle.policy],
 				})
 
-				// result.addPermission({
-				// 	actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-				// 	resources: [onFailure],
-				// })
-
-				result.addPermission({
-					actions: [
-						'dynamodb:ListStreams',
-						'dynamodb:DescribeStream',
-						'dynamodb:GetRecords',
-						'dynamodb:GetShardIterator',
-					],
-					resources: [table.streamArn],
-				})
-			}
-
-			ctx.addStackPermission({
-				actions: [
-					'dynamodb:DescribeTable',
-					'dynamodb:PutItem',
-					'dynamodb:GetItem',
-					'dynamodb:UpdateItem',
-					'dynamodb:DeleteItem',
-					'dynamodb:BatchWriteItem',
-					'dynamodb:BatchGetItem',
-					'dynamodb:ConditionCheckItem',
-					'dynamodb:Query',
-					'dynamodb:Scan',
-				],
-				resources: [table.arn],
-			})
-
-			const indexNames = Object.keys(props.indexes ?? {})
-
-			if (indexNames.length > 0) {
-				ctx.addStackPermission({
-					actions: [
-						'dynamodb:Query',
-
-						// Scanning on an index doesn't make any sense.
-						// 'dynamodb:Scan'
-					],
-					resources: indexNames.map(indexName => table.arn.pipe(arn => `${arn}/index/${indexName}`)),
-				})
 			}
 		}
 	},

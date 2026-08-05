@@ -1,9 +1,11 @@
 import { prompt } from '@awsless/clui'
+import { URN } from '@terraforge/core'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { Cancelled } from '../../../error.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
-import { createWorkSpace } from '../../../util/workspace.js'
+import { generateGlobalAppId } from '../../../util/name.js'
+import { createDeploymentBackends, getAppReleaseLockUrn } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
 
 export const unlock = (program: Command) => {
@@ -18,26 +20,40 @@ export const unlock = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { lock } = await createWorkSpace({ credentials, region, accountId })
-				const isLocked = await lock.locked(app.urn)
+				const { lock } = createDeploymentBackends({ credentials, region, accountId })
+				const releaseUrn = getAppReleaseLockUrn(
+					generateGlobalAppId({ accountId, region, appName: appConfig.name })
+				)
 
-				if (!isLocked) {
-					return 'No lock is exists.'
+				const lockedUrns: URN[] = []
+
+				for (const urn of [app.urn, releaseUrn]) {
+					if (await lock.locked(urn)) {
+						lockedUrns.push(urn)
+					}
 				}
 
-				const ok = await prompt.confirm({
-					message:
-						'Releasing the lock that ensures sequential deployments might result in corrupt state if a deployment is still running. Are you sure?',
-					initialValue: false,
-				})
-
-				if (!ok) {
-					throw new Cancelled()
+				if (lockedUrns.length === 0) {
+					return 'No lock exists.'
 				}
 
-				await lock.insecureReleaseLock(app.urn)
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message:
+							'Releasing the lock that ensures sequential deployments might result in corrupt state if a deployment is still running. Are you sure?',
+						initialValue: false,
+					})
 
-				return 'The state lock was been successfully released.'
+					if (!ok) {
+						throw new Cancelled()
+					}
+				}
+
+				for (const urn of lockedUrns) {
+					await lock.insecureReleaseLock(urn)
+				}
+
+				return 'The deployment lock was successfully released.'
 			})
 		})
 }

@@ -1,227 +1,144 @@
+import { days, Duration, seconds, toDays, toSeconds } from '@awsless/duration'
+import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
-import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
+import { findInputDeps, Group, Input, Output, Resource, resolveInputs } from '@terraforge/core'
+import { constantCase, kebabCase, pascalCase } from 'change-case'
+import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
-import { basename } from 'path'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 import { getBuildPath } from '../../build/index.js'
+import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
-import { getGlobalOnFailure } from '../on-failure/util.js'
-// import { bundleTypeScript } from './build/typescript/bundle.js'
-import { zipFiles } from './build/zip.js'
-import { FunctionProps } from './schema.js'
-// import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
-import { toDays, toSeconds } from '@awsless/duration'
-import { toMebibytes } from '@awsless/size'
-// import { hashElement } from 'folder-hash'
-// import { FileError } from '../../error.js'
-import { generateCacheKey } from '../../util/cache.js'
 import { shortId } from '../../util/id.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { configParameterPrefix } from '../../util/ssm.js'
 import { relativePath } from '../../util/path.js'
-import { createTempFolder } from '../../util/temp.js'
+import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
+import { zipFiles } from '../bundle/build/zip.js'
+import { compactPolicyStatements, PolicyStatement } from '../bundle/policy.js'
 import { filterPattern } from '../on-error-log/util.js'
-import { zipBundle } from './build/bundle/bundle.js'
-// import { bundleTypeScriptWithBun } from './build/typescript/bun.js'
-import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
-// import { Condition } from 'aws-lambda'
-// import { bundleCacheKey } from './build/bundle/__cache.js'
-// import { buildDockerImage } from './build/container/build.js'
+import { StackFunctionProps } from './schema.js'
 
-// type Function = aws.lambda.Function
-// type Policy = aws.iam.RolePolicy
-// type Code = aws.lambda.Code
+// Any lambda infra field opts the function out of the shared bundle.
+// The handler & code fields only describe the build & the vpc flag only
+// applies to an already stand-alone lambda, so they don't count.
+const standaloneFields = [
+	'runtime',
+	'description',
+	'log',
+	'timeout',
+	'memorySize',
+	'architecture',
+	'ephemeralStorageSize',
+	'reserved',
+	'layers',
+	'environment',
+	'permissions',
+	'sandbox',
+] as const
 
-// type Statement = {
-// 	effect?: 'allow' | 'deny'
-// 	action: string | string[]
-// 	resource: Input<string> | Input<Input<string>[]>
-// }
+export const isStandaloneFunction = (props: StackFunctionProps) => {
+	return standaloneFields.some(field => typeof props[field] !== 'undefined')
+}
 
-// export type LambdaFunctionProps = z.infer<typeof FunctionSchema>
 
-export const createLambdaFunction = (
-	parentGroup: Group,
-	ctx: StackContext | AppContext,
-	ns: string,
-	id: string,
-	local: FunctionProps
-) => {
-	let name: string
-	let shortName: string
-
-	const group = new Group(parentGroup, 'function', ns)
-
-	if ('stack' in ctx) {
-		name = formatLocalResourceName({
-			appName: ctx.app.name,
-			stackName: ctx.stack.name,
-			resourceType: ns,
-			resourceName: id,
-		})
-
-		shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
-	} else {
-		name = formatGlobalResourceName({
-			appName: ctx.app.name,
-			resourceType: ns,
-			resourceName: id,
-		})
-
-		shortName = formatGlobalResourceName({
-			appName: ctx.app.name,
-			resourceType: ns,
-			resourceName: shortId(`${id}:${ctx.appId}`),
-		})
-	}
-
-	// ctx.appConfig.defaults.function.log.retention
-
+// Deploy a stack function as its own stand-alone lambda, like the old
+// awsless did for every function. Callers invoke it directly by name, so
+// it deploys in place & doesn't participate in blue-green deployments.
+export const createLambdaFunction = (ctx: StackContext, id: string, local: StackFunctionProps) => {
+	const group = new Group(ctx.stack, 'function', id)
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
-	let code: aws.s3.BucketObject
-
-	// ------------------------------------------------------------
-	// Check if layer has been defined on the app level
-
-	// const layers = props.layers ?? []
-	// if (layers.length) {
-	// 	if (!ctx.shared.get('layer', 'arn', id)) {
-	// 		if ('stack' in ctx) {
-	// 			throw new FileError(ctx.stackConfig.file, `Layer "${id}" is not defined in app.json`)
-	// 		} else {
-	// 			throw new FileError('app.json', `Layer "${id}" is not defined in app.json`)
-	// 		}
-	// 	}
-	// }
-
-	// ------------------------------------------------------------
 
 	if (props.runtime === 'container') {
-		throw new Error('Container not supported atm')
-		// ctx.registerBuild('function', name, async build => {
-		// 	if (!('file' in local.code)) {
-		// 		throw new Error('code.file needs to be set for functions with the "container" runtime')
-		// 	}
-		// 	const cwd = dirname(local.code.file)
-		// 	const version = await hashElement(cwd, {
-		// 		files: {
-		// 			exclude: ['stack.json'],
-		// 		},
-		// 	})
-		// 	return build(version.hash + props.architecture, async write => {
-		// 		const image = await buildDockerImage({
-		// 			name,
-		// 			cwd,
-		// 			architecture: props.architecture,
-		// 		})
-		// 		await write('HASH', image.id)
-		// 		return {
-		// 			size: formatByteSize(image.size),
-		// 		}
-		// 	})
-		// })
-		// const image = new aws.ecr.Image(group, 'image', {
-		// 	repository: ctx.shared.get('function-repository-name'),
-		// 	hash: Asset.fromFile(getBuildPath('function', name, 'HASH')),
-		// 	name: name,
-		// 	tag: 'latest',
-		// })
-		// code = {
-		// 	imageUri: image.uri,
-		// }
-	} else if ('file' in local.code) {
-		const fileCode = local.code
-		ctx.registerBuild('function', name, async (build, { workspace }) => {
-			const fingerprint = await generateFileHash(workspace, fileCode.file)
-
-			return build(fingerprint, async write => {
-				const temp = await createTempFolder(`function--${name}`)
-
-				const bundle = await bundleTypeScriptWithRolldown({
-					file: fileCode.file,
-					external: [
-						...(fileCode.external ?? []),
-						...(props.layers ?? []).flatMap(id => ctx.shared.entry('layer', `packages`, id)),
-					],
-					moduleSideEffects: fileCode.moduleSideEffects,
-					minify: fileCode.minify,
-					nativeDir: temp.path,
-					importAsString: fileCode.importAsString,
-				})
-
-				const nativeFiles = await temp.files()
-				const archive = await zipFiles([
-					...bundle.files,
-					...nativeFiles.map(file => ({
-						name: basename(file),
-						path: file,
-					})),
-				])
-
-				// bundle.files.map(file => file.)
-
-				await Promise.all([
-					write('HASH', bundle.hash),
-					write('bundle.zip', archive),
-					...bundle.files.map(file => write(`files/${file.name}`, file.code)),
-					...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
-				])
-
-				await temp.delete()
-
-				return {
-					size: formatByteSize(archive.byteLength),
-				}
-			})
-		})
-
-		// new aws.s3.BucketObject(group, 'code', {
-		// 	bucket: ctx.shared.get('function', 'bucket-name'),
-		// 	key: `/lambda/${name}.map`,
-		// 	source: relativePath(getBuildPath('function', name, 'bundle.map')),
-		// 	sourceHash: $hash(getBuildPath('function', name, 'HASH')),
-		// })
-
-		code = new aws.s3.BucketObject(group, 'code', {
-			bucket: ctx.shared.get('function', 'bucket-name'),
-			key: `/lambda/${name}.zip`,
-			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
-			sourceHash: $hash(getBuildPath('function', name, 'HASH')),
-			// body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
-		})
-	} else {
-		const bundleCode = local.code
-		ctx.registerBuild('function', name, async build => {
-			const fingerprint = await generateCacheKey([bundleCode.bundle])
-
-			return build(fingerprint, async write => {
-				// await customBuild(buildProps)
-				const bundle = await zipBundle({
-					directory: bundleCode.bundle,
-				})
-
-				await write('HASH', fingerprint)
-				await write('bundle.zip', bundle)
-
-				return {
-					size: formatByteSize(bundle.byteLength),
-				}
-			})
-		})
-
-		code = new aws.s3.BucketObject(group, 'code', {
-			bucket: ctx.shared.get('function', 'bucket-name'),
-			key: `lambda/${name}.zip`,
-			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
-			sourceHash: $hash(getBuildPath('function', name, 'HASH')),
-		})
+		throw new FileError(ctx.stackConfig.file, `The "container" runtime isn't supported for stack functions.`)
 	}
 
+	for (const layerId of props.layers ?? []) {
+		if (!(layerId in (ctx.appConfig.defaults.layers ?? {}))) {
+			throw new FileError(ctx.stackConfig.file, `Layer "${layerId}" is not defined in app.json`)
+		}
+	}
+
+	const name = formatLocalResourceName({
+		appName: ctx.app.name,
+		stackName: ctx.stack.name,
+		resourceType: 'function',
+		resourceName: id,
+	})
+
+	// IAM role names are limited to 64 characters.
+	const roleName = shortId(`${ctx.app.name}:${ctx.stack.name}:function:${id}:${ctx.appId}`)
+
 	// ------------------------------------------------------------
+	// Build & upload the function code.
+
+	const fileCode = local.code
+
+	ctx.registerBuild('function', name, async (build, { workspace }) => {
+		const fingerprint = createHash('sha1')
+			.update(await generateFileHash(workspace, fileCode.file))
+			.update(
+				JSON.stringify([
+					//
+					fileCode.minify,
+					fileCode.external,
+					fileCode.importAsString,
+					fileCode.moduleSideEffects,
+				])
+			)
+			.digest('hex')
+
+		return build(fingerprint, async write => {
+			const bundle = await bundleTypeScriptWithRolldown({
+				file: fileCode.file,
+				minify: fileCode.minify,
+				external: [
+					...(fileCode.external ?? []),
+					...(props.layers ?? []).flatMap(layerId => ctx.shared.entry('layer', 'packages', layerId)),
+				],
+				moduleSideEffects: fileCode.moduleSideEffects,
+				importAsString: fileCode.importAsString,
+			})
+
+			const archive = await zipFiles(bundle.files)
+
+			await Promise.all([
+				write('HASH', bundle.hash),
+				write('bundle.zip', archive),
+				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
+				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
+			])
+
+			return {
+				size: formatByteSize(archive.byteLength),
+			}
+		})
+	})
+
+	const sourceHash = $file(getBuildPath('function', name, 'HASH'))
+
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('asset', 'bucket').name,
+			key: `lambda/${name}.zip`,
+			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
+			sourceHash,
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
+
+	// ------------------------------------------------------------
+	// The lambda role & permissions.
 
 	const role = new aws.iam.Role(group, 'role', {
-		name: shortName,
+		name: roleName,
 		description: name,
 		assumeRolePolicy: JSON.stringify({
 			Version: '2012-10-17',
@@ -242,45 +159,51 @@ export const createLambdaFunction = (
 
 	const addPermission = (...permissions: Permission[]) => {
 		statements.push(...permissions)
+
 		for (const dep of findInputDeps(permissions)) {
 			statementDeps.add(dep)
 		}
 	}
 
-	ctx.onPermission(statement => {
-		addPermission(statement)
-	})
+	const sandboxed = typeof local.sandbox !== 'undefined' && local.sandbox !== false
 
-	// const document = aws.iam.getPolicyDocument({
-	// 	statement: statements.map(statement => ({
-	// 		effect: pascalCase(statement.effect ?? 'allow'),
-	// 		actions: statement.actions,
-	// 		resources: statement.resources,
-	// 	})),
-	// })
+	// Sandboxed functions don't receive the app wide grants or the app
+	// level default permissions, only their own explicit permissions. So
+	// they can't touch any other lambda or resource inside the app.
+	addPermission(...((sandboxed ? local.permissions : props.permissions) ?? []))
+
+	if (!sandboxed) {
+		ctx.onPermission(statement => {
+			addPermission(statement)
+		})
+	}
 
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-			const list = await resolveInputs(statements)
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
+			resolve(
+				JSON.stringify({
+					Version: '2012-10-17',
+					Statement: compactPolicyStatements(list).map(statement => ({
+						Effect: pascalCase(statement.effect ?? 'allow'),
+						Action: statement.actions,
+						Resource: statement.resources,
+						Condition: statement.conditions,
+					})),
+				})
+			)
 		}),
 	})
 
 	// ------------------------------------------------------------
 	// VPC
 
-	let dependsOn: Resource<any>[] = []
-	if (props.vpc) {
-		// if (props.warm > 1) {
-		// 	throw new FileError(
-		// 		'stackConfig' in ctx ? ctx.stackConfig.file : 'app.json',
-		// 		`We can't warm more then 1 lambda in a VPC.`
-		// 	)
-		// }
+	const dependsOn: Resource[] = [policy]
 
+	if (props.vpc) {
 		dependsOn.push(
 			new aws.iam.RolePolicy(group, 'vpc-policy', {
 				role: role.name,
@@ -293,6 +216,7 @@ export const createLambdaFunction = (
 							Action: [
 								'ec2:CreateNetworkInterface',
 								'ec2:DescribeNetworkInterfaces',
+								'ec2:DescribeSubnets',
 								'ec2:DeleteNetworkInterface',
 								'ec2:AssignPrivateIpAddresses',
 								'ec2:UnassignPrivateIpAddresses',
@@ -306,6 +230,7 @@ export const createLambdaFunction = (
 	}
 
 	// ------------------------------------------------------------
+	// The lambda function.
 
 	const variables: Record<string, Input<string>> = {}
 	const logFormats = {
@@ -315,19 +240,21 @@ export const createLambdaFunction = (
 
 	const lambda = new aws.lambda.Function(
 		group,
-		`function`,
+		'function',
 		{
-			// ...props,
 			functionName: name,
-			description: props.description,
+			description: props.description ?? name,
 			role: role.arn,
-			// code,
-			// runtime: props.runtime === 'container' ? undefined : props.runtime,
 			runtime: props.runtime,
 			handler: props.handler,
 			timeout: toSeconds(props.timeout),
 			memorySize: toMebibytes(props.memorySize),
 			architectures: [props.architecture],
+			reservedConcurrentExecutions: props.reserved,
+			ephemeralStorage: {
+				size: toMebibytes(props.ephemeralStorageSize),
+			},
+			layers: props.layers?.map(layerId => ctx.shared.entry('layer', 'arn', layerId)),
 
 			timeouts: {
 				create: '30s',
@@ -335,7 +262,6 @@ export const createLambdaFunction = (
 				delete: '30s',
 			},
 
-			layers: props.layers?.map(id => ctx.shared.entry('layer', 'arn', id)),
 			s3Bucket: code.bucket,
 			s3ObjectVersion: code.versionId,
 			s3Key: code.key.pipe(name => {
@@ -346,13 +272,10 @@ export const createLambdaFunction = (
 				return name
 			}),
 
-			sourceCodeHash: $hash(getBuildPath('function', name, 'HASH')),
+			sourceCodeHash: sourceHash,
 
 			environment: {
 				variables,
-				// variables: new Future(resolve => {
-				// 	resolve(variables)
-				// }),
 			},
 
 			vpcConfig: props.vpc
@@ -375,29 +298,8 @@ export const createLambdaFunction = (
 		}
 	)
 
-	if ('addFunction' in ctx) {
-		ctx.addFunction(lambda)
-	}
-
-	// new aws.lambda.SourceCodeUpdate(group, 'update', {
-	// 	functionName: lambda.name,
-	// 	version: Asset.fromFile(getBuildPath('function', name, 'HASH')),
-	// 	architecture: props.architecture,
-	// 	code,
-	// })
-
-	// For some features lambda will complain that the policy need to be in place first.
-	// lambda.dependsOn(policy)
-
-	// Register the lambda in Awsless...
-	// ctx.registerFunction(lambda)
-
-	ctx.onEnv((name, value) => {
-		variables[name] = value
-		// lambda.attachDependencies({ value })
-	})
-
-	// ctx.registerPolicy(policy)
+	// Let "awsless config set" restart the function when a config changes.
+	ctx.addFunction(lambda)
 
 	// ------------------------------------------------------------
 	// Env Vars
@@ -405,17 +307,119 @@ export const createLambdaFunction = (
 	variables.APP = ctx.appConfig.name
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
+	variables.REGION = ctx.appConfig.region
+	variables.STAGE = ctx.appConfig.stage ?? 'default'
+	variables.STACK = ctx.stackConfig.name
 
-	if ('stackConfig' in ctx) {
-		variables.STACK = ctx.stackConfig.name
+	// Mark the lambda as living outside of the shared bundle.
+	if (sandboxed) {
+		variables.SANDBOX = 'true'
+	} else {
+		variables.STANDALONE = 'true'
 	}
 
 	if (props.vpc) {
-		// This will tell all aws client's to use
-		// the dualstack endpoint when our lambda
-		// is inside a vpc
-
+		// Tell all aws clients to use the dualstack endpoint when the
+		// lambda runs inside the vpc.
 		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
+	}
+
+	for (const [key, value] of Object.entries(props.environment ?? {})) {
+		variables[key] = value
+	}
+
+	// Sandboxed functions don't receive the app wide env vars, since
+	// they can only reach allowlisted routes through the sandbox proxy
+	// & the full app env can outgrow the 4KB lambda env limit.
+	if (!sandboxed) {
+		ctx.onEnv((name, value) => {
+			variables[name] = value
+		})
+
+		ctx.onBind((name, value) => {
+			variables[name] = value
+		})
+	}
+
+	// ------------------------------------------------------------
+	// Sandbox
+
+	if (typeof local.sandbox === 'object') {
+		// The bundle route keys are kebab-cased, so the allowlist entries
+		// are normalized the same way to make the proxy route match exact.
+		const routes = [
+			...(local.sandbox.functions ?? []).map(route => {
+				const [stack, resource] = route.split(':')
+				return `${kebabCase(stack!)}:function:${kebabCase(resource!)}`
+			}),
+			...(local.sandbox.tasks ?? []).map(route => {
+				const [stack, resource] = route.split(':')
+				return `${kebabCase(stack!)}:task:${kebabCase(resource!)}`
+			}),
+		]
+
+		if (routes.length > 0) {
+			// The allowlisted routes are served by a private sandbox proxy,
+			// the only lambda the sandboxed function is allowed to invoke.
+			// The proxy forwards allowlisted routes to the live bundle.
+			const bundle = ctx.shared.get('bundle', 'main')
+			const distDir = dirname(fileURLToPath(import.meta.url))
+
+			const proxy = createPrebuildLambdaFunction(group, ctx, 'function', `${id}-proxy`, {
+				bundleFile: join(distDir, '/prebuild/sandbox-proxy/bundle.zip'),
+				bundleHash: join(distDir, '/prebuild/sandbox-proxy/HASH'),
+				runtime: 'nodejs24.x',
+				handler: 'index.default',
+
+				// The proxy forwards synchronously, so it needs at least the
+				// same timeout as the bundle.
+				timeout: ctx.appConfig.defaults.function.timeout,
+
+				log: {
+					format: 'json',
+					level: 'warn',
+					system: 'warn',
+					retention: days(3),
+				},
+			})
+
+			proxy.setEnvironment('SANDBOX_ROUTES', JSON.stringify(routes))
+
+			proxy.addPermission({
+				actions: ['lambda:InvokeFunction'],
+				resources: [bundle.alias.arn],
+			})
+
+			variables.SANDBOX_PROXY = proxy.name
+
+			addPermission({
+				actions: ['lambda:InvokeFunction'],
+				resources: [proxy.lambda.arn],
+			})
+		}
+
+		const configs = local.sandbox.configs ?? []
+
+		if (configs.length > 0) {
+			for (const configName of configs) {
+				variables[`CONFIG_${constantCase(configName)}`] = configName
+			}
+
+			addPermission({
+				actions: [
+					//
+					'ssm:GetParameter',
+					'ssm:GetParameters',
+					'ssm:GetParametersByPath',
+					'ssm:GetParameterHistory',
+				],
+				resources: configs.map(configName => {
+					return `arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
+						ctx.app.name
+					)}/${configName}`
+				}),
+			})
+		}
 	}
 
 	// ------------------------------------------------------------
@@ -423,7 +427,6 @@ export const createLambdaFunction = (
 
 	if (props.log.retention!.value > 0n) {
 		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			// name: lambda.functionName.pipe(name => `/aws/lambda/${name}`),
 			name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention),
 		})
@@ -433,177 +436,322 @@ export const createLambdaFunction = (
 			resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
 		})
 
-		// ------------------------------------------------------------
-		// Add Log subscription
-
 		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
-				name: 'error-log-subscription',
-				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-				logGroupName: logGroup.name,
-				filterPattern,
-			})
-		}
-	}
-
-	// ------------------------------------------------------------
-	// Permissions
-
-	if (ctx.appConfig.defaults.function.permissions) {
-		statements.push(...ctx.appConfig.defaults.function.permissions)
-	}
-
-	if ('permissions' in local && local.permissions) {
-		statements.push(...local.permissions)
-	}
-
-	// ------------------------------------------------------------
-	// Warm up cron
-
-	if (props.warm) {
-		const scheduleRole = new aws.iam.Role(group, 'warm', {
-			name: `${shortName}--warm`,
-			description: `${name} warmer`,
-			assumeRolePolicy: JSON.stringify({
-				Version: '2012-10-17',
-				Statement: [
-					{
-						Action: 'sts:AssumeRole',
-						Effect: 'Allow',
-						Principal: {
-							Service: 'scheduler.amazonaws.com',
-						},
-					},
-				],
-			}),
-			inlinePolicy: [
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
 				{
-					name: 'InvokeFunction',
-					policy: lambda.arn.pipe(arn =>
-						JSON.stringify({
-							Version: '2012-10-17',
-							Statement: [
-								{
-									Action: ['lambda:InvokeFunction'],
-									Effect: 'Allow',
-									Resource: arn,
-								},
-							],
-						})
-					),
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
 				},
-			],
-		})
-
-		new aws.scheduler.Schedule(group, 'warm', {
-			name: shortName,
-			groupName: ctx.shared.get('function', 'warm-group-name'),
-			description: `${name} warmer`,
-			scheduleExpression: 'rate(5 minutes)',
-			flexibleTimeWindow: { mode: 'OFF' },
-			target: {
-				arn: lambda.arn,
-				roleArn: scheduleRole.arn,
-				input: JSON.stringify({
-					warmer: true,
-					concurrency: props.warm,
-				}),
-			},
-		})
-
-		// const rule = new aws.cloudwatch.EventRule(group, 'warm', {
-		// 	name: `${shortName}--warm`,
-		// 	description: name,
-		// 	scheduleExpression: 'rate(5 minutes)',
-		// 	isEnabled: true,
-		// })
-
-		// new aws.cloudwatch.EventTarget(group, 'warm', {
-		// 	rule: rule.name,
-		// 	targetId: 'warmer',
-		// 	arn: lambda.arn,
-		// 	input: JSON.stringify({
-		// 		warmer: true,
-		// 		concurrency: props.warm,
-		// 	}),
-		// })
-
-		// new aws.lambda.Permission(group, `warm`, {
-		// 	action: 'lambda:InvokeFunction',
-		// 	principal: 'events.amazonaws.com',
-		// 	functionName: lambda.functionName,
-		// 	sourceArn: rule.arn,
-		// })
+				{
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
+		}
 	}
 
 	return {
 		name,
+		group,
 		lambda,
 		policy,
 		code,
-		group,
 		setEnvironment(name: string, value: Input<string>) {
 			variables[name] = value
 		},
-		addPermission(statement: Permission) {
-			addPermission(statement)
+		addPermission(...permissions: Permission[]) {
+			addPermission(...permissions)
 		},
 	}
 }
 
-export const createAsyncLambdaFunction = (
-	group: Group,
+// Create a standalone lambda from a prebuilt bundle that ships with the
+// cli, for internal handlers that must run outside of the app bundle.
+export const createPrebuildLambdaFunction = (
+	parentGroup: Group,
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
 	props: {
-		consumer: FunctionProps
-		retryAttempts: number
+		bundleFile: string // The file path of the prebuilt zip archive.
+		bundleHash: string // The file path of the prebuilt bundle hash.
+		runtime: aws.lambda.FunctionInput['runtime']
+		handler: string
+		timeout?: Duration
+		memorySize?: Size
+		architecture?: 'arm64' | 'x86_64'
+		vpc?: boolean
+		log?: {
+			format?: 'text' | 'json'
+			level?: string
+			system?: string
+			retention?: Duration
+		}
 	}
 ) => {
-	const result = createLambdaFunction(group, ctx, ns, id, { ...props.consumer, warm: 0 })
+	let name: string
+	let roleName: string
 
-	// ------------------------------------------------------------
-	// Make sure we always log errors inside async functions
+	const group = new Group(parentGroup, 'function', id)
 
-	result.setEnvironment('THROW_EXPECTED_ERRORS', '1')
+	if ('stack' in ctx) {
+		name = formatLocalResourceName({
+			appName: ctx.app.name,
+			stackName: ctx.stack.name,
+			resourceType: ns,
+			resourceName: id,
+		})
 
-	// ------------------------------------------------------------
-	// Async Invoke Config
+		roleName = formatLocalResourceName({
+			appName: ctx.app.name,
+			stackName: ctx.stack.name,
+			resourceType: ns,
+			resourceName: id,
+			postfix: ctx.appId,
+		})
+	} else {
+		name = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: ns,
+			resourceName: id,
+		})
 
-	const onFailure = getGlobalOnFailure(ctx)
+		roleName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: ns,
+			resourceName: id,
+			postfix: ctx.appId,
+		})
+	}
 
-	new aws.lambda.FunctionEventInvokeConfig(
+	const sourceHash = $file(props.bundleHash)
+
+	const code = new aws.s3.BucketObject(
 		group,
-		'async',
+		'code',
 		{
-			functionName: result.lambda.arn,
-			maximumRetryAttempts: props.retryAttempts,
-			destinationConfig: {
-				onFailure: { destination: onFailure },
-			},
+			bucket: ctx.shared.get('asset', 'bucket').name,
+			key: `lambda/${name}.zip`,
+			source: relativePath(props.bundleFile),
+			sourceHash,
 		},
 		{
-			dependsOn: [result.policy],
+			replaceOnChanges: ['bucket', 'key'],
 		}
 	)
 
-	result.addPermission({
-		actions: ['s3:PutObject', 's3:ListBucket'],
-		resources: [onFailure, $interpolate`${onFailure}/*`],
-		conditions: {
-			StringEquals: {
-				// This will protect anyone from taking our bucket name,
-				// and us sending our failed items to the wrong s3 bucket
-				's3:ResourceAccount': ctx.accountId,
-			},
-		},
+	// ------------------------------------------------------------
+	// The lambda role & permissions.
+
+	const role = new aws.iam.Role(group, 'role', {
+		name: roleName,
+		description: name,
+		assumeRolePolicy: JSON.stringify({
+			Version: '2012-10-17',
+			Statement: [
+				{
+					Effect: 'Allow',
+					Action: 'sts:AssumeRole',
+					Principal: {
+						Service: ['lambda.amazonaws.com'],
+					},
+				},
+			],
+		}),
 	})
 
-	// result.addPermission({
-	// 	actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-	// 	resources: [onFailure],
-	// })
+	const statements: Permission[] = []
+	const statementDeps: Set<any> = new Set()
 
-	return result
+	const addPermission = (...permissions: Permission[]) => {
+		statements.push(...permissions)
+
+		for (const dep of findInputDeps(permissions)) {
+			statementDeps.add(dep)
+		}
+	}
+
+	const policy = new aws.iam.RolePolicy(group, 'policy', {
+		role: role.name,
+		name: 'lambda-policy',
+		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
+
+			resolve(
+				JSON.stringify({
+					Version: '2012-10-17',
+					Statement: compactPolicyStatements(list).map(statement => ({
+						Effect: pascalCase(statement.effect ?? 'allow'),
+						Action: statement.actions,
+						Resource: statement.resources,
+						Condition: statement.conditions,
+					})),
+				})
+			)
+		}),
+	})
+
+	// ------------------------------------------------------------
+	// VPC
+
+	const dependsOn: Resource[] = [policy]
+
+	if (props.vpc) {
+		dependsOn.push(
+			new aws.iam.RolePolicy(group, 'vpc-policy', {
+				role: role.name,
+				name: 'lambda-vpc-policy',
+				policy: JSON.stringify({
+					Version: '2012-10-17',
+					Statement: [
+						{
+							Effect: 'Allow',
+							Action: [
+								'ec2:CreateNetworkInterface',
+								'ec2:DescribeNetworkInterfaces',
+								'ec2:DescribeSubnets',
+								'ec2:DeleteNetworkInterface',
+								'ec2:AssignPrivateIpAddresses',
+								'ec2:UnassignPrivateIpAddresses',
+							],
+							Resource: ['*'],
+						},
+					],
+				}),
+			})
+		)
+	}
+
+	// ------------------------------------------------------------
+	// The lambda function.
+
+	const variables: Record<string, Input<string>> = {}
+	const logFormats = {
+		text: 'Text',
+		json: 'JSON',
+	}
+
+	const lambda = new aws.lambda.Function(
+		group,
+		'function',
+		{
+			functionName: name,
+			description: name,
+			role: role.arn,
+			runtime: props.runtime,
+			handler: props.handler,
+			timeout: toSeconds(props.timeout ?? seconds(10)),
+			memorySize: toMebibytes(props.memorySize ?? mebibytes(128)),
+			architectures: [props.architecture ?? 'arm64'],
+
+			timeouts: {
+				create: '30s',
+				update: '30s',
+				delete: '30s',
+			},
+
+			s3Bucket: code.bucket,
+			s3ObjectVersion: code.versionId,
+			s3Key: code.key.pipe(name => {
+				if (name.startsWith('/')) {
+					return name.substring(1)
+				}
+
+				return name
+			}),
+
+			sourceCodeHash: sourceHash,
+
+			environment: {
+				variables,
+			},
+
+			vpcConfig: props.vpc
+				? {
+						securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
+						subnetIds: ctx.shared.get('vpc', 'private-subnets'),
+						ipv6AllowedForDualStack: true,
+					}
+				: undefined,
+
+			loggingConfig: {
+				logGroup: `/aws/lambda/${name}`,
+				logFormat: logFormats[props.log?.format ?? 'json'],
+				applicationLogLevel: (props.log?.format ?? 'json') === 'json' ? props.log?.level?.toUpperCase() : undefined,
+				systemLogLevel: (props.log?.format ?? 'json') === 'json' ? props.log?.system?.toUpperCase() : undefined,
+			},
+		},
+		{
+			dependsOn,
+		}
+	)
+
+	// ------------------------------------------------------------
+	// Env Vars
+
+	variables.APP = ctx.appConfig.name
+	variables.APP_ID = ctx.appId
+	variables.AWS_ACCOUNT_ID = ctx.accountId
+	variables.REGION = ctx.appConfig.region
+	variables.STAGE = ctx.appConfig.stage ?? 'default'
+
+	if ('stackConfig' in ctx) {
+		variables.STACK = ctx.stackConfig.name
+	}
+
+	if (props.vpc) {
+		// Tell all aws clients to use the dualstack endpoint when the
+		// lambda runs inside the vpc.
+		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
+	}
+
+	// ------------------------------------------------------------
+	// Logging
+
+	const retention = props.log?.retention
+
+	if (retention && retention.value > 0n) {
+		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
+			name: `/aws/lambda/${name}`,
+			retentionInDays: toDays(retention),
+		})
+
+		addPermission({
+			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
+			resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
+		})
+
+		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
+				{
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
+				},
+				{
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
+		}
+	}
+
+	return {
+		name,
+		group,
+		lambda,
+		policy,
+		code,
+		setEnvironment(name: string, value: Input<string>) {
+			variables[name] = value
+		},
+		addPermission(...permissions: Permission[]) {
+			addPermission(...permissions)
+		},
+	}
 }

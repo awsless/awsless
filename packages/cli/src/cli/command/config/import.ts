@@ -1,6 +1,7 @@
 import { Cancelled, log, prompt } from '@awsless/clui'
 import { sleep } from 'bun'
 import { Command } from 'commander'
+import { ExpectedError } from '../../../error.js'
 import { getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'
 import { layout } from '../../ui/complex/layout.js'
@@ -9,7 +10,8 @@ export const import_ = (program: Command) => {
 	program
 		.command('import')
 		.description('Import config values')
-		.action(async () => {
+		.option('--json <json>', 'The config values as a JSON string, skips the interactive prompt')
+		.action(async (options: { json?: string }) => {
 			await layout('import', async ({ appConfig }) => {
 				const credentials = await getCredentials(appConfig.profile)
 				const params = new SsmStore({
@@ -17,33 +19,49 @@ export const import_ = (program: Command) => {
 					appConfig,
 				})
 
-				const json = await prompt.text({
-					message: 'The config values in JSON format',
-					validate: value => {
-						try {
-							JSON.parse(value)
-						} catch {
-							return 'Invalid JSON'
-						}
+				let json = options.json
 
-						return
-					},
-				})
+				if (typeof json === 'undefined') {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError('Pass --json <json> when running with --skip-prompt.')
+					}
 
-				const values = JSON.parse(json) as Record<string, string>
+					json = await prompt.text({
+						message: 'The config values in JSON format',
+						validate: value => {
+							try {
+								JSON.parse(value)
+							} catch {
+								return 'Invalid JSON'
+							}
+
+							return
+						},
+					})
+				}
+
+				let values: Record<string, string>
+
+				try {
+					values = JSON.parse(json) as Record<string, string>
+				} catch {
+					throw new ExpectedError('Invalid JSON')
+				}
 
 				log.table({
 					head: ['Name', 'Value'],
 					body: Object.entries(values),
 				})
 
-				const confirm = await prompt.confirm({
-					message: 'Are you sure you want to import the config values?',
-					initialValue: false,
-				})
+				if (!process.env.SKIP_PROMPT) {
+					const confirm = await prompt.confirm({
+						message: 'Are you sure you want to import the config values?',
+						initialValue: false,
+					})
 
-				if (!confirm) {
-					throw new Cancelled()
+					if (!confirm) {
+						throw new Cancelled()
+					}
 				}
 
 				await log.task({

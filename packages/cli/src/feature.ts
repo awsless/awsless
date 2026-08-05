@@ -75,10 +75,6 @@ export type StackContext = AppContext & {
 	stack: Stack
 
 	registerTest: RegisterTest
-	registerConfig: RegisterConfig
-
-	// onStackPolicy: OnPolicy
-	addStackPermission: OnPermissionCallback
 
 	addFunction: (lambda: aws.lambda.Function) => void
 }
@@ -88,7 +84,11 @@ export type BeforeContext = {
 	stackConfigs: StackConfig[]
 	accountId: string
 	appId: string
+	deploymentId?: string
 	import: boolean
+
+	// The remote config values, only provided by the deploy command.
+	configValues?: Record<string, string>
 
 	app: App
 	base: Stack
@@ -101,6 +101,7 @@ export type BeforeContext = {
 export type AppContext = BeforeContext & {
 	// registerTest: RegisterTest
 	registerBuild: RegisterBuild
+	registerConfig: RegisterConfig
 	registerCommand: RegisterCommand
 	registerDomainZone: (zone: aws.route53.Zone) => void
 	// registerPolicy: RegisterPolicy
@@ -116,6 +117,7 @@ export type AppContext = BeforeContext & {
 	onEnv: OnEnv
 
 	onReady: OnReady
+	onReadyLast: OnReady
 
 	// onEvent: OnEvent
 

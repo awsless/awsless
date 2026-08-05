@@ -5,9 +5,9 @@ import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -34,7 +34,7 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
 `
 
 export const taskFeature = defineFeature({
@@ -59,14 +59,12 @@ export const taskFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.consumer.code) {
-					const relFile = relative(directories.types, props.consumer.code.file)
+				const relFile = relative(directories.types, props.consumer.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				mock.addType(name, `MockBuilder<typeof ${varName}>`)
+				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 			}
 
 			mocks.addType(stack.name, mock)
@@ -88,6 +86,11 @@ export const taskFeature = defineFeature({
 			appName: ctx.app.name,
 			resourceType: 'task',
 			resourceName: 'group',
+		})
+		const failureQueueName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'failure',
 		})
 
 		new aws.scheduler.ScheduleGroup(group, 'group', {
@@ -118,14 +121,19 @@ export const taskFeature = defineFeature({
 			}),
 			inlinePolicy: [
 				{
-					name: 'InvokeFunction',
+					name: 'ScheduleTarget',
 					policy: JSON.stringify({
 						Version: '2012-10-17',
 						Statement: [
 							{
 								Action: ['lambda:InvokeFunction'],
 								Effect: 'Allow',
-								Resource: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*--task--*`],
+								Resource: `arn:aws:lambda:*:*:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
+							},
+							{
+								Action: ['sqs:SendMessage'],
+								Effect: 'Allow',
+								Resource: `arn:aws:sqs:*:*:${failureQueueName}`,
 							},
 						],
 					}),
@@ -155,8 +163,9 @@ export const taskFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
-			const group = new Group(ctx.stack, 'task', id)
-			createAsyncLambdaFunction(group, ctx, 'task', id, props)
+			const consumer = props.consumer
+
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), consumer)
 		}
 	},
 })

@@ -1,12 +1,4 @@
-import {
-	BillingMode,
-	CreateTableCommand,
-	DescribeTableCommand,
-	DynamoDB,
-	KeyType,
-	ResourceNotFoundException,
-	ScalarAttributeType,
-} from '@aws-sdk/client-dynamodb'
+import { DescribeTableCommand, DynamoDB, ResourceNotFoundException, waitUntilTableExists } from '@aws-sdk/client-dynamodb'
 import {
 	CreateBucketCommand,
 	HeadBucketCommand,
@@ -16,34 +8,24 @@ import {
 	S3ServiceException,
 } from '@aws-sdk/client-s3'
 import { log, prompt } from '@awsless/clui'
+import { DynamoDBClient, migrate } from '@awsless/dynamodb'
 import { Region } from '../../../config/schema/region.js'
 import { Cancelled } from '../../../error.js'
 import { Credentials } from '../../../util/aws.js'
+import { deploymentsTable } from '../../../util/deployment.js'
 import { getStateBucketName } from '../../../util/workspace.js'
 
-const hasLockTable = async (client: DynamoDB) => {
-	try {
-		const result = await client.send(
-			new DescribeTableCommand({
-				TableName: 'awsless-locks',
-			})
-		)
-
-		return !!result.Table
-	} catch (error) {
-		if (error instanceof ResourceNotFoundException) {
-			return false
-		}
-
-		throw error
-	}
+const lockTableInput = {
+	TableName: 'awsless-locks',
+	KeySchema: [{ AttributeName: 'urn', KeyType: 'HASH' as const }],
+	AttributeDefinitions: [{ AttributeName: 'urn', AttributeType: 'S' as const }],
 }
 
-const hasActivityLogTable = async (client: DynamoDB) => {
+const hasTable = async (client: DynamoDB, name: string) => {
 	try {
 		const result = await client.send(
 			new DescribeTableCommand({
-				TableName: 'awsless-logs',
+				TableName: name,
 			})
 		)
 
@@ -75,56 +57,6 @@ const hasStateBucket = async (client: S3Client, region: Region, accountId: strin
 
 		throw error
 	}
-}
-
-const createLockTable = (client: DynamoDB) => {
-	return client.send(
-		new CreateTableCommand({
-			TableName: 'awsless-locks',
-			BillingMode: BillingMode.PAY_PER_REQUEST,
-			KeySchema: [
-				{
-					AttributeName: 'urn',
-					KeyType: KeyType.HASH,
-				},
-			],
-			AttributeDefinitions: [
-				{
-					AttributeName: 'urn',
-					AttributeType: ScalarAttributeType.S,
-				},
-			],
-		})
-	)
-}
-
-const createActivityLogTable = (client: DynamoDB) => {
-	return client.send(
-		new CreateTableCommand({
-			TableName: 'awsless-logs',
-			BillingMode: BillingMode.PAY_PER_REQUEST,
-			KeySchema: [
-				{
-					AttributeName: 'urn',
-					KeyType: KeyType.HASH,
-				},
-				{
-					AttributeName: 'date',
-					KeyType: KeyType.RANGE,
-				},
-			],
-			AttributeDefinitions: [
-				{
-					AttributeName: 'urn',
-					AttributeType: ScalarAttributeType.S,
-				},
-				{
-					AttributeName: 'date',
-					AttributeType: ScalarAttributeType.N,
-				},
-			],
-		})
-	)
 }
 
 const createStateBucket = async (client: S3Client, region: Region, accountId: string) => {
@@ -167,14 +99,14 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 	const dynamo = new DynamoDB(props)
 	const s3 = new S3Client(props)
 
-	const [lockTable, logTable, stateBucket] = await Promise.all([
+	const [lockTable, deployTable, stateBucket] = await Promise.all([
 		//
-		hasLockTable(dynamo),
-		hasActivityLogTable(dynamo),
+		hasTable(dynamo, lockTableInput.TableName),
+		hasTable(dynamo, deploymentsTable.name),
 		hasStateBucket(s3, props.region, props.accountId),
 	])
 
-	if (!lockTable || !stateBucket || !logTable) {
+	if (!lockTable || !stateBucket || !deployTable) {
 		log.warning(`Awsless hasn't been bootstrapped yet.`)
 
 		if (!process.env.SKIP_PROMPT) {
@@ -192,17 +124,29 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 			successMessage: 'Done deploying the bootstrap stack.',
 			errorMessage: 'Failed to bootstrap Awsless.',
 			async task() {
+				const client = new DynamoDBClient(props)
+				const missing: string[] = []
+
 				if (!lockTable) {
-					await createLockTable(dynamo)
+					await migrate(client, lockTableInput)
+					missing.push(lockTableInput.TableName)
 				}
 
-				if (!logTable) {
-					await createActivityLogTable(dynamo)
+				if (!deployTable) {
+					await migrate(client, deploymentsTable)
+					missing.push(deploymentsTable.name)
 				}
 
 				if (!stateBucket) {
 					await createStateBucket(s3, props.region, props.accountId)
 				}
+
+				// Table creation is async, so wait until the new tables are active.
+				await Promise.all(
+					missing.map(name => {
+						return waitUntilTableExists({ client: dynamo, maxWaitTime: 120 }, { TableName: name })
+					})
+				)
 			},
 		})
 	} else {

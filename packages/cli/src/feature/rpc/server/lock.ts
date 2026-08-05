@@ -1,16 +1,17 @@
 import { ConditionalCheckFailedException, deleteItem, updateItem } from '@awsless/dynamodb'
 import { addSeconds } from 'date-fns'
 import { UUID } from 'node:crypto'
-import { lockTable } from './table'
+import { getRouteEnv } from 'awsless'
+import { getLockTable } from './table'
 
 const lockRequest = async (requestId: UUID, key: string) => {
-	const timeout = parseInt(process.env.TIMEOUT ?? '60', 10)
+	const timeout = parseInt(getRouteEnv('TIMEOUT') ?? '60', 10)
 	const now = new Date()
 	const ttl = addSeconds(now, timeout * 2)
 
 	try {
 		await updateItem(
-			lockTable,
+			getLockTable(),
 			{ key },
 			{
 				update: e => [
@@ -40,7 +41,7 @@ const lockRequest = async (requestId: UUID, key: string) => {
 const unlockRequest = async (requestId: UUID, key: string) => {
 	try {
 		await deleteItem(
-			lockTable,
+			getLockTable(),
 			{ key },
 			{
 				when: e => [

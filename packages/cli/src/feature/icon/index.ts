@@ -1,30 +1,24 @@
-import { Group } from '@terraforge/core'
+import { toDays } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
-import { defineFeature } from '../../feature'
-import { formatLocalResourceName } from '../../util/name'
-import { createLambdaFunction } from '../function/util'
-import { join, dirname } from 'path'
-import { createPrebuildLambdaFunction } from '../function/prebuild'
-import { mebibytes } from '@awsless/size'
-import { seconds, toDays } from '@awsless/duration'
-import { fileURLToPath } from 'url'
+import { Group } from '@terraforge/core'
+import { formatRouteEnvName } from 'awsless'
+import { kebabCase } from 'change-case'
 import { glob } from 'glob'
-import { shortId } from '../../util/id'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+import { defineFeature } from '../../feature'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { getFeatureFolder } from '../asset/index.js'
 
 export const iconFeature = defineFeature({
 	name: 'icon',
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+		const bucket = ctx.shared.get('asset', 'bucket')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.icons ?? {})) {
 			const group = new Group(ctx.stack, 'icon', id)
-
-			// const name = formatLocalResourceName({
-			// 	appName: ctx.app.name,
-			// 	stackName: ctx.stack.name,
-			// 	resourceType: 'icon',
-			// 	resourceName: id,
-			// })
+			const folder = getFeatureFolder('icon', ctx.stack.name, id)
 
 			const routerId = ctx.shared.entry('router', 'id', props.router)
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
@@ -33,93 +27,46 @@ export const iconFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Create the icon origins
 
-			let lambdaOrigin: ReturnType<typeof createLambdaFunction> | undefined = undefined
+			let originRouteKey: string | undefined
 
 			if (props.origin.function) {
-				lambdaOrigin = createLambdaFunction(group, ctx, 'origin', id, props.origin.function)
+				const origin = props.origin.function
+				originRouteKey = formatRouteKey(ctx.stack.name, 'icon', `${id}-origin`)
+
+				registerBundleFunction(ctx, originRouteKey, origin)
 			}
 
-			let s3Origin: aws.s3.Bucket | undefined
+			// ------------------------------------------------------------
+			// The icon cache lives in the shared bucket
 
-			if (props.origin.static) {
-				s3Origin = new aws.s3.Bucket(group, 'origin', {
-					bucket: formatLocalResourceName({
-						appName: ctx.app.name,
-						stackName: ctx.stack.name,
-						resourceType: 'icon',
-						resourceName: shortId(`${id}-${ctx.appId}`),
-					}),
-					forceDestroy: true,
+			if (props.cacheDuration) {
+				bucket.addLifecycleRule({
+					id: kebabCase(`${folder}cache-duration`),
+					enabled: true,
+					prefix: `${folder}cache/`,
+					expiration: {
+						days: toDays(props.cacheDuration),
+					},
 				})
 			}
 
 			// ------------------------------------------------------------
-			// Create the icon cache
+			// Add the icon server to the bundle
 
-			const cacheBucket = new aws.s3.Bucket(group, 'cache', {
-				bucket: formatLocalResourceName({
-					appName: ctx.app.name,
-					stackName: ctx.stack.name,
-					resourceType: 'icon',
-					resourceName: shortId(`cache-${id}-${ctx.appId}`),
-				}),
-				tags: {
-					cache: 'true',
-				},
-				forceDestroy: true,
+			const serverRouteKey = formatRouteKey(ctx.stack.name, 'icon', id)
 
-				...(props.cacheDuration
-					? {
-							lifecycleRule: [
-								{
-									enabled: true,
-									id: 'icon-cache-duration',
-									expiration: {
-										days: toDays(props.cacheDuration),
-									},
-								},
-							],
-						}
-					: {}),
+			bundle.addHandler({
+				routeKey: serverRouteKey,
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/icon.js'),
+				exportName: 'default',
 			})
 
-			// ------------------------------------------------------------
-			// Create the icon server function
-
-			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'icon', id, {
-				bundleFile: join(__dirname, '/prebuild/icon/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/icon/HASH'),
-				memorySize: mebibytes(512),
-				timeout: seconds(10),
-				handler: 'index.default',
-				runtime: 'nodejs24.x',
-				log: props.log,
-			})
-
-			const permission = new aws.lambda.Permission(group, 'permission', {
-				principal: 'cloudfront.amazonaws.com',
-				action: 'lambda:InvokeFunctionUrl',
-				functionName: serverLambda.lambda.functionName,
-				functionUrlAuthType: 'AWS_IAM',
-				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
-			})
-
-			// ------------------------------------------------------------
-
-			const serverLambdaUrl = new aws.lambda.FunctionUrl(
-				group,
-				'url',
-				{
-					functionName: serverLambda.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				},
-				{ dependsOn: [permission] }
-			)
-
-			addRoutes(group, 'routes', {
+			addRoutes({
 				[routeKey]: {
 					type: 'lambda',
-					domainName: serverLambdaUrl.functionUrl.pipe(url => url.split('/')[2]!),
+					requestHeaders: {
+						[ROUTE_HEADER]: serverRouteKey,
+					},
 					rewrite: {
 						regex: `^${props.path}/(.*)$`,
 						to: '/$1',
@@ -127,47 +74,30 @@ export const iconFeature = defineFeature({
 				},
 			})
 
-			serverLambda.addPermission({
-				actions: [
-					's3:ListBucket',
-					's3:ListBucketV2',
-					's3:HeadObject',
-					's3:GetObject',
-					's3:PutObject',
-					's3:DeleteObject',
-					's3:GetObjectAttributes',
-				],
-				resources: [
-					//
-					cacheBucket.arn,
-					cacheBucket.arn.pipe(arn => `${arn}/*`),
-					...(s3Origin ? [s3Origin.arn, s3Origin.arn.pipe(arn => `${arn}/*`)] : []),
-				],
-			})
-
-			serverLambda.setEnvironment(
-				'ICON_CONFIG',
+			bundle.addEnv(
+				formatRouteEnvName(serverRouteKey, 'ICON_CONFIG'),
 				JSON.stringify({
 					preserveIds: props.preserveIds,
 					symbols: props.symbols,
 				})
 			)
 
-			serverLambda.setEnvironment('ICON_CACHE_BUCKET', cacheBucket.bucket)
+			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_BUCKET'), bucket.name)
+			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_FOLDER'), folder)
 
-			if (lambdaOrigin) {
-				serverLambda.setEnvironment('ICON_ORIGIN_LAMBDA', lambdaOrigin.name)
+			if (originRouteKey) {
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_ORIGIN'), originRouteKey)
 			}
 
-			if (s3Origin) {
-				serverLambda.setEnvironment('ICON_ORIGIN_S3', s3Origin.bucket)
+			if (props.origin.static) {
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_ORIGIN_S3'), 'true')
 			}
 
 			// ------------------------------------------------------------
 			// Upload static icons to S3
 
 			ctx.onReady(() => {
-				if (props.origin.static && s3Origin) {
+				if (props.origin.static) {
 					const files = glob.sync('**', {
 						cwd: props.origin.static,
 						nodir: true,
@@ -178,12 +108,19 @@ export const iconFeature = defineFeature({
 							throw new Error(`Icon file "${file}" in "${props.origin.static}" is not an SVG file.`)
 						}
 
-						new aws.s3.BucketObject(group, `static-${file}`, {
-							bucket: s3Origin.bucket,
-							key: file,
-							source: join(props.origin.static, file),
-							sourceHash: $hash(join(props.origin.static, file)),
-						})
+						new aws.s3.BucketObject(
+							group,
+							`static-${file}`,
+							{
+								bucket: bucket.name,
+								key: `${folder}origin/${file}`,
+								source: join(props.origin.static, file),
+								sourceHash: $hash(join(props.origin.static, file)),
+							},
+							{
+								replaceOnChanges: ['bucket', 'key'],
+							}
+						)
 					}
 				}
 			})
@@ -192,8 +129,7 @@ export const iconFeature = defineFeature({
 			// Domain name records and endpoint binding
 
 			ctx.shared.add('icon', 'distribution-id', id, routerId)
-			ctx.shared.add('icon', 'cache-bucket', id, cacheBucket.bucket)
-			ctx.shared.add('icon', 'path', id, routeKey)
+			ctx.shared.add('icon', 'cache', id, { bucket: bucket.name, prefix: `${folder}cache/` })
 		}
 	},
 })

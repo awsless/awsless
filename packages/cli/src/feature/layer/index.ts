@@ -9,24 +9,6 @@ import { shortId } from '../../util/id.js'
 
 export const layerFeature = defineFeature({
 	name: 'layer',
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'layer', 'asset')
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'layer',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			versioning: {
-				enabled: true,
-			},
-			forceDestroy: true,
-		})
-
-		ctx.shared.set('layer', 'bucket-name', bucket.bucket)
-	},
 	// onValidate(ctx) {
 	// 	const layers = Object.keys(ctx.appConfig.defaults.layers ?? [])
 
@@ -50,13 +32,20 @@ export const layerFeature = defineFeature({
 			const props = _props as LayerProps
 			const group = new Group(ctx.base, 'layer', id)
 
-			const zip = new aws.s3.BucketObject(group, 'zip', {
-				bucket: ctx.shared.get('layer', 'bucket-name'),
-				key: `/layer/${id}.zip`,
-				contentType: 'application/zip',
-				source: props.file,
-				sourceHash: $hash(props.file),
-			})
+			const zip = new aws.s3.BucketObject(
+				group,
+				'zip',
+				{
+					bucket: ctx.shared.get('asset', 'bucket').name,
+					key: `layer/${id}.zip`,
+					contentType: 'application/zip',
+					source: props.file,
+					sourceHash: $hash(props.file),
+				},
+				{
+					replaceOnChanges: ['bucket', 'key'],
+				}
+			)
 
 			const layer = new aws.lambda.LayerVersion(
 				group,

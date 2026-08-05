@@ -13,10 +13,10 @@ import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { filterPattern } from '../on-error-log/util.js'
+import { getFeatureFolder } from '../asset/index.js'
 import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
@@ -68,12 +68,19 @@ export const createFargateTask = (
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('instance', 'bucket-name'),
-		key: name,
-		source: relativePath(getBuildPath('instance', name, 'program')),
-		sourceHash: $file(getBuildPath('instance', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('asset', 'bucket').name,
+			key: `${getFeatureFolder('instance', ctx.stack.name, id)}code`,
+			source: relativePath(getBuildPath('instance', name, 'program')),
+			sourceHash: $file(getBuildPath('instance', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions
@@ -145,7 +152,17 @@ export const createFargateTask = (
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
-			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
+			resolve(
+				JSON.stringify({
+					Version: '2012-10-17',
+					Statement: list.map(statement => ({
+						Effect: pascalCase(statement.effect ?? 'allow'),
+						Action: statement.actions,
+						Resource: statement.resources,
+						Condition: statement.conditions,
+					})),
+				})
+			)
 		}),
 	})
 
@@ -175,12 +192,20 @@ export const createFargateTask = (
 		// Add log subscription
 
 		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
-				name: 'error-log-subscription',
-				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-				logGroupName: logGroup.name,
-				filterPattern,
-			})
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
+				{
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
+				},
+				{
+					replaceOnChanges: ['destinationArn'],
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
 		}
 	}
 
@@ -343,9 +368,9 @@ export const createFargateTask = (
 			desiredCount: 1,
 			launchType: 'FARGATE',
 			networkConfiguration: {
-				subnets: ctx.shared.get('vpc', 'public-subnets'),
+				subnets: ctx.shared.get('vpc', 'private-subnets'),
 				securityGroups: [securityGroup.id],
-				assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+				assignPublicIp: false,
 			},
 
 			forceNewDeployment: true,
@@ -423,7 +448,7 @@ export const createFargateTask = (
 		statements.push(...ctx.appConfig.defaults.instance.permissions)
 	}
 
-	if ('permissions' in local && local.permissions) {
+	if (local.permissions) {
 		statements.push(...local.permissions)
 	}
 

@@ -12,10 +12,10 @@ import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { filterPattern } from '../on-error-log/util.js'
+import { getFeatureFolder } from '../asset/index.js'
 import { buildJobExecutable } from './build/executable.js'
 import { JobProps } from './schema.js'
 
@@ -60,12 +60,19 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('job', 'bucket-name'),
-		key: name,
-		source: relativePath(getBuildPath('job', name, 'program')),
-		sourceHash: $file(getBuildPath('job', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('asset', 'bucket').name,
+			key: `${getFeatureFolder('job', ctx.stack.name, id)}code`,
+			source: relativePath(getBuildPath('job', name, 'program')),
+			sourceHash: $file(getBuildPath('job', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions
@@ -116,7 +123,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 								{
 									Effect: pascalCase('allow'),
 									Action: ['s3:GetObject', 's3:HeadObject'],
-									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/payloads/*`],
+									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/job/payloads/*`],
 								},
 							],
 						})
@@ -137,7 +144,17 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
-			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
+			resolve(
+				JSON.stringify({
+					Version: '2012-10-17',
+					Statement: list.map(statement => ({
+						Effect: pascalCase(statement.effect ?? 'allow'),
+						Action: statement.actions,
+						Resource: statement.resources,
+						Condition: statement.conditions,
+					})),
+				})
+			)
 		}),
 	})
 
@@ -166,12 +183,20 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		// Add log subscription
 
 		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
-				name: 'error-log-subscription',
-				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-				logGroupName: logGroup.name,
-				filterPattern,
-			})
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
+				{
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
+				},
+				{
+					replaceOnChanges: ['destinationArn'],
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
 		}
 	}
 
@@ -353,7 +378,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		statements.push(...ctx.appConfig.defaults.job.permissions)
 	}
 
-	if ('permissions' in local && local.permissions) {
+	if (local.permissions) {
 		statements.push(...local.permissions)
 	}
 

@@ -14,10 +14,14 @@ export const refresh = (program: Command) => {
 	program
 		.command('refresh')
 		.argument('[stacks...]', 'Optionally filter stacks to refresh')
+		.option(
+			'--commit [indexes...]',
+			'Accept the detected state changes without prompting, optionally limited to the listed indexes'
+		)
 		.description(
 			'Compares & syncs the current resource state with the state known to exist in the actual cloud provider.'
 		)
-		.action(async (filters: string[]) => {
+		.action(async (filters: string[], options: { commit?: boolean | string[] }) => {
 			await layout('state refresh', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
@@ -70,8 +74,31 @@ export const refresh = (program: Command) => {
 					return 'Your state is up to date.'
 				}
 
-				for (const entry of result.operations) {
-					log.warning([color.warning.bold.inverse(` ${capitalCase(entry.operation)} `), entry.urn].join('\n'))
+				const commitAll = options.commit === true
+				const commitIndexes = Array.isArray(options.commit)
+					? options.commit
+							.flatMap(value => value.split(','))
+							.filter(value => value !== '')
+							.map(value => {
+								const index = Number(value)
+
+								if (!Number.isInteger(index) || index < 0 || index >= result.operations.length) {
+									throw new ExpectedError(`Invalid state change index: ${value}`)
+								}
+
+								return index
+							})
+					: []
+
+				let skipped = 0
+
+				for (const [index, entry] of result.operations.entries()) {
+					log.warning(
+						[
+							`${color.warning.bold.inverse(` ${capitalCase(entry.operation)} `)} ${color.dim(`#${index}`)}`,
+							entry.urn,
+						].join('\n')
+					)
 
 					if (entry.operation === 'update') {
 						// console.log(entry.before, entry.after)
@@ -80,6 +107,18 @@ export const refresh = (program: Command) => {
 						if (diffResult) {
 							log.message(diffResult)
 						}
+					}
+
+					if (commitAll || commitIndexes.includes(index)) {
+						entry.commit()
+						continue
+					}
+
+					// Without a tty each state change needs an explicit
+					// opt-in through the commit flag.
+					if (process.env.SKIP_PROMPT || commitIndexes.length > 0) {
+						skipped++
+						continue
 					}
 
 					const message =
@@ -95,6 +134,12 @@ export const refresh = (program: Command) => {
 					if (ok) {
 						entry.commit()
 					}
+				}
+
+				if (skipped > 0) {
+					log.warning(
+						`Skipped ${skipped} state changes. Run again with --commit [indexes...] to apply them.`
+					)
 				}
 
 				await log.task({

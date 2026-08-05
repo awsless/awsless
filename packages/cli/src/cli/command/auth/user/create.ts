@@ -17,25 +17,47 @@ export const create = (program: Command) => {
 	program
 		.command('create')
 		.description('Create an user in your userpool')
-		.action(async () => {
+		.option('--pool <name>', 'The auth userpool name')
+		.option('--username <username>', 'The username for the new user')
+		.option('--password <password>', 'The password for the new user')
+		.option('--groups <groups...>', 'The groups to add the new user to')
+		.action(async (options: { pool?: string; username?: string; password?: string; groups?: string[] }) => {
 			await layout('auth user create', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
 				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
-				if (Object.keys(appConfig.defaults.auth ?? {}).length === 0) {
+				const pools = Object.keys(appConfig.defaults.auth ?? {})
+
+				if (pools.length === 0) {
 					throw new ExpectedError('No auth resources are defined.')
 				}
 
-				const name = await prompt.select({
-					message: 'Select the auth userpool:',
-					initialValue: Object.keys(appConfig.defaults.auth).at(0),
-					options: Object.keys(appConfig.defaults.auth).map(name => ({
-						label: name,
-						value: name,
-					})),
-				})
+				let name = options.pool
+
+				if (name && !pools.includes(name)) {
+					throw new ExpectedError(`The auth userpool "${name}" doesn't exist.`)
+				}
+
+				if (!name) {
+					if (pools.length === 1) {
+						name = pools[0]!
+					} else if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass --pool <name> when running with --skip-prompt: [ ${pools.join(', ')} ]`
+						)
+					} else {
+						name = await prompt.select({
+							message: 'Select the auth userpool:',
+							initialValue: pools.at(0),
+							options: pools.map(name => ({
+								label: name,
+								value: name,
+							})),
+						})
+					}
+				}
 
 				const props = appConfig.defaults.auth[name]!
 
@@ -62,50 +84,81 @@ export const create = (program: Command) => {
 					},
 				})
 
-				const username = await prompt.text({
-					message: 'Username:',
-					validate(value) {
-						if (!value) {
-							return 'Required'
-						}
+				const validatePassword = (value: string) => {
+					if (!value) {
+						return 'Required'
+					}
 
-						return
-					},
-				})
+					if (value.length < props.password.minLength) {
+						return `Min length is ${props.password.minLength}`
+					}
 
-				const password = await prompt.password({
-					message: 'Password:',
-					validate(value) {
-						if (!value) {
-							return 'Required'
-						}
+					if (props.password.lowercase && value.toUpperCase() === value) {
+						return `Should include lowercase characters`
+					}
 
-						if (value.length < props.password.minLength) {
-							return `Min length is ${props.password.minLength}`
-						}
+					if (props.password.uppercase && value.toLowerCase() === value) {
+						return `Should include uppercase characters`
+					}
 
-						if (props.password.lowercase && value.toUpperCase() === value) {
-							return `Should include lowercase characters`
-						}
+					if (props.password.numbers && !/\d/.test(value)) {
+						return `Should include numbers`
+					}
 
-						if (props.password.uppercase && value.toLowerCase() === value) {
-							return `Should include uppercase characters`
-						}
+					if (props.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
+						return `Should include symbols`
+					}
 
-						if (props.password.numbers && !/\d/.test(value)) {
-							return `Should include numbers`
-						}
+					return
+				}
 
-						if (props.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
-							return `Should include symbols`
-						}
+				let username = options.username
 
-						return
-					},
-				})
+				if (!username) {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError('Pass --username <username> when running with --skip-prompt.')
+					}
 
-				let groups: string[] = []
-				if (props.groups.length > 0) {
+					username = await prompt.text({
+						message: 'Username:',
+						validate(value) {
+							if (!value) {
+								return 'Required'
+							}
+
+							return
+						},
+					})
+				}
+
+				let password = options.password
+
+				if (password) {
+					const issue = validatePassword(password)
+
+					if (issue) {
+						throw new ExpectedError(`Invalid password: ${issue}`)
+					}
+				} else {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError('Pass --password <password> when running with --skip-prompt.')
+					}
+
+					password = await prompt.password({
+						message: 'Password:',
+						validate: validatePassword,
+					})
+				}
+
+				let groups: string[] = options.groups ?? []
+
+				for (const group of groups) {
+					if (!props.groups.includes(group)) {
+						throw new ExpectedError(`The group "${group}" doesn't exist.`)
+					}
+				}
+
+				if (!options.groups && !process.env.SKIP_PROMPT && props.groups.length > 0) {
 					groups = await prompt.multiSelect({
 						message: 'Groups:',
 						required: false,

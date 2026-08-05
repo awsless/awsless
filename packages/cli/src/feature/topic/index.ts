@@ -4,11 +4,10 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { FileError } from '../../error.js'
 
 const typeGenCode = `
-import type { Mock } from 'vitest'
 import type { PublishOptions } from '@awsless/sns'
 
 type Publish<Name extends string> = {
@@ -71,7 +70,26 @@ export const topicFeature = defineFeature({
 				name,
 			})
 
-			ctx.shared.add('topic', `arn`, id, topic.arn)
+			// All subscribers share the bundle as their endpoint, so we subscribe the bundle once per topic.
+			const subscribed = ctx.stackConfigs.some(stack => stack.subscribers?.[id])
+
+			if (subscribed) {
+				const bundle = ctx.shared.get('bundle', 'main')
+
+				new aws.sns.TopicSubscription(group, 'subscription', {
+					topicArn: topic.arn,
+					protocol: 'lambda',
+					endpoint: bundle.alias.arn,
+				})
+
+				new aws.lambda.Permission(group, 'permission', {
+					action: 'lambda:InvokeFunction',
+					principal: 'sns.amazonaws.com',
+					functionName: bundle.lambda.functionName,
+					qualifier: bundle.alias.name,
+					sourceArn: topic.arn,
+				})
+			}
 		}
 
 		ctx.addGlobalPermission({
@@ -87,22 +105,9 @@ export const topicFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.subscribers ?? {})) {
-			const group = new Group(ctx.stack, 'topic', id)
-			const topicArn = ctx.shared.entry('topic', 'arn', id)
-			const { lambda } = createAsyncLambdaFunction(group, ctx, `topic`, id, props)
+			const consumer = props.consumer
 
-			new aws.sns.TopicSubscription(group, id, {
-				topicArn,
-				protocol: 'lambda',
-				endpoint: lambda.arn,
-			})
-
-			new aws.lambda.Permission(group, id, {
-				action: 'lambda:InvokeFunction',
-				principal: 'sns.amazonaws.com',
-				functionName: lambda.functionName,
-				sourceArn: topicArn,
-			})
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), consumer)
 		}
 	},
 })

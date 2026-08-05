@@ -2,6 +2,7 @@ import { z } from 'zod'
 // import { InstanceDefaultSchema } from '../feature/__instance/schema.js'
 import { AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
+import { ConfigsSchema } from '../feature/config/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 // import { FunctionDefaultSchema } from ../feature/__graphql/schema.jsjs'
 // import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
@@ -16,67 +17,72 @@ import { RestDefaultSchema } from '../feature/rest/schema.js'
 import { RpcDefaultSchema } from '../feature/rpc/schema.js'
 // import { StoreDefaultSchema } from '../feature/store/schema.js'
 // import { TableDefaultSchema } from '../feature/table/schema.js'
-import { JobDefaultSchema } from '../feature/job/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
+import { JobDefaultSchema } from '../feature/job/schema.js'
 import { RouterDefaultSchema } from '../feature/router/schema.js'
 import { TopicsDefaultSchema } from '../feature/topic/schema.js'
 import { RegionSchema } from './schema/region.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
 
-export const AppSchema = z.object({
-	$schema: z.string().optional(),
+export const AppSchema = z
+	.object({
+		$schema: z.string().optional(),
 
-	name: ResourceIdSchema.describe('App name.'),
-	region: RegionSchema.describe('The AWS region to deploy to.'),
-	profile: z.string().describe('The AWS profile to deploy to.'),
+		name: ResourceIdSchema.describe('App name.'),
+		region: RegionSchema.describe('The AWS region to deploy to.'),
+		profile: z.string().describe('The AWS profile to deploy to.'),
 
-	protect: z.boolean().default(false).describe('Protect your app & stacks from being deleted.'),
-	removal: z
-		.enum(['remove', 'retain'])
-		.default('remove')
-		.describe(
-			[
-				'Configure how your resources are handled when they have to be removed.',
-				'',
-				'remove: Removes all underlying resources.',
-				'retain: Retains the following resources: stores, tables, auth, searchs, and caches.',
-			].join('\n')
-		),
+		protect: z.boolean().default(false).describe('Protect your app & stacks from being deleted.'),
 
-	// stage: z
-	// 	.string()
-	// 	.regex(/^[a-z]+$/)
-	// 	.default('prod')
-	// 	.describe('The deployment stage.'),
+		configs: ConfigsSchema,
+		removal: z
+			.enum(['remove', 'retain'])
+			.default('remove')
+			.describe(
+				[
+					'Configure how your resources are handled when they have to be removed.',
+					'',
+					'remove: Removes all underlying resources.',
+					'retain: Retains the following resources: stores, tables, auth, searchs, and caches.',
+				].join('\n')
+			),
 
-	// onFailure: OnFailureSchema,
+		// stage: z
+		// 	.string()
+		// 	.regex(/^[a-z]+$/)
+		// 	.default('prod')
+		// 	.describe('The deployment stage.'),
 
-	defaults: z
-		.object({
-			onFailure: OnFailureDefaultSchema,
-			onErrorLog: OnErrorLogDefaultSchema,
-			auth: AuthDefaultSchema,
-			domains: DomainsDefaultSchema,
-			function: FunctionDefaultSchema,
-			instance: InstanceDefaultSchema,
-			job: JobDefaultSchema,
-			queue: QueueDefaultSchema,
-			// graphql: GraphQLDefaultSchema,
-			// http: HttpDefaultSchema,
-			rest: RestDefaultSchema,
-			rpc: RpcDefaultSchema,
-			pubsub: PubSubDefaultSchema,
-			// table: TableDefaultSchema,
-			// store: StoreDefaultSchema,
-			alerts: AlertsDefaultSchema,
-			topics: TopicsDefaultSchema,
-			layers: LayerSchema,
-			router: RouterDefaultSchema,
-			// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
-		})
-		.default({})
-		.describe('Default properties'),
-})
+		// onFailure: OnFailureSchema,
+
+		defaults: z
+			.object({
+				onFailure: OnFailureDefaultSchema,
+				onErrorLog: OnErrorLogDefaultSchema,
+				auth: AuthDefaultSchema,
+				domains: DomainsDefaultSchema,
+				function: FunctionDefaultSchema,
+				instance: InstanceDefaultSchema,
+				job: JobDefaultSchema,
+				queue: QueueDefaultSchema,
+				// graphql: GraphQLDefaultSchema,
+				// http: HttpDefaultSchema,
+				rest: RestDefaultSchema,
+				rpc: RpcDefaultSchema,
+				pubsub: PubSubDefaultSchema,
+				// table: TableDefaultSchema,
+				// store: StoreDefaultSchema,
+				alerts: AlertsDefaultSchema,
+				topics: TopicsDefaultSchema,
+				layers: LayerSchema,
+				router: RouterDefaultSchema,
+				// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
+			})
+			.strict()
+			.default({})
+			.describe('Default properties'),
+	})
+	.strict()
 
 // export type AppConfigInput = z.input<typeof AppSchema>
-export type AppConfig = z.output<typeof AppSchema>
+export type AppConfig = z.output<typeof AppSchema> & { stage?: string }

@@ -2,25 +2,42 @@ import { Duration } from '@awsless/duration'
 import { invoke } from '@awsless/lambda'
 import type { UUID } from 'node:crypto'
 import { createProxy } from '../proxy.js'
-import { bindGlobalResourceName } from './util.js'
+import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle } from './bundle.js'
+import { bindGlobalResourceName, IS_TEST } from './util.js'
 
 export const getPubSubPublisherName = bindGlobalResourceName('pubsub-publisher')
 
 export interface PubSubResources {}
 
 export const PubSub: PubSubResources = /*@__PURE__*/ createProxy(name => {
-	const functionName = getPubSubPublisherName(name)
+	// The publisher handler is registered under the app level "base" scope.
+	const routeKey = formatRouteKey('base', 'pubsub', `${name}-publisher`)
 
 	return {
 		publish: async (topic: string, event: string, payload?: unknown) => {
-			await invoke({
-				name: functionName,
+			const message = { topic, event, payload }
+
+			// In tests we keep invoking the per-publisher name
+			// so that the pubsub mocks keep working.
+			if (IS_TEST) {
+				await invoke({
+					name: getPubSubPublisherName(name),
+					type: 'Event',
+					payload: message,
+				})
+				return
+			}
+
+			// Inside the bundle we dispatch in-process instead of self-invoking.
+			if (isInsideBundle()) {
+				await internalInvoke(routeKey, message)
+				return
+			}
+
+			await invokeBundle({
+				routeKey,
+				payload: message,
 				type: 'Event',
-				payload: {
-					topic,
-					event,
-					payload,
-				},
 			})
 		},
 	}

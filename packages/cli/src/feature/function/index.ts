@@ -1,16 +1,13 @@
-// import { camelCase } from 'change-case'
-// import { relative } from 'path'
-// import { FunctionSchema } from './schema.js'
-import { Group } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
+import { formatRouteEnvName } from 'awsless'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createLambdaFunction } from './util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { createLambdaFunction, isStandaloneFunction } from './util.js'
 import deepmerge from 'deepmerge'
 
 const typeGenCode = `
@@ -39,7 +36,7 @@ type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurs
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Response<F>> | Response<F> | void | Promise<void> | Promise<Promise<void>>
 type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
 type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
 `
 
 export const functionFeature = defineFeature({
@@ -65,19 +62,17 @@ export const functionFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in local.code) {
-					const relFile = relative(directories.types, local.code.file)
+				const relFile = relative(directories.types, local.code.file)
 
-					if (props.runtime === 'container') {
-						resource.addType(name, `Invoke<'${funcName}', Func>`)
-						mock.addType(name, `MockBuilder<Func>`)
-						mockResponse.addType(name, `MockObject<Func>`)
-					} else {
-						types.addImport(varName, relFile)
-						resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-						mock.addType(name, `MockBuilder<typeof ${varName}>`)
-						mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-					}
+				if (props.runtime === 'container') {
+					resource.addType(name, `Invoke<'${funcName}', Func>`)
+					mock.addType(name, `MockBuilder<Func>`)
+					mockResponse.addType(name, `MockObject<Func>`)
+				} else {
+					types.addImport(varName, relFile)
+					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+					mock.addType(name, `MockBuilder<typeof ${varName}>`)
+					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 				}
 			}
 
@@ -93,79 +88,6 @@ export const functionFeature = defineFeature({
 
 		await ctx.write('function.d.ts', types, true)
 	},
-	// We are putting the resources for this feature in a onBefore hook
-	// because we will need it for functions defined in the onApp hook
-	// in different features
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'function', 'asset')
-
-		// ------------------------------------------------------
-		// Define the Bucket used to store the lambda function code.
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'function',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-			// versioning: true,
-			// forceDelete: true,
-		})
-
-		ctx.shared.set('function', 'bucket-name', bucket.bucket)
-
-		// ------------------------------------------------------
-		// Define the ScheduleGroup for warmers
-
-		const warmGroup = new aws.scheduler.ScheduleGroup(group, 'warm', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'function',
-				resourceName: 'warm',
-			}),
-		})
-
-		ctx.shared.set('function', 'warm-group-name', warmGroup.name)
-
-		// ------------------------------------------------------
-		// Define the Repository used to store the container images.
-
-		// const repository = new aws.ecr.Repository(group, 'repository', {
-		// 	name: formatGlobalResourceName({
-		// 		appName: ctx.app.name,
-		// 		resourceType: 'function',
-		// 		resourceName: 'repository',
-		// 		seperator: '-',
-		// 	}),
-		// 	imageTagMutability: 'MUTABLE',
-		// })
-
-		// new aws.ecr.LifecyclePolicy(group, 'lifecycle', {
-		// 	repository: repository.name,
-		// 	policy: JSON.stringify({
-		// 		rules: [
-		// 			{
-		// 				rulePriority: 1,
-		// 				description: 'Remove untagged images older then 1 day',
-		// 				action: {
-		// 					type: 'expire',
-		// 				},
-		// 				selection: {
-		// 					tagStatus: 'untagged',
-		// 					countType: 'sinceImagePushed',
-		// 					countNumber: 1,
-		// 					countUnit: 'days',
-		// 				},
-		// 			},
-		// 		],
-		// 	}),
-		// })
-
-		// ctx.shared.set('function-repository-name', repository.name)
-		// ctx.shared.set('function-repository-uri', repository.repositoryUrl)
-	},
 	onApp(ctx) {
 		// ------------------------------------------------------
 		// Give lambda access to all policies inside your app.
@@ -180,13 +102,27 @@ export const functionFeature = defineFeature({
 				// 'lambda:ListFunctions',
 				// 'lambda:GetFunction',
 			],
-			resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
+			resources: [
+				`arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.appConfig.name}--*`,
+			],
 		})
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
-			const group = new Group(ctx.stack, 'function', id)
-			createLambdaFunction(group, ctx, 'function', id, props)
+			const routeKey = formatRouteKey(ctx.stack.name, 'function', id)
+
+			if (!isStandaloneFunction(props)) {
+				registerBundleFunction(ctx, routeKey, props)
+				continue
+			}
+
+			// The function defines its own lambda config, so it deploys as
+			// its own stand-alone lambda & the bundle invokes it directly
+			// by name instead of dispatching to a bundled handler.
+			createLambdaFunction(ctx, id, props)
+
+			const bundle = ctx.shared.get('bundle', 'main')
+			bundle.addEnv(formatRouteEnvName(routeKey, 'STANDALONE'), 'true')
 		}
 	},
 })

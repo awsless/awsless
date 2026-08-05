@@ -6,7 +6,7 @@ import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
+import { formatLocalResourceName } from '../../util/name'
 import { createFargateTask } from './util'
 
 const typeGenCode = `
@@ -20,7 +20,7 @@ type Send<Name extends string> = {
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<(payload: unknown) => unknown>
+type MockObject = Mock<[unknown], unknown>
 `
 
 export const instanceFeature = defineFeature({
@@ -59,21 +59,6 @@ export const instanceFeature = defineFeature({
 		gen.addInterface('InstanceMockResponse', mockResponses)
 
 		await ctx.write('instance.d.ts', gen, true)
-	},
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'instance', 'asset')
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'instance',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-		})
-
-		ctx.shared.set('instance', 'bucket-name', bucket.bucket)
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {

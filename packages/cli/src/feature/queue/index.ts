@@ -8,8 +8,8 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createLambdaFunction } from '../function/util.js'
-import { seconds, toSeconds } from '@awsless/duration'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
 
 const typeGenCode = `
@@ -33,7 +33,7 @@ type Send<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
 `
 
 export const queueFeature = defineFeature({
@@ -58,7 +58,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})}.fifo`
 
-				if (typeof props === 'object' && props.consumer && 'file' in props.consumer.code) {
+				if (typeof props === 'object' && props.consumer) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -86,6 +86,8 @@ export const queueFeature = defineFeature({
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
+		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
+
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
 
@@ -97,52 +99,35 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// const onFailure = ctx.shared.get('on-failure', 'queue-arn')
-
 			const queue = new aws.sqs.Queue(group, 'queue', {
 				name: `${baseName}.fifo`,
-				visibilityTimeoutSeconds: toSeconds(props.visibilityTimeout),
+				visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
 				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
 				messageRetentionSeconds: toSeconds(props.retentionPeriod),
 				maxMessageSize: toBytes(props.maxMessageSize),
 				fifoQueue: true,
 				deduplicationScope: 'messageGroup',
 				fifoThroughputLimit: 'perMessageGroupId',
-				// redrivePolicy: onFailure.pipe(arn =>
-				// 	JSON.stringify({
-				// 		deadLetterTargetArn: arn,
-				// 		maxReceiveCount: props.retryAttempts + 1,
-				// 	})
-				// ),
 			})
 
 			if (local.consumer) {
-				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
+				const consumer = local.consumer
 
-				lambdaConsumer.setEnvironment('THROW_EXPECTED_ERRORS', '1')
+				// The bundle routes the queue event to the right consumer based on the event source arn.
+				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
 
-				new aws.lambda.EventSourceMapping(
-					group,
-					'event',
-					{
-						functionName: lambdaConsumer.lambda.functionName,
-						eventSourceArn: queue.arn,
-						batchSize: props.batchSize,
-					},
-					{
-						dependsOn: [lambdaConsumer.policy],
-					}
-				)
-
-				lambdaConsumer.addPermission({
-					actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
-					resources: [queue.arn],
+				new aws.lambda.EventSourceMapping(group, 'event', {
+					functionName: bundle.alias.arn,
+					eventSourceArn: queue.arn,
+					batchSize: props.batchSize,
+				}, {
+					dependsOn: [bundle.policy],
 				})
 			}
 
 			ctx.addEnv(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 
-			ctx.addStackPermission({
+			ctx.addGlobalPermission({
 				actions: [
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',

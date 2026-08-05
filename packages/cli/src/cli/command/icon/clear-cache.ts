@@ -32,6 +32,14 @@ export const clearCache = (program: Command) => {
 						return
 					})
 
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the stack argument when running with --skip-prompt: [ ${iconStacks
+								.map(stack => stack.name)
+								.join(', ')} ]`
+						)
+					}
+
 					stack = await prompt.select({
 						message: 'Select the stack:',
 						options: iconStacks.map(stack => ({
@@ -48,8 +56,14 @@ export const clearCache = (program: Command) => {
 					}
 
 					const names = Object.keys(stackConfig.icons ?? {})
-					if (!names) {
+					if (names.length === 0) {
 						throw new ExpectedError(`No icon resources are defined in stack "${stack}".`)
+					}
+
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the icon name argument when running with --skip-prompt: [ ${names.join(', ')} ]`
+						)
 					}
 
 					name = await prompt.select({
@@ -61,12 +75,14 @@ export const clearCache = (program: Command) => {
 					})
 				}
 
-				const ok = await prompt.confirm({
-					message: `Are you sure you want to clear the cache`,
-				})
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message: `Are you sure you want to clear the cache`,
+					})
 
-				if (!ok) {
-					throw new Cancelled()
+					if (!ok) {
+						throw new Cancelled()
+					}
 				}
 
 				// ------------------------------------------------
@@ -83,10 +99,11 @@ export const clearCache = (program: Command) => {
 				await workspace.hydrate(app)
 
 				let distributionId: string
-				let cacheBucket: string
+				let cache: { bucket: string; prefix: string }
 				try {
 					distributionId = await shared.entry('icon', 'distribution-id', name)
-					cacheBucket = await shared.entry('icon', 'cache-bucket', name)
+					const entry = shared.entry('icon', 'cache', name)
+					cache = { bucket: await entry.bucket, prefix: entry.prefix }
 				} catch (_) {
 					throw new ExpectedError(`The icon resource hasn't been deployed yet.`)
 				}
@@ -114,7 +131,8 @@ export const clearCache = (program: Command) => {
 						while (true) {
 							const result = await s3Client.send(
 								new ListObjectsV2Command({
-									Bucket: cacheBucket,
+									Bucket: cache.bucket,
+									Prefix: cache.prefix,
 									ContinuationToken: continuationToken,
 									MaxKeys: 1000, // Maximum allowed per request
 								})
@@ -123,7 +141,7 @@ export const clearCache = (program: Command) => {
 							if (result.Contents && result.Contents.length > 0) {
 								await s3Client.send(
 									new DeleteObjectsCommand({
-										Bucket: cacheBucket,
+										Bucket: cache.bucket,
 										Delete: {
 											Objects: result.Contents.map(obj => ({
 												Key: obj.Key!,
@@ -145,24 +163,8 @@ export const clearCache = (program: Command) => {
 
 						await createInvalidationForDistributionTenants(cloudFrontClient, {
 							distributionId,
-							paths: [
-								// shared.entry('icon', 'path', name!)
-								'/*',
-							],
+							paths: ['/*'],
 						})
-
-						// await cloudFrontClient.send(
-						// 	new CreateInvalidationForDistributionTenantCommand({
-						// 		Id: distributionId,
-						// 		InvalidationBatch: {
-						// 			CallerReference: randomUUID(),
-						// 			Paths: {
-						// 				Quantity: 1,
-						// 				Items: [shared.entry('icon', 'path', name!)],
-						// 			},
-						// 		},
-						// 	})
-						// )
 					},
 				})
 

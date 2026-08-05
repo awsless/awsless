@@ -5,11 +5,13 @@ import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
-import { createLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 
 export const restFeature = defineFeature({
 	name: 'rest',
 	onApp(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults?.rest ?? {})) {
 			const group = new Group(ctx.base, 'rest', id)
 			const name = formatGlobalResourceName({
@@ -29,7 +31,18 @@ export const restFeature = defineFeature({
 				autoDeploy: true,
 			})
 
+			const permission = new aws.lambda.Permission(group, 'permission', {
+				action: 'lambda:InvokeFunction',
+				principal: 'apigateway.amazonaws.com',
+				functionName: bundle.lambda.functionName,
+				qualifier: bundle.alias.name,
+				sourceArn: api.id.pipe(
+					id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`
+				),
+			})
+
 			ctx.shared.add('rest', 'id', id, api.id)
+			ctx.shared.add('rest', 'permission', id, permission)
 
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
@@ -79,23 +92,19 @@ export const restFeature = defineFeature({
 		}
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, routes] of Object.entries(ctx.stackConfig.rest ?? {})) {
 			const restGroup = new Group(ctx.stack, 'rest', id)
 
 			for (const [routeKey, props] of Object.entries(routes)) {
 				const group = new Group(restGroup, 'route', routeKey)
 				const apiId = ctx.shared.entry('rest', 'id', id)
+				const permission = ctx.shared.entry('rest', 'permission', id)
 				const routeId = shortId(routeKey)
-				const { lambda } = createLambdaFunction(group, ctx, 'rest', `${id}-${routeId}`, {
-					...props,
-					description: `${id} ${routeKey}`,
-				})
+				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'rest', `${id}-${routeId}`)
 
-				const permission = new aws.lambda.Permission(group, 'permission', {
-					action: 'lambda:InvokeFunction',
-					principal: 'apigateway.amazonaws.com',
-					functionName: lambda.functionName,
-				})
+				registerBundleFunction(ctx, bundleRouteKey, props)
 
 				const integration = new aws.apigatewayv2.Integration(group, 'integration', {
 					apiId,
@@ -103,9 +112,15 @@ export const restFeature = defineFeature({
 					integrationType: 'AWS_PROXY',
 					integrationMethod: 'POST',
 					payloadFormatVersion: '2.0',
-					integrationUri: lambda.arn.pipe(arn => {
+					integrationUri: bundle.alias.arn.pipe(arn => {
 						return `arn:aws:apigateway:${ctx.appConfig.region}:lambda:path/2015-03-31/functions/${arn}/invocations`
 					}),
+
+					// Overwrite the route header that tells the bundle which handler to run,
+					// so a client provided route header can never hijack the routing.
+					requestParameters: {
+						[`overwrite:header.${ROUTE_HEADER}`]: bundleRouteKey,
+					},
 				})
 
 				new aws.apigatewayv2.Route(
@@ -117,7 +132,7 @@ export const restFeature = defineFeature({
 						target: integration.id.pipe(id => `integrations/${id}`),
 					},
 					{
-						dependsOn: [lambda, permission],
+						dependsOn: [permission],
 					}
 				)
 			}

@@ -1,4 +1,4 @@
-import { days, hours, minutes, seconds } from '@awsless/duration'
+import { days, minutes, seconds } from '@awsless/duration'
 import { kibibytes } from '@awsless/size'
 import { z } from 'zod'
 import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
@@ -12,13 +12,6 @@ const RetentionPeriodSchema = DurationSchema.refine(durationMin(minutes(1)), 'Mi
 	.describe(
 		'The number of seconds that Amazon SQS retains a message. You can specify a duration from 1 minute to 14 days.'
 	)
-
-const VisibilityTimeoutSchema = DurationSchema.refine(
-	durationMax(hours(12)),
-	'Maximum visibility timeout is 12 hours'
-).describe(
-	'The length of time during which a message will be unavailable after a message is delivered from the queue. You can specify a duration from 0 to 12 hours.'
-)
 
 const ReceiveMessageWaitTimeSchema = DurationSchema.refine(
 	durationMin(seconds(1)),
@@ -38,34 +31,22 @@ const BatchSizeSchema = z
 	.max(10, 'FIFO queues support a maximum batch size of 10')
 	.describe('The maximum number of records per batch. FIFO queues are capped at 10.')
 
-const RetryAttemptsSchema = z
-	.number()
-	.int()
-	.min(0)
-	.max(999)
-	.describe(
-		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 999.'
-	)
-
 export const QueueDefaultSchema = z
 	.object({
 		retentionPeriod: RetentionPeriodSchema.default('7 days'),
-		visibilityTimeout: VisibilityTimeoutSchema.default('2 minutes'),
+		// The visibility timeout is derived from the bundle timeout.
 		receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 		maxMessageSize: MaxMessageSizeSchema.default('256 KB'),
 		batchSize: BatchSizeSchema.default(10),
-		retryAttempts: RetryAttemptsSchema.default(2),
 	})
 	.default({})
 
 const QueueSchema = z.object({
 	consumer: FunctionSchema.optional().describe('The consuming lambda function properties.'),
 	retentionPeriod: RetentionPeriodSchema.optional(),
-	visibilityTimeout: VisibilityTimeoutSchema.optional(),
 	receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 	maxMessageSize: MaxMessageSizeSchema.optional(),
 	batchSize: BatchSizeSchema.optional(),
-	retryAttempts: RetryAttemptsSchema.optional(),
 })
 
 export const QueuesSchema = z

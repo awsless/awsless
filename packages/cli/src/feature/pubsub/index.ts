@@ -1,20 +1,19 @@
-import { seconds } from '@awsless/duration'
-import { mebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { createHmac } from 'crypto'
-import { dirname, join } from 'path'
 import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'path'
+import { formatRouteEnvName } from 'awsless'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
+import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { formatFullDomainName } from '../domain/util.js'
-import { createPrebuildLambdaFunction } from '../function/prebuild.js'
-import { createAsyncLambdaFunction, createLambdaFunction } from '../function/util.js'
 import { pubsubEventTypes } from './schema.js'
 import { createPubSubService, WS_PORT } from './util.js'
 
@@ -71,33 +70,14 @@ export const pubsubFeature = defineFeature({
 			}
 		}
 	},
-	onBefore(ctx) {
-		const found = Object.keys(ctx.appConfig.defaults.pubsub ?? {}).length > 0
-
-		if (!found) {
-			return
-		}
-
-		const group = new Group(ctx.base, 'pubsub', 'asset')
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'pubsub',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-		})
-
-		ctx.shared.set('pubsub', 'bucket-name', bucket.bucket)
-	},
 	onApp(ctx) {
 		const pubsubs = Object.entries(ctx.appConfig.defaults.pubsub ?? {})
 
 		if (pubsubs.length === 0) {
 			return
 		}
+
+		const bundle = ctx.shared.get('bundle', 'main')
 
 		// ------------------------------------------------------------
 		// Create the shared ECS cluster
@@ -127,13 +107,16 @@ export const pubsubFeature = defineFeature({
 			const vpcId = ctx.shared.get('vpc', 'id')
 
 			// ------------------------------------------------------------
-			// Create the auth lambda
+			// The auth handler lives inside the shared bundle
 
-			const auth = createLambdaFunction(group, ctx, 'pubsub-auth', id, props.auth)
+			const authRouteKey = formatRouteKey('base', 'pubsub', `${id}-auth`)
+
+			registerBundleFunction(ctx, authRouteKey, props.auth)
 
 			// ------------------------------------------------------------
 			// Create the SNS events topic.
-			// Listeners subscribe with a filter policy on the event type.
+			// The bundle subscribes with a filter policy on the event types
+			// that have a listener.
 
 			const topicName = formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -146,6 +129,30 @@ export const pubsubFeature = defineFeature({
 			})
 
 			ctx.shared.add('pubsub', 'events-topic-arn', id, topic.arn)
+
+			const events = pubsubEventTypes.filter(event => {
+				return ctx.stackConfigs.some(stack => stack.pubsub?.[id]?.[event])
+			})
+
+			if (events.length > 0) {
+				new aws.sns.TopicSubscription(group, 'subscription', {
+					topicArn: topic.arn,
+					protocol: 'lambda',
+					endpoint: bundle.alias.arn,
+					filterPolicyScope: 'MessageAttributes',
+					filterPolicy: JSON.stringify({
+						event: events,
+					}),
+				})
+
+				new aws.lambda.Permission(group, 'permission', {
+					action: 'lambda:InvokeFunction',
+					principal: 'sns.amazonaws.com',
+					functionName: bundle.lambda.functionName,
+					qualifier: bundle.alias.name,
+					sourceArn: topic.arn,
+				})
+			}
 
 			// ------------------------------------------------------------
 			// Create the Redis pub/sub cache used to fan-out messages
@@ -171,12 +178,15 @@ export const pubsubFeature = defineFeature({
 				{
 					name: cacheName,
 					engine: 'valkey',
+					networkType: 'dual_stack',
 					majorEngineVersion: '8',
 					securityGroupIds: [cacheSecurityGroup.id],
 					subnetIds: ctx.shared.get('vpc', 'private-subnets'),
 				},
 				{
 					import: ctx.import ? cacheName : undefined,
+					// The network type can only be set at creation time.
+					replaceOnChanges: ['networkType'],
 				}
 			)
 
@@ -297,7 +307,10 @@ export const pubsubFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Create the fargate service
+			// Create the fargate service.
+			// The server authenticates through the live bundle alias, so the
+			// task env stays stable across deployments & sockets only ever
+			// reconnect on pubsub changes.
 
 			const secret = createHmac('sha1', ctx.appId).update(name).digest('hex')
 
@@ -307,7 +320,8 @@ export const pubsubFeature = defineFeature({
 				targetGroupArn: targetGroup.arn,
 				securityGroupId: taskSecurityGroup.id,
 				environment: {
-					AUTH: auth.name,
+					AUTH: bundle.lambda.functionName.pipe(name => `${name}:${LIVE_LAMBDA_ALIAS}`),
+					AUTH_ROUTE: authRouteKey,
 					EVENTS_TOPIC: topicName,
 					PORT: WS_PORT.toString(),
 					REDIS_HOST: redisHost,
@@ -320,7 +334,7 @@ export const pubsubFeature = defineFeature({
 			service.addPermission(
 				{
 					actions: ['lambda:InvokeFunction'],
-					resources: [auth.lambda.arn],
+					resources: [bundle.lambda.arn.pipe(arn => `${arn}:${LIVE_LAMBDA_ALIAS}`)],
 				},
 				{
 					actions: ['sns:Publish'],
@@ -329,31 +343,23 @@ export const pubsubFeature = defineFeature({
 			)
 
 			// ------------------------------------------------------------
-			// Create the publisher lambda that runs inside the VPC,
-			// so that user lambdas can publish without VPC access.
+			// The publisher handler lives inside the shared bundle, which
+			// reaches redis through the app vpc.
 
-			const publisher = createPrebuildLambdaFunction(group, ctx, 'pubsub-publisher', id, {
-				bundleFile: join(__dirname, '/prebuild/pubsub-publisher/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/pubsub-publisher/HASH'),
-				memorySize: mebibytes(256),
-				timeout: seconds(10),
-				handler: 'index.default',
-				runtime: 'nodejs24.x',
-				vpc: true,
-				log: props.log,
+			const publisherRouteKey = formatRouteKey('base', 'pubsub', `${id}-publisher`)
+
+			bundle.addHandler({
+				routeKey: publisherRouteKey,
+				file: join(__dirname, '/handlers/pubsub-publisher.js'),
+				exportName: 'default',
 			})
 
-			publisher.setEnvironment('REDIS_HOST', redisHost)
-			publisher.setEnvironment(
-				'REDIS_PORT',
+			bundle.addEnv(formatRouteEnvName(publisherRouteKey, 'REDIS_HOST'), redisHost)
+			bundle.addEnv(
+				formatRouteEnvName(publisherRouteKey, 'REDIS_PORT'),
 				redisPort.pipe(port => port.toString())
 			)
-			publisher.setEnvironment('CHANNEL', channel)
-
-			ctx.addGlobalPermission({
-				actions: ['lambda:InvokeFunction'],
-				resources: [publisher.lambda.arn],
-			})
+			bundle.addEnv(formatRouteEnvName(publisherRouteKey, 'CHANNEL'), channel)
 
 			// ------------------------------------------------------------
 			// Route the pubsub path through the router
@@ -369,7 +375,7 @@ export const pubsubFeature = defineFeature({
 
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
 
-			addRoutes(group, `pubsub-${id}`, {
+			addRoutes({
 				[`${props.path}/*`]: {
 					type: 'url',
 					domainName: lb.dnsName,
@@ -390,14 +396,10 @@ export const pubsubFeature = defineFeature({
 			const domainName = formatFullDomainName(ctx.appConfig, routerProps.domain, routerProps.subDomain)
 
 			ctx.bind(`PUBSUB_${constantCase(id)}_ENDPOINT`, `wss://${domainName}${props.path}/ws`)
-			ctx.bind(`PUBSUB_${constantCase(id)}_PUBLISHER`, publisher.name)
 		}
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.pubsub ?? {})) {
-			const group = new Group(ctx.stack, 'pubsub', id)
-			const topicArn = ctx.shared.entry('pubsub', 'events-topic-arn', id)
-
 			for (const event of pubsubEventTypes) {
 				const consumer = props[event]
 
@@ -405,29 +407,7 @@ export const pubsubFeature = defineFeature({
 					continue
 				}
 
-				const eventGroup = new Group(group, 'event', event)
-
-				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `pubsub`, `${id}-${event}`, {
-					consumer,
-					retryAttempts: 2,
-				})
-
-				new aws.sns.TopicSubscription(eventGroup, 'subscription', {
-					topicArn,
-					protocol: 'lambda',
-					endpoint: lambda.arn,
-					filterPolicyScope: 'MessageAttributes',
-					filterPolicy: JSON.stringify({
-						event: [event],
-					}),
-				})
-
-				new aws.lambda.Permission(eventGroup, 'permission', {
-					action: 'lambda:InvokeFunction',
-					principal: 'sns.amazonaws.com',
-					functionName: lambda.functionName,
-					sourceArn: topicArn,
-				})
+				registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'pubsub', `${id}-${event}`), consumer)
 			}
 		}
 	},

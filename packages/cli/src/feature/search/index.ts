@@ -8,11 +8,11 @@ import { shortId } from '../../util/id.js'
 import { toGibibytes } from '@awsless/size'
 
 const typeGenCode = `
-import { AnySchema, Table } from '@awsless/open-search'
+import { AnyStruct, Table } from '@awsless/open-search'
 
 type Search = {
 	readonly domain: string
-	readonly defineTable: <N extends string, S extends AnySchema>(tableName: N, schema: S) => Table<N, S>
+	readonly defineTable: <N extends string, S extends AnyStruct>(tableName: N, schema: S) => Table<N, S>
 }
 `
 
@@ -48,7 +48,7 @@ export const searchFeature = defineFeature({
 				{
 					domainName: name,
 					engineVersion: `OpenSearch_${props.version}`,
-					ipAddressType: 'ipv4',
+					ipAddressType: 'dualstack',
 					clusterConfig: {
 						instanceType: `${props.type}.search`,
 						instanceCount: props.count,
@@ -104,9 +104,9 @@ export const searchFeature = defineFeature({
 				}
 			)
 
-			ctx.addEnv(`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`, openSearch.endpoint)
+			ctx.addEnv(`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`, openSearch.endpointV2)
 
-			ctx.addStackPermission({
+			ctx.addGlobalPermission({
 				actions: ['es:ESHttp*'],
 				resources: [
 					//
