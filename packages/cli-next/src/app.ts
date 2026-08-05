@@ -18,6 +18,9 @@ export type CreateAppProps = {
 	accountId: string
 	deploymentId?: string
 	import?: boolean
+
+	// The remote config values, only provided by the deploy command.
+	configValues?: Record<string, string>
 }
 
 export type Warning = {

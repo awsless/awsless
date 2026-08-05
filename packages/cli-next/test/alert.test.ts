@@ -20,6 +20,16 @@ describe('alert schema', () => {
 		})
 	})
 
+	it('should accept config references', () => {
+		expect(AlertsDefaultSchema.parse({ ops: ['ops@team.com', 'config:private-phone'] })).toStrictEqual({
+			ops: ['ops@team.com', 'config:private-phone'],
+		})
+	})
+
+	it('should reject invalid config references', () => {
+		expect(() => AlertsDefaultSchema.parse({ ops: ['config:Invalid_Name'] })).toThrow()
+	})
+
 	it('should reject phone numbers that are not in E.164 format', () => {
 		expect(() => AlertsDefaultSchema.parse({ ops: ['0612345678'] })).toThrow()
 		expect(() => AlertsDefaultSchema.parse({ ops: ['not-an-endpoint'] })).toThrow()

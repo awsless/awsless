@@ -50,7 +50,7 @@ export const set = (program: Command) => {
 						message: 'Enter the config value:',
 						initialValue,
 						validate(value) {
-							if (value === '') {
+							if (value.trim() === '') {
 								return `Value can't be empty`
 							}
 
@@ -58,6 +58,8 @@ export const set = (program: Command) => {
 						},
 					})
 				}
+
+				value = value.trim()
 
 				if (value === '') {
 					throw new ExpectedError(`Value can't be empty`)

@@ -11,6 +11,9 @@
 				"system": "warn"
 			}
 		},
+		"alerts": {
+			"test": ["info@jacksclub.dev", "config:alert-phone"]
+		},
 		"onFailure": "./on-failure/handle.ts",
 		"onErrorLog": "./on-error-log/consumer.ts"
 	}

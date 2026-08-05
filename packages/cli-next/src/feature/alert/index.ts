@@ -1,6 +1,8 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { configRefName, isConfigRef } from '../../config/schema/config-ref.js'
 import { isEmail } from '../../config/schema/email.js'
+import { isPhone } from '../../config/schema/phone.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -59,6 +61,32 @@ export const alertFeature = defineFeature({
 			})
 
 			for (const endpoint of endpoints) {
+				// Private endpoints reference a remote config value & are
+				// silently skipped while that value is unset or empty.
+				if (isConfigRef(endpoint)) {
+					const name = configRefName(endpoint)
+					const value = ctx.configValues?.[name]?.trim()
+
+					if (!value) {
+						continue
+					}
+
+					if (!isEmail(value) && !isPhone(value)) {
+						ctx.addWarning({
+							message: `The config value "${name}" must be an email address or a phone number.`,
+						})
+						continue
+					}
+
+					new aws.sns.TopicSubscription(group, endpoint.replace(':', '-'), {
+						topicArn: topic.arn,
+						protocol: isEmail(value) ? 'email' : 'sms',
+						endpoint: value,
+					})
+
+					continue
+				}
+
 				new aws.sns.TopicSubscription(group, endpoint, {
 					topicArn: topic.arn,
 					protocol: isEmail(endpoint) ? 'email' : 'sms',
