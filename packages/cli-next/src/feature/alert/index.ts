@@ -1,5 +1,6 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { isEmail } from '../../config/schema/email.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -45,7 +46,7 @@ export const alertFeature = defineFeature({
 		await ctx.write('alert.d.ts', gen, true)
 	},
 	onApp(ctx) {
-		for (const [id, emails] of Object.entries(ctx.appConfig.defaults.alerts ?? {})) {
+		for (const [id, endpoints] of Object.entries(ctx.appConfig.defaults.alerts ?? {})) {
 			const group = new Group(ctx.base, 'alert', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
@@ -57,11 +58,11 @@ export const alertFeature = defineFeature({
 				name,
 			})
 
-			for (const email of emails) {
-				new aws.sns.TopicSubscription(group, email, {
+			for (const endpoint of endpoints) {
+				new aws.sns.TopicSubscription(group, endpoint, {
 					topicArn: topic.arn,
-					protocol: 'email',
-					endpoint: email,
+					protocol: isEmail(endpoint) ? 'email' : 'sms',
+					endpoint,
 				})
 			}
 		}

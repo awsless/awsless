@@ -22,6 +22,7 @@ import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
 import { showWarnings } from '../ui/complex/show-warnings.js'
+import { verifyAlertEndpoints } from '../ui/complex/verify-alert-endpoints.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -181,6 +182,8 @@ export const deploy = (program: Command) => {
 				for (const summary of deployments) {
 					log.message(summary)
 				}
+
+				await verifyAlertEndpoints({ credentials, appConfig, accountId })
 
 				return `Deployment #${deployment.id} is live.`
 			})
