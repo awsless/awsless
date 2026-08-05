@@ -214,6 +214,8 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
 
 	return createCustomProvider('cloudfront-kvs', {
+		// Backwards compatibility for old states, can be removed later.
+		'import-keys': {},
 		'route-deployment': {
 			async createResource(props) {
 				return stageRoutes(kvs, routeDeploymentInputSchema.parse(props.state))
