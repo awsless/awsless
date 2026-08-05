@@ -78,14 +78,22 @@ export const routerFeature = defineFeature({
 			// Route Store
 
 			if (id === defaultRouter) {
-				routeStore = new aws.cloudfront.KeyValueStore(group, 'routes', {
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: 'store',
-					}),
-					comment: 'Store for routes',
-				})
+				routeStore = new aws.cloudfront.KeyValueStore(
+					group,
+					'routes',
+					{
+						name: formatGlobalResourceName({
+							appName: ctx.app.name,
+							resourceType: 'router',
+							resourceName: 'store',
+						}),
+						comment: 'Store for routes',
+					},
+					{
+						replaceOnChanges: ['name'],
+						createBeforeReplace: true,
+					}
+				)
 			}
 
 			// the function names are capped at 64 characters
@@ -591,8 +599,6 @@ export const routerFeature = defineFeature({
 							dependsOn: Array.from(routeDependencies),
 						}
 					)
-
-
 				})
 			}
 

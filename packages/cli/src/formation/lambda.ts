@@ -332,6 +332,8 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		return url
 	}
 	return createCustomProvider('lambda', {
+		// Backwards compatibility for old states, can be removed later.
+		'update-function-code': {},
 		'bundle-deployment': {
 			async createResource(props) {
 				const state = bundleDeploymentInputSchema.parse(props.state)
