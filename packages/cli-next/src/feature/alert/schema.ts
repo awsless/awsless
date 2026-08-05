@@ -1,5 +1,6 @@
 import { kebabCase } from 'change-case'
 import { z } from 'zod'
+import { ConfigRefSchema } from '../../config/schema/config-ref.js'
 import { EmailSchema } from '../../config/schema/email.js'
 import { PhoneSchema } from '../../config/schema/phone.js'
 
@@ -11,7 +12,7 @@ const AlertNameSchema = z
 	.transform(value => kebabCase(value))
 	.describe('Define alert name.')
 
-const EndpointSchema = z.union([EmailSchema, PhoneSchema])
+const EndpointSchema = z.union([EmailSchema, PhoneSchema, ConfigRefSchema])
 
 export const AlertsDefaultSchema = z
 	.record(
@@ -24,5 +25,5 @@ export const AlertsDefaultSchema = z
 	)
 	.optional()
 	.describe(
-		'Define the alerts in your app. Alerts are a way to send messages to one or more email addresses or phone numbers.'
+		'Define the alerts in your app. Alerts are a way to send messages to one or more email addresses or phone numbers. Private endpoints can reference a remote config value with "config:<name>".'
 	)

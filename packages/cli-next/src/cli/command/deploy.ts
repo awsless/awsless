@@ -57,19 +57,21 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
+				const params = new SsmStore({ credentials, appConfig })
+				const configValues = await params.list()
+
 				const { app, tests, warnings, builders, ready, appId, configs } = createApp({
 					appConfig,
 					stackConfigs,
 					accountId,
 					deploymentId: deployment.id,
 					import: options.import,
+					configValues,
 				})
 
 				// Warn when a config value the app depends on hasn't been set.
 				if (configs.size > 0) {
-					const params = new SsmStore({ credentials, appConfig })
-					const values = await params.list()
-					const missing = [...configs].filter(name => !(name in values))
+					const missing = [...configs].filter(name => !(name in configValues))
 
 					if (missing.length > 0) {
 						warnings.push({
@@ -183,7 +185,7 @@ export const deploy = (program: Command) => {
 					log.message(summary)
 				}
 
-				await verifyAlertEndpoints({ credentials, appConfig, accountId })
+				await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
 
 				return `Deployment #${deployment.id} is live.`
 			})

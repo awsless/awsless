@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/client-sns'
 import { log, prompt } from '@awsless/clui'
 import { AppConfig } from '../../../config/app.js'
+import { configRefName, isConfigRef } from '../../../config/schema/config-ref.js'
 import { isEmail } from '../../../config/schema/email.js'
 import { isPhone } from '../../../config/schema/phone.js'
 import { Credentials } from '../../../util/aws.js'
@@ -18,12 +19,15 @@ type Props = {
 	credentials: Credentials
 	appConfig: AppConfig
 	accountId: string
+	configValues: Record<string, string>
 }
 
-export const verifyAlertEndpoints = async (props: Props) => {
-	const alerts = Object.entries(props.appConfig.alerts ?? {})
+type ResolvedAlerts = Record<string, string[]>
 
-	if (alerts.length === 0) {
+export const verifyAlertEndpoints = async (props: Props) => {
+	const alerts = resolveAlertEndpoints(props)
+
+	if (Object.keys(alerts).length === 0) {
 		return
 	}
 
@@ -32,18 +36,46 @@ export const verifyAlertEndpoints = async (props: Props) => {
 		region: props.appConfig.region,
 	})
 
-	await verifySmsNumbers(client, props)
-	await checkEmailSubscriptions(client, props)
+	await verifySmsNumbers(client, alerts)
+	await checkEmailSubscriptions(client, props, alerts)
+}
+
+// Config referenced endpoints resolve to their remote value, so the
+// checks below always see the real email addresses & phone numbers.
+// References with a missing or empty value are silently ignored.
+const resolveAlertEndpoints = (props: Props): ResolvedAlerts => {
+	const alerts: ResolvedAlerts = {}
+
+	for (const [id, endpoints] of Object.entries(props.appConfig.alerts ?? {})) {
+		const resolved: string[] = []
+
+		for (const endpoint of endpoints) {
+			if (!isConfigRef(endpoint)) {
+				resolved.push(endpoint)
+				continue
+			}
+
+			const value = props.configValues[configRefName(endpoint)]?.trim()
+
+			if (value) {
+				resolved.push(value)
+			}
+		}
+
+		alerts[id] = resolved
+	}
+
+	return alerts
 }
 
 // ---------------------------------------------------
 // While an AWS account is inside the SNS SMS sandbox, alert messages
 // are only delivered to verified destination phone numbers.
 
-const listAlertPhoneNumbers = (appConfig: AppConfig) => {
+const listAlertPhoneNumbers = (alerts: ResolvedAlerts) => {
 	const numbers = new Set<string>()
 
-	for (const endpoints of Object.values(appConfig.alerts ?? {})) {
+	for (const endpoints of Object.values(alerts)) {
 		for (const endpoint of endpoints) {
 			if (isPhone(endpoint)) {
 				numbers.add(endpoint)
@@ -117,8 +149,8 @@ const verifyNumber = async (client: SNSClient, phoneNumber: string) => {
 	return false
 }
 
-const verifySmsNumbers = async (client: SNSClient, props: Props) => {
-	const phoneNumbers = listAlertPhoneNumbers(props.appConfig)
+const verifySmsNumbers = async (client: SNSClient, alerts: ResolvedAlerts) => {
+	const phoneNumbers = listAlertPhoneNumbers(alerts)
 
 	if (phoneNumbers.length === 0) {
 		return
@@ -193,8 +225,8 @@ const listEmailSubscriptions = async (client: SNSClient, topicArn: string) => {
 	return { confirmed, pending }
 }
 
-const checkEmailSubscriptions = async (client: SNSClient, props: Props) => {
-	for (const [id, endpoints] of Object.entries(props.appConfig.alerts ?? {})) {
+const checkEmailSubscriptions = async (client: SNSClient, props: Props, alerts: ResolvedAlerts) => {
+	for (const [id, endpoints] of Object.entries(alerts)) {
 		const emails = endpoints.filter(endpoint => isEmail(endpoint))
 
 		if (emails.length === 0) {

@@ -87,6 +87,9 @@ export type BeforeContext = {
 	deploymentId?: string
 	import: boolean
 
+	// The remote config values, only provided by the deploy command.
+	configValues?: Record<string, string>
+
 	app: App
 	base: Stack
 	zones: Stack
