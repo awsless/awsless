@@ -49,7 +49,7 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 	const manifest: TestManifest = {
 		app: appConfig.name,
 		region: appConfig.region,
-		configs: appConfig.defaults.test.configs,
+		configs: appConfig.test.configs,
 		tables: [],
 		tableKeys: [],
 		streams: [],
@@ -57,10 +57,10 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		functions: [],
 		tasks: [],
 		queues: [],
-		topics: appConfig.defaults.topics ?? [],
-		pubsub: Object.keys(appConfig.defaults.pubsub ?? {}),
+		topics: appConfig.topics ?? [],
+		pubsub: Object.keys(appConfig.pubsub ?? {}),
 		caches: [],
-		alerts: Object.keys(appConfig.defaults.alerts ?? {}),
+		alerts: Object.keys(appConfig.alerts ?? {}),
 		jobs: [],
 		instances: [],
 	}

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url'
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
 	onApp(ctx) {
-		const props = ctx.appConfig.defaults.onErrorLog
+		const props = ctx.appConfig.onErrorLog
 
 		if (!props) {
 			return

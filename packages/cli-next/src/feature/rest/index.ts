@@ -14,7 +14,7 @@ export const restFeature = defineFeature({
 	onApp(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
 
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults?.rest ?? {})) {
+		for (const [id, props] of Object.entries(ctx.appConfig.rest ?? {})) {
 			const group = new Group(ctx.base, 'rest', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,

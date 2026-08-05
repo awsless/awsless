@@ -74,8 +74,8 @@ describe('bundle', () => {
 			.map(getMeta)
 			.find(meta => meta.type === 'aws_lambda_function' && meta.urn.includes(':function:{bundle}:'))
 
-		expect(appConfig.defaults.function.minify).toBe(false)
-		expect('bundle' in appConfig.defaults.function).toBe(false)
+		expect(appConfig.function.minify).toBe(false)
+		expect('bundle' in appConfig.function).toBe(false)
 		expect(lambda?.input.memorySize).toBe(256)
 		expect(lambda?.input.timeout).toBe(20)
 	})

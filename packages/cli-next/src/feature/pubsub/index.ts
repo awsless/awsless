@@ -43,7 +43,7 @@ export const pubsubFeature = defineFeature({
 		const resources = new TypeObject(1)
 		const testMocks = new TypeObject(2)
 
-		for (const id of Object.keys(ctx.appConfig.defaults.pubsub ?? {})) {
+		for (const id of Object.keys(ctx.appConfig.pubsub ?? {})) {
 			resources.addType(id, `PubSubInstance`)
 			testMocks.addType(id, `TestMockEntry`)
 		}
@@ -58,10 +58,10 @@ export const pubsubFeature = defineFeature({
 		await ctx.write('pubsub.d.ts', gen, true)
 	},
 	onValidate(ctx) {
-		const pubsubs = ctx.appConfig.defaults.pubsub ?? {}
+		const pubsubs = ctx.appConfig.pubsub ?? {}
 
 		for (const [id, props] of Object.entries(pubsubs)) {
-			if (!(props.router in (ctx.appConfig.defaults.router ?? {}))) {
+			if (!(props.router in (ctx.appConfig.router ?? {}))) {
 				throw new FileError('app.json', `The pubsub "${id}" points to a non existent router "${props.router}"`)
 			}
 		}
@@ -75,7 +75,7 @@ export const pubsubFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		const pubsubs = Object.entries(ctx.appConfig.defaults.pubsub ?? {})
+		const pubsubs = Object.entries(ctx.appConfig.pubsub ?? {})
 
 		if (pubsubs.length === 0) {
 			return
@@ -368,7 +368,7 @@ export const pubsubFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Route the pubsub path through the router
 
-			const routerProps = ctx.appConfig.defaults.router?.[props.router]
+			const routerProps = ctx.appConfig.router?.[props.router]
 
 			if (!routerProps?.domain) {
 				throw new FileError(

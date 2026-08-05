@@ -56,7 +56,7 @@ export const startDev = async (props: {
 	// base port, the routers follow it in config order.
 	const routerPorts: Record<string, number> = {}
 
-	Object.keys(appConfig.defaults.router ?? {}).forEach((id, index) => {
+	Object.keys(appConfig.router ?? {}).forEach((id, index) => {
 		routerPorts[id] = props.port + 1 + index
 	})
 
@@ -180,7 +180,7 @@ export const startDev = async (props: {
 	// Failed async consumers route to the on-failure consumer when the
 	// app has one, instead of retry & dlq machinery.
 	const reportFailure = createFailureReporter({
-		enabled: Boolean(appConfig.defaults.onFailure),
+		enabled: Boolean(appConfig.onFailure),
 		dispatch,
 		log,
 	})

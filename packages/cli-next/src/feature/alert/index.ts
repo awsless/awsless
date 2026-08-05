@@ -29,7 +29,7 @@ export const alertFeature = defineFeature({
 		const resources = new TypeObject(1)
 		const testMocks = new TypeObject(2)
 
-		for (const alert of Object.keys(ctx.appConfig.defaults.alerts ?? {})) {
+		for (const alert of Object.keys(ctx.appConfig.alerts ?? {})) {
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
 				resourceType: 'alert',
@@ -50,7 +50,7 @@ export const alertFeature = defineFeature({
 		await ctx.write('alert.d.ts', gen, true)
 	},
 	onApp(ctx) {
-		for (const [id, emails] of Object.entries(ctx.appConfig.defaults.alerts ?? {})) {
+		for (const [id, emails] of Object.entries(ctx.appConfig.alerts ?? {})) {
 			const group = new Group(ctx.base, 'alert', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,

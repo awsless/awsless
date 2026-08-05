@@ -48,9 +48,13 @@ type DynamoDBStreamInputRecord = {
     };
 };
 type DynamoDBStreamOutputRecord<T extends AnyTable> = {
+    /** The kind of change that produced this record. */
     event: 'insert' | 'modify' | 'remove';
+    /** The primary key of the affected item. */
     keys: PrimaryKey<T>;
+    /** The item before the change, when the stream captures old images. */
     old?: Infer<T>;
+    /** The item after the change, when the stream captures new images. */
     new?: Infer<T>;
 };
 type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{

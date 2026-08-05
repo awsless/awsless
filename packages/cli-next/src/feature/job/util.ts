@@ -31,7 +31,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 
 	const shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 
-	const props = deepmerge(ctx.appConfig.defaults.job, local)
+	const props = deepmerge(ctx.appConfig.job, local)
 	const image =
 		props.image ||
 		(props.architecture === 'arm64'
@@ -374,8 +374,8 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	// ------------------------------------------------------------
 	// Add user defined permissions
 
-	if (ctx.appConfig.defaults.job.permissions) {
-		statements.push(...ctx.appConfig.defaults.job.permissions)
+	if (ctx.appConfig.job.permissions) {
+		statements.push(...ctx.appConfig.job.permissions)
 	}
 
 	if (local.permissions) {

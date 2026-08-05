@@ -30,7 +30,7 @@ export const imageFeature = defineFeature({
 			return
 		}
 
-		if (ctx.appConfig.defaults.function.architecture !== 'arm64') {
+		if (ctx.appConfig.function.architecture !== 'arm64') {
 			throw new FileError('app.json', 'The image feature requires an arm64 function bundle.')
 		}
 

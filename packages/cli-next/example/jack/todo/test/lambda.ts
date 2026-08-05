@@ -24,13 +24,28 @@ describe('Todo', () => {
 		})
 	})
 
+	it('config', async () => {
+		mock.config.maxTasks('1')
+
+		await expect(create({ name: 'Over the limit' })).rejects.toThrow('task limit')
+
+		mock.config.maxTasks('10')
+	})
+
 	it('search', async () => {
 		const result = await search({ query: 'post' })
 
 		expect(result).toStrictEqual({
-			id: expect.any(String),
-			name: 'My post',
-			done: false,
+			cursor: undefined,
+			count: 1,
+			found: 1,
+			items: [
+				{
+					id: expect.any(String),
+					name: 'My post',
+					done: false,
+				},
+			],
 		})
 	})
 

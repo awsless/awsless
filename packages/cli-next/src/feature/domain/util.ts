@@ -71,7 +71,7 @@ export const createDnsValidatedCertificate = (
 }
 
 export const getDomainNameById = (config: AppConfig, id: string) => {
-	const domains = config.defaults.domains ?? {}
+	const domains = config.domains ?? {}
 
 	if (id in domains) {
 		if (domains[id]) {

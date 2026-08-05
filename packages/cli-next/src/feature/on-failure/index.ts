@@ -31,7 +31,7 @@ export const onFailureFeature = defineFeature({
 		// Create a single on-failure queue to feed all failure bucket
 		// notifications into the bundle
 
-		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
+		const bundleTimeout = toSeconds(ctx.appConfig.function.timeout)
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -83,7 +83,7 @@ export const onFailureFeature = defineFeature({
 			queue,
 		})
 
-		const notify = ctx.appConfig.defaults.onFailure?.notify
+		const notify = ctx.appConfig.onFailure?.notify
 
 		if (notify) {
 			const topic = new aws.sns.Topic(group, 'deadletter-topic', {
@@ -179,7 +179,7 @@ export const onFailureFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		const props = ctx.appConfig.defaults.onFailure
+		const props = ctx.appConfig.onFailure
 
 		if (!props) {
 			return
@@ -208,7 +208,7 @@ export const onFailureFeature = defineFeature({
 
 			// The consumer invoke is synchronous, so the handler needs at
 			// least the same timeout as the bundle.
-			timeout: ctx.appConfig.defaults.function.timeout,
+			timeout: ctx.appConfig.function.timeout,
 
 			log: {
 				format: 'json',

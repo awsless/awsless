@@ -3,8 +3,7 @@ import { GenericSchema, InferOutput, SnsTopicSchema, snsTopic } from '@awsless/v
 import { TopicDefinition } from '../server/topic.js'
 import { consumer } from './util.js'
 
-// The parsed message a subscriber receives, from either a defined
-// topic or a plain payload schema.
+/** The parsed message a subscriber receives, from either a defined topic or a plain payload schema. */
 export type SubscribeEvent<S extends { readonly schema: GenericSchema } | GenericSchema> = InferOutput<
 	S extends { readonly schema: infer T extends GenericSchema } ? T : S extends GenericSchema ? S : never
 >

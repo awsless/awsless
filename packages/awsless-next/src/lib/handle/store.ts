@@ -1,5 +1,5 @@
 import { Handler } from '@awsless/lambda'
-import { array, InferOutput, object, pipe, string, transform, union } from '@awsless/validate'
+import { array, GenericSchema, InferInput, object, pipe, string, transform, union } from '@awsless/validate'
 import { consumer } from './util.js'
 
 const storeNotificationSchema = union(
@@ -31,9 +31,17 @@ const storeNotificationSchema = union(
 	'Invalid store notification input'
 )
 
-// The array of affected objects a store event handler receives.
-export type StoreEvent = InferOutput<typeof storeNotificationSchema>
+/** The affected objects a store event handler receives. */
+export type StoreEvent = {
+	/** The name of the bucket holding the affected object. */
+	bucket: string
 
-export const event = <H extends Handler<typeof storeNotificationSchema>>(handle: H) => {
-	return consumer(storeNotificationSchema, handle)
+	/** The key of the affected object. */
+	key: string
+}[]
+
+type StoreSchema = GenericSchema<InferInput<typeof storeNotificationSchema>, StoreEvent>
+
+export const event = <H extends Handler<StoreSchema>>(handle: H) => {
+	return consumer(storeNotificationSchema as StoreSchema, handle)
 }

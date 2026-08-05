@@ -24,7 +24,7 @@ export const authFeature = defineFeature({
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
 
-		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
+		for (const name of Object.keys(ctx.appConfig.auth)) {
 			resources.addType(name, `{ readonly userPoolId: string, readonly clientId: string }`)
 		}
 
@@ -128,7 +128,7 @@ export const authFeature = defineFeature({
 	// 	// }
 	// },
 	onApp(ctx) {
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
+		for (const [id, props] of Object.entries(ctx.appConfig.auth ?? {})) {
 			const group = new Group(ctx.base, 'auth', id)
 
 			// let emailConfig: aws.cognito.UserPoolProps['email'] | undefined

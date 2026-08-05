@@ -67,7 +67,7 @@ export const functionFeature = defineFeature({
 			const testMock = new TypeObject(3)
 
 			for (const [name, local] of Object.entries(stack.functions || {})) {
-				const props = deepmerge(ctx.appConfig.defaults.function, local)
+				const props = deepmerge(ctx.appConfig.function, local)
 				const varName = camelCase(`${stack.name}-${name}`)
 				const funcName = formatLocalResourceName({
 					appName: ctx.appConfig.name,

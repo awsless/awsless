@@ -5,7 +5,7 @@ import { shortId } from '../../util/id.js'
 import { formatRouteKey } from '../bundle/util.js'
 
 export const restOnDev = async (ctx: DevContext) => {
-	const ids = Object.keys(ctx.appConfig.defaults.rest ?? {})
+	const ids = Object.keys(ctx.appConfig.rest ?? {})
 
 	if (ids.length === 0) {
 		return

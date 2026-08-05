@@ -50,10 +50,10 @@ export const getConfigValue = (name: string) => {
 	return value
 }
 
-// export const setConfigValue = (name: string, value: string) => {
-// 	const key = kebabCase(name)
-// 	data[key] = value
-// }
+export const setConfigValue = (name: string, value: string) => {
+	const key = kebabCase(name)
+	data[key] = value
+}
 
 export interface ConfigResources {}
 

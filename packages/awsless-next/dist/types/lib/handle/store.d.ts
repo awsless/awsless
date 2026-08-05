@@ -1,5 +1,5 @@
 import { Handler } from '@awsless/lambda';
-import { InferOutput } from '@awsless/validate';
+import { GenericSchema, InferInput } from '@awsless/validate';
 declare const storeNotificationSchema: import("valibot").UnionSchema<[import("valibot").SchemaWithPipe<readonly [import("valibot").ObjectSchema<{
     readonly bucket: import("valibot").StringSchema<undefined>;
     readonly key: import("valibot").StringSchema<undefined>;
@@ -38,8 +38,15 @@ declare const storeNotificationSchema: import("valibot").UnionSchema<[import("va
     bucket: string;
     key: string;
 }[]>]>], "Invalid store notification input">;
-export type StoreEvent = InferOutput<typeof storeNotificationSchema>;
-export declare const event: <H extends Handler<typeof storeNotificationSchema>>(handle: H) => (event: {
+/** The affected objects a store event handler receives. */
+export type StoreEvent = {
+    /** The name of the bucket holding the affected object. */
+    bucket: string;
+    /** The key of the affected object. */
+    key: string;
+}[];
+type StoreSchema = GenericSchema<InferInput<typeof storeNotificationSchema>, StoreEvent>;
+export declare const event: <H extends Handler<StoreSchema>>(handle: H) => (event: {
     bucket: string;
     key: string;
 } | {

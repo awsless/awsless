@@ -7,13 +7,13 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey } from '../bundle/util.js'
 
 export const rpcOnDev = async (ctx: DevContext) => {
-	const ids = Object.keys(ctx.appConfig.defaults.rpc ?? {})
+	const ids = Object.keys(ctx.appConfig.rpc ?? {})
 
 	if (ids.length === 0) {
 		return
 	}
 
-	for (const [id, props] of Object.entries(ctx.appConfig.defaults.rpc ?? {})) {
+	for (const [id, props] of Object.entries(ctx.appConfig.rpc ?? {})) {
 		const serverRouteKey = formatRouteKey('base', 'rpc', id)
 
 		// The same route the deployed router links to the rpc server.
@@ -25,7 +25,7 @@ export const rpcOnDev = async (ctx: DevContext) => {
 
 		ctx.addEnv(
 			`${serverRouteKey}:TIMEOUT`,
-			toSeconds(ctx.appConfig.defaults.function.timeout).toString()
+			toSeconds(ctx.appConfig.function.timeout).toString()
 		)
 
 		if (props.auth) {

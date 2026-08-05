@@ -57,34 +57,23 @@ export const AppSchema = z
 
 		// onFailure: OnFailureSchema,
 
-		defaults: z
-			.object({
-				onFailure: OnFailureDefaultSchema,
-				onErrorLog: OnErrorLogDefaultSchema,
-				auth: AuthDefaultSchema,
-				domains: DomainsDefaultSchema,
-				function: FunctionDefaultSchema,
-				instance: InstanceDefaultSchema,
-				job: JobDefaultSchema,
-				queue: QueueDefaultSchema,
-				// graphql: GraphQLDefaultSchema,
-				// http: HttpDefaultSchema,
-				rest: RestDefaultSchema,
-				rpc: RpcDefaultSchema,
-				pubsub: PubSubDefaultSchema,
-				// table: TableDefaultSchema,
-				// store: StoreDefaultSchema,
-				alerts: AlertsDefaultSchema,
-				topics: TopicsDefaultSchema,
-				layers: LayerSchema,
-				router: RouterDefaultSchema,
-				search: SearchDefaultSchema,
-				test: TestDefaultSchema,
-				// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
-			})
-			.strict()
-			.default({})
-			.describe('Default properties'),
+		onFailure: OnFailureDefaultSchema,
+		onErrorLog: OnErrorLogDefaultSchema,
+		auth: AuthDefaultSchema,
+		domains: DomainsDefaultSchema,
+		function: FunctionDefaultSchema,
+		instance: InstanceDefaultSchema,
+		job: JobDefaultSchema,
+		queue: QueueDefaultSchema,
+		rest: RestDefaultSchema,
+		rpc: RpcDefaultSchema,
+		pubsub: PubSubDefaultSchema,
+		alerts: AlertsDefaultSchema,
+		topics: TopicsDefaultSchema,
+		layers: LayerSchema,
+		router: RouterDefaultSchema,
+		search: SearchDefaultSchema,
+		test: TestDefaultSchema,
 	})
 	.strict()
 

@@ -175,6 +175,11 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 
 		for (const entry of manifest.searches ?? []) {
 			const { name } = getSearchProps(entry.id, entry.stack)
+
+			// The declared mappings let the search define verify the code
+			// schema against the stack file.
+			process.env[`SEARCH_MAPPINGS_${name}`] = JSON.stringify(entry.mappings)
+
 			const result = await fetch(`http://${domain}/${name}`, {
 				method: 'PUT',
 				headers: { 'content-type': 'application/json' },

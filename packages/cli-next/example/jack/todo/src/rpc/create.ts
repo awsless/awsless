@@ -1,4 +1,4 @@
-import { PubSub, Task, h, t, v } from 'awsless'
+import { Config, PubSub, Task, h, t, v } from 'awsless'
 import { randomUUID } from 'node:crypto'
 import { taskCreated } from '../../../topics'
 import { tasks } from '../table'
@@ -8,6 +8,13 @@ export default h.func(
 		name: v.string(),
 	}),
 	async ({ name }) => {
+		const limit = parseInt(Config.maxTasks, 10)
+		const list = await t.scan(tasks)
+
+		if (list.items.length >= limit) {
+			throw new Error(`The task limit of ${limit} is reached.`)
+		}
+
 		const task: t.Infer<typeof tasks> = {
 			id: randomUUID(),
 			name,

@@ -57,6 +57,9 @@ var consumer = (schema, handle) => {
 };
 
 // src/lib/handle/failure.ts
+var failure = (handle) => {
+  return consumer(void 0, handle);
+};
 var onErrorLogSchema = object({
   hash: string(),
   requestId: string(),
@@ -75,9 +78,6 @@ var onErrorLogSchema = object({
     )
   ])
 });
-var failure = (handle) => {
-  return consumer(void 0, handle);
-};
 var error = (handle) => {
   return consumer(onErrorLogSchema, handle);
 };
@@ -111,7 +111,16 @@ var imageOriginSchema = object2(
   "Invalid image origin input"
 );
 var image = (handle) => {
-  return consumer(imageOriginSchema, handle);
+  return consumer(imageOriginSchema, async (event2, context) => {
+    const result = await handle(event2, context);
+    if (result instanceof ArrayBuffer) {
+      return Buffer.from(result).toString("base64");
+    }
+    if (ArrayBuffer.isView(result)) {
+      return Buffer.from(result.buffer, result.byteOffset, result.byteLength).toString("base64");
+    }
+    return result;
+  });
 };
 var icon = image;
 
@@ -137,17 +146,23 @@ import {
   unknown as unknown2
 } from "@awsless/validate";
 var RouteRequest = class {
+  /** The http method of the request. */
   method;
+  /** The full request url. */
   url;
+  /** The request headers. */
   headers;
-  // The validated route extras.
+  /** The validated route path parameters. */
   params;
+  /** The validated query string parameters. */
   query;
-  // The parsed & validated request body, when a body schema is given.
+  /** The parsed & validated request body, when a body schema is given. */
   data;
+  /** The ip address of the caller. */
   ip;
+  /** The user agent header of the caller. */
   userAgent;
-  // The raw request body bytes.
+  /** The raw request body bytes. */
   body;
   constructor(props) {
     this.method = props.method;
@@ -160,11 +175,11 @@ var RouteRequest = class {
     this.userAgent = props.userAgent;
     this.body = props.body;
   }
-  // The body decoded as text.
+  /** The body decoded as text. */
   text() {
     return this.body?.toString();
   }
-  // The body parsed as json.
+  /** The body parsed as json. */
   json() {
     return JSON.parse(this.text() ?? "null");
   }
@@ -315,7 +330,16 @@ __export(pubsub_exports, {
   subscribed: () => subscribed,
   unsubscribed: () => unsubscribed
 });
-import { array as array2, date as date2, literal, object as object4, optional as optional3, snsTopic as snsTopic2, string as string4, unknown as unknown3 } from "@awsless/validate";
+import {
+  array as array2,
+  date as date2,
+  literal,
+  object as object4,
+  optional as optional3,
+  snsTopic as snsTopic2,
+  string as string4,
+  unknown as unknown3
+} from "@awsless/validate";
 var authEventSchema = object4({
   token: optional3(string4())
 });
@@ -570,7 +594,7 @@ var getConfigValue = (name) => {
   const value = data[key];
   if (typeof value === "undefined") {
     throw new Error(
-      `The "${name}" config value hasn't been set yet. ${IS_TEST ? `Use "Config.${name} = 'VAlUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
+      `The "${name}" config value hasn't been set yet. ${IS_TEST ? `Use "mock.config.${name}('VAlUE')" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
     );
   }
   return value;
@@ -584,11 +608,11 @@ var Config = /* @__PURE__ */ new Proxy(
   {
     get(_, name) {
       return getConfigValue(name);
-    },
-    set(_, name, value) {
-      setConfigValue(name, value);
-      return true;
     }
+    // set(_, name: string, value: string) {
+    // 	setConfigValue(name, value)
+    // 	return true
+    // },
   }
 );
 
@@ -894,6 +918,48 @@ var getSearchProps = (name, stack = getStack()) => {
     name: IS_TEST ? `${kebabCase5(APP)}--${kebabCase5(stack)}--${name}` : `${kebabCase5(stack)}--${name}`
   };
 };
+var typeGroups = [
+  ["keyword", "text"],
+  ["long", "double", "integer", "float", "short", "byte", "half_float", "scaled_float"]
+];
+var compatibleTypes = (a, b) => {
+  return a === b || typeGroups.some((group) => group.includes(a) && group.includes(b));
+};
+var assertMatchingMappings = (label, declared, defined, path = "") => {
+  const declaredProps = declared.properties ?? {};
+  const definedProps = defined.properties ?? {};
+  for (const field of Object.keys(definedProps)) {
+    if (!declaredProps[field]) {
+      throw new Error(
+        `The schema of search index "${label}" defines the field "${path}${field}", which the stack file doesn't declare.`
+      );
+    }
+  }
+  for (const field of Object.keys(declaredProps)) {
+    if (!definedProps[field]) {
+      throw new Error(
+        `The stack file declares the field "${path}${field}" for search index "${label}", which the code schema doesn't define.`
+      );
+    }
+  }
+  for (const [field, declaredField] of Object.entries(declaredProps)) {
+    const definedField = definedProps[field];
+    if (declaredField.properties || definedField.properties) {
+      if (!declaredField.properties || !definedField.properties) {
+        throw new Error(
+          `The field "${path}${field}" of search index "${label}" is an object on one side but not the other.`
+        );
+      }
+      assertMatchingMappings(label, declaredField, definedField, `${path}${field}.`);
+      continue;
+    }
+    if (declaredField.type && definedField.type && !compatibleTypes(declaredField.type, definedField.type)) {
+      throw new Error(
+        `The field "${path}${field}" of search index "${label}" is a "${definedField.type}" in the code schema but a "${declaredField.type}" in the stack file.`
+      );
+    }
+  }
+};
 var Search = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     const { domain, name: index } = getSearchProps(name, stack);
@@ -902,6 +968,12 @@ var Search = /* @__PURE__ */ createProxy((stack) => {
       name: index,
       domain,
       define(schema) {
+        if (IS_TEST) {
+          const declared = process.env[`SEARCH_MAPPINGS_${index}`];
+          if (declared) {
+            assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
+          }
+        }
         return define(index, schema, () => {
           if (!client) {
             client = searchClient({ node: `${IS_LOCAL || IS_TEST ? "http" : "https"}://${domain}` }, "es");
@@ -934,6 +1006,20 @@ var Table = /* @__PURE__ */ createProxy((stack) => {
           throw new Error(
             `No table key config found for "${stack}.${name}". Is the table defined in your stack file?`
           );
+        }
+        if (IS_TEST) {
+          const attributes = [
+            keys.hash,
+            keys.sort,
+            ...Object.values(keys.indexes ?? {}).flatMap((index) => [index.hash, index.sort])
+          ].flat().filter((attribute) => typeof attribute === "string");
+          for (const attribute of attributes) {
+            if (!schema.walk?.(attribute)) {
+              throw new Error(
+                `The schema of table "${stack}.${name}" is missing the "${attribute}" key field declared in the stack file.`
+              );
+            }
+          }
         }
         return define2(tableName, {
           hash: keys.hash,
@@ -1047,6 +1133,7 @@ var setupTestEnv = async (manifest, options) => {
     const domain = manifest.servers.search.domain;
     for (const entry of manifest.searches ?? []) {
       const { name } = getSearchProps(entry.id, entry.stack);
+      process.env[`SEARCH_MAPPINGS_${name}`] = JSON.stringify(entry.mappings);
       const result = await fetch(`http://${domain}/${name}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },

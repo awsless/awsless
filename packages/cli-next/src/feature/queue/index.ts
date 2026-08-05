@@ -145,10 +145,10 @@ export const queueFeature = defineFeature({
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
+		const bundleTimeout = toSeconds(ctx.appConfig.function.timeout)
 
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
-			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
+			const props = deepmerge(ctx.appConfig.queue, typeof local === 'object' ? local : {})
 
 			const group = new Group(ctx.stack, 'queue', id)
 			const baseName = formatLocalResourceName({

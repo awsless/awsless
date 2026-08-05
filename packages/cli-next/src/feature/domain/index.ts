@@ -9,7 +9,7 @@ import { createDnsValidatedCertificate } from './util.js'
 export const domainFeature = defineFeature({
 	name: 'domain',
 	onApp(ctx) {
-		const domains = Object.entries(ctx.appConfig.defaults.domains ?? {})
+		const domains = Object.entries(ctx.appConfig.domains ?? {})
 
 		if (domains.length === 0) {
 			return

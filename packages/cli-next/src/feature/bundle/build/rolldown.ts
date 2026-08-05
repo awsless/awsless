@@ -47,6 +47,13 @@ export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps)
 	const bundle = await rolldown({
 		input: props.file,
 		platform: 'node',
+		// The bundle never runs under a test runner, so IS_TEST style
+		// branches fold to false & tree-shake out of the bundle.
+		transform: {
+			define: {
+				'process.env.NODE_ENV': JSON.stringify('production'),
+			},
+		},
 		external: importee => {
 			return (
 				importee.startsWith('@aws-sdk') || //

@@ -21,8 +21,13 @@ import {
 } from '@awsless/validate'
 
 export type RouteSchemaProps = {
+	/** The schema the json request body validates against - the parsed result lands on `request.data`. */
 	body?: GenericSchema
+
+	/** The schema the query string parameters validate against. */
 	query?: ObjectSchema<ObjectEntries, undefined> | undefined
+
+	/** The schema the route path parameters validate against. */
 	params?: ObjectSchema<ObjectEntries, undefined> | undefined
 }
 
@@ -38,21 +43,31 @@ export class RouteRequest<
 	Query = Record<string, string>,
 	Data = unknown,
 > {
+	/** The http method of the request. */
 	readonly method: Method
+
+	/** The full request url. */
 	readonly url: URL
+
+	/** The request headers. */
 	readonly headers: Headers
 
-	// The validated route extras.
+	/** The validated route path parameters. */
 	readonly params: Params
+
+	/** The validated query string parameters. */
 	readonly query: Query
 
-	// The parsed & validated request body, when a body schema is given.
+	/** The parsed & validated request body, when a body schema is given. */
 	readonly data: Data
 
+	/** The ip address of the caller. */
 	readonly ip: string
+
+	/** The user agent header of the caller. */
 	readonly userAgent: string
 
-	// The raw request body bytes.
+	/** The raw request body bytes. */
 	readonly body?: Buffer
 
 	constructor(props: {
@@ -77,12 +92,12 @@ export class RouteRequest<
 		this.body = props.body
 	}
 
-	// The body decoded as text.
+	/** The body decoded as text. */
 	text() {
 		return this.body?.toString()
 	}
 
-	// The body parsed as json.
+	/** The body parsed as json. */
 	json<T = unknown>(): T {
 		return JSON.parse(this.text() ?? 'null') as T
 	}
@@ -268,8 +283,10 @@ const toLambdaUrlResult = async (response: Response) => {
 
 type LambdaUrlResult = { statusCode: number; [key: string]: unknown }
 
-// The request a route or site handler receives & what it may return.
+/** The request a route or site handler receives, validated against the route schemas. */
 export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>
+
+/** What a route or site handler may return: a web Response or a lambda url result object. */
 export type RouteResponse = Response | LambdaUrlResult
 
 type RouteResult = RouteResponse | Promise<RouteResponse>

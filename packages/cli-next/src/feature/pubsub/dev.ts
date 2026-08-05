@@ -32,7 +32,7 @@ const waitForHealth = async (port: number, timeoutMs: number) => {
 // the fan out & the local lambda & sns emulators for auth & lifecycle
 // events.
 export const pubsubOnDev = async (ctx: DevContext) => {
-	const ids = Object.keys(ctx.appConfig.defaults.pubsub ?? {})
+	const ids = Object.keys(ctx.appConfig.pubsub ?? {})
 
 	if (ids.length === 0) {
 		return
@@ -76,11 +76,11 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 		// The websocket server sits behind the local router, exactly
 		// like the deployed router proxies it to the fargate service.
-		const { path, router } = ctx.appConfig.defaults.pubsub![id]!
+		const { path, router } = ctx.appConfig.pubsub![id]!
 		const endpoint = `ws://localhost:${ctx.routerPort(router)}${path}`
 
 		ctx.addRoute({
-			routerId: ctx.appConfig.defaults.pubsub![id]!.router,
+			routerId: ctx.appConfig.pubsub![id]!.router,
 			pattern: `${path}/*`,
 			proxy: `http://127.0.0.1:${wsPort}`,
 			// The bare mount path maps to the websocket route at the

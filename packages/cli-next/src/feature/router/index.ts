@@ -54,7 +54,7 @@ const createRouteStoreEntries = (key: string, route: object | object[]) => {
 export const routerFeature = defineFeature({
 	name: 'router',
 	onApp(ctx) {
-		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
+		const routers = Object.entries(ctx.appConfig.router ?? {})
 
 		// All routers share one route store, one preview distribution and
 		// one deployment; the shared resources live in the first router.
@@ -660,7 +660,7 @@ export const routerFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, patterns] of Object.entries(ctx.stackConfig.routes ?? {})) {
-			if (!ctx.appConfig.defaults.router?.[id]) {
+			if (!ctx.appConfig.router?.[id]) {
 				throw new FileError(ctx.stackConfig.file, `Router "${id}" is not defined on the app level.`)
 			}
 

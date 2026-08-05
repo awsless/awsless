@@ -146,7 +146,7 @@ export const jobFeature = defineFeature({
 
 		const needsPersistentStorage = ctx.stackConfigs.some(stack =>
 			Object.values(stack.jobs ?? {}).some(job => {
-				const merged = deepmerge(ctx.appConfig.defaults.job, job)
+				const merged = deepmerge(ctx.appConfig.job, job)
 				return merged.persistentStorage
 			})
 		)

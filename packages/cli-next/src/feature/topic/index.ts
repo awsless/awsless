@@ -41,11 +41,11 @@ type TestMockEntry = MockBuilder & Mock<(payload: unknown) => unknown>
 export const topicFeature = defineFeature({
 	name: 'topic',
 	async onDev(ctx) {
-		if ((ctx.appConfig.defaults.topics ?? []).length === 0) {
+		if ((ctx.appConfig.topics ?? []).length === 0) {
 			return
 		}
 
-		for (const id of ctx.appConfig.defaults.topics ?? []) {
+		for (const id of ctx.appConfig.topics ?? []) {
 			ctx.registerResource({
 				kind: 'topic',
 				id,
@@ -88,7 +88,7 @@ export const topicFeature = defineFeature({
 		const resources = new TypeObject(1)
 		const testMocks = new TypeObject(2)
 
-		for (const topic of ctx.appConfig.defaults.topics ?? []) {
+		for (const topic of ctx.appConfig.topics ?? []) {
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
 				resourceType: 'topic',
@@ -109,7 +109,7 @@ export const topicFeature = defineFeature({
 		await ctx.write('topic.d.ts', gen, true)
 	},
 	onValidate(ctx) {
-		const topics = ctx.appConfig.defaults.topics ?? []
+		const topics = ctx.appConfig.topics ?? []
 
 		for (const stack of ctx.stackConfigs) {
 			for (const topic of Object.keys(stack.subscribers ?? {})) {
@@ -120,7 +120,7 @@ export const topicFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		for (const id of ctx.appConfig.defaults.topics ?? []) {
+		for (const id of ctx.appConfig.topics ?? []) {
 			const group = new Group(ctx.base, 'topic', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,

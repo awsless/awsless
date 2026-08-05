@@ -59,7 +59,7 @@ export const searchFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'search', 'main')
 		const name = `${ctx.app.name}-${shortId([ctx.app.name, 'search', 'main'].join('--'))}`
-		const props = ctx.appConfig.defaults.search
+		const props = ctx.appConfig.search
 
 		const openSearch = new aws.opensearch.Domain(
 			group,

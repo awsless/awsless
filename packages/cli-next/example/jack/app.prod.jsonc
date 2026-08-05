@@ -8,7 +8,7 @@
 		},
 		{
 			"op": "replace",
-			"path": "/defaults/function/log/retention",
+			"path": "/function/log/retention",
 			"value": "3 days",
 		},
 		{

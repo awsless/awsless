@@ -1,7 +1,7 @@
 import { define, GenericMapSchema } from '@awsless/dynamodb'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { bindLocalResourceName, getStack } from './util.js'
+import { bindLocalResourceName, getStack, IS_TEST } from './util.js'
 
 export const getTableName = bindLocalResourceName('table')
 
@@ -37,6 +37,27 @@ export const Table: TableResources = /*@__PURE__*/ createProxy(stack => {
 					throw new Error(
 						`No table key config found for "${stack}.${name}". Is the table defined in your stack file?`
 					)
+				}
+
+				// Tests verify the code schema against the stack file, so
+				// a drifted schema fails loud instead of writing items
+				// missing their key attributes.
+				if (IS_TEST) {
+					const attributes = [
+						keys.hash,
+						keys.sort,
+						...Object.values(keys.indexes ?? {}).flatMap(index => [index.hash, index.sort]),
+					]
+						.flat()
+						.filter(attribute => typeof attribute === 'string')
+
+					for (const attribute of attributes) {
+						if (!schema.walk?.(attribute)) {
+							throw new Error(
+								`The schema of table "${stack}.${name}" is missing the "${attribute}" key field declared in the stack file.`
+							)
+						}
+					}
 				}
 
 				// The runtime values come from the stack config, while

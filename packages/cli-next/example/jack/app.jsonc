@@ -4,55 +4,62 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	// "protect": true,
+	//
 
-	"configs": ["admin-secret"],
+	// "configs": {
+	// 	"admin-secret": {
+	// 		"type": "number",
+	// 		"test": "test-secret"
+	// 	}
+	// },
 
-	"defaults": {
-		"onFailure": "./on-failure.ts",
-		"test": {
-			"configs": {
-				"admin-secret": "test-secret"
-			}
-		},
-		"domains": {
-			"main": {
-				"domain": "awsless.com"
-			}
-		},
-		"router": {
-			"main": {
-				"domain": "main"
-			}
-		},
-		"rpc": {
-			"main": {
-				"router": "main",
-				"path": "/api",
-				"auth": "./rpc-auth.ts"
-			}
-		},
-		"rest": {
-			"hooks": {}
-		},
+	"configs": ["admin-secret", "max-tasks"],
+	"test": {
+		"configs": {
+			"admin-secret": "test-secret",
+			"max-tasks": "10"
+		}
+	},
 
-		// "auth": {
-		// 	"users": {
-		// 		"groups": ["admin", "support", "marketing"]
-		// 	}
-		// },
-		"pubsub": {
-			"main": {
-				"router": "main",
-				"path": "/ws",
-				"auth": "./auth-pubsub.ts"
-			}
-		},
-		"topics": ["task-created"],
-		"function": {
-			"log": {
-				"retention": "1 days",
-				"level": "trace"
-			}
+	"onFailure": "./on-failure.ts",
+	"domains": {
+		"main": {
+			"domain": "awsless.com"
+		}
+	},
+	"router": {
+		"main": {
+			"domain": "main"
+		}
+	},
+	"rpc": {
+		"main": {
+			"router": "main",
+			"path": "/api",
+			"auth": "./rpc-auth.ts"
+		}
+	},
+	"rest": {
+		"hooks": {}
+	},
+
+	// "auth": {
+	// 	"users": {
+	// 		"groups": ["admin", "support", "marketing"]
+	// 	}
+	// },
+	"pubsub": {
+		"main": {
+			"router": "main",
+			"path": "/ws",
+			"auth": "./auth-pubsub.ts"
+		}
+	},
+	"topics": ["task-created"],
+	"function": {
+		"log": {
+			"retention": "1 days",
+			"level": "trace"
 		}
 	}
 }

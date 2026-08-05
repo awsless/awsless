@@ -352,7 +352,7 @@ export const formatDeploymentSummary = (props: {
 	// Every router has its own preview host: the plain host previews the
 	// live deployment, and the awsless-deployment query selects this
 	// deployment through the same router function.
-	return Object.keys(props.appConfig.defaults.router ?? {}).map(routerId => {
+	return Object.keys(props.appConfig.router ?? {}).map(routerId => {
 		const previewUrl = previewUrls.get(routerId)
 
 		return [
@@ -531,7 +531,7 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 	const id = props.id ?? (await previousDeploymentId({ lambda, dynamo, appId, functionName }))
 	let store: RouteStoreTarget | undefined
 
-	if (Object.keys(props.appConfig.defaults.router ?? {}).length > 0) {
+	if (Object.keys(props.appConfig.router ?? {}).length > 0) {
 		const storeArn = await getRouteStoreArn(
 			cloudfront,
 			formatGlobalResourceName({

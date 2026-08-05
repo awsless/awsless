@@ -12,6 +12,6 @@ export default h.func(
 			},
 		})
 
-		return result.items[0]
+		return result
 	}
 )

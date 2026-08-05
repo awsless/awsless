@@ -24,7 +24,7 @@ export const createTestApp = (
 		name: 'test-app',
 		region: 'us-east-1',
 		profile: 'test',
-		defaults,
+		...defaults,
 		...app,
 	})
 

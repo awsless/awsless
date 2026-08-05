@@ -1,21 +1,33 @@
 import { Handler, LambdaContext } from '@awsless/lambda';
 import { BaseSchema, GenericIssue, GenericSchema, InferInput, InferOutput, ObjectEntries, ObjectSchema } from '@awsless/validate';
 export type RouteSchemaProps = {
+    /** The schema the json request body validates against - the parsed result lands on `request.data`. */
     body?: GenericSchema;
+    /** The schema the query string parameters validate against. */
     query?: ObjectSchema<ObjectEntries, undefined> | undefined;
+    /** The schema the route path parameters validate against. */
     params?: ObjectSchema<ObjectEntries, undefined> | undefined;
 };
 type Op<T extends GenericSchema | undefined, D> = T extends GenericSchema ? InferOutput<T> : D;
 type Method = 'GET' | 'POST' | 'HEAD' | 'OPTIONS' | 'PUT' | 'PATCH' | 'DELETE';
 export declare class RouteRequest<Params = Record<string, string>, Query = Record<string, string>, Data = unknown> {
+    /** The http method of the request. */
     readonly method: Method;
+    /** The full request url. */
     readonly url: URL;
+    /** The request headers. */
     readonly headers: Headers;
+    /** The validated route path parameters. */
     readonly params: Params;
+    /** The validated query string parameters. */
     readonly query: Query;
+    /** The parsed & validated request body, when a body schema is given. */
     readonly data: Data;
+    /** The ip address of the caller. */
     readonly ip: string;
+    /** The user agent header of the caller. */
     readonly userAgent: string;
+    /** The raw request body bytes. */
     readonly body?: Buffer;
     constructor(props: {
         method: Method;
@@ -28,7 +40,9 @@ export declare class RouteRequest<Params = Record<string, string>, Query = Recor
         userAgent: string;
         body?: Buffer;
     });
+    /** The body decoded as text. */
     text(): string | undefined;
+    /** The body parsed as json. */
     json<T = unknown>(): T;
 }
 declare const envelopeSchema: ObjectSchema<{
@@ -56,7 +70,9 @@ type LambdaUrlResult = {
     statusCode: number;
     [key: string]: unknown;
 };
+/** The request a route or site handler receives, validated against the route schemas. */
 export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>;
+/** What a route or site handler may return: a web Response or a lambda url result object. */
 export type RouteResponse = Response | LambdaUrlResult;
 type RouteResult = RouteResponse | Promise<RouteResponse>;
 type HandlerContext = Parameters<Handler>[1];

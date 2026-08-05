@@ -1,6 +1,7 @@
 import { Handler } from '@awsless/lambda';
 import { GenericSchema, InferOutput, SnsTopicSchema } from '@awsless/validate';
 import { consumer } from './util.js';
+/** The parsed message a subscriber receives, from either a defined topic or a plain payload schema. */
 export type SubscribeEvent<S extends {
     readonly schema: GenericSchema;
 } | GenericSchema> = InferOutput<S extends {
