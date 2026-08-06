@@ -402,8 +402,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		}
 	)
 
-	// Let "awsless config set" restart the function when a config changes.
-	ctx.addFunction(lambda)
+	ctx.restartOnConfigChange(lambda)
 
 	// ------------------------------------------------------------
 	// Failed async invokes land in the global on-failure bucket, so

@@ -224,6 +224,8 @@ export const onFailureFeature = defineFeature({
 		ctx.onBind(build.addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
 
+		ctx.restartOnConfigChange(handler.lambda)
+
 		handler.addPermission(
 			{
 				actions: ['s3:GetObject', 's3:DeleteObject'],

@@ -144,6 +144,12 @@ export const createApp = (props: CreateAppProps) => {
 			registerDomainZone(zone) {
 				domainZones.push(zone)
 			},
+			restartOnConfigChange(lambda) {
+				for (const configName of props.appConfig.configs ?? []) {
+					functionsByConfig[configName] ??= []
+					functionsByConfig[configName].push(lambda)
+				}
+			},
 			bind(name, value) {
 				binds.push({ name, value })
 			},
@@ -194,7 +200,7 @@ export const createApp = (props: CreateAppProps) => {
 				addWarning(props) {
 					warnings.push(props)
 				},
-				addFunction(lambda) {
+				restartOnConfigChange(lambda) {
 					for (const configName of props.appConfig.configs ?? []) {
 						functionsByConfig[configName] ??= []
 						functionsByConfig[configName].push(lambda)
