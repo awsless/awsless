@@ -184,7 +184,7 @@ describe('sandbox', () => {
 			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 		)!
 
-		expect(lambda.input.environment.variables.CONFIG_SECRET).toBe('SECRET')
+		expect(lambda.input.environment.variables.CONFIGS).toBe('SECRET')
 
 		const policies = await Promise.all(
 			metas

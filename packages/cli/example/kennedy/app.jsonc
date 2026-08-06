@@ -3,6 +3,7 @@
 	"name": "app-kennedy",
 	"region": "us-east-1",
 	"profile": "jacksclub",
+	"configs": ["secret"],
 	"defaults": {
 		"function": {
 			"log": {

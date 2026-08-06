@@ -3,7 +3,7 @@ import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
-import { constantCase, kebabCase, pascalCase } from 'change-case'
+import { kebabCase, pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { readdir, readFile, rm, writeFile } from 'fs/promises'
@@ -534,9 +534,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		const configs = local.sandbox.configs ?? []
 
 		if (configs.length > 0) {
-			for (const configName of configs) {
-				variables[`CONFIG_${constantCase(configName)}`] = configName
-			}
+			variables.CONFIGS = configs.join(',')
 
 			addPermission({
 				actions: [

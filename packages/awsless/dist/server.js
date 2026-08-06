@@ -21,7 +21,7 @@ import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
 var LIVE_BUNDLE_ALIAS = "live";
-var getBundleName = () => `${process.env.APP}--function--bundle`;
+var getBundleName = () => `${kebabCase(process.env.APP)}--function--bundle`;
 var formatRouteKey = (stackName, resourceType, resourceName) => {
   return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
 };
@@ -669,12 +669,7 @@ var getConfigName = (name) => {
 };
 var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
   if (!IS_TEST) {
-    const keys = [];
-    for (const key of Object.keys(process.env)) {
-      if (key.startsWith("CONFIG_")) {
-        keys.push(process.env[key]);
-      }
-    }
+    const keys = process.env.CONFIGS?.split(",").filter(Boolean) ?? [];
     if (keys.length > 0) {
       const paths = {};
       for (const key of keys) {

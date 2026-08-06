@@ -62,14 +62,12 @@ export const siteFeature = defineFeature({
 							AWS_SESSION_TOKEN: credentials.sessionToken,
 						}
 
-						// Add the config values for just the site.
+						// Announce the config names for just the site build.
 
-						for (const name of props.build?.configs ?? []) {
-							env[`CONFIG_${constantCase(name)}`] = name
-						}
+						const configs = props.build?.configs ?? []
 
-						for (const name of ctx.stackConfig.configs ?? []) {
-							env[`CONFIG_${constantCase(name)}`] = name
+						if (configs.length > 0) {
+							env.CONFIGS = configs.join(',')
 						}
 
 						const instance = Bun.spawn(buildProps.command.split(' '), {

@@ -21,6 +21,7 @@
 			}
 		},
 		"caller": "./function/caller.ts",
+		"config-echo": "./function/config-echo.ts",
 		"fail": {
 			"code": "./function/error/normal.ts",
 			"memorySize": "256 MB",

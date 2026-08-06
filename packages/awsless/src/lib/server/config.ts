@@ -9,13 +9,7 @@ export const getConfigName = (name: string) => {
 /*@__NO_SIDE_EFFECTS__*/
 const loadConfigData = async () => {
 	if (!IS_TEST) {
-		const keys: string[] = []
-
-		for (const key of Object.keys(process.env)) {
-			if (key.startsWith('CONFIG_')) {
-				keys.push(process.env[key]!)
-			}
-		}
+		const keys = process.env.CONFIGS?.split(',').filter(Boolean) ?? []
 
 		if (keys.length > 0) {
 			const paths: Record<string, string> = {}
