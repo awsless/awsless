@@ -89,6 +89,10 @@ export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps)
 		minify,
 		entryFileNames: `index.${extension}`,
 
+		// No chunk grouping: importing anything from a chunk executes the
+		// whole file, so merging all shared modules into one chunk would make
+		// every cold start parse & run the shared code of every route.
+
 		// Handler chunks are named after their route key, with the ":"
 		// separator swapped for "--" to keep the file name portable.
 		chunkFileNames: chunk => {
@@ -101,17 +105,6 @@ export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps)
 			const routeKey = decodeURIComponent(encodedRouteKey)
 
 			return `${routeKey.replaceAll(':', '--')}.${extension}`
-		},
-		codeSplitting: {
-			// Every dynamically imported handler stays a chunk of its own,
-			// while all modules used by more than one handler collapse into
-			// a single shared chunk.
-			groups: [
-				{
-					name: 'shared',
-					minShareCount: 2,
-				},
-			],
 		},
 	})
 
