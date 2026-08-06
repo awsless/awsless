@@ -64,6 +64,8 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
+			console.trace(`Bundle route: ${match.key}`)
+
 			process.env.AWSLESS_ROUTE = match.key
 
 			return withBundleRouteContext(match.key, internalInvoke, async () => {

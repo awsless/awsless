@@ -272,7 +272,7 @@ export const FunctionDefaultSchema = z
 			.describe(`A list of external packages that won't be included in the bundle.`),
 		log: LogSchema.default(true).transform(log => ({
 			retention: log.retention ?? days(7),
-			level: 'level' in log ? log.level : 'error',
+			level: 'level' in log ? log.level : 'trace',
 			system: 'system' in log ? log.system : 'warn',
 			format: 'format' in log ? log.format : 'json',
 		})),
