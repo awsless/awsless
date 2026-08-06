@@ -159,7 +159,6 @@ describe('bundle handler', () => {
 				{ routeKey: 'stack-1:task:work', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:rpc:query', file: handlers, exportName: 'echo' },
 				{ routeKey: 'base:rpc:api', file: handlers, exportName: 'site' },
-				{ routeKey: 'base:on-failure:consumer', file: handlers, exportName: 'queue' },
 				{ routeKey: 'stack-1:rest:api', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:site:web', file: handlers, exportName: 'site' },
 				{ routeKey: 'stack-1:route:page', file: handlers, exportName: 'site' },
@@ -343,7 +342,6 @@ describe('bundle handler', () => {
 	})
 
 	it.each([
-		['base:on-failure:consumer', 'base'],
 		['stack-1:queue:jobs', 'stack-1'],
 		['stack-1:store:assets-created', 'stack-1'],
 		['stack-1:topic:event', 'stack-1'],
@@ -402,7 +400,6 @@ describe('bundle handler', () => {
 		'stack-1:function:echo',
 		'stack-1:cron:tick',
 		'stack-1:metric:latency-0',
-		'base:on-failure:consumer',
 		'stack-1:queue:jobs',
 		'stack-1:topic:event',
 		'stack-1:task:work',

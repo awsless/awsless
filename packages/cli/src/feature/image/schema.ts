@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 const transformationOptionsSchema = z.object({
@@ -19,7 +19,7 @@ const staticOriginSchema = LocalDirectorySchema.describe(
 	'Specifies the path to a local image directory that will be uploaded in S3.'
 )
 
-const functionOriginSchema = FunctionSchema.describe(
+const functionOriginSchema = BundledFunctionSchema.describe(
 	"Specifies the file that will be called when an image isn't found in the (cache) bucket."
 )
 

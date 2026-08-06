@@ -35,7 +35,7 @@ type BundleDeploymentInput = {
 	deploymentId: Input<string>
 	functionName: Input<string>
 	functionVersion: Input<string>
-	onFailureArn: Input<string>
+	onFailureArn?: Input<string>
 	sourceAccount?: Input<string>
 }
 
@@ -72,7 +72,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		deploymentId: z.string(),
 		functionName: z.string(),
 		functionVersion: z.string(),
-		onFailureArn: z.string(),
+		onFailureArn: z.string().optional(),
 		sourceAccount: z.string().optional(),
 	})
 	const bundleDeploymentStateSchema = bundleDeploymentInputSchema.extend({
@@ -111,11 +111,13 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				FunctionName: state.functionName,
 				Qualifier: state.functionVersion,
 				MaximumRetryAttempts: 2,
-				DestinationConfig: {
-					OnFailure: {
-						Destination: state.onFailureArn,
-					},
-				},
+				DestinationConfig: state.onFailureArn
+					? {
+							OnFailure: {
+								Destination: state.onFailureArn,
+							},
+						}
+					: undefined,
 			})
 		)
 	}

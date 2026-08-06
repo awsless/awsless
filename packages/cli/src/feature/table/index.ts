@@ -202,11 +202,13 @@ export const tableFeature = defineFeature({
 					functionResponseTypes: ['ReportBatchItemFailures'],
 
 					startingPosition: 'LATEST',
-					destinationConfig: {
-						onFailure: {
-							destinationArn: onFailure,
-						},
-					},
+					destinationConfig: onFailure
+						? {
+								onFailure: {
+									destinationArn: onFailure,
+								},
+							}
+						: undefined,
 				}, {
 					dependsOn: [bundle.policy],
 				})

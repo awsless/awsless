@@ -2,7 +2,7 @@
 import { z } from 'zod'
 // import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 // const AuthorizerTtl = DurationSchema.describe(
@@ -25,7 +25,7 @@ export const RpcDefaultSchema = z
 			router: ResourceIdSchema.describe('The router id to link your RPC API with.'),
 			path: RouteSchema.describe('The path inside the router to link your RPC API to.'),
 
-			auth: FunctionSchema.optional().describe('The authentication handler for your RPC API.'),
+			auth: BundledFunctionSchema.optional().describe('The authentication handler for your RPC API.'),
 			// timeout: TimeoutSchema.default('1 minutes'),
 		})
 	)
@@ -44,12 +44,12 @@ export const RpcDefaultSchema = z
 // 	)
 
 // const EntrySchema = z.union([
-// 	FunctionSchema.transform(props => ({
+// 	BundledFunctionSchema.transform(props => ({
 // 		function: props,
 // 		permissions: [],
 // 	})),
 // 	z.object({
-// 		function: FunctionSchema,
+// 		function: BundledFunctionSchema,
 // 		permissions: PermissionsSchema,
 // 	}),
 // ])
@@ -61,12 +61,12 @@ export const RpcSchema = z
 			.record(
 				z.string(),
 				z.union([
-					FunctionSchema.transform(f => ({
+					BundledFunctionSchema.transform(f => ({
 						function: f,
 						lock: false,
 					})),
 					z.object({
-						function: FunctionSchema.describe('The RPC function to execute.'),
+						function: BundledFunctionSchema.describe('The RPC function to execute.'),
 						lock: z
 							.boolean()
 							.describe(

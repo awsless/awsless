@@ -12,6 +12,7 @@ import { BundleDeployment } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
 import { compactPolicyStatements, PolicyStatement } from './policy.js'
@@ -244,13 +245,7 @@ export const bundleFeature = defineFeature({
 
 			s3Bucket: code.bucket,
 			s3ObjectVersion: code.versionId,
-			s3Key: code.key.pipe(name => {
-				if (name.startsWith('/')) {
-					return name.substring(1)
-				}
-
-				return name
-			}),
+			s3Key: code.key,
 
 			sourceCodeHash: sourceHash,
 
@@ -331,33 +326,35 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// Async invoked handlers share the retry & on-failure config of the alias.
 
-		new aws.lambda.FunctionEventInvokeConfig(
-			group,
-			'async',
-			{
-				functionName: lambda.functionName,
-				qualifier: alias.name,
-				maximumRetryAttempts: 2,
-				destinationConfig: {
-					onFailure: {
-						destination: onFailure,
+		if (onFailure) {
+			new aws.lambda.FunctionEventInvokeConfig(
+				group,
+				'async',
+				{
+					functionName: lambda.functionName,
+					qualifier: alias.name,
+					maximumRetryAttempts: 2,
+					destinationConfig: {
+						onFailure: {
+							destination: onFailure,
+						},
 					},
 				},
-			},
-			{
-				dependsOn: [policy],
-			}
-		)
+				{
+					dependsOn: [policy],
+				}
+			)
 
-		addPermission({
-			actions: ['s3:PutObject', 's3:ListBucket'],
-			resources: [onFailure, $interpolate`${onFailure}/*`],
-			conditions: {
-				StringEquals: {
-					's3:ResourceAccount': ctx.accountId,
+			addPermission({
+				actions: ['s3:PutObject', 's3:ListBucket'],
+				resources: [onFailure, $interpolate`${onFailure}/*`],
+				conditions: {
+					StringEquals: {
+						's3:ResourceAccount': ctx.accountId,
+					},
 				},
-			},
-		})
+			})
+		}
 
 		// ------------------------------------------------------
 		// Logging
@@ -374,6 +371,23 @@ export const bundleFeature = defineFeature({
 				actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
 				resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
 			})
+
+			if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
+				new aws.cloudwatch.LogSubscriptionFilter(
+					group,
+					'on-error-log',
+					{
+						name: 'error-log-subscription',
+						destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+						logGroupName: logGroup.name,
+						filterPattern,
+					},
+					{
+						replaceOnChanges: ['destinationArn'],
+						dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+					}
+				)
+			}
 		}
 
 		// ------------------------------------------------------

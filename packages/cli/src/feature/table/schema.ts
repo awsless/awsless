@@ -2,7 +2,7 @@ import { minutes, seconds } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 
 const KeySchema = z.string().min(1).max(255)
 // const DeletionProtectionSchema = z
@@ -135,7 +135,7 @@ export const TablesSchema = z
 							].join('\n')
 						),
 
-					consumer: FunctionSchema.describe('The consuming lambda function for the stream'),
+					consumer: BundledFunctionSchema.describe('The consuming lambda function for the stream'),
 				})
 				.optional()
 				.describe(

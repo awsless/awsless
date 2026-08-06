@@ -1,6 +1,6 @@
 import { getMeta, resolveInputs } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
-import { FunctionSchema, StackFunctionSchema } from '../src/feature/function/schema'
+import { BundledFunctionSchema, FunctionSchema, StackFunctionSchema } from '../src/feature/function/schema'
 import { isStandaloneFunction } from '../src/feature/function/util'
 import { createTestApp } from './_kit'
 
@@ -58,8 +58,9 @@ describe('stack functions', () => {
 		// Stand-alone functions deploy in place & stay out of blue-green.
 		expect(lambda.input.publish).toBeUndefined()
 
-		// Stand-alone functions live outside the vpc by default.
-		expect(lambda.input.vpcConfig).toBeUndefined()
+		// Stand-alone functions live inside the vpc by default, just
+		// like the shared bundle.
+		expect(lambda.input.vpcConfig).toBeDefined()
 
 		const role = metas.find(meta => meta.type === 'aws_iam_role' && meta.input.description === 'test-app--stack-1--function--echo')
 		const logGroup = metas.find(
@@ -102,12 +103,12 @@ describe('stack functions', () => {
 		expect(variables['stack-1:function:echo:STANDALONE']).toBeUndefined()
 	})
 
-	it('deploys inside the vpc when the function opts in', () => {
+	it('deploys outside the vpc when the function opts out', () => {
 		const { app } = createTestApp({}, undefined, [
 			{
 				name: 'stack-1',
 				functions: {
-					echo: { code, memorySize: '256 MB', vpc: true },
+					echo: { code, memorySize: '256 MB', vpc: false },
 				},
 			},
 		])
@@ -118,7 +119,7 @@ describe('stack functions', () => {
 				meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 			)!
 
-		expect(lambda.input.vpcConfig).toBeDefined()
+		expect(lambda.input.vpcConfig).toBeUndefined()
 	})
 
 })
@@ -155,8 +156,9 @@ describe('sandbox', () => {
 		expect(lambda.input.environment.variables.SANDBOX).toBe('true')
 		expect(lambda.input.environment.variables.STANDALONE).toBeUndefined()
 
-		// The app wide env stays out of the sandbox, only stand-alone
-		// functions receive it.
+		// The app wide env never lives in the lambda env, stand-alone
+		// functions receive it baked into their code zip & sandboxed
+		// functions don't receive it at all.
 		const standalone = metas.find(
 			meta =>
 				meta.type === 'aws_lambda_function' &&
@@ -164,7 +166,7 @@ describe('sandbox', () => {
 		)!
 
 		expect(lambda.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeUndefined()
-		expect(standalone.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeDefined()
+		expect(standalone.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeUndefined()
 	})
 
 	it('grants the sandbox access to the allowlisted configs', async () => {
@@ -294,8 +296,13 @@ describe('function schemas', () => {
 		expect(() => StackFunctionSchema.parse({ code, memory: '256 MB' })).toThrow()
 	})
 
-	it('keeps the consumer function schema narrow', () => {
-		expect(() => FunctionSchema.parse({ code, memorySize: '256 MB' })).toThrow()
-		expect(FunctionSchema.parse({ code, handler: 'index.other' })).toBeDefined()
+	it('keeps the bundled function schema narrow', () => {
+		expect(() => BundledFunctionSchema.parse({ code, memorySize: '256 MB' })).toThrow()
+		expect(BundledFunctionSchema.parse({ code, handler: 'index.other' })).toBeDefined()
+	})
+
+	it('accepts stand-alone lambda config on the handler function schema', () => {
+		expect(FunctionSchema.parse({ code, memorySize: '256 MB', timeout: '30 seconds' })).toBeDefined()
+		expect(() => FunctionSchema.parse({ code, sandbox: true })).toThrow()
 	})
 })

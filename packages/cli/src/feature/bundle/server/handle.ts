@@ -5,9 +5,7 @@ import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
 import { imageHandler } from './resource/image.js'
-import { logHandler } from './resource/log.js'
 import { metricHandler } from './resource/metric.js'
-import { onFailureHandler } from './resource/on-failure.js'
 import { pubsubHandler } from './resource/pubsub.js'
 import { queueHandler } from './resource/queue.js'
 import { restHandler } from './resource/rest.js'
@@ -31,8 +29,6 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		iconHandler,
 		imageHandler,
 		metricHandler,
-		onFailureHandler,
-		logHandler,
 		queueHandler,
 		pubsubHandler,
 		topicHandler,

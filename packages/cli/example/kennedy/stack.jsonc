@@ -20,7 +20,12 @@
 				"tasks": ["stack:work"]
 			}
 		},
-		"caller": "./function/caller.ts"
+		"caller": "./function/caller.ts",
+		"fail": {
+			"code": "./function/error/normal.ts",
+			"memorySize": "256 MB",
+			"timeout": "10 seconds"
+		}
 	},
 	"crons": {
 		"tick": {

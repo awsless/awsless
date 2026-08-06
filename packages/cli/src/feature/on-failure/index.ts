@@ -1,22 +1,25 @@
 import { days, toSeconds } from '@awsless/duration'
-import { mebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createPrebuildLambdaFunction } from '../function/util.js'
+import { createLambdaFunctionFromZip, registerFunctionBuild } from '../function/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
 	onBefore(ctx) {
+		const props = ctx.appConfig.defaults.onFailure
+
+		if (!props) {
+			return
+		}
+
 		const group = new Group(ctx.base, 'on-failure', 'main')
 
 		// ----------------------------------------------------------------
-		// Create a deadletter as last resort to all failing on-failure
-		// tasks
+		// Create a deadletter as last resort to all failing on-failure tasks
 
 		const deadletter = new aws.sqs.Queue(group, 'deadletter', {
 			name: formatGlobalResourceName({
@@ -28,17 +31,15 @@ export const onFailureFeature = defineFeature({
 		})
 
 		// ----------------------------------------------------------------
-		// Create a single on-failure queue to feed all failure bucket
-		// notifications into the bundle
 
-		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
+		const handlerTimeout = toSeconds(props.consumer.timeout ?? ctx.appConfig.defaults.function.timeout)
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'on-failure',
 				resourceName: 'failure',
 			}),
-			visibilityTimeoutSeconds: bundleTimeout * 6,
+			visibilityTimeoutSeconds: handlerTimeout * 2,
 			redrivePolicy: deadletter.arn.pipe(deadLetterTargetArn => {
 				return JSON.stringify({
 					deadLetterTargetArn,
@@ -76,14 +77,13 @@ export const onFailureFeature = defineFeature({
 			],
 		})
 
-		ctx.shared.set('on-failure', 'bucket-arn', bucket.arn)
 		ctx.shared.set('on-failure', 'resources', {
 			group,
 			bucket,
 			queue,
 		})
 
-		const notify = ctx.appConfig.defaults.onFailure?.notify
+		const notify = props.notify
 
 		if (notify) {
 			const topic = new aws.sns.Topic(group, 'deadletter-topic', {
@@ -185,44 +185,46 @@ export const onFailureFeature = defineFeature({
 			return
 		}
 
-		const bundle = ctx.shared.get('bundle', 'main')
 		const { group, bucket, queue } = ctx.shared.get('on-failure', 'resources')
 
-		// The consumer runs inside the bundle like every other function.
-		registerBundleFunction(ctx, formatRouteKey('base', 'on-failure', 'consumer'), props.consumer)
+		const name = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'handler',
+		})
 
-		// ----------------------------------------------------------------
-		// The failure queue feeds a separate lambda that formats every
-		// failure event & invokes the consumer inside the live bundle.
-		// Keeping the bundle out of the failure path prevents a failing
-		// bundle from recursively consuming its own failures.
+		const consumer = props.consumer
 
-		const distDir = dirname(fileURLToPath(import.meta.url))
+		const build = registerFunctionBuild(ctx, name, {
+			code: consumer.code,
+			handler: consumer.handler,
+			wrapper: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.js'),
+		})
 
-		const handler = createPrebuildLambdaFunction(group, ctx, 'on-failure', 'handler', {
-			bundleFile: join(distDir, '/prebuild/on-failure/bundle.zip'),
-			bundleHash: join(distDir, '/prebuild/on-failure/HASH'),
+		const handler = createLambdaFunctionFromZip(group, ctx, 'on-failure', 'handler', {
+			zipFile: build.zipFile,
+			sourceHash: build.sourceHash,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
-			memorySize: mebibytes(256),
-
-			// The consumer invoke is synchronous, so the handler needs at
-			// least the same timeout as the bundle.
-			timeout: ctx.appConfig.defaults.function.timeout,
-
+			memorySize: consumer.memorySize ?? ctx.appConfig.defaults.function.memorySize,
+			timeout: consumer.timeout ?? ctx.appConfig.defaults.function.timeout,
+			architecture: consumer.architecture ?? ctx.appConfig.defaults.function.architecture,
+			vpc: consumer.vpc,
 			log: {
-				format: 'json',
-				level: 'warn',
-				system: 'warn',
-				retention: days(3),
+				format: consumer.log?.format ?? 'json',
+				level: consumer.log?.level ?? 'warn',
+				system: consumer.log?.system ?? 'warn',
+				retention: consumer.log?.retention ?? days(3),
 			},
 		})
 
+		// The consumer runs with the same env & permissions it had
+		// inside the bundle.
+		ctx.onEnv(build.addEnv)
+		ctx.onBind(build.addEnv)
+		ctx.onPermission(statement => handler.addPermission(statement))
+
 		handler.addPermission(
-			{
-				actions: ['lambda:InvokeFunction'],
-				resources: [bundle.alias.arn],
-			},
 			{
 				actions: ['s3:GetObject', 's3:DeleteObject'],
 				resources: [$interpolate`${bucket.arn}/*`],
@@ -238,13 +240,18 @@ export const onFailureFeature = defineFeature({
 			}
 		)
 
-		new aws.lambda.EventSourceMapping(group, 'on-failure', {
-			functionName: handler.lambda.arn,
-			eventSourceArn: queue.arn,
-			batchSize: 10,
-		}, {
-			dependsOn: [handler.policy],
-		})
+		new aws.lambda.EventSourceMapping(
+			group,
+			'on-failure',
+			{
+				functionName: handler.lambda.arn,
+				eventSourceArn: queue.arn,
+				batchSize: 10,
+			},
+			{
+				dependsOn: [handler.policy],
+			}
+		)
 
 		const queuePolicy = new aws.sqs.QueuePolicy(group, 'bucket-notification', {
 			queueUrl: queue.url,
@@ -287,5 +294,10 @@ export const onFailureFeature = defineFeature({
 			},
 			{ dependsOn: [queuePolicy] }
 		)
+
+		// The bucket arn is only shared after the handler exists, so the
+		// handler itself never receives an async on-failure destination &
+		// can't feed its own failures back into the bucket it consumes.
+		ctx.shared.set('on-failure', 'bucket-arn', bucket.arn)
 	},
 })

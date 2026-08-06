@@ -6,6 +6,7 @@ import { logTable } from './table'
 export default lambda({
 	schema: onErrorLogSchema,
 	async handle(error) {
+		console.warn('ON_ERROR_LOG_CONSUMER_V2', error.origin, error.message)
 		await updateItem(
 			logTable,
 			{ hash: error.hash },

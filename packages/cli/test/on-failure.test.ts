@@ -1,31 +1,28 @@
-import { mockLambda } from '@awsless/lambda'
-import { getObject, mockS3, putObject } from '@awsless/s3'
+import { mockS3, getObject, putObject } from '@awsless/s3'
 import { beforeEach, describe, expect, it } from 'vitest'
-import handle from '../src/feature/on-failure/server/handle'
+import { createHandler } from '../src/feature/on-failure/server/handle'
+import type { FailureEvent } from '../src/feature/on-failure/server/types'
 
 process.env.APP ??= 'app'
 
 describe('on failure handler', () => {
-	const BUNDLE_NAME = `${process.env.APP}--function--bundle`
-	const consumerRoute = 'base:on-failure:consumer'
-	const invokes: unknown[] = []
+	const events: FailureEvent[] = []
 	let consumerError: Error | undefined
 
 	mockS3()
-	mockLambda({
-		[BUNDLE_NAME]: payload => {
-			invokes.push(payload)
 
-			if (consumerError) {
-				return Promise.reject(consumerError)
-			}
+	const handle = createHandler(event => {
+		events.push(event)
 
-			return
-		},
+		if (consumerError) {
+			return Promise.reject(consumerError)
+		}
+
+		return Promise.resolve()
 	})
 
 	beforeEach(() => {
-		invokes.length = 0
+		events.length = 0
 		consumerError = undefined
 	})
 
@@ -78,20 +75,18 @@ describe('on failure handler', () => {
 
 		await handle(sqsEvent(s3Event('failure+object.json')) as any)
 
-		expect(invokes).toStrictEqual([
+		expect(events).toStrictEqual([
 			{
-				'$awsless-route': consumerRoute,
-				event: {
-					type: 'async-lambda',
-					date: new Date('2026-01-01T00:00:00.000Z'),
-					id: 'request-id',
-					function: { name: 'test-app--function--bundle' },
-					payload: { hello: 'world' },
-					error: {
-						type: 'Error',
-						message: 'failed',
-						stackTrace: ['line'],
-					},
+				type: 'async-lambda',
+				date: new Date('2026-01-01T00:00:00.000Z'),
+				id: 'request-id',
+				function: { name: 'test-app--function--bundle' },
+				payload: { hello: 'world' },
+				source: undefined,
+				error: {
+					type: 'Error',
+					message: 'failed',
+					stackTrace: ['line'],
 				},
 			},
 		])
@@ -113,7 +108,7 @@ describe('on failure handler', () => {
 	it('ignores the S3 notification test event', async () => {
 		await handle(sqsEvent({ Event: 's3:TestEvent' }) as any)
 
-		expect(invokes).toStrictEqual([])
+		expect(events).toStrictEqual([])
 	})
 
 	it('derives the failure source from routed payloads and delivery envelopes', async () => {
@@ -132,11 +127,9 @@ describe('on failure handler', () => {
 		})
 		await handle(sqsEvent(s3Event('routed.json')) as any)
 
-		expect(invokes.at(-1)).toMatchObject({
-			event: {
-				function: { name: 'test-stack:task:export' },
-				source: { resource: 'test-stack:task:export', event: { roomId: 'room-1' } },
-			},
+		expect(events.at(-1)).toMatchObject({
+			function: { name: 'test-stack:task:export' },
+			source: { resource: 'test-stack:task:export', event: { roomId: 'room-1' } },
 		})
 
 		const topicFailure = {
@@ -161,11 +154,9 @@ describe('on failure handler', () => {
 		})
 		await handle(sqsEvent(s3Event('topic.json')) as any)
 
-		expect(invokes.at(-1)).toMatchObject({
-			event: {
-				function: { name: 'test-app--function--bundle' },
-				source: { resource: 'topic:failure-requested', event: { id: 'event-1' } },
-			},
+		expect(events.at(-1)).toMatchObject({
+			function: { name: 'test-app--function--bundle' },
+			source: { resource: 'topic:failure-requested', event: { id: 'event-1' } },
 		})
 	})
 
@@ -186,26 +177,25 @@ describe('on failure handler', () => {
 			],
 		} as any)
 
-		expect(invokes.at(-1)).toMatchObject({
-			event: {
-				queue: { name: 'test-app--test-stack--queue--index.fifo' },
-				source: { resource: 'test-stack:queue:index', event: { task: 'failed' } },
-			},
+		expect(events.at(-1)).toMatchObject({
+			queue: { name: 'test-app--test-stack--queue--index.fifo' },
+			source: { resource: 'test-stack:queue:index', event: { task: 'failed' } },
 		})
 	})
 
 	it('normalizes ordinary failure queue messages', async () => {
 		await handle(sqsEvent('{"task":"failed"}') as any)
 
-		expect(invokes).toStrictEqual([
+		expect(events).toStrictEqual([
 			{
-				'$awsless-route': consumerRoute,
-				event: {
-					type: 'queue',
-					id: 'message-id',
-					date: new Date('2026-01-01T00:00:00.000Z'),
-					payload: { task: 'failed' },
-					queue: {},
+				type: 'queue',
+				id: 'message-id',
+				date: new Date('2026-01-01T00:00:00.000Z'),
+				payload: { task: 'failed' },
+				source: undefined,
+				queue: {
+					name: undefined,
+					url: undefined,
 				},
 			},
 		])

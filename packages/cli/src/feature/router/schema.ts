@@ -2,7 +2,7 @@ import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 import { compileRoutePattern } from './pattern.js'
 
 const ErrorResponsePathSchema = z
@@ -57,7 +57,7 @@ export const RoutesSchema = z
 	.record(
 		ResourceIdSchema.describe('The router id to add your routes to.'),
 		z
-			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), FunctionSchema)
+			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), BundledFunctionSchema)
 			.superRefine((routes, ctx) => {
 				for (const pattern of Object.keys(routes)) {
 					try {

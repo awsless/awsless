@@ -13,7 +13,7 @@ const MemorySizeSchema = SizeSchema.refine(sizeMin(mebibytes(128)), 'Minimum mem
 		'The amount of memory available to the function at runtime. Increasing the function memory also increases its CPU allocation. The value can be any multiple of 1 MB. You can specify a size value from 128 MB to 10 GB.'
 	)
 
-const TimeoutSchema = DurationSchema.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
+export const TimeoutSchema = DurationSchema.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
 	.refine(durationMax(minutes(15)), 'Maximum timeout duration is 15 minutes')
 	.describe(
 		'The amount of time that Lambda allows a function to run before stopping it. You can specify a size value from 1 second to 15 minutes.'
@@ -178,14 +178,40 @@ const CodeSchema = z
 	])
 	.describe('Specify the code of your function.')
 
-// The lambda config is defined by the shared bundle, so environment,
-// permissions & memorySize live in defaults.function.
-const FnSchema = z
+// The lambda config of a bundled function is defined by the shared
+// bundle, so environment, permissions & memorySize live in
+// defaults.function.
+const BundledFnSchema = z
 	.object({
 		code: CodeSchema,
 		handler: HandlerSchema.optional(),
 	})
 	.strict()
+
+export type BundledFunctionProps = z.output<typeof BundledFnSchema>
+
+export const BundledFunctionSchema = z.union([
+	LocalFileSchema.transform(code => ({
+		code,
+	})).pipe(BundledFnSchema),
+	BundledFnSchema,
+])
+
+// The function schema for the global feature handlers, like on-failure.
+// The handler runs as its own stand-alone lambda, so it accepts the
+// lambda infra fields that apply to such a handler.
+const FnSchema = BundledFnSchema.extend({
+	timeout: TimeoutSchema.optional(),
+	memorySize: MemorySizeSchema.optional(),
+	architecture: ArchitectureSchema.optional(),
+	vpc: VPCSchema.optional(),
+	log: LogSchema.transform(log => ({
+		retention: log.retention,
+		format: 'format' in log ? log.format : undefined,
+		level: 'level' in log ? log.level : undefined,
+		system: 'system' in log ? log.system : undefined,
+	})).optional(),
+})
 
 export type FunctionProps = z.output<typeof FnSchema>
 
@@ -255,8 +281,10 @@ export const FunctionDefaultSchema = z
 		timeout: TimeoutSchema.default('15 minutes'),
 		memorySize: MemorySizeSchema.default('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
-		// Stand-alone functions live outside the vpc unless they opt in.
-		vpc: VPCSchema.default(false),
+		// Stand-alone functions live inside the vpc by default, so moving a
+		// function out of the shared bundle doesn't cut it off from
+		// vpc-only resources like the cache.
+		vpc: VPCSchema.default(true),
 		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
 		reserved: ReservedConcurrentExecutionsSchema.optional(),
 		layers: LayersSchema.optional(),
