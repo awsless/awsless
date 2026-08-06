@@ -1,4 +1,4 @@
-import { date, define, number, object, optional, string, unknown } from '@awsless/dynamodb'
+import { array, date, define, number, object, optional, string, unknown } from '@awsless/dynamodb'
 
 export const logTable = define('app-kennedy--stack--table--logs', {
 	hash: 'hash',
@@ -8,7 +8,7 @@ export const logTable = define('app-kennedy--stack--table--logs', {
 		type: string(),
 		message: string(),
 		origin: string(),
-		stackTrace: optional(string()),
+		stackTrace: optional(array(string())),
 		data: optional(unknown()),
 		updatedAt: date(),
 		createdAt: date(),

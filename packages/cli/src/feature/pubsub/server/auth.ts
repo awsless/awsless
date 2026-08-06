@@ -91,14 +91,17 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	}
 
 	// ------------------------------------------
-	// Invoke the custom auth lambda
+	// Invoke the auth handler inside the app bundle
 
 	let response: unknown
 
 	try {
 		response = await invoke({
 			name: process.env.AUTH,
-			payload: { token: token ?? undefined },
+			payload: {
+				'$awsless-route': process.env.AUTH_ROUTE,
+				event: { token: token ?? undefined },
+			},
 		})
 	} catch (error) {
 		console.error(error)

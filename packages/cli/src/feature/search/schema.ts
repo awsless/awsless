@@ -1,8 +1,6 @@
 import { gibibytes } from '@awsless/size'
 import { z } from 'zod'
-import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
-// import { FunctionSchema } from '../function/schema.js'
 
 const VersionSchema = z
 	.union([
@@ -44,72 +42,193 @@ const TypeSchema = z
 			'c5.4xlarge',
 			'c5.9xlarge',
 			'c5.18xlarge',
-			'or1.medium',
-			'or1.large',
-			'or1.xlarge',
-			'or1.2xlarge',
-			'or1.4xlarge',
-			'or1.8xlarge',
-			'or1.12xlarge',
-			'or1.16xlarge',
-			'ultrawarm1.medium',
-			'ultrawarm1.large',
-			'ultrawarm1.xlarge',
-			'r3.large',
-			'r3.xlarge',
-			'r3.2xlarge',
-			'r3.4xlarge',
-			'r3.8xlarge',
-			'i2.xlarge',
-			'i2.2xlarge',
-			'i3.large',
-			'i3.xlarge',
-			'i3.2xlarge',
-			'i3.4xlarge',
-			'i3.8xlarge',
-			'i3.16xlarge',
-			'r6g.large',
-			'r6g.xlarge',
-			'r6g.2xlarge',
-			'r6g.4xlarge',
-			'r6g.8xlarge',
-			'r6g.12xlarge',
-			'm6g.large',
-			'm6g.xlarge',
-			'm6g.2xlarge',
-			'm6g.4xlarge',
-			'm6g.8xlarge',
-			'm6g.12xlarge',
-			'r6gd.large',
-			'r6gd.xlarge',
-			'r6gd.2xlarge',
-			'r6gd.4xlarge',
-			'r6gd.8xlarge',
-			'r6gd.12xlarge',
-			'r6gd.16xlarge',
 		]),
 		z.string(),
 	])
 	.describe('Instance type of data nodes in the cluster.')
 
-const CountSchema = z.number().int().min(1).describe('Number of instances in the cluster.')
+const CountSchema = z.number().int().min(1).max(10).describe('Number of instances in the cluster.')
 
 const StorageSizeSchema = SizeSchema.refine(sizeMin(gibibytes(10)), 'Minimum storage size is 10 GB')
 	.refine(sizeMax(gibibytes(100)), 'Maximum storage size is 100 GB')
-	.describe("The size of the function's /tmp directory. You can specify a size value from 512 MB to 10 GiB.")
+	.describe('The storage size of every data node in the cluster.')
+
+// The one shared OpenSearch domain of the app, created as soon as any
+// stack declares a search index.
+export const SearchDefaultSchema = z
+	.object({
+		type: TypeSchema.default('t3.small'),
+		count: CountSchema.default(1),
+		version: VersionSchema.default('2.13'),
+		storage: StorageSizeSchema.default('10 GB'),
+	})
+	.strict()
+	.default({})
+	.describe('Configure the shared OpenSearch domain that backs every search index in your app.')
+
+const IndexNameSchema = z
+	.string()
+	.regex(
+		/^[a-z0-9][a-z0-9\-_.]*$/,
+		'Index names must be lowercase & start with a letter or number, like "users" or "game-events".'
+	)
+
+// The subset of OpenSearch field options that gets typed editor
+// support - every other option passes through untouched, so the full
+// mapping api stays usable.
+
+const FieldTypeSchema = z
+	.union([
+		z.enum([
+			// strings
+			'text',
+			'keyword',
+			'match_only_text',
+			'wildcard',
+			'search_as_you_type',
+			'completion',
+			// numbers
+			'long',
+			'integer',
+			'short',
+			'byte',
+			'unsigned_long',
+			'double',
+			'float',
+			'half_float',
+			'scaled_float',
+			// dates & other scalars
+			'boolean',
+			'date',
+			'date_nanos',
+			'ip',
+			'binary',
+			'token_count',
+			// objects
+			'object',
+			'nested',
+			'flat_object',
+			'join',
+			'alias',
+			// geo & specialized
+			'geo_point',
+			'geo_shape',
+			'percolator',
+			'rank_feature',
+			'rank_features',
+			'knn_vector',
+		]),
+		z.string(),
+	])
+	.describe('The OpenSearch field type.')
+
+// The json schema generator can't express recursion, so the typed
+// editor support bottoms out after a few nesting levels - deeper
+// mappings still validate through the catchall passthrough.
+const mappingProperty = (child?: z.ZodTypeAny) =>
+	z
+		.object({
+			type: FieldTypeSchema.optional(),
+			...(child
+				? {
+						properties: z
+							.record(z.string(), child)
+							.optional()
+							.describe('The sub fields of an object or nested field.'),
+						fields: z
+							.record(z.string(), child)
+							.optional()
+							.describe(
+								'Multi-fields that index the same value in different ways, like a keyword sub field.'
+							),
+					}
+				: {}),
+			analyzer: z.string().optional().describe('The analyzer for text fields.'),
+			format: z.string().optional().describe('The date format, like "epoch_millis" or "strict_date_time".'),
+			index: z.boolean().optional().describe('Whether the field is searchable.'),
+			doc_values: z.boolean().optional().describe('Whether the field supports sorting & aggregations.'),
+			null_value: z.unknown().optional().describe('The value used when the field is null.'),
+			copy_to: z
+				.union([z.string(), z.string().array()])
+				.optional()
+				.describe('Copy the field value into another field.'),
+			dimension: z.number().int().optional().describe('The vector dimension of a knn_vector field.'),
+		})
+		.catchall(z.unknown())
+
+const MappingPropertySchema = mappingProperty(mappingProperty(mappingProperty(mappingProperty())))
+
+const MappingsSchema = z
+	.object({
+		properties: z
+			.record(z.string(), MappingPropertySchema)
+			.optional()
+			.describe('The field mappings of the index.'),
+		dynamic: z
+			.union([z.boolean(), z.enum(['strict', 'runtime'])])
+			.optional()
+			.describe('How new fields are handled: true (map them), false (store only), or "strict" (reject them).'),
+		dynamic_templates: z
+			.array(z.record(z.string(), z.unknown()))
+			.optional()
+			.describe('Rules that map dynamically added fields by name or type.'),
+		_source: z.record(z.string(), z.unknown()).optional().describe('Control how the document source is stored.'),
+		_meta: z.record(z.string(), z.unknown()).optional().describe('Free-form metadata stored with the mapping.'),
+	})
+	.catchall(z.unknown())
+	.describe('The OpenSearch mappings of the index. Additive changes deploy, breaking changes fail the deploy.')
+
+// The shorthand schema: a field is just its type, objects nest
+// naturally & wrapping in [ ... ] means an array of them (nested).
+// { "$type": ... } passes a raw field definition through untouched.
+const rawFieldSchema = z
+	.object({
+		$type: FieldTypeSchema.describe('The OpenSearch field type, with every other option passed through as-is.'),
+	})
+	.catchall(z.unknown())
+
+const schemaField = (child?: z.ZodTypeAny): z.ZodTypeAny => {
+	const fields = child ? z.record(z.string(), child) : z.record(z.string(), z.unknown())
+
+	return z.union([
+		FieldTypeSchema,
+		rawFieldSchema,
+		z
+			.tuple([fields])
+			.describe('An array of objects, indexed as a nested field so queries match within one element.'),
+		fields.describe('An object field with sub fields.'),
+	])
+}
+
+const SchemaSchema = z
+	.record(z.string(), schemaField(schemaField(schemaField(schemaField()))))
+	.describe(
+		'The shorthand schema of the index: a field is its type ("keyword"), an object nests ({ ... }), an array of objects becomes a nested field ([{ ... }]), and { "$type": ... } passes a raw field definition through. "text" fields get a ".keyword" sub field automatically.'
+	)
+
+const IndexSchema = z
+	.object({
+		schema: SchemaSchema.optional(),
+		strict: z
+			.boolean()
+			.optional()
+			.describe('Reject documents with fields that are missing from the schema.'),
+		mappings: MappingsSchema.optional(),
+		settings: z
+			.record(z.string(), z.unknown())
+			.optional()
+			.describe('The OpenSearch index settings, applied when the index is created.'),
+	})
+	.refine(props => !(props.schema && props.mappings), {
+		message: 'Define either "schema" or "mappings" for an index, not both.',
+	})
+	.refine(props => !(props.strict && !props.schema), {
+		message: 'The "strict" option only works together with "schema".',
+	})
 
 export const SearchsSchema = z
-	.record(
-		ResourceIdSchema,
-		z.object({
-			type: TypeSchema.default('t3.small'),
-			count: CountSchema.default(1),
-			version: VersionSchema.default('2.13'),
-			storage: StorageSizeSchema.default('10 GB'),
-			// vpc: z.boolean().default(false),
-
-			// migration: FunctionSchema.optional(),
-		})
-	)
+	.record(IndexNameSchema, IndexSchema)
 	.optional()
-	.describe('Define the search instances in your stack. Backed by OpenSearch.')
+	.describe(
+		'Define the search indexes in your stack, backed by the one shared OpenSearch domain of your app. The physical index name is prefixed with the stack name.'
+	)

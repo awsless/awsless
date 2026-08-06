@@ -1,13 +1,15 @@
 import { stringify } from '@awsless/json'
 import { lambda } from '@awsless/lambda'
 import { maxLength, minLength, object, optional, pipe, string, unknown } from '@awsless/validate'
+import { getRouteEnv } from 'awsless'
 import { Redis } from 'ioredis'
 
 const createClient = () => {
 	return new Redis({
-		host: process.env.REDIS_HOST!,
-		port: Number(process.env.REDIS_PORT ?? 6379),
-		tls: {},
+		host: getRouteEnv('REDIS_HOST')!,
+		port: Number(getRouteEnv('REDIS_PORT') ?? 6379),
+		// The local dev environment runs a plain redis without tls.
+		tls: getRouteEnv('REDIS_TLS') === 'disabled' ? undefined : {},
 		lazyConnect: true,
 		keepAlive: 0,
 		noDelay: true,
@@ -34,7 +36,7 @@ export default lambda({
 		})
 
 		await redis.publish(
-			process.env.CHANNEL!,
+			getRouteEnv('CHANNEL')!,
 			stringify({
 				topic,
 				event,

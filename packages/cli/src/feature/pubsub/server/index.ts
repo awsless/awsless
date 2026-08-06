@@ -41,7 +41,7 @@ const server = Bun.serve({
 		'/health': () => {
 			return new Response('ok')
 		},
-		'/ws': (request, server) => {
+		'/': (request, server) => {
 			// Only allow traffic that passed through our router.
 			if (ORIGIN_SECRET && request.headers.get('x-origin-secret') !== ORIGIN_SECRET) {
 				return new Response('Forbidden', { status: 403 })

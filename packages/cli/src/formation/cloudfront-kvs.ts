@@ -1,241 +1,274 @@
+import { CloudFrontClient, DescribeKeyValueStoreCommand } from '@aws-sdk/client-cloudfront'
 import {
 	CloudFrontKeyValueStoreClient,
-	DescribeKeyValueStoreCommand,
+	DescribeKeyValueStoreCommand as DescribeDataStoreCommand,
+	GetKeyCommand,
 	ListKeysCommand,
 	UpdateKeysCommand,
-	UpdateKeysCommandOutput,
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
+import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import chunk from 'chunk'
-import promiseLimit from 'p-limit'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
+import { Credentials, isError } from '../util/aws'
 
 import '@aws-sdk/signature-v4-crt'
-import { Credentials } from '../util/aws'
 
-type ImportKeysInput = {
-	kvsArn: Input<string>
-	keys: Input<
-		Input<{
-			key: Input<string>
-			value: Input<string>
-		}>[]
-	>
-}
+// ------------------------------------------------------------
+// Each router keeps its staged route tables and active pointer in one store:
+//
+//   <table>:<route>   route table, stored once per content version
+//   $deploy:<id>      'table:functionVersion', one entry per deployment
+//   $active           'table:id', what production serves, the switch
 
-type ImportKeysOutput = {
-	kvsArn: Output<string>
-	keys: Output<
-		{
+const ACTIVE_KEY = '$active'
+const DEPLOY_KEY_PREFIX = '$deploy:'
+
+const routeSchema = z.object({
+	key: z.string(),
+	value: z.string(),
+})
+
+type RouteEntry = z.output<typeof routeSchema>
+
+type Mutation =
+	| {
+			type: 'put'
 			key: string
 			value: string
-		}[]
-	>
+	  }
+	| {
+			type: 'delete'
+			key: string
+	  }
 
-	eTag: Output<string | undefined>
-	itemCount: Output<number>
-	totalSizeInBytes: Output<number>
+export type RouteDeployment = {
+	id: string
+	table: string
+	functionVersion: string
 }
 
-export const ImportKeys = createCustomResourceClass<ImportKeysInput, ImportKeysOutput>('cloudfront-kvs', 'import-keys')
+type RouteDeploymentInput = {
+	deploymentId: Input<string>
+	storeArn: Input<string>
+	routes: Input<RouteEntry[]>
+	functionVersion: Input<string>
+}
+
+export const RouteDeployment = createCustomResourceClass<RouteDeploymentInput, {}>('cloudfront-kvs', 'route-deployment')
+
+const routeDeploymentInputSchema = z.object({
+	deploymentId: z.string(),
+	storeArn: z.string(),
+	routes: z.array(routeSchema),
+	functionVersion: z.string(),
+})
+
+// store values are plain '<table>:<id or version>' pairs
+const parseValue = (value: string | undefined): [string, string] | undefined => {
+	const parts = value?.split(':')
+
+	return parts?.length === 2 && parts[0] && parts[1] ? (parts as [string, string]) : undefined
+}
+
+// ------------------------------------------------------------
+// Planning
+
+const sortRoutes = (routes: RouteEntry[]) => {
+	return [...routes].sort((a, b) => {
+		if (a.key === b.key) {
+			return a.value < b.value ? -1 : a.value > b.value ? 1 : 0
+		}
+
+		return a.key < b.key ? -1 : 1
+	})
+}
+
+const getRouteTableId = (routes: RouteEntry[]) => {
+	return createHash('sha1').update(JSON.stringify(routes)).digest('hex').slice(0, 8)
+}
+
+const getTableMutations = (table: string, routes: RouteEntry[]): Mutation[] => {
+	return routes.map(route => ({
+		type: 'put',
+		key: `${table}:${route.key}`,
+		value: route.value,
+	}))
+}
+
+const getActivateMutation = (deployment: RouteDeployment): Mutation => ({
+	type: 'put',
+	key: ACTIVE_KEY,
+	value: `${deployment.table}:${deployment.id}`,
+})
+
+// ------------------------------------------------------------
+// Store access
+
+const getStoreValue = async (kvs: CloudFrontKeyValueStoreClient, storeArn: string, key: string) => {
+	try {
+		const result = await kvs.send(new GetKeyCommand({ KvsARN: storeArn, Key: key }))
+
+		return result.Value
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+
+		return
+	}
+}
+
+const updateKeys = async (kvs: CloudFrontKeyValueStoreClient, props: { storeArn: string; mutations: Mutation[] }) => {
+	let etag = (await kvs.send(new DescribeDataStoreCommand({ KvsARN: props.storeArn }))).ETag
+
+	for (const mutations of chunk(props.mutations, 50)) {
+		if (mutations.length === 0) {
+			continue
+		}
+
+		const result = await kvs.send(
+			new UpdateKeysCommand({
+				KvsARN: props.storeArn,
+				IfMatch: etag,
+				Puts: mutations.filter(item => item.type === 'put').map(item => ({ Key: item.key, Value: item.value })),
+				Deletes: mutations.filter(item => item.type === 'delete').map(item => ({ Key: item.key })),
+			})
+		)
+		etag = result.ETag
+	}
+}
+
+export const readRouteDeployment = async (
+	kvs: CloudFrontKeyValueStoreClient,
+	storeArn: string,
+	deploymentId: string
+): Promise<RouteDeployment | undefined> => {
+	const value = parseValue(await getStoreValue(kvs, storeArn, `${DEPLOY_KEY_PREFIX}${deploymentId}`))
+
+	return value ? { id: deploymentId, table: value[0], functionVersion: value[1] } : undefined
+}
+
+export const readActiveDeploymentId = async (kvs: CloudFrontKeyValueStoreClient, storeArn: string) => {
+	return parseValue(await getStoreValue(kvs, storeArn, ACTIVE_KEY))?.[1]
+}
+
+// resolve the store of a router by its deterministic name
+export const getRouteStoreArn = async (cloudfront: CloudFrontClient, name: string) => {
+	try {
+		const result = await cloudfront.send(new DescribeKeyValueStoreCommand({ Name: name }))
+
+		return result.KeyValueStore?.ARN
+	} catch (error) {
+		if (!isError(error, 'EntityNotFound') && !isError(error, 'NoSuchResource')) {
+			throw error
+		}
+
+		return
+	}
+}
+
+// ------------------------------------------------------------
+// Staging
+
+const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<typeof routeDeploymentInputSchema>) => {
+	const routes = sortRoutes(state.routes)
+	const table = getRouteTableId(routes)
+
+	const deployment: RouteDeployment = {
+		id: state.deploymentId,
+		table,
+		functionVersion: state.functionVersion,
+	}
+
+	const mutations: Mutation[] = [
+		...getTableMutations(table, routes),
+		{
+			type: 'put',
+			key: `${DEPLOY_KEY_PREFIX}${deployment.id}`,
+			value: `${table}:${deployment.functionVersion}`,
+		},
+	]
+
+	// Route rows are written before the mapping, so an interrupted upload
+	// can't be selected by a preview or promotion.
+	// Promotion changes $active only after the full app deployment succeeds.
+	await updateKeys(kvs, {
+		storeArn: state.storeArn,
+		mutations,
+	})
+
+	return {
+		...state,
+		routes,
+	}
+}
 
 type ProviderProps = {
 	credentials: Credentials
 	region: Region
 }
 
-type ConcurrencyQueue = <T>(cb: () => Promise<T>) => Promise<T>
-
 export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderProps) => {
-	const client = new CloudFrontKeyValueStoreClient({ credentials, region })
-	const queues: Record<string, ConcurrencyQueue> = {}
-
-	const getConcurrencyQueue = (arn: string): ConcurrencyQueue => {
-		if (!queues[arn]) {
-			const queue = promiseLimit(1)
-			queues[arn] = <T>(cb: () => Promise<T>) => {
-				return queue(cb)
-			}
-		}
-		return queues[arn]
-	}
-
-	const validateInput = (state: unknown) => {
-		return z
-			.object({
-				kvsArn: z.string(),
-				keys: z.array(
-					z.object({
-						key: z.string(),
-						value: z.string(),
-					})
-				),
-			})
-			.parse(state)
-	}
-
-	const formatOutput = (output?: UpdateKeysCommandOutput) => {
-		return {
-			eTag: output?.ETag,
-			itemCount: output?.ItemCount ?? 0,
-			totalSizeInBytes: output?.TotalSizeInBytes ?? 0,
-		}
-	}
-
-	const bulkUpdate = async (props: {
-		arn: string
-		mutations: Array<
-			| {
-					type: 'put'
-					key: string
-					value: string
-			  }
-			| {
-					type: 'delete'
-					key: string
-			  }
-		>
-	}): Promise<UpdateKeysCommandOutput | undefined> => {
-		const run = async () => {
-			const batches = chunk(props.mutations, 50)
-
-			let prev = await client.send(
-				new DescribeKeyValueStoreCommand({
-					KvsARN: props.arn,
-				})
-			)
-
-			let result: UpdateKeysCommandOutput | undefined
-			let ifMatch = prev.ETag
-
-			for (const mutations of batches) {
-				if (mutations.length === 0) {
-					continue
-				}
-
-				result = await client.send(
-					new UpdateKeysCommand({
-						KvsARN: props.arn,
-						IfMatch: ifMatch,
-						Puts: mutations
-							.filter(item => item.type === 'put')
-							.map(item => ({
-								Key: item.key,
-								Value: item.value,
-							})),
-						Deletes: mutations
-							.filter(item => item.type === 'delete')
-							.map(item => ({
-								Key: item.key,
-							})),
-					})
-				)
-
-				ifMatch = result.ETag
-			}
-
-			return result
-		}
-
-		const queue = getConcurrencyQueue(props.arn)
-
-		return queue(run)
-	}
+	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
 
 	return createCustomProvider('cloudfront-kvs', {
-		'import-keys': {
-			async getResource(props) {
-				const state = z.object({ kvsArn: z.string() }).parse(props.state)
-
-				const result = await client.send(
-					new DescribeKeyValueStoreCommand({
-						KvsARN: state.kvsArn,
-					})
-				)
-
-				const keys: { key: string; value: string }[] = []
-				let nextToken: string | undefined
-
-				while (true) {
-					const result = await client.send(
-						new ListKeysCommand({
-							KvsARN: state.kvsArn,
-							NextToken: nextToken,
-							MaxResults: 50,
-						})
-					)
-
-					for (const item of result.Items ?? []) {
-						keys.push({
-							key: item.Key!,
-							value: item.Value!,
-						})
-					}
-
-					if (result.NextToken) {
-						nextToken = result.NextToken
-					} else {
-						break
-					}
-				}
-
-				return {
-					keys,
-					...state,
-					...formatOutput(result),
-				}
-			},
+		'route-deployment': {
 			async createResource(props) {
-				const state = validateInput(props.state)
-
-				const result = await bulkUpdate({
-					arn: state.kvsArn,
-					mutations: state.keys.map(item => ({ ...item, type: 'put' })),
-				})
-
-				return {
-					...state,
-					...formatOutput(result),
-				}
+				return stageRoutes(kvs, routeDeploymentInputSchema.parse(props.state))
 			},
 			async updateResource(props) {
-				if (props.priorState.kvsArn !== props.proposedState.kvsArn) {
-					throw new Error(`kvsArn can't be changed.`)
-				}
-
-				const priorState = validateInput(props.priorState)
-				const proposedState = validateInput(props.proposedState)
-
-				const puts = proposedState.keys.filter(a => {
-					return !priorState.keys.find(b => a.key === b.key && a.value === b.value)
-				})
-
-				const deletes = priorState.keys.filter(a => {
-					return !proposedState.keys.find(b => a.key === b.key)
-				})
-
-				const result = await bulkUpdate({
-					arn: proposedState.kvsArn,
-					mutations: [
-						...puts.map(i => ({ ...i, type: 'put' as const })),
-						...deletes.map(i => ({ ...i, type: 'delete' as const })),
-					],
-				})
-
-				return {
-					...proposedState,
-					...formatOutput(result),
-				}
-			},
-			async deleteResource(props) {
-				const state = validateInput(props.state)
-
-				await bulkUpdate({
-					arn: state.kvsArn,
-					mutations: state.keys.map(i => ({ ...i, type: 'delete' })),
-				})
+				return stageRoutes(kvs, routeDeploymentInputSchema.parse(props.proposedState))
 			},
 		},
+	})
+}
+
+// ------------------------------------------------------------
+// CLI
+
+export const setActiveRouteDeployment = async (
+	kvs: CloudFrontKeyValueStoreClient,
+	storeArn: string,
+	deployment?: RouteDeployment
+) => {
+	await updateKeys(kvs, {
+		storeArn,
+		mutations: deployment ? [getActivateMutation(deployment)] : [{ type: 'delete', key: ACTIVE_KEY }],
+	})
+}
+
+// Drop the pruned deployments & every route table that no remaining
+// deployment or the active pointer references.
+export const pruneStoreDeployments = async (
+	kvs: CloudFrontKeyValueStoreClient,
+	storeArn: string,
+	deploymentIds: string[]
+) => {
+	await updateKeys(kvs, {
+		storeArn,
+		mutations: deploymentIds.map(id => ({ type: 'delete', key: `${DEPLOY_KEY_PREFIX}${id}` })),
+	})
+
+	const keys: RouteEntry[] = []
+	let nextToken: string | undefined
+
+	do {
+		const page = await kvs.send(new ListKeysCommand({ KvsARN: storeArn, NextToken: nextToken }))
+		nextToken = page.NextToken
+		keys.push(...(page.Items ?? []).map(item => ({ key: item.Key!, value: item.Value! })))
+	} while (nextToken)
+
+	const referenced = new Set(
+		keys
+			.filter(entry => entry.key.startsWith(DEPLOY_KEY_PREFIX) || entry.key === ACTIVE_KEY)
+			.map(entry => entry.value.split(':')[0])
+	)
+	const orphans = keys.filter(entry => !entry.key.startsWith('$') && !referenced.has(entry.key.split(':')[0]))
+
+	await updateKeys(kvs, {
+		storeArn,
+		mutations: orphans.map(entry => ({ type: 'delete', key: entry.key })),
 	})
 }

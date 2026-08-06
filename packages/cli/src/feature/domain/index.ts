@@ -3,12 +3,13 @@ import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { NsCheck } from '../../formation/ns-check.js'
+import { createDnsValidatedCertificate } from './util.js'
 // import { formatGlobalResourceName } from '../../util/name.js'
 
 export const domainFeature = defineFeature({
 	name: 'domain',
 	onApp(ctx) {
-		const domains = Object.entries(ctx.appConfig.defaults.domains ?? {})
+		const domains = Object.entries(ctx.appConfig.domains ?? {})
 
 		if (domains.length === 0) {
 			return
@@ -40,96 +41,24 @@ export const domainFeature = defineFeature({
 
 			ctx.shared.add('domain', `zone-id`, id, zone.id)
 
-			const certificate = new aws.acm.Certificate(group, 'local', {
+			const validation = createDnsValidatedCertificate(group, 'local', {
+				recordIdPrefix: 'local-cert',
+				zoneId: zone.id,
 				domainName: props.domain,
-				validationMethod: 'DNS',
-				keyAlgorithm: 'RSA_2048',
 				subjectAlternativeNames: [`*.${props.domain}`],
+				dependsOn: [nsCheck],
 			})
-
-			const option = (certificate: aws.acm.Certificate, index: number) => {
-				return certificate.domainValidationOptions.pipe(options => {
-					return options[index]!
-				})
-			}
-
-			const record1 = new aws.route53.Record(group, 'local-cert-1', {
-				zoneId: zone.id,
-				name: option(certificate, 0).pipe(r => r.resourceRecordName),
-				type: option(certificate, 0).pipe(r => r.resourceRecordType),
-				ttl: toSeconds(minutes(5)),
-				records: [option(certificate, 0).pipe(r => r.resourceRecordValue)],
-				allowOverwrite: true,
-			})
-
-			const record2 = new aws.route53.Record(group, 'local-cert-2', {
-				zoneId: zone.id,
-				name: option(certificate, 1).pipe(r => r.resourceRecordName),
-				type: option(certificate, 1).pipe(r => r.resourceRecordType),
-				ttl: toSeconds(minutes(5)),
-				records: [option(certificate, 1).pipe(r => r.resourceRecordValue)],
-				allowOverwrite: true,
-			})
-
-			const validation = new aws.acm.CertificateValidation(
-				group,
-				'local',
-				{
-					certificateArn: certificate.arn,
-					validationRecordFqdns: [record1.fqdn, record2.fqdn],
-					// validationRecordFqdns: [record1.fqdn, record2.fqdn],
-				},
-				{
-					dependsOn: [nsCheck],
-				}
-			)
 
 			ctx.shared.add('domain', `certificate-arn`, id, validation.certificateArn)
 
 			if (ctx.appConfig.region !== 'us-east-1') {
-				const globalCertificate = new aws.acm.Certificate(
-					group,
-					'global',
-					{
-						domainName: props.domain,
-						validationMethod: 'DNS',
-						keyAlgorithm: 'RSA_2048',
-						subjectAlternativeNames: [`*.${props.domain}`],
-					},
-					{
-						provider: 'global-aws',
-					}
-				)
-
-				const record1 = new aws.route53.Record(group, 'global-cert-1', {
+				const globalValidation = createDnsValidatedCertificate(group, 'global', {
+					recordIdPrefix: 'global-cert',
 					zoneId: zone.id,
-					name: option(globalCertificate, 0).pipe(r => r.resourceRecordName),
-					type: option(globalCertificate, 0).pipe(r => r.resourceRecordType),
-					ttl: toSeconds(minutes(5)),
-					records: [option(globalCertificate, 0).pipe(r => r.resourceRecordValue)],
-					allowOverwrite: true,
+					domainName: props.domain,
+					subjectAlternativeNames: [`*.${props.domain}`],
+					provider: 'global-aws',
 				})
-
-				const record2 = new aws.route53.Record(group, 'global-cert-2', {
-					zoneId: zone.id,
-					name: option(globalCertificate, 1).pipe(r => r.resourceRecordName),
-					type: option(globalCertificate, 1).pipe(r => r.resourceRecordType),
-					ttl: toSeconds(minutes(5)),
-					records: [option(globalCertificate, 1).pipe(r => r.resourceRecordValue)],
-					allowOverwrite: true,
-				})
-
-				const globalValidation = new aws.acm.CertificateValidation(
-					group,
-					'global',
-					{
-						certificateArn: globalCertificate.arn,
-						validationRecordFqdns: [record1.fqdn, record2.fqdn],
-					},
-					{
-						provider: 'global-aws',
-					}
-				)
 
 				ctx.shared.add('domain', `global-certificate-arn`, id, globalValidation.certificateArn)
 			} else {
@@ -247,14 +176,12 @@ export const domainFeature = defineFeature({
 			// 	return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
 			// })
 
-			const verification = new aws.ses.DomainIdentityVerification(
+			new aws.ses.DomainIdentityVerification(
 				group,
 				'mail',
 				{ domain: props.domain },
 				{ dependsOn: [identity, verificationRecord, nsCheck] }
 			)
-
-			ctx.shared.add(`domain`, 'mail-arn', id, verification.arn)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
@@ -269,10 +196,12 @@ export const domainFeature = defineFeature({
 		}
 
 		ctx.addGlobalPermission({
-			actions: ['ses:*'],
+			actions: ['ses:SendEmail', 'ses:SendRawEmail'],
 			resources: [
-				// `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
-				'*',
+				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
+				// Sending through the app configuration set is authorized against
+				// its own ARN, not just the identity.
+				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:configuration-set/${ctx.app.name}`,
 			],
 		})
 	},

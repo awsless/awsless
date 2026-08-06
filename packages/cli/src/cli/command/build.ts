@@ -16,7 +16,11 @@ export const build = (program: Command) => {
 
 				const { builders } = createApp({ appConfig, stackConfigs, accountId })
 
-				await buildAssets(builders, filters, true)
+				// The app bundle lives inside the base stack, so we
+				// always need to include the base stack when a
+				// stack filter is given.
+
+				await buildAssets(builders, filters.length > 0 ? [...filters, 'base'] : filters, true)
 
 				return 'Build was successful.'
 			})

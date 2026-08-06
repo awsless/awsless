@@ -1,9 +1,6 @@
 import { Input } from '@terraforge/core'
 
-export type Route = {
-	type: 'url' | 'lambda' | 's3'
-	domainName: Input<string>
-
+type RouteProps = {
 	// A regex that the request path needs to match for routes
 	// that are more specific than their route store key.
 	match?: string
@@ -14,6 +11,8 @@ export type Route = {
 	removeCookies?: boolean
 	forwardHost?: boolean
 	urlEncodedQueryString?: boolean
+
+	requestHeaders?: Record<string, string>
 
 	hostHeader?: string
 	originPath?: string
@@ -27,44 +26,22 @@ export type Route = {
 
 	rewrite?: {
 		regex?: string
-		to: string
+		to: Input<string>
 	}
 }
 
-// The value of a route store entry is either a single route, a list
-// of routes, or an index that points to sharded route entries.
-export type RouteIndex = {
-	list: number
-}
-
-// The max size of a value in the CloudFront key value store is 1KB.
-const MAX_VALUE_SIZE = 1000
-
-// Convert the routes into route store entries, where route lists
-// that are too big for a single key value pair are sharded over
-// multiple entries behind a route index.
-export const createRouteStoreEntries = (routes: Record<string, unknown>) => {
-	const entries: { key: string; value: string }[] = []
-
-	for (const [key, value] of Object.entries(routes)) {
-		const json = JSON.stringify(value)
-
-		if (Array.isArray(value) && Buffer.byteLength(json, 'utf8') > MAX_VALUE_SIZE) {
-			entries.push({
-				key,
-				value: JSON.stringify({ list: value.length } satisfies RouteIndex),
-			})
-
-			value.forEach((route, index) => {
-				entries.push({
-					key: `${key}#${index}`,
-					value: JSON.stringify(route),
-				})
-			})
-		} else {
-			entries.push({ key, value: json })
-		}
-	}
-
-	return entries
-}
+export type Route =
+	| (RouteProps & {
+			type: 'lambda'
+			// A stand-alone lambda route brings its own function url host,
+			// without one the route targets the shared bundle url.
+			domainName?: Input<string>
+	  })
+	| (RouteProps & {
+			type: 's3'
+			domainName: Input<string>
+	  })
+	| (RouteProps & {
+			type: 'url'
+			domainName: Input<string>
+	  })

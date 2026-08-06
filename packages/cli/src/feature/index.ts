@@ -1,4 +1,6 @@
+import { assetFeature } from './asset/index.js'
 import { authFeature } from './auth/index.js'
+import { bundleFeature } from './bundle/index.js'
 import { cacheFeature } from './cache/index.js'
 import { commandFeature } from './command/index.js'
 import { configFeature } from './config/index.js'
@@ -32,21 +34,20 @@ export const features = [
 	// 1
 	vpcFeature,
 	domainFeature,
+	assetFeature,
 	routerFeature,
 	commandFeature,
 	layerFeature,
 
 	// 2
-	onFailureFeature,
 
 	// 3
-	onErrorLogFeature,
-
-	// 4
 	authFeature,
 
-	// 5
 	functionFeature,
+	bundleFeature,
+	onErrorLogFeature,
+	onFailureFeature,
 	instanceFeature,
 	jobFeature,
 	// graphqlFeature,

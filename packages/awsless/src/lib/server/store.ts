@@ -1,8 +1,10 @@
 import { Body, deleteObject, getObject, headObject, putObject, StorageClass } from '@awsless/s3'
+import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { APP_ID, bindPostfixedLocalResourceName } from './util.js'
+import { APP, APP_ID } from './util.js'
 
-export const getStoreName = bindPostfixedLocalResourceName('store', APP_ID)
+// Every store lives as a folder inside the shared app bucket.
+const BUCKET = `${APP}--store--assets--${APP_ID}`
 
 export interface StoreResources {}
 
@@ -13,19 +15,20 @@ type Options = {
 
 export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
-		const bucket = getStoreName(name, stack)
+		const scoped = (key: string) => `store/${kebabCase(stack)}/${kebabCase(name)}/${key}`
+
 		return {
-			name: bucket,
+			name: BUCKET,
 			async put(key: string, body: Body, options: Options = {}) {
 				await putObject({
-					bucket,
-					key,
+					bucket: BUCKET,
+					key: scoped(key),
 					body,
 					...options,
 				})
 			},
 			async get(key: string) {
-				const object = await getObject({ bucket, key })
+				const object = await getObject({ bucket: BUCKET, key: scoped(key) })
 				if (object) {
 					return object.body
 				}
@@ -33,11 +36,11 @@ export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 				return undefined
 			},
 			async has(key: string) {
-				const object = await headObject({ bucket, key })
+				const object = await headObject({ bucket: BUCKET, key: scoped(key) })
 				return !!object
 			},
 			delete(key: string) {
-				return deleteObject({ bucket, key })
+				return deleteObject({ bucket: BUCKET, key: scoped(key) })
 			},
 		}
 	})

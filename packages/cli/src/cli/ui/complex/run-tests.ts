@@ -153,6 +153,7 @@ export const runTest = async (
 	workspace: Workspace,
 	opts: {
 		showLogs: boolean
+		env?: Record<string, string>
 	}
 ) => {
 	await mkdir(directories.test, { recursive: true })
@@ -194,6 +195,7 @@ export const runTest = async (
 			const result = await startTest({
 				dir,
 				filters,
+				env: opts.env,
 			})
 
 			if (result.errors.length > 0) {
@@ -238,6 +240,7 @@ export const runTests = async (
 	testFilters: string[] = [],
 	opts: {
 		showLogs: boolean
+		env?: Record<string, string>
 	}
 ) => {
 	const workspace = await loadWorkspace(directories.root)
@@ -252,7 +255,13 @@ export const runTests = async (
 		}
 
 		for (const path of test.paths) {
-			const result = await runTest(test.name, path, testFilters, workspace, opts)
+			const result = await runTest(test.name, path, testFilters, workspace, {
+				...opts,
+				env: {
+					...opts.env,
+					STACK: test.stackName,
+				},
+			})
 
 			if (!result) {
 				return false

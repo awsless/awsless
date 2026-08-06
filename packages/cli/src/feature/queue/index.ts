@@ -8,9 +8,10 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createLambdaFunction } from '../function/util.js'
-import { seconds, toSeconds } from '@awsless/duration'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
+import { createSqsServer } from '../../dev/servers/sqs.js'
 
 const typeGenCode = `
 import {
@@ -33,21 +34,80 @@ type Send<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const queueFeature = defineFeature({
 	name: 'queue',
+	async onDev(ctx) {
+		const queues = ctx.stackConfigs.flatMap(stack => {
+			return Object.keys(stack.queues ?? {}).map(id => ({ stackName: stack.name, id }))
+		})
+
+		if (queues.length === 0) {
+			return
+		}
+
+		const queueRoutes = new Map<string, string>()
+		const named = queues.map(({ stackName, id }) => {
+			const name = `${formatLocalResourceName({
+				appName: ctx.appConfig.name,
+				stackName,
+				resourceType: 'queue',
+				resourceName: id,
+			})}.fifo`
+
+			queueRoutes.set(name, formatRouteKey(stackName, 'queue', id))
+
+			return { stackName, id, name }
+		})
+
+		const server = createSqsServer({
+			region: ctx.appConfig.region,
+			accountId: '000000000000',
+			queues: queueRoutes,
+		})
+		const port = await server.listen()
+
+		ctx.addEnv('AWS_ENDPOINT_URL_SQS', `http://127.0.0.1:${port}`)
+
+		for (const { stackName, id, name } of named) {
+			ctx.addEnv(
+				`QUEUE_${constantCase(stackName)}_${constantCase(id)}_URL`,
+				`http://127.0.0.1:${port}/000000000000/${name}`
+			)
+
+			ctx.registerResource({
+				kind: 'queue',
+				stack: stackName,
+				id,
+				routeKey: formatRouteKey(stackName, 'queue', id),
+				detail: name,
+			})
+		}
+
+		ctx.registerServer({
+			name: 'sqs',
+			start({ dispatch, reportFailure }) {
+				server.connect(dispatch, reportFailure)
+			},
+			stop() {
+				return server.stop()
+			},
+		})
+	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.queues || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -58,36 +118,37 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})}.fifo`
 
-				if (typeof props === 'object' && props.consumer && 'file' in props.consumer.code) {
+				if (typeof props === 'object' && props.consumer) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
 
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
 					resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 				} else {
 					resource.addType(name, `Send<'${queueName}', Func>`)
-					mock.addType(name, `MockBuilder<Func>`)
-					mockResponse.addType(name, `MockObject<Func>`)
+					testMock.addType(name, `TestMockEntry<Func>`)
 				}
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('queue', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('QueueResources', resources)
-		gen.addInterface('QueueMock', mocks)
-		gen.addInterface('QueueMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
+		const bundleTimeout = toSeconds(ctx.appConfig.function.timeout)
+
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
-			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
+			const props = deepmerge(ctx.appConfig.queue, typeof local === 'object' ? local : {})
 
 			const group = new Group(ctx.stack, 'queue', id)
 			const baseName = formatLocalResourceName({
@@ -97,52 +158,35 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// const onFailure = ctx.shared.get('on-failure', 'queue-arn')
-
 			const queue = new aws.sqs.Queue(group, 'queue', {
 				name: `${baseName}.fifo`,
-				visibilityTimeoutSeconds: toSeconds(props.visibilityTimeout),
+				visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
 				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
 				messageRetentionSeconds: toSeconds(props.retentionPeriod),
 				maxMessageSize: toBytes(props.maxMessageSize),
 				fifoQueue: true,
 				deduplicationScope: 'messageGroup',
 				fifoThroughputLimit: 'perMessageGroupId',
-				// redrivePolicy: onFailure.pipe(arn =>
-				// 	JSON.stringify({
-				// 		deadLetterTargetArn: arn,
-				// 		maxReceiveCount: props.retryAttempts + 1,
-				// 	})
-				// ),
 			})
 
 			if (local.consumer) {
-				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
+				const consumer = local.consumer
 
-				lambdaConsumer.setEnvironment('THROW_EXPECTED_ERRORS', '1')
+				// The bundle routes the queue event to the right consumer based on the event source arn.
+				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
 
-				new aws.lambda.EventSourceMapping(
-					group,
-					'event',
-					{
-						functionName: lambdaConsumer.lambda.functionName,
-						eventSourceArn: queue.arn,
-						batchSize: props.batchSize,
-					},
-					{
-						dependsOn: [lambdaConsumer.policy],
-					}
-				)
-
-				lambdaConsumer.addPermission({
-					actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
-					resources: [queue.arn],
+				new aws.lambda.EventSourceMapping(group, 'event', {
+					functionName: bundle.alias.arn,
+					eventSourceArn: queue.arn,
+					batchSize: props.batchSize,
+				}, {
+					dependsOn: [bundle.policy],
 				})
 			}
 
 			ctx.addEnv(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 
-			ctx.addStackPermission({
+			ctx.addGlobalPermission({
 				actions: [
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',

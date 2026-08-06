@@ -2,10 +2,6 @@ import { randomUUID } from 'crypto'
 import { string } from 'zod'
 // import { Config } from '../../src/server'
 
-const id = randomUUID()
-
-const unused = 'ABSSOJHAISUHDUISADHUIASHDUIHASIUDHIUASDHAI'
-
 export default async (event: unknown) => {
 	// console.log(Config.TEST)
 
@@ -23,5 +19,5 @@ export default async (event: unknown) => {
 	// 	body: JSON.stringify(randomUUID()),
 	// })
 
-	return id
+	return randomUUID()
 }

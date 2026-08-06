@@ -1,4 +1,3 @@
-import { invoke } from '@awsless/lambda'
 import {
 	array,
 	literal,
@@ -14,7 +13,16 @@ import {
 	transform,
 	uuid,
 } from '@awsless/validate'
-import { CloudWatchLogsEvent } from 'aws-lambda'
+import {
+	define,
+	getItem,
+	number as dbNumber,
+	object as dbObject,
+	putItem,
+	string as dbString,
+} from '@awsless/dynamodb'
+import { getRouteEnv, internalInvoke } from 'awsless'
+import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { createHash, UUID } from 'crypto'
 import * as zlib from 'zlib'
 
@@ -63,9 +71,10 @@ const EventSchema = object({
 	),
 })
 
-type Error = {
+type ErrorLog = {
 	hash: string
 	requestId: UUID
+	origin: string
 	level: 'warn' | 'error' | 'fatal'
 	type: string
 	message: string
@@ -73,44 +82,100 @@ type Error = {
 	data?: unknown
 }
 
-const consumer = process.env.CONSUMER
+// The bundles own log group subscribes to the bundle, so consuming
+// an error log must never produce one, or errors would loop forever.
+// Every run durably registers its request id before dispatching, so
+// an error produced by our own run (a consumer OOM) is recognized &
+// skipped even when the crash killed this execution environment.
 
-if (!consumer) {
-	throw new Error('CONSUMER environment variable is not set')
+// The route env is always applied before the handler modules are loaded.
+const requestTable = define(getRouteEnv('TABLE')!, {
+	hash: 'id',
+	schema: dbObject({
+		id: dbString(),
+		ttl: dbNumber(),
+	}),
+})
+
+const registerOwnRequest = async (requestId: string) => {
+	try {
+		await putItem(requestTable, {
+			id: requestId,
+			ttl: Math.floor(Date.now() / 1000) + 3600,
+		})
+	} catch (error) {
+		console.info('Failed to register the request marker', error)
+	}
 }
 
-export default async (event: CloudWatchLogsEvent) => {
-	const payload = Buffer.from(event.awslogs.data, 'base64')
-	const unzipped = zlib.gunzipSync(new Uint8Array(payload))
-	const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
+const isOwnRequest = async (requestId: string) => {
+	try {
+		// The marker was possibly written moments before the crash,
+		// so an eventually consistent read could miss it.
+		const item = await getItem(requestTable, { id: requestId }, { consistentRead: true })
 
-	if (!result.success) {
-		console.log('Failed to parse log data', result.issues)
-		return
+		return !!item
+	} catch (error) {
+		console.info('Failed to check the request marker', error)
+		return false
+	}
+}
+
+export default async (event: CloudWatchLogsEvent, context: Context) => {
+	const consumerRoute = getRouteEnv('CONSUMER')
+
+	if (!consumerRoute) {
+		throw new Error('The CONSUMER route env is not set')
 	}
 
-	const origin = result.output.logGroup.split('/').pop()!
+	await registerOwnRequest(context.awsRequestId)
 
-	for (const logEvent of result.output.logEvents) {
-		const error = parseError(logEvent.message, origin)
+	const original = { error: console.error, warn: console.warn }
+	console.error = console.info
+	console.warn = console.info
 
-		if (!error) {
-			continue
+	try {
+		const payload = Buffer.from(event.awslogs.data, 'base64')
+		const unzipped = zlib.gunzipSync(new Uint8Array(payload))
+		const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
+
+		if (!result.success) {
+			console.info('Failed to parse log data', result.issues)
+			return
 		}
 
-		await invoke({
-			name: consumer,
-			type: 'Event',
-			payload: {
+		const origin = result.output.logGroup.split('/').pop()!
+
+		for (const logEvent of result.output.logEvents) {
+			const error = parseError(logEvent.message, origin)
+
+			if (!error || (await isOwnRequest(error.requestId))) {
+				continue
+			}
+
+			// A hung consumer is abandoned right before the invocation
+			// deadline, so the log handling always finishes cleanly
+			// instead of timing out the whole invocation.
+			const invoke = internalInvoke(consumerRoute, {
 				...error,
-				origin,
 				date: logEvent.timestamp,
-			},
-		})
+			})
+
+			invoke.catch(() => {})
+
+			const deadline = Math.max(0, context.getRemainingTimeInMillis() - 3_000)
+
+			await Promise.race([invoke, new Promise(resolve => setTimeout(resolve, deadline))])
+		}
+	} catch (error) {
+		console.info('Failed to consume the error logs', error)
+	} finally {
+		console.error = original.error
+		console.warn = original.warn
 	}
 }
 
-const parseError = (message: string, origin: string): Error | undefined => {
+const parseError = (message: string, origin: string): ErrorLog | undefined => {
 	let parsed
 	try {
 		parsed = JSON.parse(message)
@@ -123,11 +188,21 @@ const parseError = (message: string, origin: string): Error | undefined => {
 	if (runtimeError.success) {
 		const { requestId, level } = runtimeError.output
 		const { errorType, errorMessage, stackTrace, ...extra } = runtimeError.output.message
+
+		// Errors thrown inside the shared bundle carry the route key of the
+		// logical resource that was running, which names the origin better
+		// than the bundles own function name.
+		if (typeof extra.route === 'string') {
+			origin = extra.route
+			delete extra.route
+		}
+
 		const hash = createHash('sha256').update([origin, errorType, errorMessage, stackTrace].join('-')).digest('hex')
 
 		return {
 			hash,
 			requestId,
+			origin,
 			level,
 			type: errorType,
 			message: errorMessage,
@@ -144,6 +219,7 @@ const parseError = (message: string, origin: string): Error | undefined => {
 		return {
 			hash,
 			requestId,
+			origin,
 			level: 'fatal',
 			type: errorType ?? status,
 			message: `Fatal system error: ${errorType ?? status}`,
@@ -159,6 +235,7 @@ const parseError = (message: string, origin: string): Error | undefined => {
 		return {
 			hash,
 			requestId,
+			origin,
 			level,
 			type: 'Error',
 			message,

@@ -20,13 +20,15 @@ export const push = (program: Command) => {
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 				const { state } = await createWorkSpace({ credentials, region, accountId })
 
-				const ok = await prompt.confirm({
-					message: 'Pushing up the local state might corrupt your remote state. Are you sure?',
-					initialValue: false,
-				})
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message: 'Pushing up the local state might corrupt your remote state. Are you sure?',
+						initialValue: false,
+					})
 
-				if (!ok) {
-					throw new Cancelled()
+					if (!ok) {
+						throw new Cancelled()
+					}
 				}
 
 				await pushRemoteState(app, state)
