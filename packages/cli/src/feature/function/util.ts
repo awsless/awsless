@@ -503,6 +503,8 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 				runtime: 'nodejs24.x',
 				handler: 'index.default',
 
+				memorySize: mebibytes(512),
+
 				// The proxy forwards synchronously, so it needs at least the
 				// same timeout as the bundle.
 				timeout: ctx.appConfig.defaults.function.timeout,
@@ -510,7 +512,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 				log: {
 					format: 'json',
 					level: 'warn',
-					system: 'warn',
+					system: 'info',
 					retention: days(3),
 				},
 			})
