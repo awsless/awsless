@@ -112,7 +112,6 @@ type SharedEntries = {
 
 	router: {
 		id: Output<string>
-		'preview-id': Output<string>
 		endpoint: string
 		addRoutes: (
 			routes: Record<string, Route | Route[]>,

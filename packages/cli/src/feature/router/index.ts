@@ -6,9 +6,9 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { camelCase, constantCase, kebabCase } from 'change-case'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
 import { ExpectedError, FileError } from '../../error.js'
-import { FunctionDeployment } from '../../formation/lambda.js'
 import { Route } from './route.js'
 import { compileRoutePattern } from './pattern.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
@@ -56,8 +56,8 @@ export const routerFeature = defineFeature({
 	onApp(ctx) {
 		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
 
-		// All routers share one route store, one preview distribution and
-		// one deployment; the shared resources live in the first router.
+		// All routers share one route store and one deployment; the
+		// shared resources live in the first router.
 		const defaultRouter = routers[0]?.[0]
 		const routes: Record<string, Route | Route[]> = {}
 		const routeDependencies = new Set<Resource | DataSource>()
@@ -464,92 +464,6 @@ export const routerFeature = defineFeature({
 				],
 				webAclId: waf?.arn,
 			})
-
-			// Every router gets its own preview host, serving its active
-			// deployment by default or any staged deployment selected with
-			// the awsless-deployment query parameter.
-			{
-				const previewFunction = new aws.cloudfront.Function(group, 'preview-function', {
-					name: `${name.slice(0, 55)}--preview`,
-					runtime: 'cloudfront-js-2.0',
-					code: getViewerRequestFunctionCode({
-						router: id,
-						preview: true,
-						basicAuth: props.basicAuth,
-						passwordAuth: props.passwordAuth,
-					}),
-					publish: true,
-					keyValueStoreAssociations: [routeStore!.arn],
-				})
-
-				const previewDistribution = new aws.cloudfront.Distribution(group, 'preview', {
-					tags: {
-						name: `${name}-preview`,
-					},
-					comment: `${name} preview`,
-					enabled: true,
-					isIpv6Enabled: true,
-					waitForDeployment: true,
-					origin: [
-						{
-							originId: 'default',
-							domainName: 'placeholder.awsless.dev',
-							customOriginConfig: {
-								httpPort: 80,
-								httpsPort: 443,
-								originProtocolPolicy: 'http-only',
-								originReadTimeout: 20,
-								originSslProtocols: ['TLSv1.2'],
-							},
-						},
-					],
-					customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
-						if (typeof item === 'string') {
-							return {
-								errorCode: Number(errorCode),
-								responseCode: Number(errorCode),
-								responsePagePath: item,
-							}
-						}
-
-						return {
-							errorCode: Number(errorCode),
-							errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
-							responseCode: item.statusCode ?? Number(errorCode),
-							responsePagePath: item.path,
-						}
-					}),
-					restrictions: {
-						geoRestriction: {
-							restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
-							locations: props.geoRestrictions,
-						},
-					},
-					viewerCertificate: {
-						cloudfrontDefaultCertificate: true,
-					},
-					defaultCacheBehavior: {
-						compress: true,
-						targetOriginId: 'default',
-						functionAssociation: [
-							{
-								eventType: 'viewer-request',
-								functionArn: previewFunction.arn,
-							},
-						],
-						originRequestPolicyId: originRequest.id,
-						cachePolicyId: cache.id,
-						responseHeadersPolicyId: responseHeaders.id,
-						viewerProtocolPolicy: 'redirect-to-https',
-						allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-						cachedMethods: ['GET', 'HEAD'],
-					},
-					webAclId: waf?.arn,
-				})
-
-				distributionIds.push(previewDistribution.id)
-				ctx.shared.add('router', 'preview-id', id, previewDistribution.id)
-			}
 
 			if (id === defaultRouter) {
 				ctx.onReadyLast(() => {

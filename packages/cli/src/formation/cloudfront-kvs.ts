@@ -192,7 +192,7 @@ const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<t
 	]
 
 	// Route rows are written before the mapping, so an interrupted upload
-	// can't be selected by a preview or promotion.
+	// can't be selected by a promotion.
 	// Promotion changes $active only after the full app deployment succeeds.
 	await updateKeys(kvs, {
 		storeArn: state.storeArn,

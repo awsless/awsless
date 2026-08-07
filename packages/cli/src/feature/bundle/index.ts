@@ -298,7 +298,6 @@ export const bundleFeature = defineFeature({
 				functionName: lambda.functionName,
 				functionVersion: lambda.version,
 				onFailureArn: onFailure,
-				sourceAccount: ctx.accountId,
 			},
 			{
 				// Make sure the permissions are in place before any event source is wired up.

@@ -332,39 +332,6 @@ export const readDeployedFunctionVersion = (state: DeploymentState) => {
 	return
 }
 
-export const formatDeploymentSummary = (props: {
-	state: DeploymentState
-	appConfig: AppConfig
-	id: string
-}): string[] => {
-	const previewUrls = new Map<string, string>()
-
-	for (const [urn, node] of readStateNodes(props.state)) {
-		if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
-			const router = urn.match(/router:\{([^}]+)\}/)?.[1]
-
-			if (router) {
-				previewUrls.set(router, `https://${node.output.domainName}`)
-			}
-		}
-	}
-
-	// Every router has its own preview host: the plain host previews the
-	// live deployment, and the awsless-deployment query selects this
-	// deployment through the same router function.
-	return Object.keys(props.appConfig.defaults.router ?? {}).map(routerId => {
-		const previewUrl = previewUrls.get(routerId)
-
-		return [
-			`${routerId}: deployment #${props.id}`,
-			previewUrl,
-			previewUrl ? `${previewUrl}/?awsless-deployment=${props.id}` : undefined,
-		]
-			.filter(Boolean)
-			.join('\n')
-	})
-}
-
 // ------------------------------------------------------------
 // Promotion
 

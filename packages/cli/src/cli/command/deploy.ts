@@ -7,7 +7,6 @@ import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
 	claimDeployment,
-	formatDeploymentSummary,
 	markDeployed,
 	preflightDeployment,
 	promoteAppDeployment,
@@ -135,7 +134,7 @@ export const deploy = (program: Command) => {
 				const lambda = new LambdaClient({ credentials, region })
 				const functionName = getBundleFunctionName(appConfig.name)
 
-				const deployments = await log.task({
+				await log.task({
 					initialMessage: 'Deploying the stacks to AWS',
 					successMessage: 'Done deploying the stacks to AWS.',
 					async task() {
@@ -158,19 +157,11 @@ export const deploy = (program: Command) => {
 								})
 							}
 
-							const deployments = formatDeploymentSummary({
-								state: remoteState,
-								appConfig,
-								id: deployment.id,
-							})
-
 							// Promotion goes live, so it must be the last fallible step.
 							await promoteAppDeployment({
 								appConfig,
 								id: deployment.id,
 							})
-
-							return deployments
 						} finally {
 							await release()
 						}
@@ -178,12 +169,6 @@ export const deploy = (program: Command) => {
 				})
 
 				playSuccessSound()
-
-				// The outro truncates to the terminal width, so the multi-line
-				// summary is logged as a message, which wraps instead.
-				for (const summary of deployments) {
-					log.message(summary)
-				}
 
 				await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
 
