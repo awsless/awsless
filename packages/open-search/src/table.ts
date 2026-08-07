@@ -1,4 +1,4 @@
-import { Client } from '@opensearch-project/opensearch/.'
+import { Client } from '@opensearch-project/opensearch'
 import { AnySchema } from './schema/schema'
 
 export type Table<I extends string, S extends AnySchema> = {

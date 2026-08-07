@@ -2,6 +2,7 @@
 import { fromEnv } from "@aws-sdk/credential-providers";
 import { Client } from "@opensearch-project/opensearch";
 import { AwsSigv4Signer } from "@opensearch-project/opensearch/aws";
+import { Agent } from "https";
 var mock;
 var searchClient = (options = {}, service = "es") => {
   if (mock) {
@@ -9,14 +10,14 @@ var searchClient = (options = {}, service = "es") => {
   }
   return new Client({
     node: "https://" + process.env.SEARCH_DOMAIN,
+    requestTimeout: 5e3,
+    agent: () => new Agent({
+      keepAlive: false
+    }),
     ...AwsSigv4Signer({
       region: process.env.AWS_REGION,
       service,
       getCredentials: fromEnv()
-      // getCredentials: () => {
-      // 	const credentialsProvider = defaultProvider();
-      // 	return credentialsProvider();
-      // },
     }),
     ...options
   });
@@ -31,15 +32,23 @@ import { requestPort } from "@heat/request-port";
 // src/server/download.ts
 import decompress from "decompress";
 import findCacheDir from "find-cache-dir";
-import { mkdir, stat } from "fs/promises";
+import { mkdir, rename, rm, stat } from "fs/promises";
 import { join, resolve } from "path";
-var getArchiveName = (version) => {
+var getArchiveName = (version, distribution) => {
+  const name = distribution === "min" ? `opensearch-min-${version}` : `opensearch-${version}`;
   switch (process.platform) {
     case "win32":
-      return `opensearch-${version}-windows-arm64.zip`;
+      return `${name}-windows-arm64.zip`;
     default:
-      return `opensearch-${version}-linux-x64.tar.gz`;
+      return `${name}-linux-x64.tar.gz`;
   }
+};
+var getDownloadUrl = (version, distribution) => {
+  const archive = getArchiveName(version, distribution);
+  if (distribution === "min") {
+    return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${archive}`;
+  }
+  return `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${archive}`;
 };
 var getDownloadPath = () => {
   return resolve(
@@ -57,27 +66,82 @@ var exists = async (path) => {
   }
   return true;
 };
-var download = async (version) => {
-  const path = getDownloadPath();
+var download = async ({ version, distribution }) => {
+  const path = join(getDownloadPath(), distribution);
   const name = `opensearch-${version}`;
   const file = join(path, name);
   if (await exists(file)) {
     return file;
   }
-  console.log(`Downloading OpenSearch ${version}`);
-  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`;
+  console.log(`Downloading OpenSearch ${version} (${distribution})`);
+  const url = getDownloadUrl(version, distribution);
   const response = await fetch(url, { method: "GET" });
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
-  await mkdir(path, { recursive: true, mode: "0777" });
-  await decompress(buffer, path);
+  const staging = join(path, `staging-${process.pid}`);
+  await mkdir(staging, { recursive: true, mode: "0777" });
+  await decompress(buffer, staging);
+  try {
+    await rename(join(staging, name), file);
+  } catch {
+  }
+  await rm(staging, { recursive: true, force: true });
   return file;
 };
 
 // src/server/launch.ts
 import { spawn } from "child_process";
-import { rm, stat as stat2 } from "fs/promises";
+import { rm as rm2, stat as stat2 } from "fs/promises";
+import { join as join3 } from "path";
+
+// src/server/java.ts
+import { execFile } from "child_process";
 import { join as join2 } from "path";
+import { promisify } from "util";
+var exec = promisify(execFile);
+var MINIMUM_JAVA_VERSION = 21;
+var getJavaVersion = async (home) => {
+  try {
+    const result = await exec(join2(home, "bin/java"), ["-version"]);
+    const match = `${result.stdout}${result.stderr}`.match(/version "(\d+)/);
+    if (match) {
+      return Number(match[1]);
+    }
+  } catch {
+  }
+  return void 0;
+};
+var getMacJavaHome = async () => {
+  try {
+    const result = await exec("/usr/libexec/java_home", ["-v", `${MINIMUM_JAVA_VERSION}+`]);
+    return result.stdout.trim() || void 0;
+  } catch {
+  }
+  return void 0;
+};
+var findJavaHome = async () => {
+  const candidates = [
+    process.env.OPENSEARCH_JAVA_HOME,
+    process.env.JAVA_HOME,
+    process.platform === "darwin" ? await getMacJavaHome() : void 0,
+    "/opt/homebrew/opt/openjdk",
+    "/opt/homebrew/opt/openjdk@21",
+    "/usr/local/opt/openjdk",
+    "/usr/local/opt/openjdk@21"
+  ];
+  for (const home of candidates) {
+    if (!home) {
+      continue;
+    }
+    const version = await getJavaVersion(home);
+    if (version && version >= MINIMUM_JAVA_VERSION) {
+      return home;
+    }
+  }
+  return void 0;
+};
+
+// src/server/launch.ts
 var exists2 = async (path) => {
   try {
     await stat2(path);
@@ -93,29 +157,36 @@ var parseSettings = (settings) => {
 };
 var launch = ({ path, host, port, version, debug }) => {
   return new Promise(async (resolve2, reject) => {
-    const cache = join2(path, "cache", String(port));
+    const cache = join3(path, "cache", String(port));
     const cleanUp = async () => {
       if (await exists2(cache)) {
-        await rm(cache, {
+        await rm2(cache, {
           recursive: true
         });
       }
     };
     await cleanUp();
-    const binary = join2(path, "opensearch-tar-install.sh");
-    const child = spawn(
-      // `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
-      binary,
-      parseSettings(version.settings({ host, port, cache }))
-      // {
-      // 	env: {
-      // 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
-      // 	},
-      // }
-    );
-    const onError = (error) => fail(error);
+    const binary = version.distribution === "min" ? join3(path, "bin/opensearch") : join3(path, "opensearch-tar-install.sh");
+    const env = { ...process.env };
+    if (process.platform === "darwin") {
+      const javaHome = await findJavaHome();
+      if (javaHome) {
+        env.OPENSEARCH_JAVA_HOME = javaHome;
+      }
+    }
+    if (version.distribution === "bundle") {
+      env.OPENSEARCH_INITIAL_ADMIN_PASSWORD ??= "Awsless-Mock-0penSearch!";
+    }
+    const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env });
+    const output = [];
+    const onError = (error) => fail(String(error));
+    const onExit = (code) => {
+      fail(`OpenSearch exited before starting (code ${code})
+${output.join("")}`);
+    };
     const onMessage = (message) => {
       const line = message.toString("utf8").toLowerCase();
+      output.push(line);
       if (debug) {
         console.log(line);
       }
@@ -124,12 +195,14 @@ var launch = ({ path, host, port, version, debug }) => {
       }
     };
     const kill = async () => {
-      await new Promise((resolve3) => {
-        child.once(`exit`, () => {
-          resolve3(void 0);
+      if (child.exitCode === null && !child.killed) {
+        await new Promise((resolve3) => {
+          child.once(`exit`, () => {
+            resolve3(void 0);
+          });
+          child.kill();
         });
-        child.kill();
-      });
+      }
       await cleanUp();
     };
     process.on("beforeExit", async () => {
@@ -140,11 +213,13 @@ var launch = ({ path, host, port, version, debug }) => {
       child.stderr.off("data", onMessage);
       child.stdout.off("data", onMessage);
       child.off("error", onError);
+      child.off("exit", onExit);
     };
     const on = () => {
       child.stderr.on("data", onMessage);
       child.stdout.on("data", onMessage);
       child.on("error", onError);
+      child.on("exit", onExit);
     };
     const done = async () => {
       off();
@@ -160,9 +235,12 @@ var launch = ({ path, host, port, version, debug }) => {
 };
 
 // src/server/version.ts
-var VERSION_2_8_0 = {
-  version: "2.8.0",
-  started: (line) => line.includes("started"),
+var VERSION_3_5_0 = {
+  version: "3.5.0",
+  distribution: "bundle",
+  // Only the core node line counts: the bundle's performance analyzer
+  // logs its own "... started" long before the HTTP server is up.
+  started: (line) => line.includes("o.o.n.node") && line.includes("started"),
   settings: ({ port, host, cache }) => ({
     "discovery.type": "single-node",
     "http.host": host,
@@ -172,6 +250,18 @@ var VERSION_2_8_0 = {
     "plugins.security.disabled": true
   })
 };
+var VERSION_3_5_0_MIN = {
+  version: "3.5.0",
+  distribution: "min",
+  started: (line) => line.includes("o.o.n.node") && line.includes("started"),
+  settings: ({ port, host, cache }) => ({
+    "discovery.type": "single-node",
+    "http.host": host,
+    "http.port": port,
+    "path.data": `${cache}/data`,
+    "path.logs": `${cache}/logs`
+  })
+};
 
 // src/server/wait.ts
 import { sleepAwait } from "sleep-await";
@@ -179,7 +269,7 @@ var ping = async () => {
   const client = await searchClient();
   try {
     const result = await client.cat.indices({ format: "json" });
-    return result.statusCode === 200 && result.body.length === 0;
+    return result.statusCode === 200;
   } catch (error) {
     return false;
   }
@@ -195,11 +285,11 @@ var wait = async (times = 10) => {
 };
 
 // src/mock.ts
-var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
+var mockOpenSearch = ({ version = VERSION_3_5_0_MIN, debug = false } = {}) => {
   beforeAll && beforeAll(async () => {
     const [port, release] = await requestPort();
     const host = "localhost";
-    const path = await download(version.version);
+    const path = await download(version);
     const kill = await launch({
       path,
       port,
@@ -290,6 +380,7 @@ var BulkError = class extends Error {
     super("Bulk error");
     this.items = items;
   }
+  items;
 };
 var BulkItemError = class extends Error {
   constructor(index, id, type, message) {
@@ -298,6 +389,9 @@ var BulkItemError = class extends Error {
     this.id = id;
     this.type = type;
   }
+  index;
+  id;
+  type;
 };
 var findBulkItemErrors = (items) => {
   const errors = [];
@@ -343,6 +437,8 @@ var decodeCursor = (cursor) => {
 var search = async (table, { query, aggs, limit = 10, offset, cursor, sort, trackTotalHits }) => {
   const result = await table.client().search({
     index: table.index,
+    // The caller passes raw query DSL as unknown, so the spec-typed
+    // request body can only be satisfied with a cast.
     body: {
       from: offset,
       size: limit + 1,
@@ -439,6 +535,9 @@ var Schema = class {
     this.decode = decode;
     this.mapping = mapping;
   }
+  encode;
+  decode;
+  mapping;
 };
 
 // src/schema/array.ts
@@ -544,6 +643,8 @@ var uuid = (props = {}) => new Schema(
 export {
   BulkError,
   BulkItemError,
+  VERSION_3_5_0,
+  VERSION_3_5_0_MIN,
   array,
   bigfloat,
   bigint,

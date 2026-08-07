@@ -2,7 +2,7 @@ import { AnyTable } from '../table'
 
 export const deleteIndex = async (table: AnyTable) => {
 	const result = await table.client().cat.indices({ format: 'json' })
-	const found = result.body.find((item: { index: string }) => {
+	const found = result.body.find(item => {
 		return item.index === table.index
 	})
 

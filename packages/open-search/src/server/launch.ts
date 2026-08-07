@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import { rm, stat } from 'fs/promises'
 import { join } from 'path'
+import { findJavaHome } from './java'
 import { VersionArgs } from './version'
 // import findCacheDir from 'find-cache-dir';
 
@@ -16,7 +17,7 @@ const exists = async (path: string) => {
 
 export type Settings = Record<string, string | number | boolean>
 
-const parseSettings = (settings: Settings) => {
+export const parseSettings = (settings: Settings) => {
 	return Object.entries(settings)
 		.map(([key, value]) => {
 			return ['-E', `${key}=${value}`]
@@ -46,24 +47,45 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 
 		await cleanUp()
 
-		// console.log(join(path, 'jdk'))
+		// The bundle ships an install script that wires up its own JDK; the
+		// min distribution starts through bin/opensearch and needs a local
+		// JDK 21+, which we resolve ourselves because an unset or stale
+		// JAVA_HOME would otherwise break the boot.
+		const binary =
+			version.distribution === 'min'
+				? join(path, 'bin/opensearch')
+				: join(path, 'opensearch-tar-install.sh')
 
-		const binary = join(path, 'opensearch-tar-install.sh')
-		const child = spawn(
-			// `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
-			binary,
-			parseSettings(version.settings({ host, port, cache }))
-			// {
-			// 	env: {
-			// 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
-			// 	},
-			// }
-		)
-		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
+		const env = { ...process.env }
 
-		const onError = (error: string) => fail(error)
+		// The tarballs only bundle a Linux JDK, so macOS needs a local one.
+		if (process.platform === 'darwin') {
+			const javaHome = await findJavaHome()
+
+			if (javaHome) {
+				env.OPENSEARCH_JAVA_HOME = javaHome
+			}
+		}
+
+		if (version.distribution === 'bundle') {
+			// Since 2.12 the bundle's install script refuses to run without
+			// an initial admin password, even when the security plugin gets
+			// disabled right after.
+			env.OPENSEARCH_INITIAL_ADMIN_PASSWORD ??= 'Awsless-Mock-0penSearch!'
+		}
+
+		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env })
+
+		const output: string[] = []
+
+		const onError = (error: string) => fail(String(error))
+		const onExit = (code: number | null) => {
+			fail(`OpenSearch exited before starting (code ${code})\n${output.join('')}`)
+		}
 		const onMessage = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
+
+			output.push(line)
 
 			if (debug) {
 				console.log(line)
@@ -75,13 +97,17 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 		}
 
 		const kill = async (): Promise<void> => {
-			await new Promise(resolve => {
-				child.once(`exit`, () => {
-					resolve(void 0)
-				})
+			// The process may already be gone when a failed boot lands here,
+			// and a dead child never emits another exit event.
+			if (child.exitCode === null && !child.killed) {
+				await new Promise(resolve => {
+					child.once(`exit`, () => {
+						resolve(void 0)
+					})
 
-				child.kill()
-			})
+					child.kill()
+				})
+			}
 
 			await cleanUp()
 		}
@@ -95,12 +121,14 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 			child.stderr.off('data', onMessage)
 			child.stdout.off('data', onMessage)
 			child.off('error', onError)
+			child.off('exit', onExit)
 		}
 
 		const on = () => {
 			child.stderr.on('data', onMessage)
 			child.stdout.on('data', onMessage)
 			child.on('error', onError)
+			child.on('exit', onExit)
 		}
 
 		const done = async () => {
