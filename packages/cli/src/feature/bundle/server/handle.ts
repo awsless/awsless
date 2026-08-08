@@ -1,7 +1,17 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
-import { formatRoutePayload, getCurrentRoute, withBundleRouteContext } from 'awsless'
+import {
+	captureInvokedQualifier,
+	formatRoutePayload,
+	getCurrentRoute,
+	getInvokedQualifier,
+	getStandaloneFunctionName,
+	LIVE_BUNDLE_ALIAS,
+	setBundleRoutes,
+	withBundleRouteContext,
+} from 'awsless'
 import { cronHandler } from './resource/cron.js'
+import { routeType } from './resource/util.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
 import { imageHandler } from './resource/image.js'
@@ -22,6 +32,8 @@ type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unk
 
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
+
+	setBundleRoutes(routes)
 
 	const matchers: RouteMatcher[] = [
 		functionHandler,
@@ -57,10 +69,23 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	}
 
 	return async (event: BundleEvent, context: LambdaContext) => {
+		captureInvokedQualifier(context)
+
 		const handleRoute = (match: RouteMatch) => {
 			const load = handlers[match.key]
 
 			if (!load) {
+				// Function routes outside the bundle table are served by
+				// their own stand-alone lambda, invoked inside the same
+				// deployment for callers that route through the bundle.
+				if (routeType(match.key) === 'function') {
+					return invoke({
+						name: getStandaloneFunctionName(match.key),
+						qualifier: getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
+						payload: match.payload,
+					})
+				}
+
 				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
@@ -120,11 +145,13 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		// Multiple matches always fan out as separate async invocations.
 		// Each route keeps its own retries & failure handling.
 		if (Array.isArray(match)) {
-			const name = `${process.env.AWS_LAMBDA_FUNCTION_NAME}:${process.env.AWS_LAMBDA_FUNCTION_VERSION}`
+			const name = process.env.AWS_LAMBDA_FUNCTION_NAME!
+			const qualifier = getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS
 			await Promise.all(
 				match.map(route =>
 					invoke({
 						name,
+						qualifier,
 						type: 'Event',
 						payload: formatRoutePayload(route.key, route.payload),
 					})

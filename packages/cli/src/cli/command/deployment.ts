@@ -8,6 +8,7 @@ import { AppConfig } from '../../config/app.js'
 import { Cancelled } from '../../error.js'
 import { getRouteStoreArn, pruneStoreDeployments } from '../../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { deleteLambdaAlias, listLambdaFunctions } from '../../util/lambda.js'
 import {
 	Deployment,
 	listDeployments,
@@ -19,8 +20,12 @@ import {
 	selectPrunableVersions,
 	withAppReleaseLock,
 } from '../../util/deployment.js'
-import { deleteLambdaAlias, getDeploymentLambdaAliasName } from '../../util/lambda.js'
-import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
+import {
+	formatGlobalResourceName,
+	generateGlobalAppId,
+	getAppNamePrefix,
+	getBundleFunctionName,
+} from '../../util/name.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 
@@ -145,22 +150,25 @@ export const prune = (program: Command) => {
 							const prune = selectPrunableDeployments(freshItems, freshLiveId, options).filter(item =>
 								confirmed.has(item.id)
 							)
+							const survivingIds = new Set(
+								freshItems.filter(item => !prune.includes(item)).map(item => item.id)
+							)
 
-							// the deployment aliases go first, so shared
-							// function versions become deletable
-							for (const item of prune) {
-								await deleteLambdaAlias(lambda, functionName, getDeploymentLambdaAliasName(item.id))
-							}
+							// The aliases of the pruned deployments go first, so
+							// their function versions lose their references &
+							// become deletable.
+							for (const name of await listLambdaFunctions(lambda, getAppNamePrefix(appConfig.name))) {
+								for (const item of prune) {
+									await deleteLambdaAlias(lambda, name, item.id)
+								}
 
-							const versions = await selectPrunableVersions({
-								lambda,
-								functionName,
-								items: freshItems,
-								prunable: prune,
-							})
-
-							for (const version of versions) {
-								await pruneFunctionVersion(lambda, functionName, version)
+								for (const version of await selectPrunableVersions({
+									lambda,
+									functionName: name,
+									survivingIds,
+								})) {
+									await pruneFunctionVersion(lambda, name, version)
+								}
 							}
 
 							// the route store entries & orphaned route tables

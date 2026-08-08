@@ -2,20 +2,52 @@ import {
 	AddPermissionCommand,
 	CreateAliasCommand,
 	CreateFunctionUrlConfigCommand,
+	DeleteFunctionUrlConfigCommand,
 	GetFunctionUrlConfigCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
+	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
 import { createCustomProvider, createCustomResourceClass, Input, OptionalOutput, Output } from '@terraforge/core'
-import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials, isError } from '../util/aws'
-import { createLambdaAlias, deleteLambdaAlias, getLambdaAlias, getDeploymentLambdaAliasName, LIVE_LAMBDA_ALIAS } from '../util/lambda'
+import { getLambdaAlias, LIVE_LAMBDA_ALIAS } from '../util/lambda'
+
+// Every deployment tags the published version of a lambda with an
+// immutable alias named after the deployment id. The alias carries
+// the async retry & on-failure config, and pruning a deployment
+// deletes its aliases everywhere.
+
+type DeploymentAliasInput = {
+	functionName: Input<string>
+	functionVersion: Input<string>
+	id: Input<string>
+	onFailureArn?: Input<string>
+}
+
+export const DeploymentAlias = createCustomResourceClass<DeploymentAliasInput, {}>('lambda', 'deployment-alias')
+
+// Reads the current live alias target, so the declarative live alias
+// keeps serving the promoted deployment while a new one is staged.
+
+type LiveTargetInput = {
+	functionName: Input<string>
+	functionVersion: Input<string>
+}
+
+type LiveTargetOutput = {
+	liveDescription: OptionalOutput<string>
+	liveVersion: Output<string>
+}
+
+export const LiveTarget = createCustomResourceClass<LiveTargetInput, LiveTargetOutput>('lambda', 'live-target')
+
+// The function url & cloudfront permissions that make a deployment
+// alias reachable as a router origin.
 
 type FunctionDeploymentInput = {
 	functionName: Input<string>
-	functionVersion: Input<string>
 	id: Input<string>
 	sourceArns: Input<Input<string>[]>
 }
@@ -29,23 +61,6 @@ export const FunctionDeployment = createCustomResourceClass<FunctionDeploymentIn
 	'function-deployment'
 )
 
-type BundleDeploymentInput = {
-	deploymentId: Input<string>
-	functionName: Input<string>
-	functionVersion: Input<string>
-	onFailureArn?: Input<string>
-}
-
-type BundleDeploymentOutput = {
-	liveDescription: OptionalOutput<string>
-	liveVersion: Output<string>
-}
-
-export const BundleDeployment = createCustomResourceClass<BundleDeploymentInput, BundleDeploymentOutput>(
-	'lambda',
-	'bundle-deployment'
-)
-
 type ProviderProps = {
 	credentials: Credentials
 	region: Region
@@ -53,57 +68,54 @@ type ProviderProps = {
 
 export const createLambdaProvider = ({ credentials, region }: ProviderProps) => {
 	const lambda = new LambdaClient({ credentials, region })
-	const functionDeploymentInputSchema = z.object({
+	const deploymentAliasInputSchema = z.object({
 		functionName: z.string(),
 		functionVersion: z.string(),
+		id: z.string(),
+		onFailureArn: z.string().optional(),
+	})
+	const liveTargetInputSchema = z.object({
+		functionName: z.string(),
+		functionVersion: z.string(),
+	})
+	const functionDeploymentInputSchema = z.object({
+		functionName: z.string(),
 		id: z.string(),
 		sourceArns: z.array(z.string()),
 	})
 	const functionDeploymentStateSchema = functionDeploymentInputSchema.extend({
-		alias: z.string(),
 		url: z.string(),
-		oldDeployments: z.array(z.string()),
+		oldDeployments: z.array(z.string()).default([]),
 	})
-	const bundleDeploymentInputSchema = z.object({
-		deploymentId: z.string(),
-		functionName: z.string(),
-		functionVersion: z.string(),
-		onFailureArn: z.string().optional(),
-	})
-	const bundleDeploymentStateSchema = bundleDeploymentInputSchema.extend({
-		deploymentAlias: z.string(),
-		deploymentAliases: z.array(z.string()),
-		liveDescription: z.string().optional(),
-		liveVersion: z.string(),
-	})
-	const getFunctionDeploymentAlias = (state: z.output<typeof functionDeploymentInputSchema>) => {
-		const hash = createHash('sha1')
-			.update(state.functionName)
-			.update(state.functionVersion)
-			.update([...state.sourceArns].sort().join(','))
-			.digest('hex')
-			.slice(0, 10)
+	const createDeploymentAlias = async (state: z.output<typeof deploymentAliasInputSchema>) => {
+		try {
+			await lambda.send(
+				new CreateAliasCommand({
+					FunctionName: state.functionName,
+					FunctionVersion: state.functionVersion,
+					Name: state.id,
+				})
+			)
+		} catch (error) {
+			if (!isError(error, 'ResourceConflictException')) {
+				throw error
+			}
 
-		return `${state.id}-${hash}`
-	}
-	const getLiveAlias = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		const result = await getLambdaAlias(lambda, state.functionName, LIVE_LAMBDA_ALIAS)
+			// Only local deploys reuse a deployment id, so the alias
+			// needs to follow the newly published version.
+			await lambda.send(
+				new UpdateAliasCommand({
+					FunctionName: state.functionName,
+					FunctionVersion: state.functionVersion,
+					Name: state.id,
+				})
+			)
+		}
 
-		return result
-			? {
-					liveDescription: result.Description,
-					liveVersion: result.FunctionVersion!,
-				}
-			: {
-					liveDescription: undefined,
-					liveVersion: state.functionVersion,
-				}
-	}
-	const configureVersion = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
 		await lambda.send(
 			new PutFunctionEventInvokeConfigCommand({
 				FunctionName: state.functionName,
-				Qualifier: state.functionVersion,
+				Qualifier: state.id,
 				MaximumRetryAttempts: 2,
 				DestinationConfig: state.onFailureArn
 					? {
@@ -114,47 +126,26 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 					: undefined,
 			})
 		)
-	}
-	const createBundleDeployment = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		const deploymentAlias = getDeploymentLambdaAliasName(state.deploymentId)
-		const live = await getLiveAlias(state)
 
-		await createLambdaAlias(lambda, {
-			functionName: state.functionName,
-			functionVersion: state.functionVersion,
-			name: deploymentAlias,
-		})
-		await configureVersion(state)
+		return state
+	}
+	const readLiveTarget = async (state: z.output<typeof liveTargetInputSchema>) => {
+		const result = await getLambdaAlias(lambda, state.functionName, LIVE_LAMBDA_ALIAS)
 
 		return {
 			...state,
-			deploymentAlias,
-			deploymentAliases: [deploymentAlias],
-			...live,
+			liveDescription: result?.Description,
+			liveVersion: result?.FunctionVersion ?? state.functionVersion,
 		}
 	}
-	const createFunctionDeployment = async (state: z.output<typeof functionDeploymentInputSchema>, alias: string) => {
-		try {
-			await lambda.send(
-				new CreateAliasCommand({
-					FunctionName: state.functionName,
-					FunctionVersion: state.functionVersion,
-					Name: alias,
-				})
-			)
-		} catch (error) {
-			if (!isError(error, 'ResourceConflictException')) {
-				throw error
-			}
-		}
-
+	const createFunctionDeployment = async (state: z.output<typeof functionDeploymentInputSchema>) => {
 		let url: string
 
 		try {
 			const result = await lambda.send(
 				new CreateFunctionUrlConfigCommand({
 					FunctionName: state.functionName,
-					Qualifier: alias,
+					Qualifier: state.id,
 					AuthType: 'AWS_IAM',
 				})
 			)
@@ -168,7 +159,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			const result = await lambda.send(
 				new GetFunctionUrlConfigCommand({
 					FunctionName: state.functionName,
-					Qualifier: alias,
+					Qualifier: state.id,
 				})
 			)
 
@@ -186,7 +177,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				await lambda.send(
 					new AddPermissionCommand({
 						FunctionName: state.functionName,
-						Qualifier: alias,
+						Qualifier: state.id,
 						StatementId: props.statementId,
 						Action: props.action,
 						Principal: 'cloudfront.amazonaws.com',
@@ -221,69 +212,56 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 
 		return url
 	}
+	const deleteFunctionUrl = async (functionName: string, qualifier: string) => {
+		try {
+			await lambda.send(
+				new DeleteFunctionUrlConfigCommand({
+					FunctionName: functionName,
+					Qualifier: qualifier,
+				})
+			)
+		} catch (error) {
+			if (!isError(error, 'ResourceNotFoundException')) {
+				throw error
+			}
+		}
+	}
 	return createCustomProvider('lambda', {
 		// Backwards compatibility for old states, can be removed later.
 		'update-function-code': {},
-		'bundle-deployment': {
+		'bundle-deployment': {},
+		'version-event-invoke-config': {},
+		'deployment-alias': {
 			async createResource(props) {
-				const state = bundleDeploymentInputSchema.parse(props.state)
+				const state = deploymentAliasInputSchema.parse(props.state)
 
-				return createBundleDeployment(state)
+				return createDeploymentAlias(state)
 			},
 			async updateResource(props) {
-				const prior = bundleDeploymentStateSchema.parse(props.priorState)
-				const proposed = bundleDeploymentInputSchema.parse(props.proposedState)
+				const proposed = deploymentAliasInputSchema.parse(props.proposedState)
 
-				if (prior.functionName !== proposed.functionName) {
-					const next = await createBundleDeployment(proposed)
-
-					await Promise.all(
-						prior.deploymentAliases.map(name => deleteLambdaAlias(lambda, prior.functionName, name))
-					)
-
-					return next
-				}
-
-				const deploymentAlias = getDeploymentLambdaAliasName(proposed.deploymentId)
-				const deploymentAliases = [...prior.deploymentAliases]
-				const live = await getLiveAlias(proposed)
-
-				await createLambdaAlias(lambda, {
-					functionName: proposed.functionName,
-					functionVersion: proposed.functionVersion,
-					name: deploymentAlias,
-				})
-
-				if (!deploymentAliases.includes(deploymentAlias)) {
-					deploymentAliases.push(deploymentAlias)
-				}
-
-				await configureVersion(proposed)
-
-				return {
-					...proposed,
-					deploymentAlias,
-					deploymentAliases,
-					...live,
-				}
+				return createDeploymentAlias(proposed)
 			},
-			async deleteResource(props) {
-				const state = bundleDeploymentStateSchema.parse(props.state)
+		},
+		'live-target': {
+			async createResource(props) {
+				const state = liveTargetInputSchema.parse(props.state)
 
-				await Promise.all(
-					state.deploymentAliases.map(name => deleteLambdaAlias(lambda, state.functionName, name))
-				)
+				return readLiveTarget(state)
+			},
+			async updateResource(props) {
+				const proposed = liveTargetInputSchema.parse(props.proposedState)
+
+				return readLiveTarget(proposed)
 			},
 		},
 		'function-deployment': {
 			async createResource(props) {
 				const state = functionDeploymentInputSchema.parse(props.state)
-				const alias = getFunctionDeploymentAlias(state)
-				const url = await createFunctionDeployment(state, alias)
+				const url = await createFunctionDeployment(state)
 
 				return {
 					...state,
-					alias,
 					url,
 					oldDeployments: [],
 				}
@@ -291,27 +269,25 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			async updateResource(props) {
 				const prior = functionDeploymentStateSchema.parse(props.priorState)
 				const proposed = functionDeploymentInputSchema.parse(props.proposedState)
-				const alias = getFunctionDeploymentAlias(proposed)
-				const changed = alias !== prior.alias
-				const url = changed ? await createFunctionDeployment(proposed, alias) : prior.url
-				const oldDeployments = prior.oldDeployments.filter(item => item !== alias)
+				const url = await createFunctionDeployment(proposed)
+				const oldDeployments = prior.oldDeployments.filter(item => item !== proposed.id)
 
-				if (changed) {
-					oldDeployments.push(prior.alias)
+				if (proposed.id !== prior.id) {
+					oldDeployments.push(prior.id)
 				}
 
 				return {
 					...proposed,
-					alias,
 					url,
 					oldDeployments,
 				}
 			},
 			async deleteResource(props) {
 				const state = functionDeploymentStateSchema.parse(props.state)
-				const aliases = new Set([state.alias, ...state.oldDeployments])
 
-				await Promise.all([...aliases].map(alias => deleteLambdaAlias(lambda, state.functionName, alias)))
+				for (const id of new Set([state.id, ...state.oldDeployments])) {
+					await deleteFunctionUrl(state.functionName, id)
+				}
 			},
 		},
 	})

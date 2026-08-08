@@ -30,6 +30,25 @@ export const formatRoutePayload = (routeKey: string, event: unknown) => {
 }
 
 // ------------------------------------------------------------
+// The deployment context of an invocation.
+//
+// The qualifier a lambda is invoked with names the deployment it
+// serves: either an immutable deployment id alias or the mutable
+// live alias. Internal calls pass the qualifier along, so a whole
+// call chain stays inside one deployment.
+
+let invokedQualifier: string | undefined
+
+export const captureInvokedQualifier = (context: { invokedFunctionArn?: string }) => {
+	// arn:aws:lambda:region:account:function:name[:qualifier]
+	invokedQualifier = context.invokedFunctionArn?.split(':')[7]
+}
+
+export const getInvokedQualifier = () => {
+	return invokedQualifier
+}
+
+// ------------------------------------------------------------
 // Invoking the bundle from the outside.
 
 type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
@@ -38,10 +57,9 @@ type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 }
 
 // Invoke the bundle lambda & let it dispatch to the route handler.
-// Inside the bundle we call the exact version we are running ourselves,
-// so one deployment never calls into code of another. Stand-alone
-// lambdas run unversioned & call the latest promoted deployment, like
-// every caller outside of a lambda.
+// The call carries the qualifier we were invoked with ourselves, so
+// one deployment never calls into code of another. Callers outside
+// of a lambda call the latest promoted deployment.
 export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProps) => {
 	// Inside a sandbox every bundle call goes to the sandbox proxy,
 	// the only lambda a sandboxed function is allowed to invoke. The
@@ -56,12 +74,10 @@ export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProp
 		})
 	}
 
-	const version = process.env.STANDALONE === 'true' ? undefined : process.env.AWS_LAMBDA_FUNCTION_VERSION
-
 	return invoke({
 		...options,
 		name: getBundleName(),
-		qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
+		qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
 		payload: formatRoutePayload(routeKey, payload),
 	})
 }
@@ -105,16 +121,31 @@ export const internalInvoke = (routeKey: string, payload: unknown) => {
 }
 
 // ------------------------------------------------------------
+// The bundle's own route table, registered by the bundle runtime.
+// A function route that isn't in the table is served by its own
+// stand-alone lambda, whose name derives from the route key.
+
+let bundleRoutes: string[] = []
+
+export const setBundleRoutes = (routes: string[]) => {
+	bundleRoutes = routes
+}
+
+export const hasBundleRoute = (routeKey: string) => {
+	return bundleRoutes.includes(routeKey)
+}
+
+export const getStandaloneFunctionName = (routeKey: string) => {
+	const [stackName, , functionName] = routeKey.split(':')
+
+	return `${kebabCase(process.env.APP!)}--${stackName}--function--${functionName}`
+}
+
+// ------------------------------------------------------------
 // Env vars are scoped per route key inside the shared bundle env.
 
 export const formatRouteEnvName = (routeKey: string, name: string) => {
 	return `${routeKey}:${name}`
-}
-
-// True when the route is served by its own stand-alone lambda instead
-// of the bundle. Stand-alone functions are invoked directly by name.
-export const isStandaloneRoute = (routeKey: string) => {
-	return process.env[formatRouteEnvName(routeKey, 'STANDALONE')] === 'true'
 }
 
 export const getRouteEnv = (name: string) => {

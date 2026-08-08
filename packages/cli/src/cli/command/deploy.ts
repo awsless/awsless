@@ -10,7 +10,7 @@ import {
 	markDeployed,
 	preflightDeployment,
 	promoteAppDeployment,
-	readDeployedFunctionVersion,
+	readDeployedFunctionVersions,
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
@@ -146,7 +146,7 @@ export const deploy = (program: Command) => {
 
 							await pullRemoteState(app, state)
 							const remoteState = await state.get(app.urn)
-							const functionVersion = readDeployedFunctionVersion(remoteState)
+							const functionVersion = readDeployedFunctionVersions(remoteState)[functionName]
 
 							if (functionVersion) {
 								await markDeployed({

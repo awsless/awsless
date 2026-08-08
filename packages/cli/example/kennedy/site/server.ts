@@ -19,7 +19,7 @@ const renderPage = (greeting: string, todos: Todo[]) => `<!doctype html>
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<title>Todo</title>
+		<title>Todos</title>
 	</head>
 	<body>
 		<h1>${escapeHtml(greeting)}</h1>

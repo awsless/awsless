@@ -1,4 +1,3 @@
-import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
@@ -6,6 +5,7 @@ import { glob } from 'glob'
 import { dirname, join } from 'path'
 import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
 import { SiteDeployment } from '../../formation/s3.js'
 import { getCredentials } from '../../util/aws.js'
 import { generateCacheKey } from '../../util/cache.js'
@@ -128,35 +128,35 @@ export const siteFeature = defineFeature({
 					)
 				}
 
-				const url = new aws.lambda.FunctionUrl(group, 'ssr-url', {
-					functionName: fn.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				})
-
-				new aws.lambda.Permission(group, 'ssr-url-permission', {
-					functionName: fn.lambda.functionName,
-					statementId: 'cloudfront-url',
-					principal: 'cloudfront.amazonaws.com',
-					sourceAccount: ctx.accountId,
-					action: 'lambda:InvokeFunctionUrl',
-					functionUrlAuthType: 'AWS_IAM',
-				})
-
-				new aws.lambda.Permission(group, 'ssr-invoke-permission', {
-					functionName: fn.lambda.functionName,
-					statementId: 'cloudfront-invoke',
-					principal: 'cloudfront.amazonaws.com',
-					sourceAccount: ctx.accountId,
-					action: 'lambda:InvokeFunction',
-					invokedViaFunctionUrl: true,
-				})
+				// Every deployment gets its own immutable alias & url,
+				// so a staged deployment only goes live at promotion and old
+				// route tables keep working for rollbacks.
+				const deployment = new FunctionDeployment(
+					group,
+					'ssr-deployment',
+					{
+						functionName: fn.lambda.functionName,
+						id: ctx.deploymentId ?? 'local-0',
+						sourceArns: [
+							ctx.shared
+								.entry('router', 'id', props.router)
+								.pipe(
+									distributionId =>
+										`arn:aws:cloudfront::${ctx.accountId}:distribution/${distributionId}`
+								),
+						],
+					},
+					{
+						dependsOn: [fn.deployment],
+					}
+				)
 
 				addRoutes({
 					[routeKey]: {
 						type: 'lambda',
 						forwardHost: true,
 						urlEncodedQueryString: true,
-						domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
+						domainName: deployment.url.pipe(url => url.split('/')[2]!),
 					},
 				})
 			} else if (props.ssr) {

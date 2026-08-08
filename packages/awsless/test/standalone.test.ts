@@ -11,35 +11,15 @@ describe('standalone routes', () => {
 		vi.mocked(invoke).mockClear()
 	})
 
-	it('detects the stand-alone flag in the route env', async () => {
-		const { isStandaloneRoute } = await import('../src/lib/server/bundle')
-
-		expect(isStandaloneRoute('stack:function:echo')).toBe(false)
-
-		vi.stubEnv('stack:function:echo:STANDALONE', 'true')
-
-		expect(isStandaloneRoute('stack:function:echo')).toBe(true)
-	})
-
-	it('invokes stand-alone functions directly by name', async () => {
-		vi.stubEnv('NODE_ENV', 'production')
+	it('derives the stand-alone function name from the route key', async () => {
 		vi.stubEnv('APP', 'app')
-		vi.stubEnv('stack:function:echo:STANDALONE', 'true')
 
-		const { Fn } = await import('../src/lib/server/function')
+		const { getStandaloneFunctionName } = await import('../src/lib/server/bundle')
 
-		await (Fn as any).stack.echo({ n: 1 })
-
-		expect(invoke).toHaveBeenCalledWith(
-			expect.objectContaining({
-				name: 'app--stack--function--echo',
-				payload: { n: 1 },
-			})
-		)
-		expect(vi.mocked(invoke).mock.calls[0]![0]).not.toHaveProperty('qualifier')
+		expect(getStandaloneFunctionName('stack:function:echo')).toBe('app--stack--function--echo')
 	})
 
-	it('routes calls without the stand-alone flag through the bundle', async () => {
+	it('routes calls from outside the bundle through the bundle', async () => {
 		vi.stubEnv('NODE_ENV', 'production')
 		vi.stubEnv('APP', 'app')
 
@@ -55,21 +35,63 @@ describe('standalone routes', () => {
 		)
 	})
 
-	it('never leaks the version of a stand-alone lambda into the bundle qualifier', async () => {
-		const { invokeBundle } = await import('../src/lib/server/bundle')
+	it('passes the invoked qualifier along to the bundle', async () => {
+		vi.stubEnv('APP', 'app')
 
-		vi.stubEnv('STANDALONE', 'true')
-		vi.stubEnv('AWS_LAMBDA_FUNCTION_VERSION', '$LATEST')
-		await invokeBundle({ routeKey: 'stack:function:echo' })
+		const { captureInvokedQualifier, invokeBundle } = await import('../src/lib/server/bundle')
+
+		captureInvokedQualifier({
+			invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:app--stack--function--echo:main-8',
+		})
+		await invokeBundle({ routeKey: 'stack:function:other' })
+
+		expect(invoke).toHaveBeenLastCalledWith(expect.objectContaining({ qualifier: 'main-8' }))
+	})
+
+	it('falls back to the live alias without an invoked qualifier', async () => {
+		vi.stubEnv('APP', 'app')
+
+		const { captureInvokedQualifier, invokeBundle } = await import('../src/lib/server/bundle')
+
+		captureInvokedQualifier({
+			invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:app--stack--function--echo',
+		})
+		await invokeBundle({ routeKey: 'stack:function:other' })
 
 		expect(invoke).toHaveBeenLastCalledWith(expect.objectContaining({ qualifier: 'live' }))
+	})
+
+	it('invokes stand-alone routes directly inside the bundle', async () => {
+		vi.stubEnv('NODE_ENV', 'production')
+		vi.stubEnv('APP', 'app')
+
+		const { captureInvokedQualifier, setBundleRoutes, withBundleRouteContext } = await import(
+			'../src/lib/server/bundle'
+		)
+		const { Fn } = await import('../src/lib/server/function')
+
+		captureInvokedQualifier({
+			invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:app--function--bundle:main-8',
+		})
+		setBundleRoutes(['stack:function:bundled'])
+
+		await withBundleRouteContext('stack:function:bundled', async () => undefined, async () => {
+			await (Fn as any).stack.echo({ n: 1 })
+		})
+
+		expect(invoke).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: 'app--stack--function--echo',
+				qualifier: 'main-8',
+				payload: { n: 1 },
+			})
+		)
 	})
 
 	it('routes sandboxed calls through the sandbox proxy', async () => {
 		const { invokeBundle } = await import('../src/lib/server/bundle')
 
 		vi.stubEnv('SANDBOX_PROXY', 'app--stack--function--echo-proxy')
-		vi.stubEnv('AWS_LAMBDA_FUNCTION_VERSION', '$LATEST')
 		await invokeBundle({ routeKey: 'stack:function:echo', payload: { n: 1 } })
 
 		expect(invoke).toHaveBeenLastCalledWith(
@@ -79,20 +101,5 @@ describe('standalone routes', () => {
 			})
 		)
 		expect(vi.mocked(invoke).mock.calls.at(-1)![0]).not.toHaveProperty('qualifier')
-	})
-
-	it('pins the bundle qualifier to the running version inside the bundle', async () => {
-		const { invokeBundle } = await import('../src/lib/server/bundle')
-
-		vi.stubEnv('STANDALONE', 'false')
-		vi.stubEnv('AWS_LAMBDA_FUNCTION_VERSION', '42')
-		await invokeBundle({ routeKey: 'stack:function:echo' })
-
-		expect(invoke).toHaveBeenLastCalledWith(expect.objectContaining({ qualifier: '42' }))
-
-		vi.unstubAllEnvs()
-		await invokeBundle({ routeKey: 'stack:function:echo' })
-
-		expect(invoke).toHaveBeenLastCalledWith(expect.objectContaining({ qualifier: 'live' }))
 	})
 })

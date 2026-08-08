@@ -40,6 +40,7 @@ type SharedState = {
 		main: {
 			lambda: aws.lambda.Function
 			alias: aws.lambda.Alias
+			deployment: Resource
 			logGroup: aws.cloudwatch.LogGroup | undefined
 			policy: aws.iam.RolePolicy
 			addHandler: (handler: {

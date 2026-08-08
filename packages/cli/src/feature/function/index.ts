@@ -1,4 +1,3 @@
-import { formatRouteEnvName } from 'awsless'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -118,11 +117,8 @@ export const functionFeature = defineFeature({
 
 			// The function defines its own lambda config, so it deploys as
 			// its own stand-alone lambda & the bundle invokes it directly
-			// by name instead of dispatching to a bundled handler.
+			// instead of dispatching to a bundled handler.
 			createLambdaFunction(ctx, id, props)
-
-			const bundle = ctx.shared.get('bundle', 'main')
-			bundle.addEnv(formatRouteEnvName(routeKey, 'STANDALONE'), 'true')
 		}
 	},
 })

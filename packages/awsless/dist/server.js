@@ -31,6 +31,13 @@ var formatRoutePayload = (routeKey, event) => {
     event
   };
 };
+var invokedQualifier;
+var captureInvokedQualifier = (context) => {
+  invokedQualifier = context.invokedFunctionArn?.split(":")[7];
+};
+var getInvokedQualifier = () => {
+  return invokedQualifier;
+};
 var invokeBundle = ({ routeKey, payload, ...options }) => {
   const proxy = process.env.SANDBOX_PROXY;
   if (proxy) {
@@ -40,11 +47,10 @@ var invokeBundle = ({ routeKey, payload, ...options }) => {
       payload: formatRoutePayload(routeKey, payload)
     });
   }
-  const version = process.env.STANDALONE === "true" ? void 0 : process.env.AWS_LAMBDA_FUNCTION_VERSION;
   return invoke({
     ...options,
     name: getBundleName(),
-    qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
+    qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
     payload: formatRoutePayload(routeKey, payload)
   });
 };
@@ -61,11 +67,19 @@ var internalInvoke = (routeKey, payload) => {
   }
   return context.internalInvoke(routeKey, payload);
 };
+var bundleRoutes = [];
+var setBundleRoutes = (routes) => {
+  bundleRoutes = routes;
+};
+var hasBundleRoute = (routeKey) => {
+  return bundleRoutes.includes(routeKey);
+};
+var getStandaloneFunctionName = (routeKey) => {
+  const [stackName, , functionName] = routeKey.split(":");
+  return `${kebabCase(process.env.APP)}--${stackName}--function--${functionName}`;
+};
 var formatRouteEnvName = (routeKey, name) => {
   return `${routeKey}:${name}`;
-};
-var isStandaloneRoute = (routeKey) => {
-  return process.env[formatRouteEnvName(routeKey, "STANDALONE")] === "true";
 };
 var getRouteEnv = (name) => {
   const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
@@ -233,15 +247,18 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
           payload
         });
       }
-      if (isStandaloneRoute(routeKey)) {
-        return invoke2({
-          ...options,
-          name,
-          payload
-        });
-      }
-      if (isInsideBundle() && !options.qualifier && !options.client) {
-        return internalInvoke(routeKey, payload);
+      if (isInsideBundle()) {
+        if (!hasBundleRoute(routeKey)) {
+          return invoke2({
+            ...options,
+            name,
+            qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
+            payload
+          });
+        }
+        if (!options.qualifier && !options.client) {
+          return internalInvoke(routeKey, payload);
+        }
       }
       return invokeBundle({
         ...options,
@@ -908,6 +925,7 @@ export {
   Table,
   Task,
   Topic,
+  captureInvokedQualifier,
   formatRouteEnvName,
   formatRouteKey,
   formatRoutePayload,
@@ -922,6 +940,7 @@ export {
   getFunctionName,
   getInstanceQueueName,
   getInstanceQueueUrl,
+  getInvokedQualifier,
   getJobName,
   getMetricName,
   getMetricNamespace,
@@ -932,13 +951,14 @@ export {
   getSearchName,
   getSearchProps,
   getStack,
+  getStandaloneFunctionName,
   getTableName,
   getTaskName,
   getTopicName,
+  hasBundleRoute,
   internalInvoke,
   invokeBundle,
   isInsideBundle,
-  isStandaloneRoute,
   mockAlert,
   mockCache,
   mockFunction,
@@ -954,6 +974,7 @@ export {
   onFailureBucketName,
   onFailureQueueArn,
   onFailureQueueName,
+  setBundleRoutes,
   setConfigValue,
   withBundleRouteContext
 };

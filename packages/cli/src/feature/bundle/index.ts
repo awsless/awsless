@@ -8,7 +8,7 @@ import { readdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
 import { defineFeature, Permission } from '../../feature.js'
-import { BundleDeployment } from '../../formation/lambda.js'
+import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
@@ -259,7 +259,6 @@ export const bundleFeature = defineFeature({
 					AWS_ACCOUNT_ID: ctx.accountId,
 					REGION: ctx.appConfig.region,
 					STAGE: ctx.appConfig.stage ?? 'default',
-					STANDALONE: 'false',
 
 					// The bundle always lives inside a vpc, so use the
 					// dualstack aws endpoints.
@@ -287,16 +286,17 @@ export const bundleFeature = defineFeature({
 		})
 
 		// ------------------------------------------------------
-		// Preserve the current live version while staging the new deployment.
+		// Tag the published version with the deployment id alias &
+		// preserve the current live version while staging.
 
 		const onFailure = getGlobalOnFailure(ctx)
-		const deployment = new BundleDeployment(
+		const deployment = new DeploymentAlias(
 			group,
-			'deployment',
+			'deployment-alias',
 			{
-				deploymentId: ctx.deploymentId ?? 'local-0',
 				functionName: lambda.functionName,
 				functionVersion: lambda.version,
+				id: ctx.deploymentId ?? 'local-0',
 				onFailureArn: onFailure,
 			},
 			{
@@ -305,6 +305,11 @@ export const bundleFeature = defineFeature({
 			}
 		)
 
+		const liveTarget = new LiveTarget(group, 'live-target', {
+			functionName: lambda.functionName,
+			functionVersion: lambda.version,
+		})
+
 		// ------------------------------------------------------
 		// The alias is only retargeted by the post-deploy promotion step.
 
@@ -312,10 +317,10 @@ export const bundleFeature = defineFeature({
 			group,
 			'alias',
 			{
-				description: deployment.liveDescription,
+				description: liveTarget.liveDescription,
 				name: 'live',
 				functionName: lambda.functionName,
-				functionVersion: deployment.liveVersion,
+				functionVersion: liveTarget.liveVersion,
 			},
 			{
 				dependsOn: [policy],
@@ -409,6 +414,7 @@ export const bundleFeature = defineFeature({
 		ctx.shared.set('bundle', 'main', {
 			lambda,
 			alias,
+			deployment,
 			logGroup,
 			policy,
 			addHandler,

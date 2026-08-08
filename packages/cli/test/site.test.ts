@@ -49,19 +49,25 @@ describe('site ssr', () => {
 				meta.type === 'aws_lambda_function' &&
 				meta.input.functionName === 'test-app--stack-1--function--web-ssr-proxy'
 		)
-		const url = metas.find(meta => meta.type === 'aws_lambda_function_url')!
+		const deployment = metas.find(meta => meta.type === 'function-deployment')!
 
 		expect(lambda).toBeDefined()
-		expect(lambda.input.environment.variables.SANDBOX).toBe('true')
+		expect(lambda.input.publish).toBe(true)
 		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--web-ssr-proxy')
 		expect(proxy).toBeDefined()
-		expect(url).toBeDefined()
-		expect(url.input.authorizationType).toBe('AWS_IAM')
+		expect(deployment).toBeDefined()
 
-		// The route targets the stand-alone url instead of the bundle url.
+		// The ssr url attaches to the deployment alias & is only
+		// invokable by the site's router.
+		expect(deployment.input.id).toBe('local-0')
+		expect(findInputDeps(deployment.input.sourceArns).map(dependency => dependency.type)).toContain(
+			'aws_cloudfront_multitenant_distribution'
+		)
+
+		// The route targets the stand-alone deployment url instead of the bundle url.
 		const routeDeployment = result.app.resources.find(resource => getMeta(resource).type === 'route-deployment')!
 		expect(findInputDeps(getMeta(routeDeployment).input.routes).map(dependency => dependency.type)).toContain(
-			'aws_lambda_function_url'
+			'function-deployment'
 		)
 	})
 })

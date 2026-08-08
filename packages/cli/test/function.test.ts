@@ -55,8 +55,9 @@ describe('stack functions', () => {
 		expect(lambda.input.runtime).toBe('nodejs24.x')
 		expect(lambda.input.handler).toBe('index.default')
 
-		// Stand-alone functions deploy in place & stay out of blue-green.
-		expect(lambda.input.publish).toBeUndefined()
+		// Stand-alone functions publish a version per deploy, so route
+		// tables & the bundle env can pin them for blue-green.
+		expect(lambda.input.publish).toBe(true)
 
 		// Stand-alone functions live inside the vpc by default, just
 		// like the shared bundle.
@@ -89,7 +90,6 @@ describe('stack functions', () => {
 
 		const variables = lambda.input.environment.variables
 
-		expect(variables.STANDALONE).toBe('true')
 		expect(variables.APP).toBe('test-app')
 		expect(variables.APP_ID).toBeDefined()
 		expect(variables.AWS_ACCOUNT_ID).toBe('123456789012')
@@ -153,7 +153,6 @@ describe('sandbox', () => {
 		expect(proxy.input.environment.variables.SANDBOX_ROUTES).toBe(JSON.stringify(['stack-1:function:other', 'stack-1:task:work']))
 
 		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--echo-proxy')
-		expect(lambda.input.environment.variables.SANDBOX).toBe('true')
 		expect(lambda.input.environment.variables.STANDALONE).toBeUndefined()
 
 		// The app wide env never lives in the lambda env, stand-alone

@@ -471,14 +471,20 @@ export const routerFeature = defineFeature({
 					let lambdaUrlHost: Input<string> | undefined
 
 					if (hasLambdaRoutes) {
-						const deployment = new FunctionDeployment(group, 'function-deployment', {
-							functionName: bundle.lambda.functionName,
-							functionVersion: bundle.lambda.version,
-							id,
-							sourceArns: distributionIds.map(distributionId =>
-								distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
-							),
-						})
+						const deployment = new FunctionDeployment(
+							group,
+							'function-deployment',
+							{
+								functionName: bundle.lambda.functionName,
+								id: ctx.deploymentId ?? 'local-0',
+								sourceArns: distributionIds.map(distributionId =>
+									distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
+								),
+							},
+							{
+								dependsOn: [bundle.deployment],
+							}
+						)
 
 						lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
 						routeDependencies.add(bundle.policy)

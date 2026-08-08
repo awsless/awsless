@@ -12,8 +12,10 @@ import { fileURLToPath } from 'url'
 import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
+import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
+import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { configParameterPrefix } from '../../util/ssm.js'
@@ -106,15 +108,22 @@ for (const name in env) {
 	process.env[name] ??= env[name]
 }
 
+const { captureInvokedQualifier } = await import('awsless')
 ${
 	props.wrapper
 		? `const { createHandler } = await import(${JSON.stringify(props.wrapper)})
 ${handlerImport}
 
-export default createHandler(handler)`
+const handle = createHandler(handler)`
 		: `${handlerImport}
 
-export default handler`
+const handle = handler`
+}
+
+export default (event, context) => {
+	captureInvokedQualifier(context)
+
+	return handle(event, context)
 }
 `
 			const temp = await createTempFolder(name)
@@ -357,6 +366,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			role: role.arn,
 			runtime: props.runtime,
 			handler: 'index.default', // The generated build entry always exports default.
+			publish: true,
 			timeout: toSeconds(props.timeout),
 			memorySize: toMebibytes(props.memorySize),
 			architectures: [props.architecture],
@@ -405,10 +415,45 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	ctx.restartOnConfigChange(lambda)
 
 	// ------------------------------------------------------------
-	// Failed async invokes land in the global on-failure bucket, so
-	// they aren't dropped after the retries run out.
+	// Every deployment tags the published version with its id alias &
+	// the live alias follows promotions, like the bundle. Failed async
+	// invokes land in the global on-failure bucket, so they aren't
+	// dropped after the retries run out.
 
 	const onFailure = getGlobalOnFailure(ctx)
+
+	const deployment = new DeploymentAlias(
+		group,
+		'deployment',
+		{
+			functionName: lambda.functionName,
+			functionVersion: lambda.version,
+			id: ctx.deploymentId ?? 'local-0',
+			onFailureArn: onFailure,
+		},
+		{
+			dependsOn: [policy],
+		}
+	)
+
+	const liveTarget = new LiveTarget(group, 'live-target', {
+		functionName: lambda.functionName,
+		functionVersion: lambda.version,
+	})
+
+	const liveAlias = new aws.lambda.Alias(
+		group,
+		'live',
+		{
+			name: LIVE_LAMBDA_ALIAS,
+			description: liveTarget.liveDescription,
+			functionName: lambda.functionName,
+			functionVersion: liveTarget.liveVersion,
+		},
+		{
+			dependsOn: [policy],
+		}
+	)
 
 	if (onFailure) {
 		new aws.lambda.FunctionEventInvokeConfig(
@@ -416,6 +461,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			'async',
 			{
 				functionName: lambda.functionName,
+				qualifier: liveAlias.name,
 				maximumRetryAttempts: 2,
 				destinationConfig: {
 					onFailure: {
@@ -448,13 +494,6 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	variables.REGION = ctx.appConfig.region
 	variables.STAGE = ctx.appConfig.stage ?? 'default'
 	variables.STACK = ctx.stackConfig.name
-
-	// Mark the lambda as living outside of the shared bundle.
-	if (sandboxed) {
-		variables.SANDBOX = 'true'
-	} else {
-		variables.STANDALONE = 'true'
-	}
 
 	if (props.vpc) {
 		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
@@ -592,6 +631,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		lambda,
 		policy,
 		code,
+		deployment: deployment as Resource,
 		setEnvironment(name: string, value: Input<string>) {
 			variables[name] = value
 		},
@@ -859,9 +899,6 @@ export const createLambdaFunctionFromZip = (
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.REGION = ctx.appConfig.region
 	variables.STAGE = ctx.appConfig.stage ?? 'default'
-
-	// Mark the lambda as living outside of the shared bundle.
-	variables.STANDALONE = 'true'
 
 	if ('stackConfig' in ctx) {
 		variables.STACK = ctx.stackConfig.name

@@ -52,14 +52,15 @@ describe('bundle', () => {
 	it('should preserve the Terraform-owned live alias while staging', () => {
 		const { app } = createTestApp({}, 'main-42')
 		const resources = app.resources.map(getMeta).filter(meta => meta.urn.includes(':function:{bundle}:'))
-		const deployment = resources.find(meta => meta.type === 'bundle-deployment')!
+		const deployment = resources.find(meta => meta.type === 'deployment-alias')!
+		const liveTarget = resources.find(meta => meta.type === 'live-target')!
 		const alias = resources.find(meta => meta.type === 'aws_lambda_alias')!
 
-		expect(deployment.input.deploymentId).toBe('main-42')
+		expect(deployment.input.id).toBe('main-42')
 		expect(alias.input.name).toBe('live')
 		expect(alias.logicalId).toBe('alias')
-		expect(findInputDeps(alias.input.description)).toContain(deployment)
-		expect(findInputDeps(alias.input.functionVersion)).toContain(deployment)
+		expect(findInputDeps(alias.input.description)).toContain(liveTarget)
+		expect(findInputDeps(alias.input.functionVersion)).toContain(liveTarget)
 	})
 
 	it('should configure the bundle with the function defaults', () => {
@@ -115,25 +116,28 @@ describe('bundle', () => {
 
 describe('bundle handler', () => {
 	const functionName = 'app--function--bundle'
-	const functionVersion = '42'
-	const functionTarget = `${functionName}:${functionVersion}`
 	const context = {
 		invokedFunctionArn: `arn:aws:lambda:eu-west-1:123456789:function:${functionName}:live`,
 	}
 
 	const topicInvokes: [string, unknown][] = []
+	const standaloneInvokes: unknown[] = []
 	const dir = join(process.cwd(), '.awsless', 'temp', 'bundle-handler-test')
 	let handler: (event: any, context: { invokedFunctionArn: string }) => Promise<unknown>
 
 	mockLambda({
-		[functionTarget]: payload => {
-			topicInvokes.push([functionTarget, payload])
+		[functionName]: payload => {
+			topicInvokes.push([functionName, payload])
+		},
+		'test-app--unknown--function--route': payload => {
+			standaloneInvokes.push(payload)
+
+			return 'standalone-result'
 		},
 	})
 
 	beforeAll(async () => {
 		process.env.AWS_LAMBDA_FUNCTION_NAME = functionName
-		process.env.AWS_LAMBDA_FUNCTION_VERSION = functionVersion
 
 		await rm(dir, { recursive: true, force: true })
 		await mkdir(dir, { recursive: true })
@@ -517,8 +521,8 @@ describe('bundle handler', () => {
 		await handler(event, context)
 
 		expect(topicInvokes).toStrictEqual([
-			[functionTarget, { '$awsless-route': 'stack-1:topic:event', event }],
-			[functionTarget, { '$awsless-route': 'stack-2:topic:event', event }],
+			[functionName, { '$awsless-route': 'stack-1:topic:event', event }],
+			[functionName, { '$awsless-route': 'stack-2:topic:event', event }],
 		])
 	})
 
@@ -541,8 +545,16 @@ describe('bundle handler', () => {
 		})
 	})
 
+	it('should forward unknown function routes to their stand-alone lambda', async () => {
+		await expect(handler({ '$awsless-route': 'unknown:function:route', event: { n: 1 } }, context)).resolves.toBe(
+			'standalone-result'
+		)
+
+		expect(standaloneInvokes).toStrictEqual([{ n: 1 }])
+	})
+
 	it('should throw for unknown routes', async () => {
-		await expect(handler({ '$awsless-route': 'unknown:function:route', event: {} }, context)).rejects.toThrow(
+		await expect(handler({ '$awsless-route': 'unknown:cron:route', event: {} }, context)).rejects.toThrow(
 			'Unknown bundle route'
 		)
 	})
