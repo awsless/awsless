@@ -60,6 +60,14 @@ export const onErrorLogFeature = defineFeature({
 		ctx.onBind(build.addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
 
+		// Deny calling other functions to stop circular loop problems,
+		// while sns:Publish stays open so the consumer can alert.
+		handler.addPermission({
+			effect: 'deny',
+			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage'],
+			resources: ['*'],
+		})
+
 		// ------------------------------------------------
 		// Every feature that owns a log group subscribes itself
 		// to the handler through the shared subscriber arn.

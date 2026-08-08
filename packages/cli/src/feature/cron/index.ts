@@ -111,15 +111,20 @@ export const cronFeature = defineFeature({
 										Effect: 'Allow',
 										Resource: arn,
 									},
-									{
-										Action: ['sqs:SendMessage'],
-										Effect: 'Allow',
-										Resource: `arn:aws:sqs:*:*:${formatGlobalResourceName({
-											appName: ctx.app.name,
-											resourceType: 'on-failure',
-											resourceName: 'failure',
-										})}`,
-									},
+									// The on-failure queue only exists when the app configures it.
+									...(ctx.appConfig.defaults.onFailure
+										? [
+												{
+													Action: ['sqs:SendMessage'],
+													Effect: 'Allow',
+													Resource: `arn:aws:sqs:*:*:${formatGlobalResourceName({
+														appName: ctx.app.name,
+														resourceType: 'on-failure',
+														resourceName: 'failure',
+													})}`,
+												},
+											]
+										: []),
 								],
 							})
 						),
@@ -159,13 +164,15 @@ export const cronFeature = defineFeature({
 					roleArn: ctx.shared.get('cron', 'role-arn'),
 					input: JSON.stringify(formatRoutePayload(routeKey, props.payload)),
 					// Fires the scheduler can't deliver land on the on-failure queue.
-					deadLetterConfig: {
-						arn: `arn:aws:sqs:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({
-							appName: ctx.app.name,
-							resourceType: 'on-failure',
-							resourceName: 'failure',
-						})}`,
-					},
+					deadLetterConfig: ctx.appConfig.defaults.onFailure
+						? {
+								arn: `arn:aws:sqs:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({
+									appName: ctx.app.name,
+									resourceType: 'on-failure',
+									resourceName: 'failure',
+								})}`,
+							}
+						: undefined,
 				},
 			})
 		}

@@ -45,6 +45,7 @@ var invokeBundle = ({ routeKey, payload, ...options }) => {
     return invoke({
       ...options,
       name: proxy,
+      qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
       payload: formatRoutePayload(routeKey, payload)
     });
   }

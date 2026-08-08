@@ -17,7 +17,7 @@ const getLockTable = () => {
 const lockRequest = async (requestId: UUID, key: string) => {
 	const timeout = parseInt(getRouteEnv('TIMEOUT') ?? '60', 10)
 	const now = new Date()
-	const ttl = addSeconds(now, timeout * 2)
+	const expires = addSeconds(now, timeout * 2)
 
 	try {
 		await updateItem(
@@ -27,7 +27,7 @@ const lockRequest = async (requestId: UUID, key: string) => {
 				update: e => [
 					//
 					e.requestId.set(requestId),
-					e.ttl.set(ttl),
+					e.ttl.set(expires),
 				],
 				when: e =>
 					e.or([

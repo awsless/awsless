@@ -1,6 +1,7 @@
 import { parse, patch } from '@awsless/json'
 import { deleteObject, getObject } from '@awsless/s3'
 import { S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
+import { ROUTE_PROPERTY } from 'awsless'
 import {
 	AsyncLambdaFailureEvent,
 	DynamoDBStreamFailureEvent,
@@ -117,8 +118,8 @@ const formatUnknownFailureEvent = (event: UnknownFailureEvent): FunctionFailureE
 }
 
 const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): FunctionFailureEvent => {
-	const payload = patchPayload(event.requestPayload) as { '$awsless-route'?: unknown; event?: unknown } | null
-	const route = payload && typeof payload === 'object' ? payload['$awsless-route'] : undefined
+	const payload = patchPayload(event.requestPayload) as { [ROUTE_PROPERTY]?: unknown; event?: unknown } | null
+	const route = payload && typeof payload === 'object' ? payload[ROUTE_PROPERTY] : undefined
 
 	return {
 		type: 'async-lambda',
@@ -129,9 +130,7 @@ const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): Function
 		},
 		payload: typeof route === 'string' ? (payload!.event ?? {}) : payload,
 		source:
-			typeof route === 'string'
-				? { resource: route, event: payload!.event ?? {} }
-				: getFailureSource(payload),
+			typeof route === 'string' ? { resource: route, event: payload!.event ?? {} } : getFailureSource(payload),
 		error: {
 			type: event.responsePayload.errorType,
 			message: event.responsePayload.errorMessage,

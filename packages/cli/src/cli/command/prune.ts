@@ -1,6 +1,7 @@
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { log, prompt } from '@awsless/clui'
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
+import { isAfter, isBefore, subHours } from 'date-fns'
 import { Cancelled } from '../../error.js'
 import { getRouteStoreArn, pruneStoreDeployments } from '../../formation/cloudfront-kvs.js'
 import { isError } from '../../util/aws.js'
@@ -21,18 +22,36 @@ import { color } from '../ui/style.js'
 import { createClients } from './deployment.js'
 
 // Every site deploy uploads its files under a content-hashed
-// 'site/<stack>/<id>/v-<hash>/' prefix that route tables point at, so
-// prefixes without a surviving route reference are garbage.
+// 'site/<stack>/<id>/v-<hash>/' prefix that route table rewrites point
+// at, so prefixes without a surviving route reference are garbage.
 const pruneSiteVersions = async (props: { s3: S3Client; bucket: string; survivingRoutes: string[] }) => {
 	const referenced = new Set<string>()
 
 	for (const value of props.survivingRoutes) {
-		for (const match of value.matchAll(/site\/[^/"\\]+\/[^/"\\]+\/v-[0-9a-f]+/g)) {
-			referenced.add(match[0])
+		let parsed: unknown
+
+		try {
+			parsed = JSON.parse(value)
+		} catch {
+			continue
+		}
+
+		for (const route of Array.isArray(parsed) ? parsed : [parsed]) {
+			const to = (route as { rewrite?: { to?: unknown } })?.rewrite?.to
+
+			if (typeof to !== 'string') {
+				continue
+			}
+
+			const parts = to.replace(/^\//, '').split('/')
+
+			if (parts[0] === 'site' && parts[3]?.startsWith('v-')) {
+				referenced.add(parts.slice(0, 4).join('/'))
+			}
 		}
 	}
 
-	const garbage: string[] = []
+	const unreferenced = new Map<string, { keys: string[]; newest: Date }>()
 	let cursor: string | undefined
 
 	do {
@@ -57,13 +76,27 @@ const pruneSiteVersions = async (props: { s3: S3Client; bucket: string; survivin
 
 		for (const object of page.Contents ?? []) {
 			const key = object.Key!
-			const prefix = key.split('/').slice(0, 4).join('/')
+			const parts = key.split('/')
+			const prefix = parts.slice(0, 4).join('/')
 
-			if (prefix.split('/')[3]?.startsWith('v-') && !referenced.has(prefix)) {
-				garbage.push(key)
+			if (!parts[3]?.startsWith('v-') || referenced.has(prefix)) {
+				continue
 			}
+
+			const modified = object.LastModified ?? new Date()
+			const entry = unreferenced.get(prefix) ?? { keys: [], newest: modified }
+			entry.keys.push(key)
+			entry.newest = isAfter(modified, entry.newest) ? modified : entry.newest
+			unreferenced.set(prefix, entry)
 		}
 	} while (cursor)
+
+	// A fresh prefix may belong to a crashed deploy whose retry reuses it
+	// without re-uploading, so only day-old prefixes are garbage.
+	const cutoff = subHours(new Date(), 24)
+	const garbage = [...unreferenced.values()]
+		.filter(entry => isBefore(entry.newest, cutoff))
+		.flatMap(entry => entry.keys)
 
 	for (let index = 0; index < garbage.length; index += 1000) {
 		await props.s3.send(
@@ -79,7 +112,20 @@ export const prune = (program: Command) => {
 	program
 		.command('prune')
 		.option('--branch <branch>', 'Only prune the deployments of the given branch')
-		.option('--keep <count>', 'How many deployments of the main branch to keep', value => Number(value), 10)
+		.option(
+			'--keep <count>',
+			'How many deployments of the main branch to keep',
+			value => {
+				const keep = Number(value)
+
+				if (!Number.isInteger(keep) || keep < 0) {
+					throw new InvalidArgumentError('Expected a positive number.')
+				}
+
+				return keep
+			},
+			10
+		)
 		.option('--main <branch>', 'The branch that merged work lands on', 'main')
 		.description('Delete old deployments & the resources they hold on to')
 		.action(async (options: PruneOptions) => {

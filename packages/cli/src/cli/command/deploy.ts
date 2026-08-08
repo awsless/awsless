@@ -1,5 +1,5 @@
 import { LambdaClient } from '@aws-sdk/client-lambda'
-import { log, prompt } from '@awsless/clui'
+import { Cancelled as CancelledError, log, prompt } from '@awsless/clui'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
@@ -174,7 +174,11 @@ export const deploy = (program: Command) => {
 				try {
 					await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
 				} catch (error) {
-					log.warning(`Skipped the alert endpoint verification. ${error}`)
+					if (error instanceof Cancelled || error instanceof CancelledError) {
+						log.warning('Skipped the alert endpoint verification.')
+					} else {
+						log.warning(`Skipped the alert endpoint verification. ${error}`)
+					}
 				}
 
 				return `Deployment ${deployment.id} is live.`

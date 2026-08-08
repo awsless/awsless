@@ -63,13 +63,17 @@ export const download = async ({ version }: Pick<VersionArgs, 'version'>) => {
 	// OpenSearch publishes a sha512 for every artifact.
 	const checksumResponse = await fetch(`${url}.sha512`, { method: 'GET' })
 
-	if (checksumResponse.ok) {
-		const checksum = (await checksumResponse.text()).split(/\s+/)[0]
-		const digest = createHash('sha512').update(buffer).digest('hex')
+	if (!checksumResponse.ok) {
+		throw new Error(
+			`Downloading the OpenSearch checksum failed with status ${checksumResponse.status}: ${url}.sha512`
+		)
+	}
 
-		if (checksum && digest !== checksum) {
-			throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`)
-		}
+	const checksum = (await checksumResponse.text()).split(/\s+/)[0]
+	const digest = createHash('sha512').update(buffer).digest('hex')
+
+	if (digest !== checksum) {
+		throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`)
 	}
 
 	// Parallel test workers can race on a cold cache, so extract into a

@@ -66,13 +66,14 @@ type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProps) => {
 	// Inside a sandbox every bundle call goes to the sandbox proxy,
 	// the only lambda a sandboxed function is allowed to invoke. The
-	// proxy forwards the allowlisted routes to the live bundle.
+	// proxy forwards the allowlisted routes to the bundle.
 	const proxy = process.env.SANDBOX_PROXY
 
 	if (proxy) {
 		return invoke({
 			...options,
 			name: proxy,
+			qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
 			payload: formatRoutePayload(routeKey, payload),
 		})
 	}

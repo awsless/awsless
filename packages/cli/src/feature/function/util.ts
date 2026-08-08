@@ -51,6 +51,73 @@ export const isStandaloneFunction = (props: StackFunctionProps) => {
 	return standaloneFields.some(field => typeof props[field] !== 'undefined')
 }
 
+// Every deployment tags the published version with its id alias & the
+// live alias follows promotions.
+export const createDeploymentAliases = (
+	group: Group,
+	ctx: StackContext | AppContext,
+	props: {
+		lambda: aws.lambda.Function
+		policy: aws.iam.RolePolicy
+		onFailureArn?: Output<string>
+	}
+): { deployment: Resource; liveAlias: aws.lambda.Alias } => {
+	const deployment = new DeploymentAlias(
+		group,
+		'deployment',
+		{
+			functionName: props.lambda.functionName,
+			functionVersion: props.lambda.version,
+			id: ctx.deploymentId ?? 'local-0',
+			onFailureArn: props.onFailureArn,
+		},
+		{
+			dependsOn: [props.policy],
+		}
+	)
+
+	const liveTarget = new LiveTarget(group, 'live-target', {
+		functionName: props.lambda.functionName,
+		functionVersion: props.lambda.version,
+	})
+
+	const liveAlias = new aws.lambda.Alias(
+		group,
+		'live',
+		{
+			name: LIVE_LAMBDA_ALIAS,
+			description: liveTarget.liveDescription,
+			functionName: props.lambda.functionName,
+			functionVersion: liveTarget.liveVersion,
+		},
+		{
+			dependsOn: [props.policy],
+		}
+	)
+
+	if (props.onFailureArn) {
+		new aws.lambda.FunctionEventInvokeConfig(
+			group,
+			'async',
+			{
+				functionName: props.lambda.functionName,
+				qualifier: liveAlias.name,
+				maximumRetryAttempts: 2,
+				destinationConfig: {
+					onFailure: {
+						destination: props.onFailureArn,
+					},
+				},
+			},
+			{
+				dependsOn: [props.policy],
+			}
+		)
+	}
+
+	return { deployment, liveAlias }
+}
+
 type FunctionCode = {
 	file: string
 	minify?: boolean
@@ -410,59 +477,13 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// dropped after the retries run out.
 
 	const onFailure = getGlobalOnFailure(ctx)
-
-	const deployment = new DeploymentAlias(
-		group,
-		'deployment',
-		{
-			functionName: lambda.functionName,
-			functionVersion: lambda.version,
-			id: ctx.deploymentId ?? 'local-0',
-			onFailureArn: onFailure,
-		},
-		{
-			dependsOn: [policy],
-		}
-	)
-
-	const liveTarget = new LiveTarget(group, 'live-target', {
-		functionName: lambda.functionName,
-		functionVersion: lambda.version,
+	const { deployment } = createDeploymentAliases(group, ctx, {
+		lambda,
+		policy,
+		onFailureArn: onFailure,
 	})
 
-	const liveAlias = new aws.lambda.Alias(
-		group,
-		'live',
-		{
-			name: LIVE_LAMBDA_ALIAS,
-			description: liveTarget.liveDescription,
-			functionName: lambda.functionName,
-			functionVersion: liveTarget.liveVersion,
-		},
-		{
-			dependsOn: [policy],
-		}
-	)
-
 	if (onFailure) {
-		new aws.lambda.FunctionEventInvokeConfig(
-			group,
-			'async',
-			{
-				functionName: lambda.functionName,
-				qualifier: liveAlias.name,
-				maximumRetryAttempts: 2,
-				destinationConfig: {
-					onFailure: {
-						destination: onFailure,
-					},
-				},
-			},
-			{
-				dependsOn: [policy],
-			}
-		)
-
 		addPermission({
 			actions: ['s3:PutObject', 's3:ListBucket'],
 			resources: [onFailure, $interpolate`${onFailure}/*`],
@@ -530,6 +551,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 				sourceHash: $file(join(distDir, '/prebuild/sandbox-proxy/HASH')),
 				runtime: 'nodejs24.x',
 				handler: 'index.default',
+				publish: true,
 
 				memorySize: mebibytes(512),
 
@@ -547,16 +569,23 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 
 			proxy.setEnvironment('SANDBOX_ROUTES', JSON.stringify(routes))
 
+			// The proxy is versioned & promoted like every other stand-alone
+			// lambda, so a staged deploy never touches the live allowlist.
+			createDeploymentAliases(proxy.group, ctx, {
+				lambda: proxy.lambda,
+				policy: proxy.policy,
+			})
+
 			proxy.addPermission({
 				actions: ['lambda:InvokeFunction'],
-				resources: [bundle.alias.arn],
+				resources: [bundle.lambda.arn, bundle.lambda.arn.pipe(arn => `${arn}:*`)],
 			})
 
 			variables.SANDBOX_PROXY = proxy.name
 
 			addPermission({
 				actions: ['lambda:InvokeFunction'],
-				resources: [proxy.lambda.arn],
+				resources: [proxy.lambda.arn, proxy.lambda.arn.pipe(arn => `${arn}:*`)],
 			})
 		}
 
@@ -620,7 +649,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		lambda,
 		policy,
 		code,
-		deployment: deployment as Resource,
+		deployment,
 		setEnvironment(name: string, value: Input<string>) {
 			variables[name] = value
 		},
@@ -643,6 +672,7 @@ export const createLambdaFunctionFromZip = (
 		sourceHash: Input<string> // The content hash of the zip archive.
 		runtime: aws.lambda.FunctionInput['runtime']
 		handler: string
+		publish?: boolean
 		timeout?: Duration
 		memorySize?: Size
 		architecture?: 'arm64' | 'x86_64'
@@ -794,6 +824,7 @@ export const createLambdaFunctionFromZip = (
 			role: role.arn,
 			runtime: props.runtime,
 			handler: props.handler,
+			publish: props.publish,
 			timeout: toSeconds(props.timeout ?? seconds(10)),
 			memorySize: toMebibytes(props.memorySize ?? mebibytes(128)),
 			architectures: [props.architecture ?? 'arm64'],

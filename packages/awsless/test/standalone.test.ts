@@ -75,9 +75,13 @@ describe('standalone routes', () => {
 		})
 		setBundleRoutes(['stack:function:bundled'])
 
-		await withBundleRouteContext('stack:function:bundled', async () => undefined, async () => {
-			await (Fn as any).stack.echo({ n: 1 })
-		})
+		await withBundleRouteContext(
+			'stack:function:bundled',
+			async () => undefined,
+			async () => {
+				await (Fn as any).stack.echo({ n: 1 })
+			}
+		)
 
 		expect(invoke).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -88,18 +92,21 @@ describe('standalone routes', () => {
 		)
 	})
 
-	it('routes sandboxed calls through the sandbox proxy', async () => {
-		const { invokeBundle } = await import('../src/lib/server/bundle')
+	it('routes sandboxed calls through the sandbox proxy with the invoked qualifier', async () => {
+		const { captureInvokedQualifier, invokeBundle } = await import('../src/lib/server/bundle')
 
 		vi.stubEnv('SANDBOX_PROXY', 'app--stack--function--echo-proxy')
+		captureInvokedQualifier({
+			invokedFunctionArn: 'arn:aws:lambda:eu-west-1:123456789:function:app--stack--function--ssr:main-8',
+		})
 		await invokeBundle({ routeKey: 'stack:function:echo', payload: { n: 1 } })
 
 		expect(invoke).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				name: 'app--stack--function--echo-proxy',
+				qualifier: 'main-8',
 				payload: { '$awsless-route': 'stack:function:echo', event: { n: 1 } },
 			})
 		)
-		expect(vi.mocked(invoke).mock.calls.at(-1)![0]).not.toHaveProperty('qualifier')
 	})
 })

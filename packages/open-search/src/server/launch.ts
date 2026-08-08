@@ -59,7 +59,9 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 			const javaHome = await findJavaHome()
 
 			if (!javaHome) {
-				throw new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".')
+				// A throw would only reject the discarded async executor.
+				reject(new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".'))
+				return
 			}
 
 			env.OPENSEARCH_JAVA_HOME = javaHome
