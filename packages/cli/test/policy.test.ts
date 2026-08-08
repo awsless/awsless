@@ -24,16 +24,18 @@ describe('bundle policy', () => {
 			{ actions: ['ssm:GetParameter'], resources: ['arn:b', 'arn:c'] },
 		])
 
-		expect(statements).toStrictEqual([
-			{ actions: ['ssm:GetParameter'], resources: ['arn:a', 'arn:b', 'arn:c'] },
-		])
+		expect(statements).toStrictEqual([{ actions: ['ssm:GetParameter'], resources: ['arn:a', 'arn:b', 'arn:c'] }])
 	})
 
 	it('should not merge statements with different effects or conditions', () => {
 		const statements = compactPolicyStatements([
 			{ actions: ['s3:GetObject'], resources: ['arn:a'] },
 			{ effect: 'deny', actions: ['s3:GetObject'], resources: ['arn:b'] },
-			{ actions: ['s3:GetObject'], resources: ['arn:c'], conditions: { Bool: { 'aws:SecureTransport': 'true' } } },
+			{
+				actions: ['s3:GetObject'],
+				resources: ['arn:c'],
+				conditions: { Bool: { 'aws:SecureTransport': 'true' } },
+			},
 		])
 
 		expect(statements).toHaveLength(3)
@@ -97,10 +99,12 @@ describe('bundle policy', () => {
 	})
 
 	it('should merge the metric grants of multiple stacks into one statement', async () => {
-		const { shared } = createTestApp({}, undefined, [
-			{ name: 'stack-1', metrics: { latency: { type: 'duration' } } },
-			{ name: 'stack-2', metrics: { volume: { type: 'number' } } },
-		])
+		const { shared } = createTestApp({
+			stacks: [
+				{ name: 'stack-1', metrics: { latency: { type: 'duration' } } },
+				{ name: 'stack-2', metrics: { volume: { type: 'number' } } },
+			],
+		})
 
 		const statements = await resolveBundleStatements(shared, 'cloudwatch:PutMetricData')
 		const compacted = compactPolicyStatements(statements)
@@ -115,7 +119,7 @@ describe('bundle policy', () => {
 	})
 
 	it('should not grant metric permissions to stacks without metrics', async () => {
-		const { shared } = createTestApp({}, undefined, [{ name: 'stack-1' }])
+		const { shared } = createTestApp({ stacks: [{ name: 'stack-1' }] })
 
 		const statements = await resolveBundleStatements(shared, 'cloudwatch:PutMetricData')
 
@@ -123,7 +127,7 @@ describe('bundle policy', () => {
 	})
 
 	it('should only grant the app level config wildcard', async () => {
-		const { shared } = createTestApp({}, undefined, [{ name: 'stack-1' }], { configs: ['secret'] })
+		const { shared } = createTestApp({ stacks: [{ name: 'stack-1' }], app: { configs: ['secret'] } })
 
 		const statements = await resolveBundleStatements(shared, 'ssm:GetParameter')
 

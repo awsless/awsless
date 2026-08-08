@@ -79,7 +79,7 @@ export const metricFeature = defineFeature({
 		// because metric's don't have a ARN.
 
 		if (metrics.length > 0) {
-			ctx.addGlobalPermission({
+			ctx.addPermission({
 				actions: ['cloudwatch:PutMetricData'],
 				resources: ['*'],
 				conditions: {

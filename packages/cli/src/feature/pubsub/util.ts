@@ -13,7 +13,9 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
+import { PolicyStatement } from '../bundle/policy.js'
 import { buildExecutable } from '../instance/build/executable.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { PubSubDefaultProps } from './schema.js'
@@ -165,18 +167,8 @@ export const createPubSubService = (
 		role: role.name,
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-			const list = await resolveInputs(statements)
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: list.map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 

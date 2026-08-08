@@ -6,6 +6,10 @@ export { Context as LambdaContext } from 'aws-lambda';
 import { AsyncReturnType } from 'type-fest';
 import { GenericSchema, InferOutput, InferInput } from '@awsless/validate';
 
+type RoutedLambdaContext = Context$1 & {
+    route?: string;
+};
+
 type InvokeOptions = {
     client?: LambdaClient;
     type?: 'RequestResponse' | 'Event' | 'DryRun';
@@ -117,4 +121,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
-export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

@@ -5,7 +5,7 @@ export { searchClient } from './client'
 
 // mock
 export { mockOpenSearch } from './mock'
-export { VERSION_3_5_0, VERSION_3_5_0_MIN } from './server/version'
+export { VERSION_3_5_0_MIN } from './server/version'
 export type { VersionArgs } from './server/version'
 
 // table

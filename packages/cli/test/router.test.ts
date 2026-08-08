@@ -53,7 +53,7 @@ const createRouter = (
 const route = (domainName: string) => JSON.stringify({ type: 's3', domainName })
 
 const createRouterApp = (routers: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
-	createTestApp({ router: routers, ...extra })
+	createTestApp({ defaults: { router: routers, ...extra } })
 
 describe('router routes', () => {
 	it('should collect every route into one deployment', async () => {
@@ -164,9 +164,7 @@ describe('router routes', () => {
 	it('should only use syntax the cloudfront js runtime supports', async () => {
 		// The cloudfront-js-2.0 runtime rejects for...of at parse time,
 		// which breaks the whole function with a 503 on every request.
-		expect(getViewerRequestFunctionCode({ router: 'main' })).not.toMatch(
-			/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/
-		)
+		expect(getViewerRequestFunctionCode({ router: 'main' })).not.toMatch(/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/)
 	})
 
 	it('should return 503 without a staged deployment', async () => {
@@ -434,12 +432,7 @@ describe('router routes', () => {
 
 		// an ssr page: 4 reads
 		// old: 3 reads — ['/casino', '/casino/*', '/*']
-		expect(await reads('/casino')).toStrictEqual([
-			'$active',
-			'v1:main:/casino',
-			'v1:main:/casino/*',
-			'v1:main:/*',
-		])
+		expect(await reads('/casino')).toStrictEqual(['$active', 'v1:main:/casino', 'v1:main:/casino/*', 'v1:main:/*'])
 
 		// a hashed asset inside a folder: 3 reads
 		// old: 1 read — the file had its own route key
@@ -574,18 +567,21 @@ describe('router route patterns', () => {
 	})
 
 	it('should serialize stack route patterns into grouped route entries', async () => {
-		const result = createTestApp({ router: { main: {} } }, undefined, [
-			{
-				name: 'web',
-				routes: {
-					main: {
-						'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
-						'/sitemap/{locale}/static.xml': { code: { file: { nocheck: './static.ts' } } },
-						'/sitemap/*': { code: { file: { nocheck: './fallback.ts' } } },
+		const result = createTestApp({
+			defaults: { router: { main: {} } },
+			stacks: [
+				{
+					name: 'web',
+					routes: {
+						main: {
+							'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+							'/sitemap/{locale}/static.xml': { code: { file: { nocheck: './static.ts' } } },
+							'/sitemap/*': { code: { file: { nocheck: './fallback.ts' } } },
+						},
 					},
 				},
-			},
-		])
+			],
+		})
 		result.ready()
 
 		const deployment = result.app.resources.map(getMeta).find(meta => meta.type === 'route-deployment')!
@@ -596,16 +592,19 @@ describe('router route patterns', () => {
 
 	it('should reject stack routes for an unknown router', () => {
 		expect(() =>
-			createTestApp({ router: { main: {} } }, undefined, [
-				{
-					name: 'web',
-					routes: {
-						other: {
-							'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+			createTestApp({
+				defaults: { router: { main: {} } },
+				stacks: [
+					{
+						name: 'web',
+						routes: {
+							other: {
+								'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+							},
 						},
 					},
-				},
-			])
+				],
+			})
 		).toThrow('Router "other" is not defined on the app level.')
 	})
 

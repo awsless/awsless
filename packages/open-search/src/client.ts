@@ -12,6 +12,9 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 
 	return new Client({
 		node: 'https://' + process.env.SEARCH_DOMAIN,
+		// Fail fast inside a lambda instead of the 30s default, & skip
+		// socket reuse since frozen sandboxes hold dead sockets.
+		// Both can be overridden through the options.
 		requestTimeout: 5000,
 		agent: () =>
 			new Agent({

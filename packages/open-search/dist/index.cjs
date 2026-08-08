@@ -32,7 +32,6 @@ var index_exports = {};
 __export(index_exports, {
   BulkError: () => BulkError,
   BulkItemError: () => BulkItemError,
-  VERSION_3_5_0: () => VERSION_3_5_0,
   VERSION_3_5_0_MIN: () => VERSION_3_5_0_MIN,
   array: () => array,
   bigfloat: () => bigfloat,
@@ -74,6 +73,9 @@ var searchClient = (options = {}, service = "es") => {
   }
   return new import_opensearch.Client({
     node: "https://" + process.env.SEARCH_DOMAIN,
+    // Fail fast inside a lambda instead of the 30s default, & skip
+    // socket reuse since frozen sandboxes hold dead sockets.
+    // Both can be overridden through the options.
     requestTimeout: 5e3,
     agent: () => new import_node_https.Agent({
       keepAlive: false
@@ -94,12 +96,13 @@ var mockClient = (host, port) => {
 var import_request_port = require("@heat/request-port");
 
 // src/server/download.ts
+var import_crypto = require("crypto");
 var import_decompress = __toESM(require("decompress"), 1);
 var import_find_cache_dir = __toESM(require("find-cache-dir"), 1);
 var import_promises = require("fs/promises");
 var import_path = require("path");
-var getArchiveName = (version, distribution) => {
-  const name = distribution === "min" ? `opensearch-min-${version}` : `opensearch-${version}`;
+var getArchiveName = (version) => {
+  const name = `opensearch-min-${version}`;
   switch (process.platform) {
     case "win32":
       return `${name}-windows-arm64.zip`;
@@ -107,12 +110,8 @@ var getArchiveName = (version, distribution) => {
       return `${name}-linux-x64.tar.gz`;
   }
 };
-var getDownloadUrl = (version, distribution) => {
-  const archive = getArchiveName(version, distribution);
-  if (distribution === "min") {
-    return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${archive}`;
-  }
-  return `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${archive}`;
+var getDownloadUrl = (version) => {
+  return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${getArchiveName(version)}`;
 };
 var getDownloadPath = () => {
   return (0, import_path.resolve)(
@@ -130,24 +129,38 @@ var exists = async (path) => {
   }
   return true;
 };
-var download = async ({ version, distribution }) => {
-  const path = (0, import_path.join)(getDownloadPath(), distribution);
+var download = async ({ version }) => {
+  const path = (0, import_path.join)(getDownloadPath(), "min");
   const name = `opensearch-${version}`;
   const file = (0, import_path.join)(path, name);
   if (await exists(file)) {
     return file;
   }
-  console.log(`Downloading OpenSearch ${version} (${distribution})`);
-  const url = getDownloadUrl(version, distribution);
+  console.log(`Downloading OpenSearch ${version}`);
+  const url = getDownloadUrl(version);
   const response = await fetch(url, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`Downloading OpenSearch failed with status ${response.status}: ${url}`);
+  }
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
+  const checksumResponse = await fetch(`${url}.sha512`, { method: "GET" });
+  if (checksumResponse.ok) {
+    const checksum = (await checksumResponse.text()).split(/\s+/)[0];
+    const digest = (0, import_crypto.createHash)("sha512").update(buffer).digest("hex");
+    if (checksum && digest !== checksum) {
+      throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`);
+    }
+  }
   const staging = (0, import_path.join)(path, `staging-${process.pid}`);
   await (0, import_promises.mkdir)(staging, { recursive: true, mode: "0777" });
   await (0, import_decompress.default)(buffer, staging);
   try {
     await (0, import_promises.rename)((0, import_path.join)(staging, name), file);
-  } catch {
+  } catch (error) {
+    if (!await exists(file)) {
+      throw error;
+    }
   }
   await (0, import_promises.rm)(staging, { recursive: true, force: true });
   return file;
@@ -230,16 +243,14 @@ var launch = ({ path, host, port, version, debug }) => {
       }
     };
     await cleanUp();
-    const binary = version.distribution === "min" ? (0, import_path3.join)(path, "bin/opensearch") : (0, import_path3.join)(path, "opensearch-tar-install.sh");
+    const binary = (0, import_path3.join)(path, "bin/opensearch");
     const env = { ...process.env };
     if (process.platform === "darwin") {
       const javaHome = await findJavaHome();
-      if (javaHome) {
-        env.OPENSEARCH_JAVA_HOME = javaHome;
+      if (!javaHome) {
+        throw new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".');
       }
-    }
-    if (version.distribution === "bundle") {
-      env.OPENSEARCH_INITIAL_ADMIN_PASSWORD ??= "Awsless-Mock-0penSearch!";
+      env.OPENSEARCH_JAVA_HOME = javaHome;
     }
     const child = (0, import_child_process2.spawn)(binary, parseSettings(version.settings({ host, port, cache })), { env });
     const output = [];
@@ -299,24 +310,8 @@ ${output.join("")}`);
 };
 
 // src/server/version.ts
-var VERSION_3_5_0 = {
-  version: "3.5.0",
-  distribution: "bundle",
-  // Only the core node line counts: the bundle's performance analyzer
-  // logs its own "... started" long before the HTTP server is up.
-  started: (line) => line.includes("o.o.n.node") && line.includes("started"),
-  settings: ({ port, host, cache }) => ({
-    "discovery.type": "single-node",
-    "http.host": host,
-    "http.port": port,
-    "path.data": `${cache}/data`,
-    "path.logs": `${cache}/logs`,
-    "plugins.security.disabled": true
-  })
-};
 var VERSION_3_5_0_MIN = {
   version: "3.5.0",
-  distribution: "min",
   started: (line) => line.includes("o.o.n.node") && line.includes("started"),
   settings: ({ port, host, cache }) => ({
     "discovery.type": "single-node",
@@ -708,7 +703,6 @@ var uuid = (props = {}) => new Schema(
 0 && (module.exports = {
   BulkError,
   BulkItemError,
-  VERSION_3_5_0,
   VERSION_3_5_0_MIN,
   array,
   bigfloat,

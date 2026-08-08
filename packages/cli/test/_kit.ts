@@ -15,28 +15,30 @@ export const notFound = (name = 'ResourceNotFoundException') => {
 }
 
 export const createTestApp = (
-	defaults: Record<string, unknown> = {},
-	deploymentId?: string,
-	stacks: Record<string, unknown>[] = [],
-	app: Record<string, unknown> = {}
+	props: {
+		defaults?: Record<string, unknown>
+		deploymentId?: string
+		stacks?: Record<string, unknown>[]
+		app?: Record<string, unknown>
+	} = {}
 ) => {
 	const appConfig = AppSchema.parse({
 		name: 'test-app',
 		region: 'us-east-1',
 		profile: 'test',
-		defaults,
-		...app,
+		defaults: props.defaults ?? {},
+		...props.app,
 	})
 
 	return {
 		...createApp({
 			appConfig,
-			stackConfigs: stacks.map(stack => ({
+			stackConfigs: (props.stacks ?? []).map(stack => ({
 				...StackSchema.parse(stack),
 				file: `${stack.name}/stack.jsonc`,
 			})),
 			accountId: '123456789012',
-			deploymentId,
+			deploymentId: props.deploymentId,
 		}),
 		appConfig,
 	}

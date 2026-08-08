@@ -68,10 +68,10 @@
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
+		"@types/aws-lambda": "8.10.161",
 		"change-case": "5.4.4"
 	},
 	"devDependencies": {
-		"@types/aws-lambda": "8.10.161",
 		"aws-lambda": "1.0.7"
 	}
 }

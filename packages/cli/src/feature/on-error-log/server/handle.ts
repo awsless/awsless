@@ -88,7 +88,7 @@ export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>)
 			const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
 
 			if (!result.success) {
-				console.info('Failed to parse log data', result.issues)
+				console.warn('Failed to parse log data', result.issues)
 				return
 			}
 
@@ -111,14 +111,15 @@ export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>)
 							date: logEvent.timestamp,
 						})
 					})
-					.catch(() => {})
+					// Logging here is loop-safe, since this log group is never subscribed.
+					.catch(error => console.error('The on-error-log consumer failed', error))
 
 				const deadline = Math.max(0, context.getRemainingTimeInMillis() - 3_000)
 
 				await Promise.race([invoke, new Promise(resolve => setTimeout(resolve, deadline))])
 			}
 		} catch (error) {
-			console.info('Failed to consume the error logs', error)
+			console.warn('Failed to consume the error logs', error)
 		}
 	}
 }

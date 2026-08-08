@@ -42,15 +42,13 @@ describe('bundle', () => {
 
 	it('should keep the default lambda recursion protection', () => {
 		const { app } = createTestApp()
-		const recursion = app.resources
-			.map(getMeta)
-			.find(meta => meta.type === 'aws_lambda_function_recursion_config')
+		const recursion = app.resources.map(getMeta).find(meta => meta.type === 'aws_lambda_function_recursion_config')
 
 		expect(recursion).toBeUndefined()
 	})
 
 	it('should preserve the Terraform-owned live alias while staging', () => {
-		const { app } = createTestApp({}, 'main-42')
+		const { app } = createTestApp({ deploymentId: 'main-42' })
 		const resources = app.resources.map(getMeta).filter(meta => meta.urn.includes(':function:{bundle}:'))
 		const deployment = resources.find(meta => meta.type === 'deployment-alias')!
 		const liveTarget = resources.find(meta => meta.type === 'live-target')!
@@ -65,10 +63,12 @@ describe('bundle', () => {
 
 	it('should configure the bundle with the function defaults', () => {
 		const { app, appConfig } = createTestApp({
-			function: {
-				memorySize: '256 MB',
-				timeout: '20 seconds',
-				minify: false,
+			defaults: {
+				function: {
+					memorySize: '256 MB',
+					timeout: '20 seconds',
+					minify: false,
+				},
 			},
 		})
 		const lambda = app.resources
@@ -151,13 +151,13 @@ describe('bundle handler', () => {
 			runtime: join(process.cwd(), 'dist/handlers/bundle.js'),
 			minify: false,
 			external: ['@awsless/lambda'],
-				handlers: [
-					{ routeKey: 'stack-1:function:echo', file: handlers, exportName: 'echo' },
-					{ routeKey: 'stack-2:function:nested', file: handlers, exportName: 'nested' },
-					{ routeKey: 'stack-1:function:parallel', file: handlers, exportName: 'parallel' },
-					{ routeKey: 'stack-1:function:special', file: handlers, exportName: 'special' },
-					{ routeKey: 'stack-1:function:error', file: handlers, exportName: 'errorResponse' },
-					{ routeKey: 'stack-1:function:nested-error', file: handlers, exportName: 'nestedError' },
+			handlers: [
+				{ routeKey: 'stack-1:function:echo', file: handlers, exportName: 'echo' },
+				{ routeKey: 'stack-2:function:nested', file: handlers, exportName: 'nested' },
+				{ routeKey: 'stack-1:function:parallel', file: handlers, exportName: 'parallel' },
+				{ routeKey: 'stack-1:function:special', file: handlers, exportName: 'special' },
+				{ routeKey: 'stack-1:function:error', file: handlers, exportName: 'errorResponse' },
+				{ routeKey: 'stack-1:function:nested-error', file: handlers, exportName: 'nestedError' },
 				{ routeKey: 'stack-1:function:app-name', file: handlers, exportName: 'app' },
 				{ routeKey: 'stack-1:cron:tick', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:task:work', file: handlers, exportName: 'echo' },
@@ -179,7 +179,7 @@ describe('bundle handler', () => {
 				{ routeKey: 'stack-1:topic:constructor', file: handlers, exportName: 'topic' },
 				{ routeKey: 'stack-1:topic:bad', file: handlers, exportName: 'badTopic' },
 				{ routeKey: 'stack-1:function:scoped', file: scoped, exportName: 'default' },
-				{ routeKey: 'stack-2:queue:scoped', file: scoped, exportName: 'default' },
+				{ routeKey: 'stack-2:topic:scoped', file: scoped, exportName: 'default' },
 				{ routeKey: 'stack-1:function:dependent', file: handlers, exportName: 'dependent' },
 				{ routeKey: 'stack-2:function:dependent', file: handlers, exportName: 'dependent' },
 			],
@@ -300,7 +300,7 @@ describe('bundle handler', () => {
 	})
 
 	it('should scope reused handler modules to their route', async () => {
-		await expect(handler({ '$awsless-route': 'stack-2:queue:scoped', event: {} }, context)).resolves.toStrictEqual({
+		await expect(handler({ '$awsless-route': 'stack-2:topic:scoped', event: {} }, context)).resolves.toStrictEqual({
 			stack: 'stack-2',
 			expected: '1',
 		})
@@ -345,20 +345,19 @@ describe('bundle handler', () => {
 		)
 	})
 
-	it.each([
-		['stack-1:queue:jobs', 'stack-1'],
-		['stack-1:store:assets-created', 'stack-1'],
-		['stack-1:topic:event', 'stack-1'],
-	])('should dispatch the %s async resource envelope', async (route, stack) => {
-		const event = { resource: route }
-		const result = await handler({ '$awsless-route': route, event }, context)
+	it.each([['stack-1:topic:event', 'stack-1']])(
+		'should dispatch the %s async resource envelope',
+		async (route, stack) => {
+			const event = { resource: route }
+			const result = await handler({ '$awsless-route': route, event }, context)
 
-		expect(result).toStrictEqual({
-			stack,
-			throwExpectedErrors: '1',
-			event,
-		})
-	})
+			expect(result).toStrictEqual({
+				stack,
+				throwExpectedErrors: '1',
+				event,
+			})
+		}
+	)
 
 	it.each([
 		'stack-1:rest:api',
@@ -367,22 +366,19 @@ describe('bundle handler', () => {
 		'stack-1:icon:icons',
 		'stack-1:image:images',
 		'base:rpc:api',
-	])(
-		'should dispatch the %s route header',
-		async route => {
-			const event = {
-				headers: {
-					'x-awsless-route': route,
-					host: 'example.com',
-				},
-				rawPath: '/',
-			}
-
-			const result = await handler(event, context)
-
-			expect(result).toStrictEqual(event)
+	])('should dispatch the %s route header', async route => {
+		const event = {
+			headers: {
+				'x-awsless-route': route,
+				host: 'example.com',
+			},
+			rawPath: '/',
 		}
-	)
+
+		const result = await handler(event, context)
+
+		expect(result).toStrictEqual(event)
+	})
 
 	it('should restore the viewer authorization header for web handlers', async () => {
 		const event = {
@@ -425,7 +421,7 @@ describe('bundle handler', () => {
 	it('should prefer an invoke envelope over a route header', async () => {
 		const result = await handler(
 			{
-				'$awsless-route': 'stack-1:store:assets-created',
+				'$awsless-route': 'stack-1:topic:event',
 				event: { hello: 'world' },
 				headers: {
 					'x-awsless-route': 'stack-1:site:web',

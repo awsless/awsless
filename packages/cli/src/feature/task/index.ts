@@ -34,7 +34,7 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<F>
 `
 
 export const taskFeature = defineFeature({
@@ -143,13 +143,13 @@ export const taskFeature = defineFeature({
 
 		// role.arn.pipe(console.log)
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['scheduler:CreateSchedule'],
 			// resources: [`arn:aws:scheduler:*:*:schedule:${ctx.appConfig.name}--*`],
 			resources: [`arn:aws:scheduler:*:*:schedule/${scheduleGroupName}/*`],
 		})
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: [role.arn],
 		})
@@ -163,9 +163,7 @@ export const taskFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
-			const consumer = props.consumer
-
-			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), consumer)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), props.consumer)
 		}
 	},
 })

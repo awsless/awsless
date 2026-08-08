@@ -10,8 +10,7 @@ export const STACK = process.env.STACK!
 
 // One bundled lambda process hosts every stack, so the active route
 // is only known while a request is being handled, not at startup.
-export const getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE
-export const getStack = () => getRoute()?.split(':')[0] ?? STACK
+export const getStack = () => (getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(':')[0] ?? STACK
 
 export const formatResourceName = (opt: {
 	prefix?: string
@@ -56,22 +55,3 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		}) as `${typeof APP}--${T}--${N}`
 	}
 }
-
-// const bindResourceName = (
-// 	resourceType: string,
-// 	opts?: {
-// 		prefix?: string
-// 		postfix?: string
-// 	}
-// ) => {
-// 	return (resourceName: string, stackName?: string) => {
-// 		return [
-// 			opts?.prefix,
-// 			APP,
-// 			stackName && kebabCase(stackName),
-// 			kebabCase(resourceType),
-// 			kebabCase(resourceName),
-// 			opts?.postfix,
-// 		].join('--')
-// 	}
-// }

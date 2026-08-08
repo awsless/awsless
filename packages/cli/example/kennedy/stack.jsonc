@@ -12,7 +12,6 @@
 	},
 	"rpc": {
 		"api": {
-			"listTodos": "./todo/list.ts",
 			"addTodo": "./todo/add.ts",
 			"toggleTodo": "./todo/toggle.ts",
 			"removeTodo": "./todo/remove.ts"

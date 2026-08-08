@@ -3,7 +3,7 @@ import { log, prompt } from '@awsless/clui'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
-import { Cancelled } from '../../error.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
 	claimDeployment,
@@ -108,7 +108,7 @@ export const deploy = (program: Command) => {
 					})
 
 					if (!passed) {
-						throw new Cancelled()
+						throw new ExpectedError('Tests failed.')
 					}
 				}
 
@@ -170,9 +170,14 @@ export const deploy = (program: Command) => {
 
 				playSuccessSound()
 
-				await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
+				// The deployment is already live, so this may never fail the deploy.
+				try {
+					await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
+				} catch (error) {
+					log.warning(`Skipped the alert endpoint verification. ${error}`)
+				}
 
-				return `Deployment #${deployment.id} is live.`
+				return `Deployment ${deployment.id} is live.`
 			})
 		})
 }

@@ -6,6 +6,7 @@ import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { RelativePathSchema } from '../../config/schema/relative-path.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
+import { ConfigNameSchema } from '../config/schema.js'
 
 const MemorySizeSchema = SizeSchema.refine(sizeMin(mebibytes(128)), 'Minimum memory size is 128 MB')
 	.refine(sizeMax(gibibytes(10)), 'Maximum memory size is 10 GB')
@@ -13,7 +14,7 @@ const MemorySizeSchema = SizeSchema.refine(sizeMin(mebibytes(128)), 'Minimum mem
 		'The amount of memory available to the function at runtime. Increasing the function memory also increases its CPU allocation. The value can be any multiple of 1 MB. You can specify a size value from 128 MB to 10 GB.'
 	)
 
-export const TimeoutSchema = DurationSchema.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
+const TimeoutSchema = DurationSchema.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
 	.refine(durationMax(minutes(15)), 'Maximum timeout duration is 15 minutes')
 	.describe(
 		'The amount of time that Lambda allows a function to run before stopping it. You can specify a size value from 1 second to 15 minutes.'
@@ -43,9 +44,7 @@ const LayersSchema = z
 		`A list of function layers to add to the function's execution environment. Specify each layer by its name.`
 	)
 
-const SandboxRouteSchema = z
-	.string()
-	.regex(/^[a-z0-9-]+:[a-z0-9-]+$/i, 'Invalid route. Use the "stack:name" format.')
+const SandboxRouteSchema = z.string().regex(/^[a-z0-9-]+:[a-z0-9-]+$/i, 'Invalid route. Use the "stack:name" format.')
 
 const SandboxSchema = z
 	.union([
@@ -58,7 +57,7 @@ const SandboxSchema = z
 				tasks: SandboxRouteSchema.array()
 					.optional()
 					.describe('The "stack:name" tasks the sandbox may start through the sandbox proxy.'),
-				configs: z.string().array().optional().describe('The config values the sandbox may read.'),
+				configs: ConfigNameSchema.array().optional().describe('The config values the sandbox may read.'),
 			})
 			.strict(),
 	])
@@ -188,8 +187,6 @@ const BundledFnSchema = z
 	})
 	.strict()
 
-export type BundledFunctionProps = z.output<typeof BundledFnSchema>
-
 export const BundledFunctionSchema = z.union([
 	LocalFileSchema.transform(code => ({
 		code,
@@ -230,7 +227,10 @@ const StackFnSchema = z
 		code: CodeSchema,
 		handler: HandlerSchema.optional(),
 
-		runtime: RuntimeSchema.optional(),
+		runtime: RuntimeSchema.refine(
+			runtime => runtime !== 'container',
+			`The "container" runtime isn't supported for stack functions.`
+		).optional(),
 		description: DescriptionSchema.optional(),
 		vpc: VPCSchema.optional(),
 		log: LogSchema.optional(),
@@ -292,5 +292,3 @@ export const FunctionDefaultSchema = z
 		permissions: PermissionsSchema.optional(),
 	})
 	.default({})
-
-export type FunctionDefaultProps = z.output<typeof FunctionDefaultSchema>

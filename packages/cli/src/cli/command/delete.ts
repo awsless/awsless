@@ -1,12 +1,12 @@
 import { log, prompt } from '@awsless/clui'
+import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
-import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
-import { Cancelled, ExpectedError } from '../../error.js'
+import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { listDeployments, removeDeployment } from '../../util/deployment.js'
 import { playSuccessSound } from '../../util/sound.js'
-import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
-import { debug } from '../debug.js'
+import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 import { task } from '../ui/util.js'
@@ -14,9 +14,8 @@ import { task } from '../ui/util.js'
 export const del = (program: Command) => {
 	program
 		.command('delete')
-		.argument('[stacks...]', 'Optionally filter stacks to delete')
 		.description('Delete your app from AWS')
-		.action(async (filters: string[]) => {
+		.action(async () => {
 			await layout('delete', async ({ appConfig, stackConfigs }) => {
 				if (appConfig.protect) {
 					log.warning('Your app is protected against deletion.')
@@ -48,37 +47,13 @@ export const del = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, ready } = createApp({ appConfig, stackConfigs, accountId })
+				const { app, appId, ready } = createApp({ appConfig, stackConfigs, accountId })
 
 				ready()
 
-				// const deletingLine = deploymentLine.reverse()
-				// const stackNames = app.stacks.filter(stack => filters.includes(stack.name)).map(s => s.name)
-				const stackNames = app.stacks
-					.filter(stack => {
-						return !!filters.find(f => wildstring.match(f, stack.name))
-					})
-					.map(s => s.name)
-
-				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
-
-				if (filters.length > 0 && stackNames.length === 0) {
-					throw new ExpectedError(`The stack filters provided didn't match.`)
-				}
-
-				debug('Stacks to delete', formattedFilter)
-
 				if (!process.env.SKIP_PROMPT) {
-					const deployAll = filters.length === 0
-					const deploySingle = filters.length === 1
 					const ok = await prompt.confirm({
-						message: deployAll
-							? `Are you sure you want to ${color.error('delete')} ${color.warning('all')} stacks?`
-							: deploySingle
-								? `Are you sure you want to ${color.error('delete')} the ${formattedFilter} stack?`
-								: `Are you sure you want to ${color.error(
-										'delete'
-									)} the [ ${formattedFilter} ] stacks?`,
+						message: `Are you sure you want to ${color.error('delete')} your app?`,
 					})
 
 					if (!ok) {
@@ -88,20 +63,37 @@ export const del = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { workspace, state } = await createWorkSpace({
+				const {
+					workspace,
+					state,
+					lock: releaseLock,
+				} = await createWorkSpace({
 					credentials,
 					accountId,
 					region,
 				})
 
-				await task('Deleting the stacks to AWS', async update => {
-					await workspace.delete(app, {
-						filters: stackNames,
-					})
+				await task('Deleting the app from AWS', async update => {
+					// The release lock keeps a concurrent deploy or rollback
+					// from promoting into a half-deleted app.
+					const release = await releaseLock.lock(getAppReleaseLockUrn(appId))
 
-					await pullRemoteState(app, state)
+					try {
+						await workspace.delete(app, { filters: [] })
+						await pullRemoteState(app, state)
 
-					update('Done deleting the stacks to AWS.')
+						// Sweep the deployment manifest, so a deleted app
+						// lists no stale deployment history.
+						const dynamo = new DynamoDBClient({ credentials, region })
+
+						for (const item of await listDeployments(dynamo, appId)) {
+							await removeDeployment(dynamo, appId, item.id)
+						}
+					} finally {
+						await release()
+					}
+
+					update('Done deleting the app from AWS.')
 				})
 
 				playSuccessSound()

@@ -1,7 +1,8 @@
 import type { LambdaFunctionURLEvent } from 'aws-lambda'
+import { ROUTE_PROPERTY } from 'awsless'
 
 export type BundleEvent = {
-	'$awsless-route'?: string
+	[ROUTE_PROPERTY]?: string
 	event?: unknown
 	headers?: LambdaFunctionURLEvent['headers']
 }

@@ -17,7 +17,7 @@ const exists = async (path: string) => {
 
 export type Settings = Record<string, string | number | boolean>
 
-export const parseSettings = (settings: Settings) => {
+const parseSettings = (settings: Settings) => {
 	return Object.entries(settings)
 		.map(([key, value]) => {
 			return ['-E', `${key}=${value}`]
@@ -47,31 +47,22 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 
 		await cleanUp()
 
-		// The bundle ships an install script that wires up its own JDK; the
-		// min distribution starts through bin/opensearch and needs a local
-		// JDK 21+, which we resolve ourselves because an unset or stale
-		// JAVA_HOME would otherwise break the boot.
-		const binary =
-			version.distribution === 'min'
-				? join(path, 'bin/opensearch')
-				: join(path, 'opensearch-tar-install.sh')
+		// The min distribution needs a local JDK 21+, which we resolve
+		// ourselves because an unset or stale JAVA_HOME would otherwise
+		// break the boot.
+		const binary = join(path, 'bin/opensearch')
 
 		const env = { ...process.env }
 
-		// The tarballs only bundle a Linux JDK, so macOS needs a local one.
+		// The tarball only bundles a Linux JDK, so macOS needs a local one.
 		if (process.platform === 'darwin') {
 			const javaHome = await findJavaHome()
 
-			if (javaHome) {
-				env.OPENSEARCH_JAVA_HOME = javaHome
+			if (!javaHome) {
+				throw new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".')
 			}
-		}
 
-		if (version.distribution === 'bundle') {
-			// Since 2.12 the bundle's install script refuses to run without
-			// an initial admin password, even when the security plugin gets
-			// disabled right after.
-			env.OPENSEARCH_INITIAL_ADMIN_PASSWORD ??= 'Awsless-Mock-0penSearch!'
+			env.OPENSEARCH_JAVA_HOME = javaHome
 		}
 
 		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env })

@@ -56,14 +56,36 @@ export const routerFeature = defineFeature({
 	onApp(ctx) {
 		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
 
-		// All routers share one route store and one deployment; the
-		// shared resources live in the first router.
+		// All routers share one route store and one deployment; the shared
+		// resources live in their own group, so renaming or reordering
+		// routers never moves their urn.
 		const defaultRouter = routers[0]?.[0]
 		const routes: Record<string, Route | Route[]> = {}
 		const routeDependencies = new Set<Resource | DataSource>()
 		const distributionIds: Output<string>[] = []
 		let hasLambdaRoutes = false
 		let routeStore: aws.cloudfront.KeyValueStore | undefined
+		let sharedGroup: Group | undefined
+
+		if (routers.length > 0) {
+			sharedGroup = new Group(ctx.base, 'router', 'shared')
+			routeStore = new aws.cloudfront.KeyValueStore(
+				sharedGroup,
+				'routes',
+				{
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: 'store',
+					}),
+					comment: 'Store for routes',
+				},
+				{
+					replaceOnChanges: ['name'],
+					createBeforeReplace: true,
+				}
+			)
+		}
 
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
@@ -73,28 +95,6 @@ export const routerFeature = defineFeature({
 				resourceType: 'router',
 				resourceName: id,
 			})
-
-			// ------------------------------------------------------------
-			// Route Store
-
-			if (id === defaultRouter) {
-				routeStore = new aws.cloudfront.KeyValueStore(
-					group,
-					'routes',
-					{
-						name: formatGlobalResourceName({
-							appName: ctx.app.name,
-							resourceType: 'router',
-							resourceName: 'store',
-						}),
-						comment: 'Store for routes',
-					},
-					{
-						replaceOnChanges: ['name'],
-						createBeforeReplace: true,
-					}
-				)
-			}
 
 			// the function names are capped at 64 characters
 			const productionFunction = new aws.cloudfront.Function(group, 'production-function', {
@@ -472,7 +472,7 @@ export const routerFeature = defineFeature({
 
 					if (hasLambdaRoutes) {
 						const deployment = new FunctionDeployment(
-							group,
+							sharedGroup!,
 							'function-deployment',
 							{
 								functionName: bundle.lambda.functionName,
@@ -493,7 +493,7 @@ export const routerFeature = defineFeature({
 					}
 
 					new RouteDeployment(
-						group,
+						sharedGroup!,
 						'deployment',
 						{
 							// non-deploy commands build the graph but never apply it

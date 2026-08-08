@@ -348,7 +348,7 @@ describe('prune selection', () => {
 		...props,
 	})
 
-	const options = { keep: '10', main: 'main' }
+	const options = { keep: 10, main: 'main' }
 	const stale = () => subHours(new Date(), 25).toISOString()
 
 	it('should treat a claimed deploy without a function version as busy', () => {

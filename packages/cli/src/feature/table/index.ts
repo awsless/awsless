@@ -42,7 +42,7 @@ export const tableFeature = defineFeature({
 			resourceName: '*',
 		})
 
-		ctx.addAppPermission({
+		ctx.addPermission({
 			actions: [
 				'dynamodb:DescribeTable',
 				'dynamodb:PutItem',
@@ -65,7 +65,7 @@ export const tableFeature = defineFeature({
 			],
 		})
 
-		ctx.addAppPermission({
+		ctx.addPermission({
 			actions: ['dynamodb:ListStreams'],
 			resources: ['*'],
 		})
@@ -185,34 +185,38 @@ export const tableFeature = defineFeature({
 
 				const onFailure = getGlobalOnFailure(ctx)
 
-				new aws.lambda.EventSourceMapping(group, id, {
-					functionName: bundle.alias.arn,
-					eventSourceArn: table.streamArn,
+				new aws.lambda.EventSourceMapping(
+					group,
+					id,
+					{
+						functionName: bundle.alias.arn,
+						eventSourceArn: table.streamArn,
 
-					// tumblingWindowInSeconds
-					// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
-					// bisectBatchOnFunctionError: true,
+						// tumblingWindowInSeconds
+						// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
+						// bisectBatchOnFunctionError: true,
 
-					batchSize: props.stream.batchSize,
-					maximumBatchingWindowInSeconds: props.stream.batchWindow
-						? toSeconds(props.stream.batchWindow)
-						: undefined,
-					maximumRetryAttempts: props.stream.retryAttempts,
-					parallelizationFactor: props.stream.concurrencyPerShard,
-					functionResponseTypes: ['ReportBatchItemFailures'],
+						batchSize: props.stream.batchSize,
+						maximumBatchingWindowInSeconds: props.stream.batchWindow
+							? toSeconds(props.stream.batchWindow)
+							: undefined,
+						maximumRetryAttempts: props.stream.retryAttempts,
+						parallelizationFactor: props.stream.concurrencyPerShard,
+						functionResponseTypes: ['ReportBatchItemFailures'],
 
-					startingPosition: 'LATEST',
-					destinationConfig: onFailure
-						? {
-								onFailure: {
-									destinationArn: onFailure,
-								},
-							}
-						: undefined,
-				}, {
-					dependsOn: [bundle.policy],
-				})
-
+						startingPosition: 'LATEST',
+						destinationConfig: onFailure
+							? {
+									onFailure: {
+										destinationArn: onFailure,
+									},
+								}
+							: undefined,
+					},
+					{
+						dependsOn: [bundle.policy],
+					}
+				)
 			}
 		}
 	},

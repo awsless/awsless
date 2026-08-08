@@ -61,13 +61,7 @@ export const layerFeature = defineFeature({
 					compatibleRuntimes: props.runtimes,
 					s3Bucket: zip.bucket,
 					s3ObjectVersion: zip.versionId,
-					s3Key: zip.key.pipe(name => {
-						if (name.startsWith('/')) {
-							return name.substring(1)
-						}
-
-						return name
-					}),
+					s3Key: zip.key,
 					sourceCodeHash: $hash(props.file),
 					skipDestroy: true,
 				},

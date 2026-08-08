@@ -10,6 +10,9 @@ var searchClient = (options = {}, service = "es") => {
   }
   return new Client({
     node: "https://" + process.env.SEARCH_DOMAIN,
+    // Fail fast inside a lambda instead of the 30s default, & skip
+    // socket reuse since frozen sandboxes hold dead sockets.
+    // Both can be overridden through the options.
     requestTimeout: 5e3,
     agent: () => new Agent({
       keepAlive: false
@@ -30,12 +33,13 @@ var mockClient = (host, port) => {
 import { requestPort } from "@heat/request-port";
 
 // src/server/download.ts
+import { createHash } from "crypto";
 import decompress from "decompress";
 import findCacheDir from "find-cache-dir";
 import { mkdir, rename, rm, stat } from "fs/promises";
 import { join, resolve } from "path";
-var getArchiveName = (version, distribution) => {
-  const name = distribution === "min" ? `opensearch-min-${version}` : `opensearch-${version}`;
+var getArchiveName = (version) => {
+  const name = `opensearch-min-${version}`;
   switch (process.platform) {
     case "win32":
       return `${name}-windows-arm64.zip`;
@@ -43,12 +47,8 @@ var getArchiveName = (version, distribution) => {
       return `${name}-linux-x64.tar.gz`;
   }
 };
-var getDownloadUrl = (version, distribution) => {
-  const archive = getArchiveName(version, distribution);
-  if (distribution === "min") {
-    return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${archive}`;
-  }
-  return `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${archive}`;
+var getDownloadUrl = (version) => {
+  return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${getArchiveName(version)}`;
 };
 var getDownloadPath = () => {
   return resolve(
@@ -66,24 +66,38 @@ var exists = async (path) => {
   }
   return true;
 };
-var download = async ({ version, distribution }) => {
-  const path = join(getDownloadPath(), distribution);
+var download = async ({ version }) => {
+  const path = join(getDownloadPath(), "min");
   const name = `opensearch-${version}`;
   const file = join(path, name);
   if (await exists(file)) {
     return file;
   }
-  console.log(`Downloading OpenSearch ${version} (${distribution})`);
-  const url = getDownloadUrl(version, distribution);
+  console.log(`Downloading OpenSearch ${version}`);
+  const url = getDownloadUrl(version);
   const response = await fetch(url, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`Downloading OpenSearch failed with status ${response.status}: ${url}`);
+  }
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
+  const checksumResponse = await fetch(`${url}.sha512`, { method: "GET" });
+  if (checksumResponse.ok) {
+    const checksum = (await checksumResponse.text()).split(/\s+/)[0];
+    const digest = createHash("sha512").update(buffer).digest("hex");
+    if (checksum && digest !== checksum) {
+      throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`);
+    }
+  }
   const staging = join(path, `staging-${process.pid}`);
   await mkdir(staging, { recursive: true, mode: "0777" });
   await decompress(buffer, staging);
   try {
     await rename(join(staging, name), file);
-  } catch {
+  } catch (error) {
+    if (!await exists(file)) {
+      throw error;
+    }
   }
   await rm(staging, { recursive: true, force: true });
   return file;
@@ -166,16 +180,14 @@ var launch = ({ path, host, port, version, debug }) => {
       }
     };
     await cleanUp();
-    const binary = version.distribution === "min" ? join3(path, "bin/opensearch") : join3(path, "opensearch-tar-install.sh");
+    const binary = join3(path, "bin/opensearch");
     const env = { ...process.env };
     if (process.platform === "darwin") {
       const javaHome = await findJavaHome();
-      if (javaHome) {
-        env.OPENSEARCH_JAVA_HOME = javaHome;
+      if (!javaHome) {
+        throw new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".');
       }
-    }
-    if (version.distribution === "bundle") {
-      env.OPENSEARCH_INITIAL_ADMIN_PASSWORD ??= "Awsless-Mock-0penSearch!";
+      env.OPENSEARCH_JAVA_HOME = javaHome;
     }
     const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env });
     const output = [];
@@ -235,24 +247,8 @@ ${output.join("")}`);
 };
 
 // src/server/version.ts
-var VERSION_3_5_0 = {
-  version: "3.5.0",
-  distribution: "bundle",
-  // Only the core node line counts: the bundle's performance analyzer
-  // logs its own "... started" long before the HTTP server is up.
-  started: (line) => line.includes("o.o.n.node") && line.includes("started"),
-  settings: ({ port, host, cache }) => ({
-    "discovery.type": "single-node",
-    "http.host": host,
-    "http.port": port,
-    "path.data": `${cache}/data`,
-    "path.logs": `${cache}/logs`,
-    "plugins.security.disabled": true
-  })
-};
 var VERSION_3_5_0_MIN = {
   version: "3.5.0",
-  distribution: "min",
   started: (line) => line.includes("o.o.n.node") && line.includes("started"),
   settings: ({ port, host, cache }) => ({
     "discovery.type": "single-node",
@@ -643,7 +639,6 @@ var uuid = (props = {}) => new Schema(
 export {
   BulkError,
   BulkItemError,
-  VERSION_3_5_0,
   VERSION_3_5_0_MIN,
   array,
   bigfloat,

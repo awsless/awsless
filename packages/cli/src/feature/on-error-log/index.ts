@@ -60,8 +60,6 @@ export const onErrorLogFeature = defineFeature({
 		ctx.onBind(build.addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
 
-		ctx.restartOnConfigChange(handler.lambda)
-
 		// ------------------------------------------------
 		// Every feature that owns a log group subscribes itself
 		// to the handler through the shared subscriber arn.

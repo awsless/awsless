@@ -195,7 +195,7 @@ export const domainFeature = defineFeature({
 			}
 		}
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['ses:SendEmail', 'ses:SendRawEmail'],
 			resources: [
 				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,

@@ -1,14 +1,4 @@
 {
 	"$schema": "../../dist/stack.stage.json",
-	"operations": [
-		// {
-		// 	"op": "add",
-		// 	"path": "/tables",
-		// 	"value": {
-		// 		"new-table": {
-		// 			"hash": "hello",
-		// 		},
-		// 	},
-		// },
-	],
+	"operations": []
 }

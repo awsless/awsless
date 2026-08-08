@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import { toDays, toSeconds } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
@@ -6,6 +5,7 @@ import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
 import { constantCase, pascalCase } from 'change-case'
+import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
@@ -13,9 +13,11 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
-import { filterPattern } from '../on-error-log/util.js'
 import { getFeatureFolder } from '../asset/index.js'
+import { PolicyStatement } from '../bundle/policy.js'
+import { filterPattern } from '../on-error-log/util.js'
 import { buildJobExecutable } from './build/executable.js'
 import { JobProps } from './schema.js'
 
@@ -123,7 +125,10 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 								{
 									Effect: pascalCase('allow'),
 									Action: ['s3:GetObject', 's3:HeadObject'],
-									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/job/payloads/*`],
+									Resource: [
+										`arn:aws:s3:::${bucket}/${key}`,
+										`arn:aws:s3:::${bucket}/job/payloads/*`,
+									],
 								},
 							],
 						})
@@ -143,18 +148,8 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		role: role.name,
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-			const list = await resolveInputs(statements)
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: list.map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 
@@ -293,9 +288,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 							entryPoint: ['sh', '-c'],
 							command: [
 								[
-									...(props.startupCommand?.length
-										? [props.startupCommand.join(' && ')]
-										: []),
+									...(props.startupCommand?.length ? [props.startupCommand.join(' && ')] : []),
 									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program.tmp && mv /root/program.tmp /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
 									`exec timeout --kill-after=10 ${toSeconds(props.timeout)} /root/program`,
 								].join(' && '),

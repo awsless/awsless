@@ -24,8 +24,8 @@ import {
 	getRouteStoreArn,
 	readActiveDeploymentId,
 	readRouteDeployment,
-	RouteDeployment,
 	setActiveRouteDeployment,
+	StagedRouteDeployment,
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
 import { currentBranch, currentCommit, currentCommitMessage, isCommitMerged } from './git.js'
@@ -93,10 +93,7 @@ export const deploymentsTable: AnyTable = table
 const latestBranchDeployment = async (client: DynamoDBClient, appId: string, branch: string) => {
 	const items = await listDeployments(client, appId, branch)
 
-	return items.reduce<Deployment | undefined>(
-		(latest, item) => ((latest?.seq ?? 0) >= item.seq ? latest : item),
-		undefined
-	)
+	return items.sort((a, b) => b.seq - a.seq)[0]
 }
 
 export const claimDeployment = async (props: { client: DynamoDBClient; appId: string }): Promise<Deployment> => {
@@ -152,17 +149,27 @@ export const listDeployments = async (
 	let cursor: string | undefined
 
 	do {
-		const result = await query(
-			table,
-			{ appId },
-			{
-				where: branch ? e => e.id.startsWith(`${branch}-`) : undefined,
-				consistentRead: true,
-				limit: 100,
-				cursor,
-				client,
+		let result
+		try {
+			result = await query(
+				table,
+				{ appId },
+				{
+					where: branch ? e => e.id.startsWith(`${branch}-`) : undefined,
+					consistentRead: true,
+					limit: 100,
+					cursor,
+					client,
+				}
+			)
+		} catch (error) {
+			// The manifest table only exists after the first deploy.
+			if (isError(error, 'ResourceNotFoundException')) {
+				return []
 			}
-		)
+
+			throw error
+		}
 		items.push(...result.items)
 		cursor = result.cursor
 	} while (cursor)
@@ -211,7 +218,7 @@ export const removeDeployment = async (client: DynamoDBClient, appId: string, id
 
 export type PruneOptions = {
 	branch?: string
-	keep: string
+	keep: number
 	main: string
 }
 
@@ -229,7 +236,7 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 		.filter(item => item.promotedAt && item.id !== liveId)
 		.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))[0]
 
-	const keep = Math.max(1, Number(options.keep) || 10)
+	const keep = Math.max(1, options.keep)
 	const mainSlug = slugifyBranch(options.main)
 	const keptMain = new Set(
 		items
@@ -356,7 +363,7 @@ export const readDeployedFunctionVersions = (state: DeploymentState) => {
 
 type RouteStoreTarget = {
 	arn: string
-	deployment: RouteDeployment
+	deployment: StagedRouteDeployment
 }
 
 // The deployment that went live before the current one.
@@ -412,8 +419,12 @@ export const promoteDeployment = async (props: {
 	const deployment = await getDeployment(props.dynamo, props.appId, props.id)
 	const functionVersion = deployment?.functionVersion
 
-	if (!deployment || !functionVersion) {
+	if (!deployment) {
 		throw new ExpectedError(`Deployment "${props.id}" doesn't exist.`)
+	}
+
+	if (!functionVersion) {
+		throw new ExpectedError(`Deployment "${props.id}" hasn't finished deploying.`)
 	}
 
 	if (props.store && props.store.deployment.functionVersion !== functionVersion) {
@@ -421,13 +432,14 @@ export const promoteDeployment = async (props: {
 	}
 
 	const alias = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
-	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
+	const liveId = alias?.Description || undefined
 	const activeId = props.store ? await readActiveDeploymentId(props.kvs, props.store.arn) : undefined
 	const active =
 		props.store && activeId !== undefined
 			? await readRouteDeployment(props.kvs, props.store.arn, activeId)
 			: undefined
 
+	// The release lock is a TTL lease, so a stalled deploy can lose it mid-apply.
 	if (props.rejectStale && liveId && liveId !== props.id) {
 		const live = await getDeployment(props.dynamo, props.appId, liveId)
 

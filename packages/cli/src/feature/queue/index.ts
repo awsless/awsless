@@ -33,7 +33,7 @@ type Send<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<F>
 `
 
 export const queueFeature = defineFeature({
@@ -58,7 +58,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})}.fifo`
 
-				if (typeof props === 'object' && props.consumer) {
+				if (props.consumer) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -89,7 +89,7 @@ export const queueFeature = defineFeature({
 		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
 
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
-			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
+			const props = deepmerge(ctx.appConfig.defaults.queue, local)
 
 			const group = new Group(ctx.stack, 'queue', id)
 			const baseName = formatLocalResourceName({
@@ -111,23 +111,26 @@ export const queueFeature = defineFeature({
 			})
 
 			if (local.consumer) {
-				const consumer = local.consumer
-
 				// The bundle routes the queue event to the right consumer based on the event source arn.
-				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
+				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), local.consumer)
 
-				new aws.lambda.EventSourceMapping(group, 'event', {
-					functionName: bundle.alias.arn,
-					eventSourceArn: queue.arn,
-					batchSize: props.batchSize,
-				}, {
-					dependsOn: [bundle.policy],
-				})
+				new aws.lambda.EventSourceMapping(
+					group,
+					'event',
+					{
+						functionName: bundle.alias.arn,
+						eventSourceArn: queue.arn,
+						batchSize: props.batchSize,
+					},
+					{
+						dependsOn: [bundle.policy],
+					}
+				)
 			}
 
 			ctx.addEnv(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 
-			ctx.addGlobalPermission({
+			ctx.addPermission({
 				actions: [
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',

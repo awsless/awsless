@@ -10,13 +10,14 @@ import { shortId } from '../../util/id.js'
 import { toDays } from '@awsless/duration'
 import { getFeatureFolder } from '../asset/index.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { getCacheControl, getContentType } from './util.js'
+import { getCacheControl, getContentType } from '../../util/content.js'
 
 const typeGenCode = `
 import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
 
 type Store = {
 	readonly name: string
+	readonly folder: string
 	readonly put: (key: string, body: Body, options?: Pick<PutObjectProps, 'metadata' | 'storageClass'>) => Promise<void>
 	readonly get: (key: string) => Promise<BodyStream | undefined>
 	readonly has: (key: string) => Promise<boolean>
@@ -116,7 +117,8 @@ export const storeFeature = defineFeature({
 
 			for (const [index, rule] of Object.entries(props.lifecycle ?? [])) {
 				bucket.addLifecycleRule({
-					id: rule.prefix ? `expire-${kebabCase(`${id}-${rule.prefix}`)}` : `expire-${id}-rule-${index}`,
+					// The folder scopes the rule id, since all stacks share one bucket.
+					id: `expire-${kebabCase(`${folder}${rule.prefix ?? `rule-${index}`}`)}`,
 					enabled: true,
 					prefix: `${folder}${rule.prefix ?? ''}`,
 					expiration: { days: toDays(rule.expiration) },

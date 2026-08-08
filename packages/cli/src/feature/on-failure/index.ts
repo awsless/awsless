@@ -224,7 +224,13 @@ export const onFailureFeature = defineFeature({
 		ctx.onBind(build.addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
 
-		ctx.restartOnConfigChange(handler.lambda)
+		// Deny calling other functions to stop circular loop problems,
+		// while sns:Publish stays open so the consumer can alert.
+		handler.addPermission({
+			effect: 'deny',
+			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage'],
+			resources: ['*'],
+		})
 
 		handler.addPermission(
 			{

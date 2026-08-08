@@ -1,5 +1,5 @@
 import { patch, unpatch } from '@awsless/json'
-import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
+import { ExpectedError, invoke, isErrorResponse, LambdaContext, RoutedLambdaContext } from '@awsless/lambda'
 import {
 	captureInvokedQualifier,
 	formatRoutePayload,
@@ -7,11 +7,12 @@ import {
 	getInvokedQualifier,
 	getStandaloneFunctionName,
 	LIVE_BUNDLE_ALIAS,
+	ROUTE_HEADER,
+	ROUTE_PROPERTY,
 	setBundleRoutes,
 	withBundleRouteContext,
 } from 'awsless'
 import { cronHandler } from './resource/cron.js'
-import { routeType } from './resource/util.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
 import { imageHandler } from './resource/image.js'
@@ -27,6 +28,7 @@ import { tableHandler } from './resource/table.js'
 import { taskHandler } from './resource/task.js'
 import { topicHandler } from './resource/topic.js'
 import type { BundleEvent, RouteMatch, RouteMatcher } from './resource/types.js'
+import { routeType } from './resource/util.js'
 
 type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unknown>
 
@@ -65,7 +67,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			}
 		}
 
-		throw new Error(`Unknown bundle route: ${event?.['$awsless-route'] ?? event?.headers?.['x-awsless-route']} `)
+		throw new Error(`Unknown bundle route: ${event?.[ROUTE_PROPERTY] ?? event?.headers?.[ROUTE_HEADER]} `)
 	}
 
 	return async (event: BundleEvent, context: LambdaContext) => {
@@ -99,7 +101,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				// The route on the context ends up in error logs, so log
 				// consumers can attribute an error to a logical resource
 				// instead of the shared bundle function.
-				const routedContext: LambdaContext & { route: string } = { ...context, route: match.key }
+				const routedContext: RoutedLambdaContext = { ...context, route: match.key }
 
 				return handle(match.payload ?? {}, routedContext)
 			})

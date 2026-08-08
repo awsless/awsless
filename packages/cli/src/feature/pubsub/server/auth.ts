@@ -16,6 +16,7 @@ import {
 	unknown,
 } from '@awsless/validate'
 import { WeakCache } from '@awsless/weak-cache'
+import { formatRoutePayload } from 'awsless'
 import { addSeconds, isFuture } from 'date-fns'
 
 const authResponseSchema = union([
@@ -98,10 +99,7 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	try {
 		response = await invoke({
 			name: process.env.AUTH,
-			payload: {
-				'$awsless-route': process.env.AUTH_ROUTE,
-				event: { token: token ?? undefined },
-			},
+			payload: formatRoutePayload(process.env.AUTH_ROUTE!, { token: token ?? undefined }),
 		})
 	} catch (error) {
 		console.error(error)

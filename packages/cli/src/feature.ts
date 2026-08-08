@@ -103,7 +103,6 @@ export type AppContext = BeforeContext & {
 	registerCommand: RegisterCommand
 	registerDomainZone: (zone: aws.route53.Zone) => void
 
-	restartOnConfigChange: (lambda: aws.lambda.Function) => void
 	// registerPolicy: RegisterPolicy
 	// registerFunction: RegisterFunction
 	// registerSiteFunction: RegisterSiteFunction
@@ -133,8 +132,7 @@ export type AppContext = BeforeContext & {
 	// onAppPermission: OnPermission
 
 	onPermission: OnPermission
-	addAppPermission: OnPermissionCallback
-	addGlobalPermission: OnPermissionCallback
+	addPermission: OnPermissionCallback
 
 	// onEnv: (envVars: Record<string, Input<string>>) => void
 }

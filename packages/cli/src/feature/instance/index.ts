@@ -20,7 +20,7 @@ type Send<Name extends string> = {
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<[unknown], unknown>
+type MockObject = Mock<(payload: unknown) => unknown>
 `
 
 export const instanceFeature = defineFeature({
@@ -114,7 +114,7 @@ export const instanceFeature = defineFeature({
 				resources: [queue.arn],
 			})
 
-			ctx.addGlobalPermission({
+			ctx.addPermission({
 				actions: ['sqs:SendMessage', 'sqs:GetQueueUrl', 'sqs:GetQueueAttributes'],
 				resources: [queue.arn],
 			})

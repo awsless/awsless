@@ -67,6 +67,9 @@ export const alertFeature = defineFeature({
 					const name = configRefName(endpoint)
 					const value = ctx.configValues?.[name]?.trim()
 
+					// Registering the name puts unset endpoints in the missing-config warning.
+					ctx.registerConfig(name)
+
 					if (!value) {
 						continue
 					}
@@ -95,7 +98,7 @@ export const alertFeature = defineFeature({
 			}
 		}
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['sns:Publish'],
 			resources: [
 				`arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({

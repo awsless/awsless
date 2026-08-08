@@ -1,18 +1,14 @@
-import { boolean, define, number, object, string } from '@awsless/dynamodb'
+import { boolean, date, define, Infer, object, string } from '@awsless/dynamodb'
+import { Table } from 'awsless'
 
-export type Todo = {
-	id: string
-	title: string
-	done: boolean
-	createdAt: number
-}
+export type Todo = Infer<typeof todoTable>
 
-export const todoTable = define('app-kennedy--stack--table--todos', {
+export const todoTable = define(Table.stack.todos, {
 	hash: 'id',
 	schema: object({
 		id: string(),
 		title: string(),
 		done: boolean(),
-		createdAt: number(),
+		createdAt: date(),
 	}),
 })

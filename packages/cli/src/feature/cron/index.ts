@@ -1,5 +1,6 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { formatRoutePayload } from 'awsless'
 import { defineFeature } from '../../feature.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
@@ -110,6 +111,15 @@ export const cronFeature = defineFeature({
 										Effect: 'Allow',
 										Resource: arn,
 									},
+									{
+										Action: ['sqs:SendMessage'],
+										Effect: 'Allow',
+										Resource: `arn:aws:sqs:*:*:${formatGlobalResourceName({
+											appName: ctx.app.name,
+											resourceType: 'on-failure',
+											resourceName: 'failure',
+										})}`,
+									},
 								],
 							})
 						),
@@ -147,10 +157,15 @@ export const cronFeature = defineFeature({
 				target: {
 					arn: bundle.alias.arn,
 					roleArn: ctx.shared.get('cron', 'role-arn'),
-					input: JSON.stringify({
-						'$awsless-route': routeKey,
-						event: props.payload,
-					}),
+					input: JSON.stringify(formatRoutePayload(routeKey, props.payload)),
+					// Fires the scheduler can't deliver land on the on-failure queue.
+					deadLetterConfig: {
+						arn: `arn:aws:sqs:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({
+							appName: ctx.app.name,
+							resourceType: 'on-failure',
+							resourceName: 'failure',
+						})}`,
+					},
 				},
 			})
 		}

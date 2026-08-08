@@ -8,40 +8,49 @@ const code = { file: { nocheck: './echo.ts' } }
 
 describe('stack functions', () => {
 	it('registers plain functions into the shared bundle', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, handler: 'index.echo' },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, handler: 'index.echo' },
+					},
 				},
-			},
-		])
+			],
+		})
 
 		const lambda = app.resources
 			.map(getMeta)
-			.find(meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo')
+			.find(
+				meta =>
+					meta.type === 'aws_lambda_function' &&
+					meta.input.functionName === 'test-app--stack-1--function--echo'
+			)
 
 		expect(lambda).toBeUndefined()
 	})
 
 	it('deploys functions with a custom config as stand-alone lambdas', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: {
-						code,
-						memorySize: '256 MB',
-						reserved: 5,
-						ephemeralStorageSize: '1 GB',
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: {
+							code,
+							memorySize: '256 MB',
+							reserved: 5,
+							ephemeralStorageSize: '1 GB',
+						},
 					},
 				},
-			},
-		])
+			],
+		})
 
 		const metas = app.resources.map(getMeta)
 		const lambda = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+			meta =>
+				meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 		)!
 
 		expect(lambda).toBeDefined()
@@ -63,9 +72,13 @@ describe('stack functions', () => {
 		// like the shared bundle.
 		expect(lambda.input.vpcConfig).toBeDefined()
 
-		const role = metas.find(meta => meta.type === 'aws_iam_role' && meta.input.description === 'test-app--stack-1--function--echo')
+		const role = metas.find(
+			meta => meta.type === 'aws_iam_role' && meta.input.description === 'test-app--stack-1--function--echo'
+		)
 		const logGroup = metas.find(
-			meta => meta.type === 'aws_cloudwatch_log_group' && meta.input.name === '/aws/lambda/test-app--stack-1--function--echo'
+			meta =>
+				meta.type === 'aws_cloudwatch_log_group' &&
+				meta.input.name === '/aws/lambda/test-app--stack-1--function--echo'
 		)
 
 		expect(role).toBeDefined()
@@ -73,19 +86,23 @@ describe('stack functions', () => {
 	})
 
 	it('puts the full env on the lambda itself', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, memorySize: '256 MB', environment: { CUSTOM: 'value' } },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, memorySize: '256 MB', environment: { CUSTOM: 'value' } },
+					},
 				},
-			},
-		])
+			],
+		})
 
 		const lambda = app.resources
 			.map(getMeta)
 			.find(
-				meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+				meta =>
+					meta.type === 'aws_lambda_function' &&
+					meta.input.functionName === 'test-app--stack-1--function--echo'
 			)!
 
 		const variables = lambda.input.environment.variables
@@ -97,51 +114,53 @@ describe('stack functions', () => {
 		expect(variables.STAGE).toBe('default')
 		expect(variables.STACK).toBe('stack-1')
 		expect(variables.CUSTOM).toBe('value')
-
-		// The stand-alone flag only exists inside the bundle env, so
-		// the stand-alone lambda env stays free of routing data.
-		expect(variables['stack-1:function:echo:STANDALONE']).toBeUndefined()
 	})
 
 	it('deploys outside the vpc when the function opts out', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, memorySize: '256 MB', vpc: false },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, memorySize: '256 MB', vpc: false },
+					},
 				},
-			},
-		])
+			],
+		})
 
 		const lambda = app.resources
 			.map(getMeta)
 			.find(
-				meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+				meta =>
+					meta.type === 'aws_lambda_function' &&
+					meta.input.functionName === 'test-app--stack-1--function--echo'
 			)!
 
 		expect(lambda.input.vpcConfig).toBeUndefined()
 	})
-
 })
 
 describe('sandbox', () => {
 	it('creates a sandbox proxy for the allowlisted routes', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, sandbox: { functions: ['stack-1:other'], tasks: ['stack-1:work'] } },
-					standalone: { code, memorySize: '256 MB' },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, sandbox: { functions: ['stack-1:other'], tasks: ['stack-1:work'] } },
+						standalone: { code, memorySize: '256 MB' },
+					},
+					queues: {
+						jobs: { consumer: { code } },
+					},
 				},
-				queues: {
-					jobs: { consumer: { code } },
-				},
-			},
-		])
+			],
+		})
 
 		const metas = app.resources.map(getMeta)
 		const lambda = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+			meta =>
+				meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 		)!
 		const proxy = metas.find(
 			meta =>
@@ -150,10 +169,11 @@ describe('sandbox', () => {
 		)!
 
 		expect(proxy).toBeDefined()
-		expect(proxy.input.environment.variables.SANDBOX_ROUTES).toBe(JSON.stringify(['stack-1:function:other', 'stack-1:task:work']))
+		expect(proxy.input.environment.variables.SANDBOX_ROUTES).toBe(
+			JSON.stringify(['stack-1:function:other', 'stack-1:task:work'])
+		)
 
 		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--echo-proxy')
-		expect(lambda.input.environment.variables.STANDALONE).toBeUndefined()
 
 		// The app wide env never lives in the lambda env, stand-alone
 		// functions receive it baked into their code zip & sandboxed
@@ -169,21 +189,24 @@ describe('sandbox', () => {
 	})
 
 	it('grants the sandbox access to the allowlisted configs', async () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, log: false, sandbox: { configs: ['SECRET'] } },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, log: false, sandbox: { configs: ['secret'] } },
+					},
 				},
-			},
-		])
+			],
+		})
 
 		const metas = app.resources.map(getMeta)
 		const lambda = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+			meta =>
+				meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 		)!
 
-		expect(lambda.input.environment.variables.CONFIGS).toBe('SECRET')
+		expect(lambda.input.environment.variables.CONFIGS).toBe('secret')
 
 		const policies = await Promise.all(
 			metas
@@ -191,24 +214,27 @@ describe('sandbox', () => {
 				.map(meta => resolveInputs(meta.input.policy).catch(() => undefined))
 		)
 
-		const policy = policies.find(policy => String(policy).includes('parameter/.awsless/test-app/SECRET'))
+		const policy = policies.find(policy => String(policy).includes('parameter/.awsless/test-app/secret'))
 		expect(policy).toBeDefined()
 		expect(String(policy)).toContain('ssm:GetParameter')
 	})
 
 	it('creates no proxy for a fully sandboxed function', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, sandbox: true },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, sandbox: true },
+					},
 				},
-			},
-		])
+			],
+		})
 
 		const metas = app.resources.map(getMeta)
 		const lambda = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
+			meta =>
+				meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--echo'
 		)!
 		const proxy = metas.find(
 			meta =>
@@ -225,21 +251,24 @@ describe('sandbox', () => {
 		expect(() => StackFunctionSchema.parse({ code, sandbox: ['stack:function:name'] })).toThrow()
 		expect(() => StackFunctionSchema.parse({ code, sandbox: { functions: ['not a route'] } })).toThrow()
 		expect(() => StackFunctionSchema.parse({ code, sandbox: { queues: ['stack:name'] } })).toThrow()
+		expect(() => StackFunctionSchema.parse({ code, sandbox: { configs: ['SECRET'] } })).toThrow()
 		expect(StackFunctionSchema.parse({ code, sandbox: { functions: ['stack:name'] } })).toBeDefined()
 		expect(StackFunctionSchema.parse({ code, sandbox: { tasks: ['stack:name'] } })).toBeDefined()
-		expect(StackFunctionSchema.parse({ code, sandbox: { configs: ['SECRET'] } })).toBeDefined()
+		expect(StackFunctionSchema.parse({ code, sandbox: { configs: ['secret'] } })).toBeDefined()
 		expect(StackFunctionSchema.parse({ code, sandbox: true })).toBeDefined()
 	})
 
 	it('kebab-cases the sandbox routes to match the bundle route keys', () => {
-		const { app } = createTestApp({}, undefined, [
-			{
-				name: 'stack-1',
-				functions: {
-					echo: { code, sandbox: { functions: ['stack-1:myFunc'], tasks: ['stack-1:myWork'] } },
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, sandbox: { functions: ['stack-1:myFunc'], tasks: ['stack-1:myWork'] } },
+					},
 				},
-			},
-		])
+			],
+		})
 
 		const proxy = app.resources
 			.map(getMeta)
@@ -262,7 +291,13 @@ describe('isStandaloneFunction', () => {
 		expect(
 			isStandaloneFunction(
 				StackFunctionSchema.parse({
-					code: { ...code, minify: false, external: ['pkg'], importAsString: ['*.html'], moduleSideEffects: ['./x/**'] },
+					code: {
+						...code,
+						minify: false,
+						external: ['pkg'],
+						importAsString: ['*.html'],
+						moduleSideEffects: ['./x/**'],
+					},
 				})
 			)
 		).toBe(false)

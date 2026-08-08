@@ -7,42 +7,52 @@ const code = { file: { nocheck: './echo.ts' } }
 
 describe('site ssr', () => {
 	it('registers a plain ssr into the shared bundle', () => {
-		const result = createTestApp({ router: { main: {} } }, undefined, [
-			{
-				name: 'stack-1',
-				sites: {
-					web: { router: 'main', path: '/', ssr: { code } },
+		const result = createTestApp({
+			defaults: { router: { main: {} } },
+			stacks: [
+				{
+					name: 'stack-1',
+					sites: {
+						web: { router: 'main', path: '/', ssr: { code } },
+					},
 				},
-			},
-		])
+			],
+		})
 		result.ready()
 
 		const metas = result.app.resources.map(getMeta)
 		const lambda = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--web-ssr'
+			meta =>
+				meta.type === 'aws_lambda_function' &&
+				meta.input.functionName === 'test-app--stack-1--function--web-ssr'
 		)
 
 		expect(lambda).toBeUndefined()
 	})
 
 	it('deploys a sandboxed ssr as a stand-alone lambda behind its own url', () => {
-		const result = createTestApp({ router: { main: {} } }, undefined, [
-			{
-				name: 'stack-1',
-				sites: {
-					web: {
-						router: 'main',
-						path: '/',
-						ssr: { code, sandbox: { functions: ['stack-1:other'] } },
+		const result = createTestApp({
+			defaults: { router: { main: {} } },
+			stacks: [
+				{
+					name: 'stack-1',
+					sites: {
+						web: {
+							router: 'main',
+							path: '/',
+							ssr: { code, sandbox: { functions: ['stack-1:other'] } },
+						},
 					},
 				},
-			},
-		])
+			],
+		})
 		result.ready()
 
 		const metas = result.app.resources.map(getMeta)
 		const lambda = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--stack-1--function--web-ssr'
+			meta =>
+				meta.type === 'aws_lambda_function' &&
+				meta.input.functionName === 'test-app--stack-1--function--web-ssr'
 		)!
 		const proxy = metas.find(
 			meta =>

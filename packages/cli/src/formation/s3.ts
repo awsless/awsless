@@ -2,12 +2,12 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import { readFile } from 'fs/promises'
 import { glob } from 'glob'
-import { contentType, lookup } from 'mime-types'
 import promiseLimit from 'p-limit'
-import { extname, join, posix } from 'path'
+import { join, posix } from 'path'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials } from '../util/aws'
+import { getCacheControl, getContentType } from '../util/content.js'
 
 type SiteDeploymentInput = {
 	bucket: Input<string>
@@ -42,21 +42,6 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 		version: z.string(),
 	})
 
-	const getCacheControl = (file: string) => {
-		switch (lookup(file)) {
-			case false:
-			case 'text/html':
-			case 'application/json':
-			case 'application/manifest+json':
-			case 'application/manifest':
-			case 'text/markdown':
-				return 's-maxage=31536000, max-age=0'
-
-			default:
-				return 'public, max-age=31536000, immutable'
-		}
-	}
-
 	const uploadFiles = async (state: z.output<typeof inputSchema>) => {
 		const files = glob.sync('**', { cwd: state.source, nodir: true })
 		const limit = promiseLimit(16)
@@ -69,7 +54,7 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 							Bucket: state.bucket,
 							Key: posix.join(state.prefix, `v-${state.version}`, file),
 							Body: await readFile(join(state.source, file)),
-							ContentType: contentType(extname(file)) || 'text/html; charset=utf-8',
+							ContentType: getContentType(file),
 							CacheControl: getCacheControl(file),
 						})
 					)

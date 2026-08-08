@@ -20,16 +20,6 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 	console.log()
 	log.intro(`${logo()} ${color.line(command)}`)
 
-	// The prompt library answers a raw mode ctrl-c with exit(0), so a command
-	// only earns a zero once it reaches the end.
-	let completed = false
-
-	process.on('exit', code => {
-		if (code === 0 && !completed) {
-			process.exitCode = 130
-		}
-	})
-
 	try {
 		const options = program.optsWithGlobals() as ProgramOptions
 		const appConfig = await loadAppConfig(options)
@@ -49,12 +39,10 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 			stackConfigs,
 		})
 
-		completed = true
 		log.outro(result ?? undefined)
 
 		process.exit(0)
 	} catch (error) {
-		completed = true
 		playErrorSound()
 		logError(error)
 		log.outro()

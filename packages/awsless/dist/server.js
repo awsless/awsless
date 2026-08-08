@@ -20,6 +20,7 @@ import { invoke } from "@awsless/lambda";
 import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
+var ROUTE_HEADER = "x-awsless-route";
 var LIVE_BUNDLE_ALIAS = "live";
 var getBundleName = () => `${kebabCase(process.env.APP)}--function--bundle`;
 var formatRouteKey = (stackName, resourceType, resourceName) => {
@@ -93,8 +94,7 @@ var IS_TEST = process.env.NODE_ENV === "test";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
 var STACK = process.env.STACK;
-var getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
-var getStack = () => getRoute()?.split(":")[0] ?? STACK;
+var getStack = () => (getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(":")[0] ?? STACK;
 var formatResourceName = (opt) => {
   return [
     //
@@ -498,7 +498,6 @@ var mockQueue = (cb) => {
 
 // src/lib/mock/task.ts
 import { mockLambda as mockLambda3 } from "@awsless/lambda";
-import { mockScheduler } from "@awsless/scheduler";
 
 // src/lib/server/task.ts
 import { invoke as invoke4 } from "@awsless/lambda";
@@ -525,26 +524,27 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
     const routeKey = formatRouteKey(stackName, "task", taskName);
     const ctx = {
       [name]: async (payload, options = {}) => {
+        const { schedule: scheduleAt, ...invokeOptions } = options;
         if (IS_TEST) {
           await invoke4({
-            ...options,
+            ...invokeOptions,
             type: "Event",
             name,
             payload
           });
-        } else if (options.schedule) {
+        } else if (scheduleAt) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
             name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
             payload: formatRoutePayload(routeKey, payload),
-            schedule: options.schedule,
+            schedule: scheduleAt,
             group: resourceTaskName("group"),
             roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName("schedule")}`,
             deadLetterArn: onFailureQueueArn
           });
         } else {
           await invokeBundle({
-            ...options,
+            ...invokeOptions,
             routeKey,
             payload,
             type: "Event"
@@ -568,7 +568,6 @@ var mockTask = (cb) => {
   });
   cb(mock);
   mockLambda3(list);
-  mockScheduler(list);
   beforeEach && beforeEach(() => {
     for (const item of Object.values(list)) {
       item.mockClear();
@@ -866,12 +865,18 @@ var Search = /* @__PURE__ */ createProxy((stack) => {
 // src/lib/server/store.ts
 import { deleteObject, getObject, headObject, putObject as putObject2 } from "@awsless/s3";
 import { kebabCase as kebabCase6 } from "change-case";
-var BUCKET = `${APP}--store--assets--${APP_ID}`;
+var BUCKET = /* @__PURE__ */ formatResourceName({
+  resourceType: "store",
+  resourceName: "assets",
+  postfix: APP_ID
+});
 var Store = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     const scoped = (key) => `store/${kebabCase6(stack)}/${kebabCase6(name)}/${key}`;
     return {
       name: BUCKET,
+      // For callers building their own s3 requests inside the store's folder.
+      folder: scoped(""),
       async put(key, body, options = {}) {
         await putObject2({
           bucket: BUCKET,
@@ -919,6 +924,7 @@ export {
   Metric,
   PubSub,
   Queue,
+  ROUTE_HEADER,
   ROUTE_PROPERTY,
   Search,
   Store,

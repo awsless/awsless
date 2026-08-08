@@ -167,9 +167,8 @@ var enhanceError = (maybeError, schema, input, context) => {
   });
   error.input = schema ? (0, import_validate.applyRedaction)(schema, input) : input;
   if (context) {
-    const route = context.route;
-    if (typeof route === "string") {
-      error.route = route;
+    if (typeof context.route === "string") {
+      error.route = context.route;
     }
     error.requestId = context.awsRequestId;
     error.functionName = context.functionName;
@@ -223,11 +222,14 @@ var transformValidationErrors = async (callback) => {
   }
 };
 
-// src/context/global-context.ts
+// src/context/async-context.ts
 var import_node_async_hooks = require("async_hooks");
-var GlobalContext = class {
-  #storage = new import_node_async_hooks.AsyncLocalStorage();
-  async run(store, callback) {
+var AsyncContext = class {
+  #storage;
+  constructor() {
+    this.#storage = new import_node_async_hooks.AsyncLocalStorage();
+  }
+  run(store, callback) {
     return this.#storage.run(store, callback);
   }
   get() {
@@ -236,7 +238,7 @@ var GlobalContext = class {
 };
 
 // src/context/lambda-context.ts
-var eventContext = new GlobalContext();
+var eventContext = new AsyncContext();
 var getContext = () => {
   const ctx = eventContext.get();
   if (!ctx) {

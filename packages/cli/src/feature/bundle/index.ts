@@ -2,21 +2,23 @@ import { toDays, toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs } from '@terraforge/core'
-import { pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import { readdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
+import { ExpectedError } from '../../error.js'
 import { defineFeature, Permission } from '../../feature.js'
 import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
+import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
 import { compactPolicyStatements, PolicyStatement } from './policy.js'
-import { buildBundle } from './util.js'
+import { buildBundle, BundleHandler } from './util.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 
 export const bundleFeature = defineFeature({
 	name: 'bundle',
@@ -30,23 +32,16 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// Collect the handlers & env vars from every feature.
 
-		const handlers: {
-			routeKey: string
-			file: string // The file path of the handler code.
-			exportName: string // The name of the exported method within the handler code.
-			external?: string[]
-			importAsString?: string[]
-			moduleSideEffects?: string[]
-		}[] = []
+		const handlers: BundleHandler[] = []
 		const env: Record<string, Input<string>> = {}
 		const envDeps = new Set<any>()
 		const layers: Input<string>[] = []
 		const timeout = toSeconds(defaults.timeout)
 		const memorySize = toMebibytes(defaults.memorySize)
 
-		const addHandler = (handler: (typeof handlers)[number]) => {
+		const addHandler = (handler: BundleHandler) => {
 			if (handlers.some(entry => entry.routeKey === handler.routeKey)) {
-				throw new Error(`Duplicate bundle route: ${handler.routeKey}`)
+				throw new ExpectedError(`Duplicate bundle route: ${handler.routeKey}`)
 			}
 
 			handlers.push(handler)
@@ -55,7 +50,7 @@ export const bundleFeature = defineFeature({
 		const addEnv = (name: string, value: Input<string>) => {
 			// All handlers share one bundle wide env, so we can't allow conflicting values.
 			if (name in env && env[name] !== value) {
-				throw new Error(
+				throw new ExpectedError(
 					`The env var "${name}" is defined multiple times with different values, while all bundled functions share the same env.`
 				)
 			}
@@ -178,17 +173,7 @@ export const bundleFeature = defineFeature({
 			policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 				const list = (await resolveInputs(Array.from(statements))) as PolicyStatement[]
 
-				resolve(
-					JSON.stringify({
-						Version: '2012-10-17',
-						Statement: compactPolicyStatements(list).map(statement => ({
-							Effect: pascalCase(statement.effect ?? 'allow'),
-							Action: statement.actions,
-							Resource: statement.resources,
-							Condition: statement.conditions,
-						})),
-					})
-				)
+				resolve(formatPolicyDocument(compactPolicyStatements(list)))
 			}),
 		})
 
@@ -231,6 +216,10 @@ export const bundleFeature = defineFeature({
 			timeout,
 			memorySize,
 			architectures: [defaults.architecture],
+			reservedConcurrentExecutions: defaults.reserved,
+			ephemeralStorage: {
+				size: toMebibytes(defaults.ephemeralStorageSize),
+			},
 			layers,
 
 			// Publish a new immutable version on every deployment,
@@ -318,7 +307,7 @@ export const bundleFeature = defineFeature({
 			'alias',
 			{
 				description: liveTarget.liveDescription,
-				name: 'live',
+				name: LIVE_LAMBDA_ALIAS,
 				functionName: lambda.functionName,
 				functionVersion: liveTarget.liveVersion,
 			},

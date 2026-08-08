@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
-import { Cancelled } from '../../error.js'
+import { ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
@@ -34,7 +34,7 @@ export const test = (program: Command) => {
 				})
 
 				if (!passed) {
-					throw new Cancelled()
+					throw new ExpectedError('Tests failed.')
 				}
 
 				return 'All tests finished.'

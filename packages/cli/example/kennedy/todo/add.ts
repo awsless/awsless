@@ -7,7 +7,7 @@ export default async (event: { title: string }) => {
 		id: randomUUID(),
 		title: event.title,
 		done: false,
-		createdAt: Date.now(),
+		createdAt: new Date(),
 	}
 
 	await putItem(todoTable, todo)

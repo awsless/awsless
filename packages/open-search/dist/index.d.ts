@@ -30,10 +30,8 @@ declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") =
 type Settings = Record<string, string | number | boolean>;
 
 type Version = `${string}.${string}.${string}`;
-type Distribution = 'bundle' | 'min';
 type VersionArgs = {
     version: Version;
-    distribution: Distribution;
     settings: (opts: {
         port: number;
         host: string;
@@ -41,7 +39,6 @@ type VersionArgs = {
     }) => Settings;
     started: (line: string) => boolean;
 };
-declare const VERSION_3_5_0: VersionArgs;
 declare const VERSION_3_5_0_MIN: VersionArgs;
 
 type Options$4 = {
@@ -175,4 +172,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

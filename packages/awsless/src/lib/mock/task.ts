@@ -1,5 +1,4 @@
 import { mockLambda } from '@awsless/lambda'
-import { mockScheduler } from '@awsless/scheduler'
 import type { Mock } from 'vitest'
 import { createProxy } from '../proxy.js'
 import { getTaskName } from '../server/task.js'
@@ -20,7 +19,6 @@ export const mockTask = (cb: (mock: TaskMock) => void): TaskMockResponse => {
 	cb(mock)
 
 	mockLambda(list)
-	mockScheduler(list)
 
 	beforeEach &&
 		beforeEach(() => {

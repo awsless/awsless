@@ -14,9 +14,11 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
-import { filterPattern } from '../on-error-log/util.js'
 import { getFeatureFolder } from '../asset/index.js'
+import { PolicyStatement } from '../bundle/policy.js'
+import { filterPattern } from '../on-error-log/util.js'
 import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
@@ -151,18 +153,8 @@ export const createFargateTask = (
 		role: role.name,
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-			const list = await resolveInputs(statements)
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: list.map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 

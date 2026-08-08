@@ -33,7 +33,7 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<F>
 `
 
 export const jobFeature = defineFeature({
@@ -217,14 +217,14 @@ export const jobFeature = defineFeature({
 		// ------------------------------------------------------------
 		// Permissions for invoking jobs
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['ecs:RunTask'],
 			resources: [
 				`arn:aws:ecs:${ctx.appConfig.region}:*:task-definition/${ctx.app.name}--${ctx.stackConfig.name}--*`,
 			],
 		})
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: ['*'],
 			conditions: {
@@ -233,6 +233,5 @@ export const jobFeature = defineFeature({
 				},
 			},
 		})
-
 	},
 })

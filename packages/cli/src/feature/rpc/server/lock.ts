@@ -1,8 +1,18 @@
-import { ConditionalCheckFailedException, deleteItem, updateItem } from '@awsless/dynamodb'
+import { ConditionalCheckFailedException, define, deleteItem, object, string, ttl, updateItem } from '@awsless/dynamodb'
+import { getRouteEnv } from 'awsless'
 import { addSeconds } from 'date-fns'
 import { UUID } from 'node:crypto'
-import { getRouteEnv } from 'awsless'
-import { getLockTable } from './table'
+
+const getLockTable = () => {
+	return define(getRouteEnv('LOCK_TABLE') ?? 'lock', {
+		hash: 'key',
+		schema: object({
+			key: string(),
+			ttl: ttl(),
+			requestId: string(),
+		}),
+	})
+}
 
 const lockRequest = async (requestId: UUID, key: string) => {
 	const timeout = parseInt(getRouteEnv('TIMEOUT') ?? '60', 10)

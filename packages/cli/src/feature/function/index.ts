@@ -7,7 +7,6 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { createLambdaFunction, isStandaloneFunction } from './util.js'
-import deepmerge from 'deepmerge'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
@@ -35,7 +34,7 @@ type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurs
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Response<F>> | Response<F> | void | Promise<void> | Promise<Promise<void>>
 type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
 type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<F>
 `
 
 export const functionFeature = defineFeature({
@@ -52,7 +51,6 @@ export const functionFeature = defineFeature({
 			const mockResponse = new TypeObject(2)
 
 			for (const [name, local] of Object.entries(stack.functions || {})) {
-				const props = deepmerge(ctx.appConfig.defaults.function, local)
 				const varName = camelCase(`${stack.name}-${name}`)
 				const funcName = formatLocalResourceName({
 					appName: ctx.appConfig.name,
@@ -63,16 +61,10 @@ export const functionFeature = defineFeature({
 
 				const relFile = relative(directories.types, local.code.file)
 
-				if (props.runtime === 'container') {
-					resource.addType(name, `Invoke<'${funcName}', Func>`)
-					mock.addType(name, `MockBuilder<Func>`)
-					mockResponse.addType(name, `MockObject<Func>`)
-				} else {
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				mock.addType(name, `MockBuilder<typeof ${varName}>`)
+				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 			}
 
 			mocks.addType(stack.name, mock)
@@ -91,7 +83,7 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 		// Give lambda access to all policies inside your app.
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: [
 				// Allow all lambda's to invoke any lambda inside your app.
 				'lambda:InvokeFunction',
@@ -101,9 +93,7 @@ export const functionFeature = defineFeature({
 				// 'lambda:ListFunctions',
 				// 'lambda:GetFunction',
 			],
-			resources: [
-				`arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.appConfig.name}--*`,
-			],
+			resources: [`arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.appConfig.name}--*`],
 		})
 	},
 	onStack(ctx) {

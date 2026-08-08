@@ -1,5 +1,4 @@
 import { generateFileHash } from '@awsless/ts-file-cache'
-import { kebabCase } from 'change-case'
 import { createHash } from 'crypto'
 import { readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
@@ -10,11 +9,16 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown, formatRouteModuleId } from './build/rolldown.js'
 
-// The request header used to route web requests to the right bundle handler.
-export const ROUTE_HEADER = 'x-awsless-route'
+// The route protocol strings live in the awsless lib, shared with the handlers.
+export { formatRouteKey, ROUTE_HEADER } from 'awsless'
 
-export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
-	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
+export type BundleHandler = {
+	routeKey: string
+	file: string // The file path of the handler code.
+	exportName: string // The name of the exported method within the handler code.
+	external?: string[]
+	importAsString?: string[]
+	moduleSideEffects?: string[]
 }
 
 export const parseExportName = (handler: string) => {
@@ -25,12 +29,7 @@ export const registerBundleFunction = (
 	ctx: StackContext | AppContext,
 	routeKey: string,
 	props: {
-		code: {
-			file: string
-			external?: string[]
-			importAsString?: string[]
-			moduleSideEffects?: string[]
-		}
+		code: Omit<BundleHandler, 'routeKey' | 'exportName'>
 		handler?: string
 	}
 ) => {
@@ -52,14 +51,7 @@ export const buildBundle = (props: {
 	name: string
 	minify?: boolean
 	external?: string[]
-	handlers: {
-		routeKey: string
-		file: string // The file path of the handler code.
-		exportName: string // The name of the exported method within the handler code.
-		external?: string[]
-		importAsString?: string[]
-		moduleSideEffects?: string[]
-	}[]
+	handlers: BundleHandler[]
 
 	// Overwrite the bundle runtime location for testing purposes.
 	runtime?: string
@@ -68,15 +60,11 @@ export const buildBundle = (props: {
 		const runtime = props.runtime ?? join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.js')
 		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
 
-		// The entry file maps every route key to a lazy import, so a cold
-		// start only loads the one handler being dispatched.
-		//
-		// The import query makes rolldown treat "file.ts?awsless-route=a" &
-		// "file.ts?awsless-route=b" as two separate modules, giving every
-		// route a private copy of its handler module. Module level state can
-		// never leak between routes that share the same file, while only that
-		// top module is copied & everything the handler imports is still
-		// deduplicated into shared chunks.
+		// Every route key maps to a lazy import, so a cold start only loads
+		// the handler being dispatched. The import query gives each route a
+		// private copy of its handler module, so module level state can't
+		// leak between routes sharing a file, while everything the handler
+		// imports still dedupes into shared chunks.
 		const entries = handlers.map(({ routeKey, file, exportName }) => {
 			const virtualFile = JSON.stringify(formatRouteModuleId(file, routeKey))
 
@@ -98,6 +86,7 @@ export default createBundle({
 ${entries.join('\n')}
 })
 `
+		// Handlers next to the runtime are prebuilt dist/handlers files outside the ts workspace.
 		const hashes = await Promise.all([
 			readFile(runtime),
 			...handlers.map(handler =>

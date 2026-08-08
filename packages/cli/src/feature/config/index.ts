@@ -29,7 +29,7 @@ export const configFeature = defineFeature({
 	onApp(ctx) {
 		// The wildcard grant covers every config parameter, so the
 		// individual configs don't need their own grants.
-		ctx.addAppPermission({
+		ctx.addPermission({
 			actions: [
 				//
 				'ssm:GetParameter',

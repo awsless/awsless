@@ -1,19 +1,10 @@
 import type { SQSEvent } from 'aws-lambda'
+import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
 import { asyncRoute, routeFromResourceName, routeType } from './util.js'
 
 export const queueHandler: RouteMatcher<SQSEvent> = event => {
-	const route = event?.['$awsless-route']
-
-	if (typeof route === 'string') {
-		if (routeType(route) === 'queue') {
-			return asyncRoute(route, event.event)
-		}
-
-		return
-	}
-
-	if (typeof event?.headers?.['x-awsless-route'] === 'string') {
+	if (typeof event?.[ROUTE_PROPERTY] === 'string' || typeof event?.headers?.[ROUTE_HEADER] === 'string') {
 		return
 	}
 

@@ -1,13 +1,12 @@
+import { createHash } from 'crypto'
 import decompress from 'decompress'
 import findCacheDir from 'find-cache-dir'
 import { mkdir, rename, rm, stat } from 'fs/promises'
 import { join, resolve } from 'path'
-import { Distribution, Version, VersionArgs } from './version'
-// import { exec } from 'child_process';
-// import { promisify } from 'util';
+import { Version, VersionArgs } from './version'
 
-const getArchiveName = (version: Version, distribution: Distribution): string => {
-	const name = distribution === 'min' ? `opensearch-min-${version}` : `opensearch-${version}`
+const getArchiveName = (version: Version): string => {
+	const name = `opensearch-min-${version}`
 
 	switch (process.platform) {
 		case 'win32':
@@ -17,17 +16,11 @@ const getArchiveName = (version: Version, distribution: Distribution): string =>
 	}
 }
 
-const getDownloadUrl = (version: Version, distribution: Distribution): string => {
-	const archive = getArchiveName(version, distribution)
-
-	if (distribution === 'min') {
-		return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${archive}`
-	}
-
-	return `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${archive}`
+const getDownloadUrl = (version: Version): string => {
+	return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${getArchiveName(version)}`
 }
 
-export const getDownloadPath = (): string => {
+const getDownloadPath = (): string => {
 	return resolve(
 		findCacheDir({
 			name: '@awsless/open-search',
@@ -46,10 +39,8 @@ const exists = async (path: string) => {
 	return true
 }
 
-export const download = async ({ version, distribution }: Pick<VersionArgs, 'version' | 'distribution'>) => {
-	// Both distributions extract to an opensearch-{version} directory, so
-	// each gets its own cache subdirectory to avoid colliding.
-	const path = join(getDownloadPath(), distribution)
+export const download = async ({ version }: Pick<VersionArgs, 'version'>) => {
+	const path = join(getDownloadPath(), 'min')
 	const name = `opensearch-${version}`
 	const file = join(path, name)
 
@@ -57,12 +48,29 @@ export const download = async ({ version, distribution }: Pick<VersionArgs, 'ver
 		return file
 	}
 
-	console.log(`Downloading OpenSearch ${version} (${distribution})`)
+	console.log(`Downloading OpenSearch ${version}`)
 
-	const url = getDownloadUrl(version, distribution)
+	const url = getDownloadUrl(version)
 	const response = await fetch(url, { method: 'GET' })
+
+	if (!response.ok) {
+		throw new Error(`Downloading OpenSearch failed with status ${response.status}: ${url}`)
+	}
+
 	const data = await response.arrayBuffer()
 	const buffer = Buffer.from(data)
+
+	// OpenSearch publishes a sha512 for every artifact.
+	const checksumResponse = await fetch(`${url}.sha512`, { method: 'GET' })
+
+	if (checksumResponse.ok) {
+		const checksum = (await checksumResponse.text()).split(/\s+/)[0]
+		const digest = createHash('sha512').update(buffer).digest('hex')
+
+		if (checksum && digest !== checksum) {
+			throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`)
+		}
+	}
 
 	// Parallel test workers can race on a cold cache, so extract into a
 	// process-unique staging directory and atomically rename the result
@@ -74,8 +82,11 @@ export const download = async ({ version, distribution }: Pick<VersionArgs, 'ver
 
 	try {
 		await rename(join(staging, name), file)
-	} catch {
+	} catch (error) {
 		// Another worker already put the directory in place.
+		if (!(await exists(file))) {
+			throw error
+		}
 	}
 
 	await rm(staging, { recursive: true, force: true })

@@ -82,12 +82,12 @@ describe('Lambda deployment alias', () => {
 		const alias = sent(send, CreateAliasCommand)[0]!
 		const config = sent(send, PutFunctionEventInvokeConfigCommand)[0]!
 
-		expect(alias.input).toMatchObject({
+		expect(alias.input).toEqual({
 			FunctionName: 'test-function',
 			FunctionVersion: '1',
 			Name: 'main-1',
 		})
-		expect(config.input).toMatchObject({
+		expect(config.input).toEqual({
 			FunctionName: 'test-function',
 			Qualifier: 'main-1',
 			MaximumRetryAttempts: 2,
@@ -115,7 +115,8 @@ describe('Lambda deployment alias', () => {
 
 		const update = sent(send, UpdateAliasCommand)[0]!
 
-		expect(update.input).toMatchObject({
+		expect(update.input).toEqual({
+			FunctionName: 'test-function',
 			FunctionVersion: '2',
 			Name: 'local-0',
 		})
@@ -186,25 +187,26 @@ describe('Lambda function deployment', () => {
 		const permissions = sent(send, AddPermissionCommand).map(command => command.input)
 
 		expect(result.state.url).toBe('https://main-1.lambda-url.us-east-1.on.aws/')
-		expect(permissions).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					Qualifier: 'main-1',
-					Action: 'lambda:InvokeFunctionUrl',
-					Principal: 'cloudfront.amazonaws.com',
-					SourceArn: sourceArn,
-					FunctionUrlAuthType: 'AWS_IAM',
-				}),
-				expect.objectContaining({
-					Qualifier: 'main-1',
-					Action: 'lambda:InvokeFunction',
-					Principal: 'cloudfront.amazonaws.com',
-					SourceArn: sourceArn,
-					InvokedViaFunctionUrl: true,
-				}),
-			])
-		)
-		expect(permissions).toHaveLength(2)
+		expect(permissions).toEqual([
+			{
+				FunctionName: 'test-function',
+				Qualifier: 'main-1',
+				StatementId: 'cloudfront-url-0',
+				Action: 'lambda:InvokeFunctionUrl',
+				Principal: 'cloudfront.amazonaws.com',
+				SourceArn: sourceArn,
+				FunctionUrlAuthType: 'AWS_IAM',
+			},
+			{
+				FunctionName: 'test-function',
+				Qualifier: 'main-1',
+				StatementId: 'cloudfront-invoke-0',
+				Action: 'lambda:InvokeFunction',
+				Principal: 'cloudfront.amazonaws.com',
+				SourceArn: sourceArn,
+				InvokedViaFunctionUrl: true,
+			},
+		])
 	})
 
 	it('should create a new url without changing the previous deployment', async () => {

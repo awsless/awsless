@@ -3,7 +3,7 @@ import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
-import { kebabCase, pascalCase } from 'change-case'
+import { kebabCase } from 'change-case'
 import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { readdir, readFile, rm, writeFile } from 'fs/promises'
@@ -18,6 +18,7 @@ import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 import { configParameterPrefix } from '../../util/ssm.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
@@ -303,17 +304,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: compactPolicyStatements(list).map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			resolve(formatPolicyDocument(compactPolicyStatements(list)))
 		}),
 	})
 
@@ -411,8 +402,6 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			dependsOn,
 		}
 	)
-
-	ctx.restartOnConfigChange(lambda)
 
 	// ------------------------------------------------------------
 	// Every deployment tags the published version with its id alias &
@@ -752,17 +741,7 @@ export const createLambdaFunctionFromZip = (
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: compactPolicyStatements(list).map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			resolve(formatPolicyDocument(compactPolicyStatements(list)))
 		}),
 	})
 

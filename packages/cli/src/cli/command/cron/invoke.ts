@@ -1,9 +1,8 @@
 import { log, prompt } from '@awsless/clui'
 import { invoke as invokeLambda, LambdaClient } from '@awsless/lambda'
-import { formatRoutePayload } from 'awsless'
+import { formatRouteKey, formatRoutePayload, LIVE_BUNDLE_ALIAS } from 'awsless'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../error.js'
-import { formatRouteKey } from '../../../feature/bundle/util.js'
 import { getCredentials } from '../../../util/aws.js'
 import { getBundleFunctionName } from '../../../util/name.js'
 import { layout } from '../../ui/complex/layout.js'
@@ -97,7 +96,7 @@ export const invoke = (program: Command) => {
 					task() {
 						return invokeLambda({
 							name: functionName,
-							qualifier: 'live',
+							qualifier: LIVE_BUNDLE_ALIAS,
 							payload: formatRoutePayload(routeKey, payload),
 							client: new LambdaClient({
 								credentials,
