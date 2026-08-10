@@ -66,6 +66,12 @@ export const siteFeature = defineFeature({
 							AWS_SESSION_TOKEN: credentials.sessionToken,
 						}
 
+						// Vitest stamps these on the whole CLI process during
+						// in-process test runs; a build inheriting them would
+						// flip the runtime into test mode.
+						delete env.TEST
+						delete env.VITEST
+
 						// Announce the config names for just the site build.
 
 						const configs = props.build?.configs ?? []

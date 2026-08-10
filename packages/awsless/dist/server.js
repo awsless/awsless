@@ -91,7 +91,7 @@ var getRouteEnv = (name) => {
 // src/lib/server/util.ts
 var APP = process.env.APP;
 var APP_ID = process.env.APP_ID;
-var IS_TEST = process.env.NODE_ENV === "test";
+var IS_TEST = !!process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
 var STACK = process.env.STACK;

@@ -19,6 +19,7 @@ describe('config', () => {
 
 	it('fetches every config announced in the CONFIGS env var', async () => {
 		vi.stubEnv('NODE_ENV', 'production')
+		vi.stubEnv('VITEST', '')
 		vi.stubEnv('APP', 'app')
 		vi.stubEnv('CONFIGS', 'SECRET,OTHER_VALUE')
 
@@ -35,6 +36,7 @@ describe('config', () => {
 
 	it('skips the fetch when no configs are announced', async () => {
 		vi.stubEnv('NODE_ENV', 'production')
+		vi.stubEnv('VITEST', '')
 		vi.stubEnv('APP', 'app')
 
 		const { Config } = await import('../src/lib/server/config')
