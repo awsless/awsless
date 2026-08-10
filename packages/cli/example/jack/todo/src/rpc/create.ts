@@ -8,7 +8,7 @@ export default h.func(
 		name: v.string(),
 	}),
 	async ({ name }) => {
-		const limit = parseInt(Config.maxTasks, 10)
+		const limit = parseInt(Config.MAX_TASKS, 10)
 		const list = await t.scan(tasks)
 
 		if (list.items.length >= limit) {

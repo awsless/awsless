@@ -31,6 +31,10 @@ export const createDashboardServer = (props: {
 	env: Record<string, string>
 	storeRoot: string
 	configFile: string
+	// The config names that resolved from the boot-time ssm pull.
+	configPulled?: string[]
+	// Re-runs the stack seed files, when any are configured.
+	runSeeds?: () => Promise<void>
 	events: {
 		subscribe: (channel: string, listener: (data: unknown) => void) => () => void
 	}
@@ -65,6 +69,7 @@ export const createDashboardServer = (props: {
 				routerPorts: props.routerPorts,
 				resources: props.resources,
 				routes: props.routes,
+				seeds: Boolean(props.runSeeds),
 			}).replaceAll('<', '\\u003c')
 
 			return { status: 200, body: dashboardHtml.replace('__STATE__', state), type: 'text/html' }
@@ -227,6 +232,22 @@ export const createDashboardServer = (props: {
 			return { status: 200, body: JSON.stringify({ files }) }
 		}
 
+		if (url.pathname === '/api/seed' && req.method === 'POST') {
+			if (!props.runSeeds) {
+				return { status: 400, body: JSON.stringify({ error: 'No seed files configured.' }) }
+			}
+
+			try {
+				await props.runSeeds()
+				return { status: 200, body: JSON.stringify({ ok: true }) }
+			} catch (error) {
+				return {
+					status: 500,
+					body: JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+				}
+			}
+		}
+
 		if (url.pathname === '/api/config') {
 			if (req.method === 'PUT') {
 				const values = JSON.parse((await readBody(req)).toString() || '{}')
@@ -241,7 +262,13 @@ export const createDashboardServer = (props: {
 				values = JSON.parse(await readFile(props.configFile, 'utf8'))
 			} catch (_) {}
 
-			return { status: 200, body: JSON.stringify({ values }) }
+			return {
+				status: 200,
+				body: JSON.stringify({
+					values,
+					pulled: props.configPulled ?? [],
+				}),
+			}
 		}
 
 		return { status: 404, body: JSON.stringify({ error: `Unknown dashboard path: ${url.pathname}` }) }

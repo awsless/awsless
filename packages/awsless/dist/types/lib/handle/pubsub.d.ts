@@ -1,6 +1,7 @@
 import { Duration } from '@awsless/duration';
 import { Handler } from '@awsless/lambda';
-import { GenericSchema, InferInput } from '@awsless/validate';
+import { GenericSchema, InferInput, InferOutput } from '@awsless/validate';
+import { consumer } from './util.js';
 export type PubSubAuthResult = {
     /** Allow the connection. */
     authorized: true;
@@ -33,7 +34,7 @@ type AuthSchema = GenericSchema<InferInput<typeof authEventSchema>, AuthEvent>;
 export declare const auth: <H extends Handler<AuthSchema, PubSubAuthResult | Promise<PubSubAuthResult>>>(handle: H) => (event: {
     token?: string | undefined;
 }, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
-type LifecycleEvent<E extends string> = {
+type LifecycleEvent<E extends string, C = unknown> = {
     /** The lifecycle event kind. */
     event: E;
     /** The moment the event happened. */
@@ -43,19 +44,19 @@ type LifecycleEvent<E extends string> = {
     /** The ip address the client connected from. */
     ip: string;
     /** The context the pubsub authorizer attached to the connection. */
-    context?: unknown;
+    context?: C;
 };
 /** The parsed event a connected handler receives. */
-export type ConnectedEvent = LifecycleEvent<'connected'>;
+export type ConnectedEvent<C = unknown> = LifecycleEvent<'connected', C>;
 /** The parsed event a disconnected handler receives. */
-export type DisconnectedEvent = LifecycleEvent<'disconnected'>;
+export type DisconnectedEvent<C = unknown> = LifecycleEvent<'disconnected', C>;
 /** The parsed event a subscribed handler receives. */
-export type SubscribedEvent = LifecycleEvent<'subscribed'> & {
+export type SubscribedEvent<C = unknown> = LifecycleEvent<'subscribed', C> & {
     /** The topics the connection subscribed to. */
     topics: string[];
 };
 /** The parsed event an unsubscribed handler receives. */
-export type UnsubscribedEvent = LifecycleEvent<'unsubscribed'> & {
+export type UnsubscribedEvent<C = unknown> = LifecycleEvent<'unsubscribed', C> & {
     /** The topics the connection unsubscribed from. */
     topics: string[];
 };
@@ -64,21 +65,21 @@ declare const connectedSchema: import("@awsless/validate").SnsTopicSchema<import
     readonly date: import("valibot").DateSchema<undefined>;
     readonly socketId: import("valibot").StringSchema<undefined>;
     readonly ip: import("valibot").StringSchema<undefined>;
-    readonly context: import("valibot").OptionalSchema<import("valibot").UnknownSchema, undefined>;
+    readonly context: import("valibot").OptionalSchema<GenericSchema, undefined>;
 }, undefined>>;
 declare const disconnectedSchema: import("@awsless/validate").SnsTopicSchema<import("valibot").ObjectSchema<{
     readonly event: import("valibot").LiteralSchema<"disconnected", undefined>;
     readonly date: import("valibot").DateSchema<undefined>;
     readonly socketId: import("valibot").StringSchema<undefined>;
     readonly ip: import("valibot").StringSchema<undefined>;
-    readonly context: import("valibot").OptionalSchema<import("valibot").UnknownSchema, undefined>;
+    readonly context: import("valibot").OptionalSchema<GenericSchema, undefined>;
 }, undefined>>;
 declare const subscribedSchema: import("@awsless/validate").SnsTopicSchema<import("valibot").ObjectSchema<{
     readonly event: import("valibot").LiteralSchema<"subscribed", undefined>;
     readonly date: import("valibot").DateSchema<undefined>;
     readonly socketId: import("valibot").StringSchema<undefined>;
     readonly ip: import("valibot").StringSchema<undefined>;
-    readonly context: import("valibot").OptionalSchema<import("valibot").UnknownSchema, undefined>;
+    readonly context: import("valibot").OptionalSchema<GenericSchema, undefined>;
     readonly topics: import("valibot").ArraySchema<import("valibot").StringSchema<undefined>, undefined>;
 }, undefined>>;
 declare const unsubscribedSchema: import("@awsless/validate").SnsTopicSchema<import("valibot").ObjectSchema<{
@@ -86,91 +87,19 @@ declare const unsubscribedSchema: import("@awsless/validate").SnsTopicSchema<imp
     readonly date: import("valibot").DateSchema<undefined>;
     readonly socketId: import("valibot").StringSchema<undefined>;
     readonly ip: import("valibot").StringSchema<undefined>;
-    readonly context: import("valibot").OptionalSchema<import("valibot").UnknownSchema, undefined>;
+    readonly context: import("valibot").OptionalSchema<GenericSchema, undefined>;
     readonly topics: import("valibot").ArraySchema<import("valibot").StringSchema<undefined>, undefined>;
 }, undefined>>;
-type ConnectedSchema = GenericSchema<InferInput<typeof connectedSchema>, ConnectedEvent>;
-type DisconnectedSchema = GenericSchema<InferInput<typeof disconnectedSchema>, DisconnectedEvent>;
-type SubscribedSchema = GenericSchema<InferInput<typeof subscribedSchema>, SubscribedEvent>;
-type UnsubscribedSchema = GenericSchema<InferInput<typeof unsubscribedSchema>, UnsubscribedEvent>;
-export declare const connected: <H extends Handler<ConnectedSchema>>(handle: H) => (event: {
-    event: "connected";
-    date: Date;
-    socketId: string;
-    ip: string;
-    context?: unknown;
-} | {
-    Records: {
-        Sns: {
-            Message: string | {
-                event: "connected";
-                date: Date;
-                socketId: string;
-                ip: string;
-                context?: unknown;
-            };
-        };
-    }[];
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
-export declare const disconnected: <H extends Handler<DisconnectedSchema>>(handle: H) => (event: {
-    event: "disconnected";
-    date: Date;
-    socketId: string;
-    ip: string;
-    context?: unknown;
-} | {
-    Records: {
-        Sns: {
-            Message: string | {
-                event: "disconnected";
-                date: Date;
-                socketId: string;
-                ip: string;
-                context?: unknown;
-            };
-        };
-    }[];
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
-export declare const subscribed: <H extends Handler<SubscribedSchema>>(handle: H) => (event: {
-    event: "subscribed";
-    date: Date;
-    socketId: string;
-    ip: string;
-    context?: unknown;
-    topics: string[];
-} | {
-    Records: {
-        Sns: {
-            Message: string | {
-                event: "subscribed";
-                date: Date;
-                socketId: string;
-                ip: string;
-                context?: unknown;
-                topics: string[];
-            };
-        };
-    }[];
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
-export declare const unsubscribed: <H extends Handler<UnsubscribedSchema>>(handle: H) => (event: {
-    event: "unsubscribed";
-    date: Date;
-    socketId: string;
-    ip: string;
-    context?: unknown;
-    topics: string[];
-} | {
-    Records: {
-        Sns: {
-            Message: string | {
-                event: "unsubscribed";
-                date: Date;
-                socketId: string;
-                ip: string;
-                context?: unknown;
-                topics: string[];
-            };
-        };
-    }[];
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
+type ConnectedSchema<C = unknown> = GenericSchema<InferInput<typeof connectedSchema>, ConnectedEvent<C>>;
+type DisconnectedSchema<C = unknown> = GenericSchema<InferInput<typeof disconnectedSchema>, DisconnectedEvent<C>>;
+type SubscribedSchema<C = unknown> = GenericSchema<InferInput<typeof subscribedSchema>, SubscribedEvent<C>>;
+type UnsubscribedSchema<C = unknown> = GenericSchema<InferInput<typeof unsubscribedSchema>, UnsubscribedEvent<C>>;
+export declare function connected<H extends Handler<ConnectedSchema>>(handle: H): ReturnType<typeof consumer>;
+export declare function connected<C extends GenericSchema, H extends Handler<ConnectedSchema<InferOutput<C>>>>(context: C, handle: H): ReturnType<typeof consumer>;
+export declare function disconnected<H extends Handler<DisconnectedSchema>>(handle: H): ReturnType<typeof consumer>;
+export declare function disconnected<C extends GenericSchema, H extends Handler<DisconnectedSchema<InferOutput<C>>>>(context: C, handle: H): ReturnType<typeof consumer>;
+export declare function subscribed<H extends Handler<SubscribedSchema>>(handle: H): ReturnType<typeof consumer>;
+export declare function subscribed<C extends GenericSchema, H extends Handler<SubscribedSchema<InferOutput<C>>>>(context: C, handle: H): ReturnType<typeof consumer>;
+export declare function unsubscribed<H extends Handler<UnsubscribedSchema>>(handle: H): ReturnType<typeof consumer>;
+export declare function unsubscribed<C extends GenericSchema, H extends Handler<UnsubscribedSchema<InferOutput<C>>>>(context: C, handle: H): ReturnType<typeof consumer>;
 export {};

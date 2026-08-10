@@ -41,7 +41,7 @@ export const getConfigValue = (name: string) => {
 		throw new Error(
 			`The "${name}" config value hasn't been set yet. ${
 				IS_TEST
-					? `Use "mock.config.${name}('VAlUE')" to define your mock value.`
+					? `Use "mock.config.${name} = 'VALUE'" to define your mock value.`
 					: `Define access to the desired config value inside your awsless stack file.`
 			}`
 		)

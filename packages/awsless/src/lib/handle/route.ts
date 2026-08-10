@@ -201,8 +201,10 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 	}
 
 	const method = event.requestContext.http.method
-	const domain = event.requestContext.domainName
-	const path = event.rawPath ?? event.requestContext.http.path
+	// Synthetic test events often carry empty domains & paths - fall
+	// back so the url always parses.
+	const domain = event.requestContext.domainName || 'localhost'
+	const path = event.rawPath || event.requestContext.http.path || '/'
 	const protocol = headers.get('x-forwarded-proto') ?? 'https'
 	const url = `${protocol}://${domain}${path}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`
 

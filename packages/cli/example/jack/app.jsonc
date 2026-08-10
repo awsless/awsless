@@ -6,13 +6,6 @@
 	// "protect": true,
 	//
 
-	// "configs": {
-	// 	"admin-secret": {
-	// 		"type": "number",
-	// 		"test": "test-secret"
-	// 	}
-	// },
-
 	"configs": ["admin-secret", "max-tasks"],
 	"test": {
 		"configs": {

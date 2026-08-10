@@ -40,7 +40,10 @@ export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	})
 
 	if (!subscribers.length) {
-		throw new Error(`Unknown bundle topic: ${topicId}`)
+		// Publishing to a topic without subscribers is a silent no-op on
+		// aws - sns simply has nothing to deliver to - so the bundle
+		// matches that instead of erroring.
+		return []
 	}
 
 	if (subscribers.length === 1) {

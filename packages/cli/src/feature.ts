@@ -87,6 +87,10 @@ export type BeforeContext = {
 	deploymentId?: string
 	import: boolean
 
+	// The synth runs for the local dev environment: every function
+	// builds into the bundle, standalone or not.
+	dev: boolean
+
 	// The remote config values, only provided by the deploy command.
 	configValues?: Record<string, string>
 

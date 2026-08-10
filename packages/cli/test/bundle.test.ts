@@ -550,6 +550,26 @@ describe('bundle handler', () => {
 		)
 	})
 
+	it('should silently drop topics without subscribers', async () => {
+		const before = topicInvokes.length
+		const event = {
+			Records: [
+				{
+					EventSource: 'aws:sns',
+					Sns: {
+						TopicArn: 'arn:aws:sns:eu-west-1:123456789:test-app--topic--nobody-listens',
+						Message: 'hello',
+					},
+				},
+			],
+		}
+
+		// Publishing to a topic without subscribers is a no-op on aws,
+		// so the bundle drops it instead of erroring.
+		await expect(handler(event, context)).resolves.toBeUndefined()
+		expect(topicInvokes.length).toBe(before)
+	})
+
 	it('should rethrow for a single failing topic subscriber', async () => {
 		const event = {
 			Records: [

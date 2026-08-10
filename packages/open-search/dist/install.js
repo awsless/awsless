@@ -2,7 +2,7 @@ import {
   VERSION_2_8_0,
   download,
   downloadJdk
-} from "./chunk-7I7EB23J.js";
+} from "./chunk-M36HBITL.js";
 
 // src/install.ts
 var main = async () => {

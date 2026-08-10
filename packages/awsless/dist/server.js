@@ -52,7 +52,7 @@ var consumer = (schema, handle) => {
   return lambda({
     schema,
     handle,
-    throwExpectedErrors: true
+    throwExpectedErrors: !!process.env.THROW_EXPECTED_ERRORS
   });
 };
 
@@ -83,24 +83,13 @@ var error = (handle) => {
 };
 
 // src/lib/handle/func.ts
-import { lambda as lambda2 } from "@awsless/lambda";
 function func(arg1, arg2) {
-  const schema = arg2 ? arg1 : void 0;
-  const handle = arg2 ?? arg1;
-  return lambda2({
-    schema,
-    handle,
-    throwExpectedErrors: !!process.env.THROW_EXPECTED_ERRORS
-  });
-}
-function task(arg1, arg2) {
   const schema = arg2 ? arg1 : void 0;
   const handle = arg2 ?? arg1;
   return consumer(schema, handle);
 }
-var cron = (handle) => {
-  return consumer(void 0, handle);
-};
+var task = func;
+var cron = func;
 
 // src/lib/handle/image.ts
 import { object as object2, string as string2 } from "@awsless/validate";
@@ -131,7 +120,7 @@ var queue = (schema, handle) => {
 };
 
 // src/lib/handle/route.ts
-import { isErrorResponse, lambda as lambda3 } from "@awsless/lambda";
+import { isErrorResponse, lambda as lambda2 } from "@awsless/lambda";
 import {
   boolean,
   custom,
@@ -233,8 +222,8 @@ var buildRequest = (props, parts) => {
     headers.set(name, value);
   }
   const method = event2.requestContext.http.method;
-  const domain = event2.requestContext.domainName;
-  const path = event2.rawPath ?? event2.requestContext.http.path;
+  const domain = event2.requestContext.domainName || "localhost";
+  const path = event2.rawPath || event2.requestContext.http.path || "/";
   const protocol = headers.get("x-forwarded-proto") ?? "https";
   const url = `${protocol}://${domain}${path}${event2.rawQueryString ? `?${event2.rawQueryString}` : ""}`;
   const rawBody = typeof event2.body === "undefined" ? void 0 : event2.isBase64Encoded ? Buffer.from(event2.body, "base64") : Buffer.from(event2.body);
@@ -285,7 +274,7 @@ var toLambdaUrlResult = async (response) => {
 function route(arg1, arg2) {
   const props = arg2 ? arg1 : {};
   const handle = arg2 ?? arg1;
-  const handler = lambda3({
+  const handler = lambda2({
     schema: routeSchema(props),
     handle: async (request, context) => {
       const result = await handle(request, context);
@@ -305,7 +294,7 @@ function route(arg1, arg2) {
   };
 }
 var site = (handle) => {
-  return lambda3({
+  return lambda2({
     schema: routeSchema({}),
     handle: async (request, context) => {
       const result = await handle(request, context);
@@ -346,22 +335,22 @@ var authEventSchema = object4({
 var auth = (handle) => {
   return consumer(authEventSchema, handle);
 };
-var lifecycle = (event2) => {
+var lifecycle = (event2, context = unknown3()) => {
   return object4({
     event: literal(event2),
     date: date2(),
     socketId: string4(),
     ip: string4(),
-    context: optional3(unknown3())
+    context: optional3(context)
   });
 };
-var lifecycleWithTopics = (event2) => {
+var lifecycleWithTopics = (event2, context = unknown3()) => {
   return object4({
     event: literal(event2),
     date: date2(),
     socketId: string4(),
     ip: string4(),
-    context: optional3(unknown3()),
+    context: optional3(context),
     topics: array2(string4())
   });
 };
@@ -369,18 +358,28 @@ var connectedSchema = snsTopic2(lifecycle("connected"));
 var disconnectedSchema = snsTopic2(lifecycle("disconnected"));
 var subscribedSchema = snsTopic2(lifecycleWithTopics("subscribed"));
 var unsubscribedSchema = snsTopic2(lifecycleWithTopics("unsubscribed"));
-var connected = (handle) => {
-  return consumer(connectedSchema, handle);
+var lifecycleHandle = (base, build) => {
+  return (contextOrHandle, maybeHandle) => {
+    const withContext = typeof maybeHandle === "function";
+    const handle = withContext ? maybeHandle : contextOrHandle;
+    const schema = withContext ? build(contextOrHandle) : base;
+    return consumer(schema, handle);
+  };
 };
-var disconnected = (handle) => {
-  return consumer(disconnectedSchema, handle);
-};
-var subscribed = (handle) => {
-  return consumer(subscribedSchema, handle);
-};
-var unsubscribed = (handle) => {
-  return consumer(unsubscribedSchema, handle);
-};
+function connected(...args) {
+  return lifecycleHandle(connectedSchema, (context) => snsTopic2(lifecycle("connected", context)))(...args);
+}
+function disconnected(...args) {
+  return lifecycleHandle(disconnectedSchema, (context) => snsTopic2(lifecycle("disconnected", context)))(...args);
+}
+function subscribed(...args) {
+  return lifecycleHandle(subscribedSchema, (context) => snsTopic2(lifecycleWithTopics("subscribed", context)))(...args);
+}
+function unsubscribed(...args) {
+  return lifecycleHandle(unsubscribedSchema, (context) => snsTopic2(lifecycleWithTopics("unsubscribed", context)))(
+    ...args
+  );
+}
 
 // src/lib/handle/rpc.ts
 var rpc_exports = {};
@@ -594,7 +593,7 @@ var getConfigValue = (name) => {
   const value = data[key];
   if (typeof value === "undefined") {
     throw new Error(
-      `The "${name}" config value hasn't been set yet. ${IS_TEST ? `Use "mock.config.${name}('VAlUE')" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
+      `The "${name}" config value hasn't been set yet. ${IS_TEST ? `Use "mock.config.${name} = 'VALUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
     );
   }
   return value;
@@ -1094,6 +1093,15 @@ var setupTestEnv = async (manifest, options) => {
   ]);
   mockCloudWatch();
   hookTestCleanup();
+  const isBigFloat = (value) => typeof value === "object" && value !== null && typeof value.coefficient === "bigint" && typeof value.exponent === "number";
+  expect.addEqualityTesters([
+    function(a, b) {
+      if (isBigFloat(a) && isBigFloat(b)) {
+        return a.toString() === b.toString();
+      }
+      return void 0;
+    }
+  ]);
   for (const [name, value] of Object.entries(manifest.configs)) {
     setConfigValue(name, value);
   }
@@ -1264,7 +1272,29 @@ var mock = {
   instance: createProxy((stack) => {
     return createProxy((name) => overridable(testRegistry.instances, getInstanceQueueName(name, stack)));
   }),
-  config: createProxy((name) => (value) => setConfigValue(name, value))
+  // Config values assign like plain properties & read back the
+  // current value: mock.config.MAX_BET = '1'
+  config: new Proxy(
+    {},
+    {
+      get(_, name) {
+        if (typeof name !== "string") {
+          return void 0;
+        }
+        try {
+          return getConfigValue(name);
+        } catch (_2) {
+          return void 0;
+        }
+      },
+      set(_, name, value) {
+        if (typeof name === "string") {
+          setConfigValue(name, String(value));
+        }
+        return true;
+      }
+    }
+  )
 };
 
 // src/lib/server/auth.ts
@@ -1417,6 +1447,24 @@ var Metric = /* @__PURE__ */ createProxy((stack) => {
   });
 });
 
+// src/lib/server/seed.ts
+import { createHash } from "crypto";
+var seed = {
+  uuid(name) {
+    const hash = createHash("sha256").update(name).digest();
+    hash[6] = hash[6] & 15 | 80;
+    hash[8] = hash[8] & 63 | 128;
+    const hex = hash.subarray(0, 16).toString("hex");
+    return [
+      hex.slice(0, 8),
+      hex.slice(8, 12),
+      hex.slice(12, 16),
+      hex.slice(16, 20),
+      hex.slice(20, 32)
+    ].join("-");
+  }
+};
+
 // src/lib/server/store.ts
 import { deleteObject, getObject, headObject, putObject as putObject2 } from "@awsless/s3";
 import { kebabCase as kebabCase7 } from "change-case";
@@ -1509,6 +1557,7 @@ export {
   onFailureQueueArn,
   onFailureQueueName,
   s,
+  seed,
   setConfigValue,
   setupTestEnv,
   t,

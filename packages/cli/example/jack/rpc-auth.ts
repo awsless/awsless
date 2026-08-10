@@ -2,7 +2,7 @@ import { hours } from '@awsless/duration'
 import { Config, h } from 'awsless'
 
 export default h.rpc.auth(async event => {
-	if (event.token !== Config.adminSecret) {
+	if (event.token !== Config.ADMIN_SECRET) {
 		return { authorized: false }
 	}
 

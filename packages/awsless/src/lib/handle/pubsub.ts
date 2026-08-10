@@ -5,6 +5,7 @@ import {
 	date,
 	GenericSchema,
 	InferInput,
+	InferOutput,
 	literal,
 	object,
 	optional,
@@ -63,28 +64,30 @@ export const auth = <H extends Handler<AuthSchema, PubSubAuthResult | Promise<Pu
 
 // The lifecycle payloads the websocket server publishes. Only the
 // subscribe events carry the affected topics - a connect knows none.
-const lifecycle = <E extends string>(event: E) => {
+// The context validates against the given schema when the handle
+// passes one, & stays unknown otherwise.
+const lifecycle = <E extends string>(event: E, context: GenericSchema = unknown()) => {
 	return object({
 		event: literal(event),
 		date: date(),
 		socketId: string(),
 		ip: string(),
-		context: optional(unknown()),
+		context: optional(context),
 	})
 }
 
-const lifecycleWithTopics = <E extends string>(event: E) => {
+const lifecycleWithTopics = <E extends string>(event: E, context: GenericSchema = unknown()) => {
 	return object({
 		event: literal(event),
 		date: date(),
 		socketId: string(),
 		ip: string(),
-		context: optional(unknown()),
+		context: optional(context),
 		topics: array(string()),
 	})
 }
 
-type LifecycleEvent<E extends string> = {
+type LifecycleEvent<E extends string, C = unknown> = {
 	/** The lifecycle event kind. */
 	event: E
 
@@ -98,23 +101,23 @@ type LifecycleEvent<E extends string> = {
 	ip: string
 
 	/** The context the pubsub authorizer attached to the connection. */
-	context?: unknown
+	context?: C
 }
 
 /** The parsed event a connected handler receives. */
-export type ConnectedEvent = LifecycleEvent<'connected'>
+export type ConnectedEvent<C = unknown> = LifecycleEvent<'connected', C>
 
 /** The parsed event a disconnected handler receives. */
-export type DisconnectedEvent = LifecycleEvent<'disconnected'>
+export type DisconnectedEvent<C = unknown> = LifecycleEvent<'disconnected', C>
 
 /** The parsed event a subscribed handler receives. */
-export type SubscribedEvent = LifecycleEvent<'subscribed'> & {
+export type SubscribedEvent<C = unknown> = LifecycleEvent<'subscribed', C> & {
 	/** The topics the connection subscribed to. */
 	topics: string[]
 }
 
 /** The parsed event an unsubscribed handler receives. */
-export type UnsubscribedEvent = LifecycleEvent<'unsubscribed'> & {
+export type UnsubscribedEvent<C = unknown> = LifecycleEvent<'unsubscribed', C> & {
 	/** The topics the connection unsubscribed from. */
 	topics: string[]
 }
@@ -127,23 +130,58 @@ const unsubscribedSchema = snsTopic(lifecycleWithTopics('unsubscribed'))
 // The documented event types drive the handler typing, while the
 // schemas stay the runtime source of truth - the casts fail to compile
 // when the two drift apart.
-type ConnectedSchema = GenericSchema<InferInput<typeof connectedSchema>, ConnectedEvent>
-type DisconnectedSchema = GenericSchema<InferInput<typeof disconnectedSchema>, DisconnectedEvent>
-type SubscribedSchema = GenericSchema<InferInput<typeof subscribedSchema>, SubscribedEvent>
-type UnsubscribedSchema = GenericSchema<InferInput<typeof unsubscribedSchema>, UnsubscribedEvent>
+type ConnectedSchema<C = unknown> = GenericSchema<InferInput<typeof connectedSchema>, ConnectedEvent<C>>
+type DisconnectedSchema<C = unknown> = GenericSchema<InferInput<typeof disconnectedSchema>, DisconnectedEvent<C>>
+type SubscribedSchema<C = unknown> = GenericSchema<InferInput<typeof subscribedSchema>, SubscribedEvent<C>>
+type UnsubscribedSchema<C = unknown> = GenericSchema<InferInput<typeof unsubscribedSchema>, UnsubscribedEvent<C>>
 
-export const connected = <H extends Handler<ConnectedSchema>>(handle: H) => {
-	return consumer(connectedSchema as ConnectedSchema, handle)
+// Every lifecycle handle optionally takes the schema of the context
+// the authorizer attaches, so the handler receives it fully typed &
+// validated instead of unknown.
+const lifecycleHandle = (base: GenericSchema, build: (context: GenericSchema) => GenericSchema) => {
+	return (contextOrHandle: GenericSchema | Handler<GenericSchema>, maybeHandle?: Handler<GenericSchema>) => {
+		const withContext = typeof maybeHandle === 'function'
+		const handle = withContext ? maybeHandle : (contextOrHandle as Handler<GenericSchema>)
+		const schema = withContext ? build(contextOrHandle as GenericSchema) : base
+
+		return consumer(schema, handle)
+	}
 }
 
-export const disconnected = <H extends Handler<DisconnectedSchema>>(handle: H) => {
-	return consumer(disconnectedSchema as DisconnectedSchema, handle)
+export function connected<H extends Handler<ConnectedSchema>>(handle: H): ReturnType<typeof consumer>
+export function connected<C extends GenericSchema, H extends Handler<ConnectedSchema<InferOutput<C>>>>(
+	context: C,
+	handle: H
+): ReturnType<typeof consumer>
+export function connected(...args: [GenericSchema | Handler<GenericSchema>, Handler<GenericSchema>?]) {
+	return lifecycleHandle(connectedSchema, context => snsTopic(lifecycle('connected', context)))(...args)
 }
 
-export const subscribed = <H extends Handler<SubscribedSchema>>(handle: H) => {
-	return consumer(subscribedSchema as SubscribedSchema, handle)
+export function disconnected<H extends Handler<DisconnectedSchema>>(handle: H): ReturnType<typeof consumer>
+export function disconnected<C extends GenericSchema, H extends Handler<DisconnectedSchema<InferOutput<C>>>>(
+	context: C,
+	handle: H
+): ReturnType<typeof consumer>
+export function disconnected(...args: [GenericSchema | Handler<GenericSchema>, Handler<GenericSchema>?]) {
+	return lifecycleHandle(disconnectedSchema, context => snsTopic(lifecycle('disconnected', context)))(...args)
 }
 
-export const unsubscribed = <H extends Handler<UnsubscribedSchema>>(handle: H) => {
-	return consumer(unsubscribedSchema as UnsubscribedSchema, handle)
+export function subscribed<H extends Handler<SubscribedSchema>>(handle: H): ReturnType<typeof consumer>
+export function subscribed<C extends GenericSchema, H extends Handler<SubscribedSchema<InferOutput<C>>>>(
+	context: C,
+	handle: H
+): ReturnType<typeof consumer>
+export function subscribed(...args: [GenericSchema | Handler<GenericSchema>, Handler<GenericSchema>?]) {
+	return lifecycleHandle(subscribedSchema, context => snsTopic(lifecycleWithTopics('subscribed', context)))(...args)
+}
+
+export function unsubscribed<H extends Handler<UnsubscribedSchema>>(handle: H): ReturnType<typeof consumer>
+export function unsubscribed<C extends GenericSchema, H extends Handler<UnsubscribedSchema<InferOutput<C>>>>(
+	context: C,
+	handle: H
+): ReturnType<typeof consumer>
+export function unsubscribed(...args: [GenericSchema | Handler<GenericSchema>, Handler<GenericSchema>?]) {
+	return lifecycleHandle(unsubscribedSchema, context => snsTopic(lifecycleWithTopics('unsubscribed', context)))(
+		...args
+	)
 }

@@ -4,6 +4,7 @@ import type { Mock } from 'vitest'
 // module never adds a runtime vitest dependency.
 declare const vi: (typeof import('vitest'))['vi']
 declare const beforeEach: (typeof import('vitest'))['beforeEach']
+declare const expect: (typeof import('vitest'))['expect']
 import { getAlertName } from '../server/alert.js'
 import { setConfigValue } from '../server/config.js'
 import { getFunctionName } from '../server/function.js'
@@ -116,6 +117,25 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	// Registered during collection, since hooks can't register inside a
 	// running test - resources like cache clients clean up through it.
 	hookTestCleanup()
+
+	// Big floats compare by numeric value: arithmetic results keep a
+	// denormalized internal representation (150 as 150e14 x 10^-12)
+	// while transport round trips normalize - both are the same number.
+	const isBigFloat = (value: unknown): value is { toString: () => string } =>
+		typeof value === 'object' &&
+		value !== null &&
+		typeof (value as { coefficient?: unknown }).coefficient === 'bigint' &&
+		typeof (value as { exponent?: unknown }).exponent === 'number'
+
+	expect.addEqualityTesters([
+		function (a, b) {
+			if (isBigFloat(a) && isBigFloat(b)) {
+				return a.toString() === b.toString()
+			}
+
+			return undefined
+		},
+	])
 
 	// The test config values are set before any test file import
 	// resolves, so import time Config reads just work.

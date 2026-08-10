@@ -68,8 +68,14 @@ export const topicFeature = defineFeature({
 			}
 		}
 
-		const server = createSnsServer()
-		const port = await server.listen()
+		// The shim survives restarts, so long lived children (like the
+		// vite dev server) keep a valid endpoint.
+		const { server, port } = await ctx.keep('shim:sns', null, async () => {
+			const server = createSnsServer()
+			const port = await server.listen()
+
+			return { value: { server, port }, stop: () => server.stop() }
+		})
 
 		ctx.addEnv('AWS_ENDPOINT_URL_SNS', `http://127.0.0.1:${port}`)
 
@@ -77,9 +83,6 @@ export const topicFeature = defineFeature({
 			name: 'sns',
 			start({ dispatch, reportFailure }) {
 				server.connect(dispatch, reportFailure)
-			},
-			stop() {
-				return server.stop()
 			},
 		})
 	},

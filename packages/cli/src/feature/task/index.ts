@@ -35,7 +35,7 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
 
 // Calling overrides the implementation & the same value works as the
 // vitest mock inside expect().
@@ -65,8 +65,14 @@ export const taskFeature = defineFeature({
 		// Immediate task invokes already flow through the local lambda
 		// emulator. Delayed tasks create one-off schedules, which the
 		// local scheduler emulator turns into timers.
-		const server = createSchedulerServer()
-		const port = await server.listen()
+		// The shim survives restarts, so long lived children (like the
+		// vite dev server) keep a valid endpoint.
+		const { server, port } = await ctx.keep('shim:scheduler', null, async () => {
+			const server = createSchedulerServer()
+			const port = await server.listen()
+
+			return { value: { server, port }, stop: () => server.stop() }
+		})
 
 		ctx.addEnv('AWS_ENDPOINT_URL_SCHEDULER', `http://127.0.0.1:${port}`)
 
@@ -74,9 +80,6 @@ export const taskFeature = defineFeature({
 			name: 'scheduler',
 			start({ dispatch, reportFailure }) {
 				server.connect(dispatch, reportFailure)
-			},
-			stop() {
-				return server.stop()
 			},
 		})
 	},

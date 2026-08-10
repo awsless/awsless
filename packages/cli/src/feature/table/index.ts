@@ -43,7 +43,9 @@ export const tableFeature = defineFeature({
 								.map(([indexName, index]) => {
 									const indexSort = index.sort ? `; sort: ${typeValue(index.sort)}` : ''
 
-									return `${indexName}: { hash: ${typeValue(index.hash)}${indexSort} }`
+									// Quoted, since index names like "log-level" are not
+								// valid bare object keys.
+								return `'${indexName}': { hash: ${typeValue(index.hash)}${indexSort} }`
 								})
 								.join('; ')} }`
 						: 'undefined'

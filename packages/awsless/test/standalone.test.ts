@@ -5,6 +5,12 @@ vi.mock('@awsless/lambda', () => ({
 }))
 
 describe('standalone routes', () => {
+	// The bundle name derives from the APP env, which some tests read
+	// after unstubbing - a real value keeps every call valid.
+	beforeAll(() => {
+		process.env.APP = 'app'
+	})
+
 	beforeEach(() => {
 		vi.resetModules()
 		vi.unstubAllEnvs()

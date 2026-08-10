@@ -98,7 +98,9 @@ export const bundleFeature = defineFeature({
 			buildBundle({
 				name,
 				handlers,
-				minify: defaults.minify,
+				// The local dev bundle skips minification - it only costs
+				// reload time & garbles stack traces.
+				minify: ctx.dev ? false : defaults.minify,
 				external: [...(defaults.external ?? []), ...layerPackages],
 			})
 		)

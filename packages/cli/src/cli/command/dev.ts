@@ -3,6 +3,7 @@ import { Command } from 'commander'
 import { watchConfig } from '../../config/load/watch.js'
 import { DevInstance, startDev } from '../../dev/index.js'
 import { createServerPool } from '../../dev/pool.js'
+import { createTimer } from '../../util/timer.js'
 import { buildTypes } from '../ui/complex/build-types.js'
 import { layout } from '../ui/complex/layout.js'
 import { logError } from '../ui/error/error.js'
@@ -41,30 +42,52 @@ export const dev = (program: Command) => {
 				}
 
 				const start = async (appConfig = props.appConfig, stackConfigs = props.stackConfigs) => {
-					// During the boot every progress message updates the task
-					// spinner - afterwards runtime messages log as steps.
+					// During the boot every progress message updates the
+					// current phase spinner - afterwards runtime messages log
+					// as steps.
 					let logger: (message: string) => void = message => log.step(message)
 
-					instance = await log.task({
-						initialMessage: 'Starting the local dev environment...',
-						successMessage: 'Local dev environment ready.',
-						errorMessage: 'Failed to start the local dev environment.',
-						task: ({ updateMessage }) => {
-							logger = updateMessage
+					// Every boot phase renders as its own task line with its
+					// duration, so a slow start points at its phase.
+					const phase = async <T>(
+						titles: { start: string; done: string },
+						fn: (detail: (text: string) => void) => Promise<T>
+					) => {
+						const time = createTimer()
+						let detail = ''
 
-							return startDev({
-								appConfig,
-								stackConfigs,
-								port,
-								pool,
-								onLog(message) {
-									logger(message)
-								},
-							}).finally(() => {
-								logger = message => log.step(message)
-							})
+						return log.task({
+							initialMessage: titles.start,
+							errorMessage: `${titles.start.replace(/\.\.\.$/, '')} failed.`,
+							task: ({ updateMessage, updateSuccessMessage }) => {
+								logger = updateMessage
+
+								return fn(text => (detail = text))
+									.then(result => {
+										updateSuccessMessage(
+											`${titles.done} in ${time()}${detail ? color.dim(` (${detail})`) : ''}`
+										)
+										return result
+									})
+									.finally(() => {
+										logger = message => log.step(message)
+									})
+							},
+						})
+					}
+
+					instance = await startDev({
+						appConfig,
+						stackConfigs,
+						port,
+						pool,
+						phase,
+						onLog(message) {
+							logger(message)
 						},
 					})
+
+					log.success('Local dev environment ready.')
 
 					log.list('Endpoints', {
 						Dashboard: color.info(`http://localhost:${instance.dashboardPort}`),

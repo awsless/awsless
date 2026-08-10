@@ -108,6 +108,8 @@ export const dashboardHtml = `<!doctype html>
 		cursor: pointer;
 	}
 	nav button .count { margin-left: auto; }
+	nav button.reseed { margin-top: auto; color: var(--muted); }
+	nav button.reseed:disabled { cursor: default; }
 	.icon {
 		width: 15px;
 		height: 15px;
@@ -157,12 +159,16 @@ export const dashboardHtml = `<!doctype html>
 	.filters input { flex: 1; }
 	.filters input::placeholder { color: var(--muted); }
 	.filters .count { color: var(--muted); align-self: center; white-space: nowrap; }
-	.rows { display: flex; flex-direction: column; }
+	/* The stack & name columns share one grid across every row, so the
+	   names line up no matter how long each stack name is. */
+	.rows { display: grid; grid-template-columns: fit-content(280px) 1fr auto; }
+	.rows > .empty { grid-column: 1 / -1; }
 	.row {
-		display: flex;
+		display: grid;
+		grid-template-columns: subgrid;
+		grid-column: 1 / -1;
 		gap: 12px;
 		align-items: baseline;
-		width: 100%;
 		text-align: left;
 		background: none;
 		border: none;
@@ -180,14 +186,20 @@ export const dashboardHtml = `<!doctype html>
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.row .id { font-weight: bold; }
-	.row .info {
-		color: var(--muted);
-		margin-left: auto;
+	.row .id {
+		font-weight: bold;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		max-width: 45%;
+	}
+	.row .info {
+		color: var(--muted);
+		justify-self: end;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 100%;
 	}
 	textarea {
 		width: 100%;
@@ -304,6 +316,7 @@ const ICONS = {
 	config: svg('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
 	route: svg('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'),
 	site: svg('<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
+	seed: svg('<path d="M12 22V8"/><path d="M12 8C12 5 9 2 5 2c0 4 3 6 7 6z"/><path d="M12 12c0-3 3-6 7-6 0 4-3 6-7 6z"/>'),
 }
 
 const icon = kind => {
@@ -479,6 +492,19 @@ const rpcPanel = (main, r) => {
 	}
 
 	const query = $('select', {}, r.queries.map(name => $('option', { value: name, textContent: name })))
+
+	// The token rides the same "authentication" header the rpc client
+	// sends, & sticks around per api so a page reload keeps it.
+	const authKey = 'rpc-auth-token:' + r.routeKey
+	const auth = $('input', {
+		type: 'text',
+		placeholder: 'Auth token (optional)',
+		value: localStorage.getItem(authKey) ?? '',
+		autocomplete: 'off',
+		spellcheck: false,
+	})
+	auth.oninput = () => localStorage.setItem(authKey, auth.value)
+
 	const payload = $('textarea', { value: '{}', spellcheck: false })
 	const status = $('span', { className: 'status' })
 	const result = $('pre', { className: 'result', hidden: true })
@@ -497,7 +523,10 @@ const rpcPanel = (main, r) => {
 				version: '2.0',
 				rawPath: '/',
 				requestContext: { http: { method: 'POST', userAgent: 'awsless dev dashboard', sourceIp: '127.0.0.1' } },
-				headers: { 'content-type': 'application/json' },
+				headers: {
+					'content-type': 'application/json',
+					...(auth.value.trim() ? { authentication: auth.value.trim() } : {}),
+				},
 				body: JSON.stringify([{ name: query.value, ...(parsed === undefined ? {} : { payload: parsed }) }]),
 			}
 
@@ -521,7 +550,7 @@ const rpcPanel = (main, r) => {
 	}
 
 	main.append(
-		$('div', { className: 'filters' }, [query]),
+		$('div', { className: 'filters' }, [query, auth]),
 		payload,
 		$('div', { className: 'actions' }, [run, status]),
 		result,
@@ -773,12 +802,19 @@ const configPanel = async (main) => {
 	const names = [...new Set(state.resources.filter(r => r.kind === 'config').map(r => r.id))].sort()
 	const data = await api('/api/config')
 	const values = data.values ?? {}
+	const pulled = new Set(data.pulled ?? [])
 
 	const inputs = new Map()
 	const form = $('div', { className: 'config-form' })
 
 	for (const name of names) {
-		const input = $('input', { value: values[name] ?? '', placeholder: 'not set', spellcheck: false })
+		// An empty input falls through to the value pulled from ssm on
+		// boot - the placeholder shows whether the pull provided one.
+		const input = $('input', {
+			value: values[name] ?? '',
+			placeholder: pulled.has(name) ? 'pulled from ssm' : 'not set',
+			spellcheck: false,
+		})
 		inputs.set(name, input)
 		form.append($('label', { className: 'field' }, [$('span', { className: 'name' }, name), input]))
 	}
@@ -955,6 +991,46 @@ const render = () => {
 		])
 		button.onclick = () => selectKind(kind)
 		nav.append(button)
+	}
+
+	if (state.seeds) {
+		const reseed = $('button', { className: 'reseed' }, [icon('seed'), 'Reset & seed'])
+		let armed = false
+		let disarm
+
+		reseed.onclick = async () => {
+			// The reset wipes all local data, so it asks for a second
+			// click before running.
+			if (!armed) {
+				armed = true
+				reseed.lastChild.textContent = 'Click to confirm'
+				disarm = setTimeout(() => {
+					armed = false
+					reseed.lastChild.textContent = 'Reset & seed'
+				}, 3000)
+				return
+			}
+
+			clearTimeout(disarm)
+			armed = false
+			reseed.disabled = true
+			reseed.lastChild.textContent = 'Seeding...'
+
+			try {
+				const res = await fetch('/api/seed', { method: 'POST' })
+				const data = await res.json()
+				reseed.lastChild.textContent = data.ok ? 'Done' : 'Failed'
+			} catch {
+				reseed.lastChild.textContent = 'Failed'
+			}
+
+			setTimeout(() => {
+				reseed.disabled = false
+				reseed.lastChild.textContent = 'Reset & seed'
+			}, 2000)
+		}
+
+		nav.append(reseed)
 	}
 
 	const main = document.getElementById('main')

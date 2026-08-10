@@ -122,6 +122,11 @@ const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: 
 	// The client can never hijack the routing.
 	headers[ROUTE_HEADER] = route.routeKey!
 
+	// CloudFront fronts every deployed router & the runtime reads its
+	// viewer headers, so the local router synthesizes the essentials.
+	headers['cloudfront-viewer-address'] ??= `${sourceIp}:0`
+	headers['cloudfront-viewer-country'] ??= 'US'
+
 	// Param values are passed to the function as request headers.
 	for (const [name, value] of Object.entries(route.params)) {
 		headers[`x-param-${name.toLowerCase()}`] = value
@@ -304,7 +309,13 @@ export const startDevRouter = async (props: { routes: DevRoute[]; port: number; 
 					redirect: 'manual',
 				})
 
-				return new Response(proxied.body, { status: proxied.status, headers: proxied.headers })
+				return new Response(proxied.body, {
+					status: proxied.status,
+					// Status texts carry meaning for dev servers, like
+					// vite's "Outdated Optimize Dep" on a 504.
+					statusText: proxied.statusText,
+					headers: proxied.headers,
+				})
 			}
 
 			if (!route.routeKey) {

@@ -307,7 +307,10 @@ var VERSION_2_8_0 = {
     "http.port": port,
     "path.data": `${cache}/data`,
     "path.logs": `${cache}/logs`,
-    "plugins.security.disabled": true
+    "plugins.security.disabled": true,
+    // A local throwaway server must keep working on a nearly full
+    // disk, instead of tripping the watermark index blocks.
+    "cluster.routing.allocation.disk.threshold_enabled": false
   })
 };
 

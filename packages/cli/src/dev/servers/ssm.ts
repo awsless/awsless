@@ -12,6 +12,10 @@ export const createSsmServer = (props: { file: string }) => {
 
 	const warned = new Set<string>()
 
+	// The in-memory layer under the local file: the values pulled from
+	// ssm on boot. They never touch disk.
+	let pulled: Record<string, string> = {}
+
 	const loadValues = async (): Promise<Record<string, string>> => {
 		try {
 			return JSON.parse(await readFile(props.file, 'utf8'))
@@ -23,6 +27,11 @@ export const createSsmServer = (props: { file: string }) => {
 	return {
 		connect(logFn?: (message: string) => void) {
 			log = logFn
+		},
+		// Rebinds every dev run, since the server itself is pooled across
+		// config restarts.
+		setValues(next: { pulled: Record<string, string> }) {
+			pulled = next.pulled
 		},
 		// Binds immediately on a free port & returns the actual port, so
 		// a stale reserved port can never end up in the environment.
@@ -52,7 +61,10 @@ export const createSsmServer = (props: { file: string }) => {
 					for (const name of Names ?? []) {
 						// Config parameters live at /.awsless/<app>/<name>
 						const key = name.split('/').at(-1)!
-						const value = values[key]
+
+						// A local override always wins & the pulled ssm value
+						// fills the gaps.
+						const value = values[key] ?? pulled[key]
 
 						if (typeof value === 'string') {
 							parameters.push({ Name: name, Type: 'SecureString', Value: value })
@@ -62,7 +74,7 @@ export const createSsmServer = (props: { file: string }) => {
 							// handler actually reads the missing config value.
 							warned.add(key)
 							log?.(
-								`The "${key}" config has no local value yet. Set it on the dashboard or in ${props.file}`
+								`The "${key}" config has no value - the ssm pull didn't provide one. Set it with "awsless config set ${key}" or on the dashboard.`
 							)
 						}
 					}

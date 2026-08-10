@@ -25,11 +25,11 @@ describe('Todo', () => {
 	})
 
 	it('config', async () => {
-		mock.config.maxTasks('1')
+		mock.config.MAX_TASKS = '1'
 
 		await expect(create({ name: 'Over the limit' })).rejects.toThrow('task limit')
 
-		mock.config.maxTasks('10')
+		mock.config.MAX_TASKS = '10'
 	})
 
 	it('search', async () => {

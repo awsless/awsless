@@ -219,6 +219,7 @@ const IndexSchema = z
 			.optional()
 			.describe('The OpenSearch index settings, applied when the index is created.'),
 	})
+	.strict()
 	.refine(props => !(props.schema && props.mappings), {
 		message: 'Define either "schema" or "mappings" for an index, not both.',
 	})

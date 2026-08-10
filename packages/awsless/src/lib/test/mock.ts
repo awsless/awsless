@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest'
 import { createProxy } from '../proxy.js'
 import { getAlertName } from '../server/alert.js'
-import { setConfigValue } from '../server/config.js'
+import { getConfigValue, setConfigValue } from '../server/config.js'
 import { getFunctionName } from '../server/function.js'
 import { getInstanceQueueName } from '../server/instance.js'
 import { getJobName } from '../server/job.js'
@@ -42,7 +42,7 @@ export interface TestMock {}
 //   mock.function.currency.list(payload => ({ .. })) // custom impl
 //   expect(mock.function.currency.list).toHaveBeenCalled()
 //   expect(mock.topic.tenantRegistered).not.toHaveBeenCalled()
-//   mock.config.jwtSecret('other-value')
+//   mock.config.JWT_SECRET = 'other-value'
 export const mock: TestMock = {
 	function: createProxy(stack => {
 		return createProxy(name => overridable(testRegistry.functions, getFunctionName(name, stack)))
@@ -62,5 +62,29 @@ export const mock: TestMock = {
 	instance: createProxy(stack => {
 		return createProxy(name => overridable(testRegistry.instances, getInstanceQueueName(name, stack)))
 	}),
-	config: createProxy(name => (value: string) => setConfigValue(name, value)),
+	// Config values assign like plain properties & read back the
+	// current value: mock.config.MAX_BET = '1'
+	config: new Proxy(
+		{},
+		{
+			get(_, name) {
+				if (typeof name !== 'string') {
+					return undefined
+				}
+
+				try {
+					return getConfigValue(name)
+				} catch (_) {
+					return undefined
+				}
+			},
+			set(_, name, value) {
+				if (typeof name === 'string') {
+					setConfigValue(name, String(value))
+				}
+
+				return true
+			},
+		}
+	),
 } as TestMock

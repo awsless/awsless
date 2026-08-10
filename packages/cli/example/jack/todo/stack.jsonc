@@ -1,6 +1,7 @@
 {
 	"$schema": "../../../dist/stack.json",
 	"name": "todo",
+	"seed": "./seed.ts",
 	"tests": "./test",
 
 	"rpc": {

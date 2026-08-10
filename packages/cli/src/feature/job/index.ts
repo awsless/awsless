@@ -33,7 +33,7 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
 
 // Calling overrides the implementation & the same value works as the
 // vitest mock inside expect().

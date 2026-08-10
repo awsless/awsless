@@ -7,6 +7,7 @@ import { StackConfig } from '../../config/stack.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
+import { isWiping } from '../../dev/reset.js'
 import { formatRouteKey } from '../bundle/util.js'
 import { formatTableKeys } from './util.js'
 
@@ -169,6 +170,11 @@ export const tableOnDev = async (ctx: DevContext) => {
 					const eventSourceARN = `arn:aws:dynamodb:${ctx.appConfig.region}:000000000000:table/${name}/stream/local`
 
 					const unsubscribe = server.onStreamRecord(name, record => {
+						// Reset wipes are bookkeeping, not app activity.
+						if (isWiping()) {
+							return
+						}
+
 						const event = { Records: [{ ...record, eventSourceARN }] }
 
 						dispatch(event).catch(error => {

@@ -7,6 +7,6 @@ export const consumer = <S extends GenericSchema | undefined, H extends Handler<
 	return lambda({
 		schema,
 		handle,
-		throwExpectedErrors: true,
+		throwExpectedErrors: !!process.env.THROW_EXPECTED_ERRORS,
 	})
 }

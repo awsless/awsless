@@ -18,6 +18,7 @@ export * from './lib/server/on-failure.js';
 export * from './lib/server/pubsub.js';
 export * from './lib/server/queue.js';
 export * from './lib/server/search.js';
+export * from './lib/server/seed.js';
 export * from './lib/server/store.js';
 export * from './lib/server/table.js';
 export * from './lib/server/task.js';
