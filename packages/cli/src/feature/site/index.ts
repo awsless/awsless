@@ -49,6 +49,10 @@ export const siteFeature = defineFeature({
 						const env: Record<string, string | undefined> = {
 							...process.env,
 
+							// Never inherit NODE_ENV=test from an in-process test run,
+							// it would flip the Config proxy into mock mode mid-build.
+							NODE_ENV: 'production',
+
 							// Pass the app config name
 							APP: ctx.appConfig.name,
 
