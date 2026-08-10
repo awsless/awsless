@@ -191,7 +191,6 @@ export const authFeature = defineFeature({
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
-					import: ctx.import ? name : undefined,
 				}
 			)
 

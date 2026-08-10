@@ -99,16 +99,25 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const queue = new aws.sqs.Queue(group, 'queue', {
-				name: `${baseName}.fifo`,
-				visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
-				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
-				messageRetentionSeconds: toSeconds(props.retentionPeriod),
-				maxMessageSize: toBytes(props.maxMessageSize),
-				fifoQueue: true,
-				deduplicationScope: 'messageGroup',
-				fifoThroughputLimit: 'perMessageGroupId',
-			})
+			const queue = new aws.sqs.Queue(
+				group,
+				'queue',
+				{
+					name: `${baseName}.fifo`,
+					visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
+					receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
+					messageRetentionSeconds: toSeconds(props.retentionPeriod),
+					maxMessageSize: toBytes(props.maxMessageSize),
+					fifoQueue: true,
+					deduplicationScope: 'messageGroup',
+					fifoThroughputLimit: 'perMessageGroupId',
+				},
+				{
+					import: ctx.import
+						? `https://sqs.${ctx.appConfig.region}.amazonaws.com/${ctx.accountId}/${baseName}.fifo`
+						: undefined,
+				}
+			)
 
 			if (local.consumer) {
 				// The bundle routes the queue event to the right consumer based on the event source arn.

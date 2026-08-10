@@ -325,22 +325,29 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// ------------------------------------------------------------
 	// The lambda role & permissions.
 
-	const role = new aws.iam.Role(group, 'role', {
-		name: roleName,
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['lambda.amazonaws.com'],
+	const role = new aws.iam.Role(
+		group,
+		'role',
+		{
+			name: roleName,
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['lambda.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-	})
+				],
+			}),
+		},
+		{
+			import: ctx.import ? roleName : undefined,
+		}
+	)
 
 	const statements: Permission[] = []
 	const statementDeps: Set<any> = new Set()
@@ -467,6 +474,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		},
 		{
 			dependsOn,
+			import: ctx.import ? name : undefined,
 		}
 	)
 
@@ -617,10 +625,17 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// Logging
 
 	if (props.log.retention!.value > 0n) {
-		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/lambda/${name}`,
-			retentionInDays: toDays(props.log.retention),
-		})
+		const logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/lambda/${name}`,
+				retentionInDays: toDays(props.log.retention),
+			},
+			{
+				import: ctx.import ? `/aws/lambda/${name}` : undefined,
+			}
+		)
 
 		addPermission({
 			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
@@ -739,22 +754,29 @@ export const createLambdaFunctionFromZip = (
 	// ------------------------------------------------------------
 	// The lambda role & permissions.
 
-	const role = new aws.iam.Role(group, 'role', {
-		name: roleName,
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['lambda.amazonaws.com'],
+	const role = new aws.iam.Role(
+		group,
+		'role',
+		{
+			name: roleName,
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['lambda.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-	})
+				],
+			}),
+		},
+		{
+			import: ctx.import ? roleName : undefined,
+		}
+	)
 
 	const statements: Permission[] = []
 	const statementDeps: Set<any> = new Set()
@@ -865,6 +887,7 @@ export const createLambdaFunctionFromZip = (
 		},
 		{
 			dependsOn,
+			import: ctx.import ? name : undefined,
 		}
 	)
 
@@ -928,10 +951,17 @@ export const createLambdaFunctionFromZip = (
 	const retention = props.log?.retention
 
 	if (retention && retention.value > 0n) {
-		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/lambda/${name}`,
-			retentionInDays: toDays(retention),
-		})
+		const logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/lambda/${name}`,
+				retentionInDays: toDays(retention),
+			},
+			{
+				import: ctx.import ? `/aws/lambda/${name}` : undefined,
+			}
+		)
 
 		addPermission({
 			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],

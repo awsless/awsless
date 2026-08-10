@@ -21,32 +21,54 @@ export const onFailureFeature = defineFeature({
 		// ----------------------------------------------------------------
 		// Create a deadletter as last resort to all failing on-failure tasks
 
-		const deadletter = new aws.sqs.Queue(group, 'deadletter', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'on-failure',
-				resourceName: 'deadletter',
-			}),
-			messageRetentionSeconds: toSeconds(days(14)),
+		const deadletterName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'deadletter',
 		})
+
+		const deadletter = new aws.sqs.Queue(
+			group,
+			'deadletter',
+			{
+				name: deadletterName,
+				messageRetentionSeconds: toSeconds(days(14)),
+			},
+			{
+				import: ctx.import
+					? `https://sqs.${ctx.appConfig.region}.amazonaws.com/${ctx.accountId}/${deadletterName}`
+					: undefined,
+			}
+		)
 
 		// ----------------------------------------------------------------
 
 		const handlerTimeout = toSeconds(props.consumer.timeout ?? ctx.appConfig.defaults.function.timeout)
-		const queue = new aws.sqs.Queue(group, 'on-failure', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'on-failure',
-				resourceName: 'failure',
-			}),
-			visibilityTimeoutSeconds: handlerTimeout * 2,
-			redrivePolicy: deadletter.arn.pipe(deadLetterTargetArn => {
-				return JSON.stringify({
-					deadLetterTargetArn,
-					maxReceiveCount: 3,
-				})
-			}),
+		const queueName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'failure',
 		})
+
+		const queue = new aws.sqs.Queue(
+			group,
+			'on-failure',
+			{
+				name: queueName,
+				visibilityTimeoutSeconds: handlerTimeout * 2,
+				redrivePolicy: deadletter.arn.pipe(deadLetterTargetArn => {
+					return JSON.stringify({
+						deadLetterTargetArn,
+						maxReceiveCount: 3,
+					})
+				}),
+			},
+			{
+				import: ctx.import
+					? `https://sqs.${ctx.appConfig.region}.amazonaws.com/${ctx.accountId}/${queueName}`
+					: undefined,
+			}
+		)
 
 		// ----------------------------------------------------------------
 		// Create a s3 bucket to capture all lambda failures
@@ -59,23 +81,32 @@ export const onFailureFeature = defineFeature({
 			aws/lambda/<UUID>/<shard-id>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
 		*/
 
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'on-failure',
-				resourceName: 'failure',
-				postfix: ctx.appId,
-			}),
-			lifecycleRule: [
-				{
-					id: 'ttl',
-					enabled: true,
-					expiration: {
-						days: 14,
-					},
-				},
-			],
+		const bucketName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'failure',
+			postfix: ctx.appId,
 		})
+
+		const bucket = new aws.s3.Bucket(
+			group,
+			'bucket',
+			{
+				bucket: bucketName,
+				lifecycleRule: [
+					{
+						id: 'ttl',
+						enabled: true,
+						expiration: {
+							days: 14,
+						},
+					},
+				],
+			},
+			{
+				import: ctx.import ? bucketName : undefined,
+			}
+		)
 
 		ctx.shared.set('on-failure', 'resources', {
 			group,
@@ -86,13 +117,24 @@ export const onFailureFeature = defineFeature({
 		const notify = props.notify
 
 		if (notify) {
-			const topic = new aws.sns.Topic(group, 'deadletter-topic', {
-				name: formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'on-failure',
-					resourceName: 'deadletter',
-				}),
+			const topicName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-failure',
+				resourceName: 'deadletter',
 			})
+
+			const topic = new aws.sns.Topic(
+				group,
+				'deadletter-topic',
+				{
+					name: topicName,
+				},
+				{
+					import: ctx.import
+						? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${topicName}`
+						: undefined,
+				}
+			)
 
 			for (const email of notify) {
 				new aws.sns.TopicSubscription(group, email, {
@@ -102,80 +144,98 @@ export const onFailureFeature = defineFeature({
 				})
 			}
 
-			const role = new aws.iam.Role(group, 'deadletter-topic-role', {
-				name: formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'on-failure',
-					resourceName: 'pipe',
-				}),
-				description: `${ctx.app.name} on-failure deadletter notification pipe`,
-				assumeRolePolicy: JSON.stringify({
-					Version: '2012-10-17',
-					Statement: [
-						{
-							Effect: 'Allow',
-							Action: 'sts:AssumeRole',
-							Principal: {
-								Service: ['pipes.amazonaws.com'],
-							},
-						},
-					],
-				}),
-				inlinePolicy: [
-					{
-						name: 'deadletter-topic',
-						policy: topic.arn.pipe(topicArn =>
-							deadletter.arn.pipe(queueArn =>
-								JSON.stringify({
-									Version: '2012-10-17',
-									Statement: [
-										{
-											Effect: 'Allow',
-											Action: [
-												'sqs:ReceiveMessage',
-												'sqs:DeleteMessage',
-												'sqs:GetQueueAttributes',
-												'sqs:ChangeMessageVisibility',
-											],
-											Resource: queueArn,
-										},
-										{
-											Effect: 'Allow',
-											Action: ['sns:Publish'],
-											Resource: topicArn,
-										},
-									],
-								})
-							)
-						),
-					},
-				],
+			const roleName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-failure',
+				resourceName: 'pipe',
 			})
 
-			new aws.pipes.Pipe(group, 'deadletter-topic-pipe', {
-				name: formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'on-failure',
-					resourceName: 'notify',
-				}),
-				roleArn: role.arn,
-				source: deadletter.arn,
-				target: topic.arn,
-				sourceParameters: {
-					sqsQueueParameters: {
-						batchSize: 1,
+			const role = new aws.iam.Role(
+				group,
+				'deadletter-topic-role',
+				{
+					name: roleName,
+					description: `${ctx.app.name} on-failure deadletter notification pipe`,
+					assumeRolePolicy: JSON.stringify({
+						Version: '2012-10-17',
+						Statement: [
+							{
+								Effect: 'Allow',
+								Action: 'sts:AssumeRole',
+								Principal: {
+									Service: ['pipes.amazonaws.com'],
+								},
+							},
+						],
+					}),
+					inlinePolicy: [
+						{
+							name: 'deadletter-topic',
+							policy: topic.arn.pipe(topicArn =>
+								deadletter.arn.pipe(queueArn =>
+									JSON.stringify({
+										Version: '2012-10-17',
+										Statement: [
+											{
+												Effect: 'Allow',
+												Action: [
+													'sqs:ReceiveMessage',
+													'sqs:DeleteMessage',
+													'sqs:GetQueueAttributes',
+													'sqs:ChangeMessageVisibility',
+												],
+												Resource: queueArn,
+											},
+											{
+												Effect: 'Allow',
+												Action: ['sns:Publish'],
+												Resource: topicArn,
+											},
+										],
+									})
+								)
+							),
+						},
+					],
+				},
+				{
+					import: ctx.import ? roleName : undefined,
+				}
+			)
+
+			const pipeName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-failure',
+				resourceName: 'notify',
+			})
+
+			new aws.pipes.Pipe(
+				group,
+				'deadletter-topic-pipe',
+				{
+					name: pipeName,
+					roleArn: role.arn,
+					source: deadletter.arn,
+					target: topic.arn,
+					sourceParameters: {
+						sqsQueueParameters: {
+							batchSize: 1,
+						},
+					},
+					targetParameters: {
+						inputTemplate: [
+							`Awsless on-failure DLQ message`,
+							`App: ${ctx.app.name}`,
+							`Sent: <$.attributes.SentTimestamp>`,
+							'',
+							`Body:\n<$.body>`,
+						].join('\n'),
 					},
 				},
-				targetParameters: {
-					inputTemplate: [
-						`Awsless on-failure DLQ message`,
-						`App: ${ctx.app.name}`,
-						`Sent: <$.attributes.SentTimestamp>`,
-						'',
-						`Body:\n<$.body>`,
-					].join('\n'),
-				},
-			})
+				{
+					import: ctx.import ? pipeName : undefined,
+				}
+			)
 		}
 	},
 	onApp(ctx) {

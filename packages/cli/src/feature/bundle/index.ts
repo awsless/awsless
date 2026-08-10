@@ -138,22 +138,29 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// The bundle role & permissions.
 
-		const role = new aws.iam.Role(group, 'role', {
-			name: shortName,
-			description: name,
-			assumeRolePolicy: JSON.stringify({
-				Version: '2012-10-17',
-				Statement: [
-					{
-						Effect: 'Allow',
-						Action: 'sts:AssumeRole',
-						Principal: {
-							Service: ['lambda.amazonaws.com'],
+		const role = new aws.iam.Role(
+			group,
+			'role',
+			{
+				name: shortName,
+				description: name,
+				assumeRolePolicy: JSON.stringify({
+					Version: '2012-10-17',
+					Statement: [
+						{
+							Effect: 'Allow',
+							Action: 'sts:AssumeRole',
+							Principal: {
+								Service: ['lambda.amazonaws.com'],
+							},
 						},
-					},
-				],
-			}),
-		})
+					],
+				}),
+			},
+			{
+				import: ctx.import ? shortName : undefined,
+			}
+		)
 
 		const statements = new Set<Permission>()
 		const statementDeps: Set<any> = new Set()
@@ -272,6 +279,7 @@ export const bundleFeature = defineFeature({
 
 		const lambda = new aws.lambda.Function(group, 'function', lambdaProps, {
 			dependsOn: [vpcPolicy],
+			import: ctx.import ? name : undefined,
 		})
 
 		// ------------------------------------------------------
@@ -355,10 +363,17 @@ export const bundleFeature = defineFeature({
 		let logGroup: aws.cloudwatch.LogGroup | undefined
 
 		if (defaults.log.retention!.value > 0n) {
-			logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-				name: `/aws/lambda/${name}`,
-				retentionInDays: toDays(defaults.log.retention),
-			})
+			logGroup = new aws.cloudwatch.LogGroup(
+				group,
+				'log',
+				{
+					name: `/aws/lambda/${name}`,
+					retentionInDays: toDays(defaults.log.retention),
+				},
+				{
+					import: ctx.import ? `/aws/lambda/${name}` : undefined,
+				}
+			)
 
 			addPermission({
 				actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],

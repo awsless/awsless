@@ -17,11 +17,18 @@ export const domainFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'domain', 'mail')
 
-		new aws.ses.ConfigurationSet(group, 'config', {
-			name: ctx.app.name,
-			reputationMetricsEnabled: true,
-			sendingEnabled: true,
-		})
+		new aws.ses.ConfigurationSet(
+			group,
+			'config',
+			{
+				name: ctx.app.name,
+				reputationMetricsEnabled: true,
+				sendingEnabled: true,
+			},
+			{
+				import: ctx.import ? ctx.app.name : undefined,
+			}
+		)
 
 		// ctx.shared.set(`mail-configuration-set`, configurationSet.name)
 
@@ -71,9 +78,16 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Let SES verify our domain
 
-			const identity = new aws.ses.DomainIdentity(group, 'mail', {
-				domain: props.domain,
-			})
+			const identity = new aws.ses.DomainIdentity(
+				group,
+				'mail',
+				{
+					domain: props.domain,
+				},
+				{
+					import: ctx.import ? props.domain : undefined,
+				}
+			)
 
 			const verificationRecord = new aws.route53.Record(group, `verification`, {
 				zoneId: zone.id,
@@ -86,9 +100,16 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// DKIM
 
-			const dkim = new aws.ses.DomainDkim(group, 'dkim', {
-				domain: props.domain,
-			})
+			const dkim = new aws.ses.DomainDkim(
+				group,
+				'dkim',
+				{
+					domain: props.domain,
+				},
+				{
+					import: ctx.import ? props.domain : undefined,
+				}
+			)
 
 			for (let i = 0; i < 3; i++) {
 				new aws.route53.Record(group, `dkim-${i}`, {
@@ -103,11 +124,18 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Mail from
 
-			const mailFrom = new aws.ses.DomainMailFrom(group, 'mail-from', {
-				domain: identity.domain,
-				mailFromDomain: `mail.${props.domain}`,
-				behaviorOnMxFailure: 'UseDefaultValue',
-			})
+			const mailFrom = new aws.ses.DomainMailFrom(
+				group,
+				'mail-from',
+				{
+					domain: identity.domain,
+					mailFromDomain: `mail.${props.domain}`,
+					behaviorOnMxFailure: 'UseDefaultValue',
+				},
+				{
+					import: ctx.import ? props.domain : undefined,
+				}
+			)
 
 			new aws.route53.Record(group, `MX`, {
 				zoneId: zone.id,

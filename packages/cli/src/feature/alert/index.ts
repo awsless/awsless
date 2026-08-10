@@ -57,9 +57,16 @@ export const alertFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new aws.sns.Topic(group, 'topic', {
-				name,
-			})
+			const topic = new aws.sns.Topic(
+				group,
+				'topic',
+				{
+					name,
+				},
+				{
+					import: ctx.import ? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${name}` : undefined,
+				}
+			)
 
 			for (const endpoint of endpoints) {
 				// Private endpoints reference a remote config value & are

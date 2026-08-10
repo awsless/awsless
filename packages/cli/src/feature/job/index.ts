@@ -108,6 +108,9 @@ export const jobFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import
+					? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:cluster/${ctx.app.name}-job`
+					: undefined,
 			}
 		)
 

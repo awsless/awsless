@@ -100,19 +100,27 @@ export const routerFeature = defineFeature({
 			})
 
 			// the function names are capped at 64 characters
-			const productionFunction = new aws.cloudfront.Function(group, 'production-function', {
-				name: `${name.slice(0, 52)}--production`,
-				runtime: 'cloudfront-js-2.0',
-				code: getViewerRequestFunctionCode({
-					router: id,
-					blockDirectAccess: !!props.domain,
-					redirectWww: !!props.domain && props.redirectWww,
-					basicAuth: props.basicAuth,
-					passwordAuth: props.passwordAuth,
-				}),
-				publish: true,
-				keyValueStoreAssociations: [routeStore!.arn],
-			})
+			const productionFunctionName = `${name.slice(0, 52)}--production`
+			const productionFunction = new aws.cloudfront.Function(
+				group,
+				'production-function',
+				{
+					name: productionFunctionName,
+					runtime: 'cloudfront-js-2.0',
+					code: getViewerRequestFunctionCode({
+						router: id,
+						blockDirectAccess: !!props.domain,
+						redirectWww: !!props.domain && props.redirectWww,
+						basicAuth: props.basicAuth,
+						passwordAuth: props.passwordAuth,
+					}),
+					publish: true,
+					keyValueStoreAssociations: [routeStore!.arn],
+				},
+				{
+					import: ctx.import ? productionFunctionName : undefined,
+				}
+			)
 
 			// ------------------------------------------------------------
 			// Add routes API

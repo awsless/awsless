@@ -101,23 +101,30 @@ export const createPubSubService = (
 	// ------------------------------------------------------------
 	// Permissions
 
-	const executionRole = new aws.iam.Role(group, 'execution-role', {
-		name: shortId(`${shortName}:execution-role`),
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['ecs-tasks.amazonaws.com'],
+	const executionRole = new aws.iam.Role(
+		group,
+		'execution-role',
+		{
+			name: shortId(`${shortName}:execution-role`),
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['ecs-tasks.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-		managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
-	})
+				],
+			}),
+			managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+		},
+		{
+			import: ctx.import ? shortId(`${shortName}:execution-role`) : undefined,
+		}
+	)
 
 	const role = new aws.iam.Role(
 		group,
@@ -157,6 +164,7 @@ export const createPubSubService = (
 		},
 		{
 			dependsOn: [code],
+			import: ctx.import ? shortId(`${shortName}:task-role`) : undefined,
 		}
 	)
 
@@ -188,10 +196,17 @@ export const createPubSubService = (
 
 	let logGroup: aws.cloudwatch.LogGroup | undefined
 	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/ecs/${name}`,
-			retentionInDays: toDays(props.log.retention),
-		})
+		logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/ecs/${name}`,
+				retentionInDays: toDays(props.log.retention),
+			},
+			{
+				import: ctx.import ? `/aws/ecs/${name}` : undefined,
+			}
+		)
 
 		// ------------------------------------------------------------
 		// Add log subscription

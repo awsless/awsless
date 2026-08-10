@@ -92,6 +92,9 @@ export const pubsubFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import
+					? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:cluster/${ctx.app.name}-pubsub`
+					: undefined,
 			}
 		)
 
@@ -124,9 +127,18 @@ export const pubsubFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new aws.sns.Topic(group, 'events', {
-				name: topicName,
-			})
+			const topic = new aws.sns.Topic(
+				group,
+				'events',
+				{
+					name: topicName,
+				},
+				{
+					import: ctx.import
+						? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${topicName}`
+						: undefined,
+				}
+			)
 
 			ctx.shared.add('pubsub', 'events-topic-arn', id, topic.arn)
 

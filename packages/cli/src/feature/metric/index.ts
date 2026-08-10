@@ -108,14 +108,25 @@ export const metricFeature = defineFeature({
 					// ----------------------------------------
 					// create email sns trigger
 
-					const topic = new aws.sns.Topic(alarmGroup, 'alarm-trigger', {
-						name: formatLocalResourceName({
-							appName: ctx.app.name,
-							stackName: ctx.stack.name,
-							resourceType: 'metric',
-							resourceName: alarmName,
-						}),
+					const topicName = formatLocalResourceName({
+						appName: ctx.app.name,
+						stackName: ctx.stack.name,
+						resourceType: 'metric',
+						resourceName: alarmName,
 					})
+
+					const topic = new aws.sns.Topic(
+						alarmGroup,
+						'alarm-trigger',
+						{
+							name: topicName,
+						},
+						{
+							import: ctx.import
+								? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${topicName}`
+								: undefined,
+						}
+					)
 
 					alarmAction = topic.arn
 
