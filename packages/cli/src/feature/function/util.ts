@@ -23,7 +23,7 @@ import { configParameterPrefix } from '../../util/ssm.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
 import { zipFiles } from '../bundle/build/zip.js'
-import { compactPolicyStatements, PolicyStatement } from '../bundle/policy.js'
+import { PolicyStatement } from '../bundle/policy.js'
 import { parseExportName } from '../bundle/util.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
@@ -371,7 +371,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(formatPolicyDocument(compactPolicyStatements(list)))
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 
@@ -578,14 +578,16 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 
 			proxy.addPermission({
 				actions: ['lambda:InvokeFunction'],
-				resources: [bundle.lambda.arn, bundle.lambda.arn.pipe(arn => `${arn}:*`)],
+				resources: [bundle.lambda.arn.pipe(arn => `${arn}:*`)],
 			})
 
 			variables.SANDBOX_PROXY = proxy.name
 
+			// Qualified invokes only, so sandboxed code can never reach the
+			// staged $LATEST allowlist before its deployment promotes.
 			addPermission({
 				actions: ['lambda:InvokeFunction'],
-				resources: [proxy.lambda.arn, proxy.lambda.arn.pipe(arn => `${arn}:*`)],
+				resources: [proxy.lambda.arn.pipe(arn => `${arn}:*`)],
 			})
 		}
 
@@ -771,7 +773,7 @@ export const createLambdaFunctionFromZip = (
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(formatPolicyDocument(compactPolicyStatements(list)))
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 

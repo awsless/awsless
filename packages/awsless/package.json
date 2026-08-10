@@ -27,7 +27,7 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm code test",
+		"test": "pnpm vitest run",
 		"build": "pnpm tsup ./src/server.ts ./src/client.ts --format esm --dts --clean",
 		"prepublish": "pnpm build"
 	},
@@ -48,7 +48,8 @@
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^"
+		"@awsless/weak-cache": "workspace:^",
+		"vitest": ">=4"
 	},
 	"dependencies": {
 		"@awsless/big-float": "workspace:^",

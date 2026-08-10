@@ -137,21 +137,21 @@ export const prune = (program: Command) => {
 					readLiveDeploymentId(lambda, functionName),
 				])
 
+				// The garbage sweeps below still run without prunable
+				// deployments, so leftovers of earlier prunes get collected.
 				const prunable = selectPrunableDeployments(items, liveId, options)
 
-				if (prunable.length === 0) {
-					return `Nothing to prune.`
-				}
+				if (prunable.length > 0) {
+					log.message(prunable.map(item => color.label(item.id)).join('\n'))
 
-				log.message(prunable.map(item => color.label(item.id)).join('\n'))
+					if (!process.env.SKIP_PROMPT) {
+						const ok = await prompt.confirm({
+							message: `Are you sure you want to delete these ${prunable.length} deployments?`,
+						})
 
-				if (!process.env.SKIP_PROMPT) {
-					const ok = await prompt.confirm({
-						message: `Are you sure you want to delete these ${prunable.length} deployments?`,
-					})
-
-					if (!ok) {
-						throw new Cancelled()
+						if (!ok) {
+							throw new Cancelled()
+						}
 					}
 				}
 
@@ -229,7 +229,7 @@ export const prune = (program: Command) => {
 						}),
 				})
 
-				return `Pruned ${prunable.length} deployments.`
+				return prunable.length > 0 ? `Pruned ${prunable.length} deployments.` : `Nothing to prune.`
 			})
 		})
 }

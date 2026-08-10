@@ -16,7 +16,7 @@ import { relativePath } from '../../util/path.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
-import { compactPolicyStatements, PolicyStatement } from './policy.js'
+import { PolicyStatement } from './policy.js'
 import { buildBundle, BundleHandler } from './util.js'
 import { formatPolicyDocument } from '../../util/policy.js'
 
@@ -173,7 +173,7 @@ export const bundleFeature = defineFeature({
 			policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 				const list = (await resolveInputs(Array.from(statements))) as PolicyStatement[]
 
-				resolve(formatPolicyDocument(compactPolicyStatements(list)))
+				resolve(formatPolicyDocument(list))
 			}),
 		})
 

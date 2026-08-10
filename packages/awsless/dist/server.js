@@ -232,7 +232,7 @@ import { mockLambda } from "@awsless/lambda";
 
 // src/lib/server/function.ts
 import { stringify as stringify3 } from "@awsless/json";
-import { invoke as invoke2 } from "@awsless/lambda";
+import { ExpectedError, invoke as invoke2 } from "@awsless/lambda";
 import { WeakCache } from "@awsless/weak-cache";
 var cache = new WeakCache();
 var getFunctionName = bindLocalResourceName("function");
@@ -258,6 +258,14 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
           });
         }
         if (!options.qualifier && !options.client) {
+          if (options.reflectViewableErrors === false) {
+            return internalInvoke(routeKey, payload).catch((error) => {
+              if (error instanceof ExpectedError) {
+                throw new Error(error.message);
+              }
+              throw error;
+            });
+          }
           return internalInvoke(routeKey, payload);
         }
       }

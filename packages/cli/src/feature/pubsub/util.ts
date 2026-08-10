@@ -1,7 +1,7 @@
 import { toDays } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { aws } from '@terraforge/aws'
-import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
+import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
 import { pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'

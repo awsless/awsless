@@ -1,6 +1,6 @@
 // import { Duration } from '@awsless/duration'
 import { stringify } from '@awsless/json'
-import { invoke, InvokeOptions } from '@awsless/lambda'
+import { ExpectedError, invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
 import {
@@ -58,6 +58,16 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 				// Calls between bundled functions run in-process,
 				// unless a qualifier or custom client is given.
 				if (!options.qualifier && !options.client) {
+					if (options.reflectViewableErrors === false) {
+						return internalInvoke(routeKey, payload).catch(error => {
+							if (error instanceof ExpectedError) {
+								throw new Error(error.message)
+							}
+
+							throw error
+						})
+					}
+
 					return internalInvoke(routeKey, payload)
 				}
 			}

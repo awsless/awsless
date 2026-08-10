@@ -10,6 +10,7 @@ import { formatGlobalResourceName } from '../../util/name.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
+import type { Mock } from 'vitest'
 
 type Alert<Name extends string> = {
 	readonly name: Name
