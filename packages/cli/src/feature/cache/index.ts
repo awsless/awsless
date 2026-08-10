@@ -58,6 +58,30 @@ export const cacheFeature = defineFeature({
 				description: name,
 			})
 
+			// An all-empty limits block still counts as a change against a
+			// cache without limits, and AWS rejects the resulting no-op
+			// modify call, so only send the block when a limit is set.
+			const dataStorage =
+				props.minStorage || props.maxStorage
+					? [
+							{
+								minimum: props.minStorage && toGibibytes(props.minStorage),
+								maximum: props.maxStorage && toGibibytes(props.maxStorage),
+								unit: 'GB' as const,
+							},
+						]
+					: []
+
+			const ecpuPerSecond =
+				props.minECPU || props.maxECPU
+					? [
+							{
+								minimum: props.minECPU,
+								maximum: props.maxECPU,
+							},
+						]
+					: []
+
 			const cache = new aws.elasticache.ServerlessCache(
 				group,
 				'cache',
@@ -69,29 +93,10 @@ export const cacheFeature = defineFeature({
 					snapshotRetentionLimit: props.snapshotRetentionLimit,
 					securityGroupIds: [securityGroup.id],
 					subnetIds: ctx.shared.get('vpc', 'private-subnets'),
-					cacheUsageLimits: [
-						{
-							dataStorage:
-								props.minStorage || props.maxStorage
-									? [
-											{
-												minimum: props.minStorage && toGibibytes(props.minStorage),
-												maximum: props.maxStorage && toGibibytes(props.maxStorage),
-												unit: 'GB',
-											},
-										]
-									: [],
-							ecpuPerSecond:
-								props.minECPU || props.maxECPU
-									? [
-											{
-												minimum: props.minECPU,
-												maximum: props.maxECPU,
-											},
-										]
-									: [],
-						},
-					],
+					cacheUsageLimits:
+						dataStorage.length > 0 || ecpuPerSecond.length > 0
+							? [{ dataStorage, ecpuPerSecond }]
+							: undefined,
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
