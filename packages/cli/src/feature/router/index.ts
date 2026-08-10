@@ -68,21 +68,24 @@ export const routerFeature = defineFeature({
 		let sharedGroup: Group | undefined
 
 		if (routers.length > 0) {
+			const storeName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'router',
+				resourceName: 'store',
+			})
+
 			sharedGroup = new Group(ctx.base, 'router', 'shared')
 			routeStore = new aws.cloudfront.KeyValueStore(
 				sharedGroup,
 				'routes',
 				{
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: 'store',
-					}),
+					name: storeName,
 					comment: 'Store for routes',
 				},
 				{
 					replaceOnChanges: ['name'],
 					createBeforeReplace: true,
+					import: ctx.import ? storeName : undefined,
 				}
 			)
 		}
