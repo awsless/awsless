@@ -5,6 +5,7 @@ import { readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { Builder, getBuildPath } from '../../build/index.js'
+import { directories } from '../../util/path.js'
 import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
@@ -98,6 +99,14 @@ export default createBundle({
 ${entries.join('\n')}
 })
 `
+		// The lockfile joins the fingerprint, so dependency updates
+		// rebuild the bundle - the source files alone can't see them.
+		const lockfile = await Promise.any(
+			['pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'package-lock.json', 'yarn.lock'].map(name =>
+				readFile(join(directories.root, name))
+			)
+		).catch(() => Buffer.alloc(0))
+
 		const hashes = await Promise.all([
 			readFile(runtime),
 			...handlers.map(handler =>
@@ -116,6 +125,8 @@ ${entries.join('\n')}
 					handlers.map(h => [h.external, h.importAsString, h.moduleSideEffects]),
 				])
 			)
+
+		hash.update(lockfile)
 
 		for (const item of hashes) {
 			hash.update(item)

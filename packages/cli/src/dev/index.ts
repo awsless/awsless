@@ -362,6 +362,8 @@ export const startDev = async (props: {
 		env,
 		storeRoot: join(directories.output, 'local', 'store'),
 		configFile: join(directories.output, 'local', 'config.json'),
+		getEmails: () =>
+			props.pool.peek<{ server: { list: () => unknown[] } }>('shim:ses-email')?.server.list() ?? [],
 		configPulled: Object.keys(props.pool.peek<Record<string, string>>('config:pull') ?? {}),
 		events: dev.events,
 	})

@@ -61,6 +61,7 @@ export type TestManifest = {
     };
 };
 export declare const testRegistry: {
+    emails: Record<string, Mock>;
     functions: Record<string, Mock>;
     tasks: Record<string, Mock>;
     queues: Record<string, Mock>;

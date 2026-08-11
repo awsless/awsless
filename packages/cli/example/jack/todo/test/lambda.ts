@@ -1,5 +1,5 @@
 import { ONE } from '@awsless/big-float'
-import { mock, Queue } from 'awsless'
+import { Email, mock, Queue } from 'awsless'
 import cleanup from '../src/cron/cleanup'
 import create from '../src/rpc/create'
 import list from '../src/rpc/list'
@@ -21,6 +21,22 @@ describe('Todo', () => {
 			id: expect.any(String),
 			name: 'My post',
 			done: false,
+		})
+	})
+
+	it('captures emails', async () => {
+		await Email.send({
+			from: 'noreply@jacksclub.dev',
+			to: ['ivan@jacksclub.dev'],
+			subject: 'Hello',
+			html: '<b>Hi!</b>',
+		})
+
+		expect(mock.email.send).toHaveBeenCalledWith({
+			from: 'noreply@jacksclub.dev',
+			to: ['ivan@jacksclub.dev'],
+			subject: 'Hello',
+			html: '<b>Hi!</b>',
 		})
 	})
 

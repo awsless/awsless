@@ -30,21 +30,45 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 	const projectRequire = createRequire(join(directories.root, 'noop.js'))
 	const ownRequire = createRequire(import.meta.url)
 
+	// A transitive dependency (like the sdk client of a library the
+	// project uses) lives in the pnpm store without being resolvable
+	// from the project root. Those instances match the app's lockfile,
+	// so they always win over the cli's own copies.
+	const resolveFromStore = async (name: string) => {
+		const store = join(directories.root, 'node_modules', '.pnpm')
+		const prefix = name.replaceAll('/', '+') + '@'
+
+		try {
+			const entries = (await readdir(store)).filter(entry => entry.startsWith(prefix))
+
+			// The highest version sorts last.
+			const best = entries.sort((a, b) =>
+				a.slice(prefix.length).localeCompare(b.slice(prefix.length), undefined, { numeric: true })
+			).at(-1)
+
+			return best ? join(store, best, 'node_modules', name) : undefined
+		} catch (_) {
+			return undefined
+		}
+	}
+
 	for (const name of packages) {
 		try {
 			projectRequire.resolve(`${name}/package.json`)
 			continue
 		} catch (_) {}
 
-		let source: string
+		let source = await resolveFromStore(name)
 
-		try {
-			source = dirname(ownRequire.resolve(`${name}/package.json`))
-		} catch (_) {
-			onWarn?.(
-				`The bundle imports "${name}", which is neither a project dependency nor shipped with the cli. Add it to your project dependencies.`
-			)
-			continue
+		if (!source) {
+			try {
+				source = dirname(ownRequire.resolve(`${name}/package.json`))
+			} catch (_) {
+				onWarn?.(
+					`The bundle imports "${name}", which is neither a project dependency nor shipped with the cli. Add it to your project dependencies.`
+				)
+				continue
+			}
 		}
 
 		const target = join(buildDir, 'node_modules', name)

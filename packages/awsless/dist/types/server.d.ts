@@ -10,6 +10,7 @@ export * from './lib/server/bundle.js';
 export * from './lib/server/cache.js';
 export * from './lib/server/config.js';
 export * from './lib/server/cron.js';
+export * from './lib/server/email.js';
 export * from './lib/server/function.js';
 export * from './lib/server/instance.js';
 export * from './lib/server/job.js';

@@ -33,7 +33,15 @@ const overridable = (registry: Record<string, Mock>, name: string) => {
 }
 
 // Filled in by the generated type definitions, one member per feature.
-export interface TestMock {}
+// The email entry is static: every app can send email.
+export interface TestMock {
+	readonly email: {
+		/** Every email sent through Email.send, recorded for assertions & overridable like any mock. */
+		readonly send: Mock<
+			(email: { from?: string; to?: string[]; subject?: string; html?: string }) => unknown
+		>
+	}
+}
 
 // The unified test mock api: every resource of the app is already
 // materialized, this overrides behavior & asserts calls.
@@ -42,6 +50,7 @@ export interface TestMock {}
 //   mock.function.currency.list(payload => ({ .. })) // custom impl
 //   expect(mock.function.currency.list).toHaveBeenCalled()
 //   expect(mock.topic.tenantRegistered).not.toHaveBeenCalled()
+//   expect(mock.email.send).toHaveBeenCalledWith({ to: [..], subject: .. })
 //   mock.config.JWT_SECRET = 'other-value'
 export const mock: TestMock = {
 	function: createProxy(stack => {
@@ -64,6 +73,11 @@ export const mock: TestMock = {
 	}),
 	// Config values assign like plain properties & read back the
 	// current value: mock.config.MAX_BET = '1'
+	email: {
+		get send() {
+			return overridable(testRegistry.emails, 'send')
+		},
+	},
 	config: new Proxy(
 		{},
 		{

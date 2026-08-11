@@ -201,6 +201,14 @@ export const dashboardHtml = `<!doctype html>
 		white-space: nowrap;
 		max-width: 100%;
 	}
+	.email-body {
+		width: 100%;
+		min-height: 480px;
+		background: #fff;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		margin-top: 12px;
+	}
 	textarea {
 		width: 100%;
 		min-height: 120px;
@@ -291,6 +299,7 @@ const GROUPS = [
 	['search', 'Searches'],
 	['store', 'Stores'],
 	['config', 'Config'],
+	['email', 'Emails'],
 	['route', 'Routes'],
 ]
 
@@ -313,6 +322,7 @@ const ICONS = {
 	cache: svg('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>'),
 	search: svg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
 	store: svg('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
+	email: svg('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
 	config: svg('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
 	route: svg('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'),
 	site: svg('<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
@@ -797,6 +807,60 @@ const storePanel = async (main, r) => {
 	]))
 }
 
+// Every email sent through Email.send during this session - captured
+// by the local ses shim instead of being delivered.
+const emailPanel = async (main) => {
+	const holder = $('div', {})
+	main.append(holder)
+
+	const render = async () => {
+		const data = await api('/api/emails')
+		const emails = data.emails ?? []
+		holder.innerHTML = ''
+
+		const refresh = $('button', { className: 'primary', textContent: 'Refresh' })
+		refresh.onclick = render
+		holder.append($('div', { className: 'actions' }, [refresh]))
+
+		if (emails.length === 0) {
+			holder.append($('p', { className: 'empty' }, 'No emails sent yet.'))
+			return
+		}
+
+		const rows = $('div', { className: 'rows' })
+
+		for (const email of emails) {
+			const row = $('button', { className: 'row' }, [
+				$('span', { className: 'stack' }, new Date(email.date).toLocaleTimeString()),
+				$('span', { className: 'id' }, email.subject ?? '(no subject)'),
+				$('span', { className: 'info' }, (email.to ?? []).join(', ')),
+			])
+			row.onclick = () => {
+				holder.innerHTML = ''
+
+				const back = $('button', { className: 'back', textContent: '← Emails' })
+				back.onclick = render
+				const frame = $('iframe', { className: 'email-body', sandbox: '' })
+
+				holder.append(
+					back,
+					$('h2', {}, email.subject ?? '(no subject)'),
+					$('p', { className: 'detail' }, [
+						'from ' + (email.from ?? '?') + ' · to ' + (email.to ?? []).join(', ') + ' · ' + new Date(email.date).toLocaleString(),
+					]),
+					frame,
+				)
+				frame.srcdoc = email.html ?? ''
+			}
+			rows.append(row)
+		}
+
+		holder.append(rows)
+	}
+
+	await render()
+}
+
 // One input per defined config, saved back to the local config file.
 const configPanel = async (main) => {
 	const names = [...new Set(state.resources.filter(r => r.kind === 'config').map(r => r.id))].sort()
@@ -902,6 +966,11 @@ const renderList = main => {
 		return configPanel(main)
 	}
 
+	// The email page lists every captured email of the session.
+	if (view.kind === 'email') {
+		return emailPanel(main)
+	}
+
 	const matches = r => {
 		if (filter.stack && r.stack !== filter.stack) return false
 		if (!filter.query) return true
@@ -984,10 +1053,12 @@ const render = () => {
 		const count = state.resources.filter(r => r.kind === kind).length
 		if (count === 0) continue
 
+		// The email outbox is a single feed, so a count of registered
+		// resources would only confuse.
 		const button = $('button', { className: view.kind === kind ? 'active' : '' }, [
 			icon(kind),
 			title,
-			$('span', { className: 'count' }, String(count)),
+			kind === 'email' ? '' : $('span', { className: 'count' }, String(count)),
 		])
 		button.onclick = () => selectKind(kind)
 		nav.append(button)

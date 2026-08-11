@@ -75,9 +75,18 @@ export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>;
 /** What a route or site handler may return: a web Response or a lambda url result object. */
 export type RouteResponse = Response | LambdaUrlResult;
 type RouteResult = RouteResponse | Promise<RouteResponse>;
+/** The lambda url result a route entry resolves to - a returned web Response converts into this shape. */
+export type RouteEntryResult = {
+    statusCode: number;
+    headers?: Record<string, string>;
+    cookies?: string[];
+    body?: string;
+    isBase64Encoded?: boolean;
+    [key: string]: unknown;
+};
 type HandlerContext = Parameters<Handler>[1];
 type RouteHandler<P extends RouteSchemaProps> = (request: RouteRequestOf<P>, context: HandlerContext) => RouteResult;
-type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<unknown>;
+type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<RouteEntryResult>;
 export declare function route<H extends RouteHandler<{}>>(handle: H): RouteEntry;
 export declare function route<P extends RouteSchemaProps>(props: P, handle: RouteHandler<P>): RouteEntry;
 export declare const site: <H extends RouteHandler<{}>>(handle: H) => (event: {

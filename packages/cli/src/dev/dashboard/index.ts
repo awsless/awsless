@@ -31,6 +31,8 @@ export const createDashboardServer = (props: {
 	env: Record<string, string>
 	storeRoot: string
 	configFile: string
+	// The emails captured by the local ses shim this session.
+	getEmails?: () => unknown[]
 	// The config names that resolved from the boot-time ssm pull.
 	configPulled?: string[]
 	// Re-runs the stack seed files, when any are configured.
@@ -246,6 +248,10 @@ export const createDashboardServer = (props: {
 					body: JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
 				}
 			}
+		}
+
+		if (url.pathname === '/api/emails') {
+			return { status: 200, body: JSON.stringify({ emails: props.getEmails?.() ?? [] }) }
 		}
 
 		if (url.pathname === '/api/config') {

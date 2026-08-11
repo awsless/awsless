@@ -222,7 +222,7 @@ var buildRequest = (props, parts) => {
     headers.set(name, value);
   }
   const method = event2.requestContext.http.method;
-  const domain = event2.requestContext.domainName || "localhost";
+  const domain = headers.get("x-forwarded-host") || event2.requestContext.domainName || "localhost";
   const path = event2.rawPath || event2.requestContext.http.path || "/";
   const protocol = headers.get("x-forwarded-proto") ?? "https";
   const url = `${protocol}://${domain}${path}${event2.rawQueryString ? `?${event2.rawQueryString}` : ""}`;
@@ -1049,6 +1049,7 @@ var hookTestCleanup = () => {
 
 // src/lib/test/setup.ts
 var testRegistry = {
+  emails: {},
   functions: {},
   tasks: {},
   queues: {},
@@ -1080,7 +1081,8 @@ var setupTestEnv = async (manifest, options) => {
     { mockSNS },
     { mockSQS },
     { mockCloudWatch },
-    { mockEcs }
+    { mockEcs },
+    { mockSES }
   ] = await Promise.all([
     import("@awsless/dynamodb"),
     import("@awsless/lambda"),
@@ -1089,7 +1091,8 @@ var setupTestEnv = async (manifest, options) => {
     import("@awsless/sns"),
     import("@awsless/sqs"),
     import("@awsless/cloudwatch"),
-    import("@awsless/ecs")
+    import("@awsless/ecs"),
+    import("@awsless/ses")
   ]);
   mockCloudWatch();
   hookTestCleanup();
@@ -1229,6 +1232,17 @@ var setupTestEnv = async (manifest, options) => {
   mockSQS(queues);
   mockSNS(topics);
   mockEcs(jobs);
+  testRegistry.emails.send = vi.fn(() => {
+  });
+  mockSES((input) => {
+    const email = input;
+    testRegistry.emails.send({
+      from: email.FromEmailAddress,
+      to: email.Destination?.ToAddresses,
+      subject: email.Content?.Simple?.Subject?.Data,
+      html: email.Content?.Simple?.Body?.Html?.Data
+    });
+  });
   beforeEach(() => {
     for (const registry of Object.values(testRegistry)) {
       for (const spy of Object.values(registry)) {
@@ -1274,6 +1288,11 @@ var mock = {
   }),
   // Config values assign like plain properties & read back the
   // current value: mock.config.MAX_BET = '1'
+  email: {
+    get send() {
+      return overridable(testRegistry.emails, "send");
+    }
+  },
   config: new Proxy(
     {},
     {
@@ -1397,6 +1416,14 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
   });
 });
 
+// src/lib/server/email.ts
+import { sendEmail } from "@awsless/ses";
+var Email = {
+  async send(props) {
+    await sendEmail(props);
+  }
+};
+
 // src/lib/server/metric.ts
 import {
   batchPutData,
@@ -1506,6 +1533,7 @@ export {
   Cache,
   Config,
   Cron,
+  Email,
   Fn,
   Instance,
   Job,

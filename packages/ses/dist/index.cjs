@@ -18,21 +18,22 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   mockSES: () => mockSES,
   sendEmail: () => sendEmail,
   sesClient: () => sesClient
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/mock.ts
 var import_client_sesv2 = require("@aws-sdk/client-sesv2");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
-var mockSES = () => {
-  const fn = vi.fn();
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_sesv2.SESv2Client).on(import_client_sesv2.SendEmailCommand).callsFake(() => {
-    fn();
+var mockSES = (handler) => {
+  const fn = vi.fn(handler ?? (() => {
+  }));
+  (0, import_aws_sdk_client_mock.mockClient)(import_client_sesv2.SESv2Client).on(import_client_sesv2.SendEmailCommand).callsFake((input) => {
+    fn(input);
   });
   beforeEach(() => {
     fn.mockClear();

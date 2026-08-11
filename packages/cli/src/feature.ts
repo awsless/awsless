@@ -205,6 +205,7 @@ export type DevResource = {
 		| 'table'
 		| 'store'
 		| 'config'
+		| 'email'
 		| 'task'
 		| 'search'
 		| 'cache'

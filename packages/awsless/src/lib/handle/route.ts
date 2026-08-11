@@ -201,9 +201,11 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 	}
 
 	const method = event.requestContext.http.method
+	// The router forwards the original host, so the request url carries
+	// the domain the caller used instead of the internal lambda url.
 	// Synthetic test events often carry empty domains & paths - fall
 	// back so the url always parses.
-	const domain = event.requestContext.domainName || 'localhost'
+	const domain = headers.get('x-forwarded-host') || event.requestContext.domainName || 'localhost'
 	const path = event.rawPath || event.requestContext.http.path || '/'
 	const protocol = headers.get('x-forwarded-proto') ?? 'https'
 	const url = `${protocol}://${domain}${path}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`
@@ -293,12 +295,22 @@ export type RouteResponse = Response | LambdaUrlResult
 
 type RouteResult = RouteResponse | Promise<RouteResponse>
 
+/** The lambda url result a route entry resolves to - a returned web Response converts into this shape. */
+export type RouteEntryResult = {
+	statusCode: number
+	headers?: Record<string, string>
+	cookies?: string[]
+	body?: string
+	isBase64Encoded?: boolean
+	[key: string]: unknown
+}
+
 // The inner handler receives the extended lambda context, while the
 // outer entrypoint receives the raw aws context.
 type HandlerContext = Parameters<Handler>[1]
 
 type RouteHandler<P extends RouteSchemaProps> = (request: RouteRequestOf<P>, context: HandlerContext) => RouteResult
-type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<unknown>
+type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<RouteEntryResult>
 
 export function route<H extends RouteHandler<{}>>(handle: H): RouteEntry
 export function route<P extends RouteSchemaProps>(props: P, handle: RouteHandler<P>): RouteEntry
@@ -331,7 +343,7 @@ export function route(
 			}
 		}
 
-		return result
+		return result as RouteEntryResult
 	}
 }
 

@@ -3,13 +3,14 @@ import { mockClient } from 'aws-sdk-client-mock'
 // @ts-ignore
 import { Mock } from 'vitest'
 
-export const mockSES = () => {
-	const fn = vi.fn()
+export const mockSES = (handler?: (input: unknown) => void) => {
+	const fn = vi.fn(handler ?? (() => {}))
 
-	mockClient(SESv2Client)
-		.on(SendEmailCommand)
-		.callsFake(() => {
-			fn()
+	// The sdk mock lib lags behind the sdk's middleware types.
+	mockClient(SESv2Client as unknown as Parameters<typeof mockClient>[0])
+		.on(SendEmailCommand as never)
+		.callsFake(input => {
+			fn(input)
 		})
 
 	beforeEach(() => {

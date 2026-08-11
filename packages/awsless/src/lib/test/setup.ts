@@ -53,6 +53,7 @@ export type TestManifest = {
 // Every materialized resource spy, keyed by its physical name - the
 // `mock` proxy resolves overrides & assertions through this registry.
 export const testRegistry = {
+	emails: {} as Record<string, Mock>,
 	functions: {} as Record<string, Mock>,
 	tasks: {} as Record<string, Mock>,
 	queues: {} as Record<string, Mock>,
@@ -100,6 +101,7 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 		{ mockSQS },
 		{ mockCloudWatch },
 		{ mockEcs },
+		{ mockSES },
 	] = await Promise.all([
 		import('@awsless/dynamodb'),
 		import('@awsless/lambda'),
@@ -109,6 +111,7 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 		import('@awsless/sqs'),
 		import('@awsless/cloudwatch'),
 		import('@awsless/ecs'),
+		import('@awsless/ses'),
 	])
 
 	// Metrics are recorded into the void.
@@ -313,6 +316,25 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	mockSQS(queues)
 	mockSNS(topics)
 	mockEcs(jobs)
+
+	// Every Email.send records on the email spy instead of reaching
+	// ses, with the payload flattened for readable assertions.
+	testRegistry.emails.send = vi.fn(() => {})
+
+	mockSES(input => {
+		const email = input as {
+			FromEmailAddress?: string
+			Destination?: { ToAddresses?: string[] }
+			Content?: { Simple?: { Subject?: { Data?: string }; Body?: { Html?: { Data?: string } } } }
+		}
+
+		testRegistry.emails.send!({
+			from: email.FromEmailAddress,
+			to: email.Destination?.ToAddresses,
+			subject: email.Content?.Simple?.Subject?.Data,
+			html: email.Content?.Simple?.Body?.Html?.Data,
+		})
+	})
 
 	// The wrapped mocks clear themselves, but the registry spies used
 	// for assertions need their own clearing between tests.
