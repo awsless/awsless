@@ -98,25 +98,34 @@ export const rpcFeature = defineFeature({
 			// ------------------------------------------------------
 			// Create the lock table
 
-			const lockTable = new aws.dynamodb.Table(group, 'lock', {
-				name: formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'rpc-lock',
-					resourceName: id,
-				}),
-				hashKey: 'key',
-				billingMode: 'PAY_PER_REQUEST',
-				ttl: {
-					enabled: true,
-					attributeName: 'ttl',
-				},
-				attribute: [
-					{
-						name: 'key',
-						type: 'S',
-					},
-				],
+			const lockTableName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'rpc-lock',
+				resourceName: id,
 			})
+
+			const lockTable = new aws.dynamodb.Table(
+				group,
+				'lock',
+				{
+					name: lockTableName,
+					hashKey: 'key',
+					billingMode: 'PAY_PER_REQUEST',
+					ttl: {
+						enabled: true,
+						attributeName: 'ttl',
+					},
+					attribute: [
+						{
+							name: 'key',
+							type: 'S',
+						},
+					],
+				},
+				{
+					import: ctx.import ? lockTableName : undefined,
+				}
+			)
 
 			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'LOCK_TABLE'), lockTable.name)
 

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { DurationSchema } from '../../config/schema/duration.js'
 import { EmailSchema } from '../../config/schema/email.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 
 const ops = {
 	'>': 'GreaterThanThreshold',
@@ -47,7 +47,7 @@ const AlarmSchema = z.object({
 	where: WhereSchema,
 	period: DurationSchema,
 	minDataPoints: z.number().int().default(1),
-	trigger: z.union([EmailSchema.transform(v => [v]), EmailSchema.array(), FunctionSchema]),
+	trigger: z.union([EmailSchema.transform(v => [v]), EmailSchema.array(), BundledFunctionSchema]),
 })
 
 export const MetricsSchema = z

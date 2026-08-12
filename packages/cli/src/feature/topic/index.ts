@@ -131,9 +131,16 @@ export const topicFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new aws.sns.Topic(group, 'topic', {
-				name,
-			})
+			const topic = new aws.sns.Topic(
+				group,
+				'topic',
+				{
+					name,
+				},
+				{
+					import: ctx.import ? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${name}` : undefined,
+				}
+			)
 
 			// All subscribers share the bundle as their endpoint, so we subscribe the bundle once per topic.
 			const subscribed = ctx.stackConfigs.some(stack => stack.subscribers?.[id])
@@ -141,6 +148,9 @@ export const topicFeature = defineFeature({
 			if (subscribed) {
 				const bundle = ctx.shared.get('bundle', 'main')
 
+				// Accepted staging window: a NEW subscription on an already
+				// active topic delivers to the old live bundle until promote,
+				// which retries those events as unknown routes.
 				new aws.sns.TopicSubscription(group, 'subscription', {
 					topicArn: topic.arn,
 					protocol: 'lambda',
@@ -157,7 +167,7 @@ export const topicFeature = defineFeature({
 			}
 		}
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['sns:Publish'],
 			resources: [
 				`arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({
@@ -170,9 +180,7 @@ export const topicFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.subscribers ?? {})) {
-			const consumer = props.consumer
-
-			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), consumer)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), props.consumer)
 		}
 	},
 })

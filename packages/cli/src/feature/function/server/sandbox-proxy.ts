@@ -12,7 +12,7 @@ type SandboxEvent = {
 // which only holds iam permission to invoke this proxy. The payload
 // passes through untouched in both directions with plain JSON, so
 // the patched bundle wire format is preserved exactly & never decoded.
-export default async (event: SandboxEvent) => {
+export default async (event: SandboxEvent, context: { invokedFunctionArn?: string }) => {
 	const route = event?.['$awsless-route']
 
 	if (!route || !routes.has(route)) {
@@ -23,10 +23,14 @@ export default async (event: SandboxEvent) => {
 	// the bundle alias keeps its own retry & failure handling.
 	const asynchronous = route.split(':')[1] === 'task'
 
+	// The invoked qualifier passes through to the bundle, so a whole
+	// call chain stays inside one deployment.
+	const qualifier = context.invokedFunctionArn?.split(':')[7]
+
 	const result = await client.send(
 		new InvokeCommand({
 			FunctionName: getBundleName(),
-			Qualifier: LIVE_BUNDLE_ALIAS,
+			Qualifier: qualifier ?? LIVE_BUNDLE_ALIAS,
 			InvocationType: asynchronous ? 'Event' : 'RequestResponse',
 			Payload: JSON.stringify(event),
 		})

@@ -1,4 +1,3 @@
-import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
@@ -6,6 +5,7 @@ import { glob } from 'glob'
 import { dirname, join } from 'path'
 import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
 import { SiteDeployment } from '../../formation/s3.js'
 import { getCredentials } from '../../util/aws.js'
 import { generateCacheKey } from '../../util/cache.js'
@@ -58,6 +58,10 @@ export const siteFeature = defineFeature({
 							// like npm scripts do.
 							PATH: binPath(cwd),
 
+							// Never inherit NODE_ENV=test from an in-process test run,
+							// it would flip the Config proxy into mock mode mid-build.
+							NODE_ENV: 'production',
+
 							// Pass the app config name
 							APP: ctx.appConfig.name,
 
@@ -71,14 +75,18 @@ export const siteFeature = defineFeature({
 							AWS_SESSION_TOKEN: credentials.sessionToken,
 						}
 
-						// Add the config values for just the site.
+						// Vitest stamps these on the whole CLI process during
+						// in-process test runs; a build inheriting them would
+						// flip the runtime into test mode.
+						delete env.TEST
+						delete env.VITEST
 
-						for (const name of props.build?.configs ?? []) {
-							env[`CONFIG_${constantCase(name)}`] = name
-						}
+						// Announce the config names for just the site build.
 
-						for (const name of ctx.appConfig.configs ?? []) {
-							env[`CONFIG_${constantCase(name)}`] = name
+						const configs = props.build?.configs ?? []
+
+						if (configs.length > 0) {
+							env.CONFIGS = configs.join(',')
 						}
 
 						const instance = Bun.spawn(buildProps.command.split(' '), {
@@ -143,35 +151,35 @@ export const siteFeature = defineFeature({
 					)
 				}
 
-				const url = new aws.lambda.FunctionUrl(group, 'ssr-url', {
-					functionName: fn.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				})
-
-				new aws.lambda.Permission(group, 'ssr-url-permission', {
-					functionName: fn.lambda.functionName,
-					statementId: 'cloudfront-url',
-					principal: 'cloudfront.amazonaws.com',
-					sourceAccount: ctx.accountId,
-					action: 'lambda:InvokeFunctionUrl',
-					functionUrlAuthType: 'AWS_IAM',
-				})
-
-				new aws.lambda.Permission(group, 'ssr-invoke-permission', {
-					functionName: fn.lambda.functionName,
-					statementId: 'cloudfront-invoke',
-					principal: 'cloudfront.amazonaws.com',
-					sourceAccount: ctx.accountId,
-					action: 'lambda:InvokeFunction',
-					invokedViaFunctionUrl: true,
-				})
+				// Every deployment gets its own immutable alias & url,
+				// so a staged deployment only goes live at promotion and old
+				// route tables keep working for rollbacks.
+				const deployment = new FunctionDeployment(
+					group,
+					'ssr-deployment',
+					{
+						functionName: fn.lambda.functionName,
+						id: ctx.deploymentId ?? 'local-0',
+						sourceArns: [
+							ctx.shared
+								.entry('router', 'id', props.router)
+								.pipe(
+									distributionId =>
+										`arn:aws:cloudfront::${ctx.accountId}:distribution/${distributionId}`
+								),
+						],
+					},
+					{
+						dependsOn: [fn.deployment],
+					}
+				)
 
 				addRoutes({
 					[routeKey]: {
 						type: 'lambda',
 						forwardHost: true,
 						urlEncodedQueryString: true,
-						domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
+						domainName: deployment.url.pipe(url => url.split('/')[2]!),
 					},
 				})
 			} else if (props.ssr) {

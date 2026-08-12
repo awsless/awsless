@@ -69,7 +69,12 @@ export const dashboardHtml = `<!doctype html>
 	}
 	.logs .line { display: flex; gap: 8px; padding: 1px 0; }
 	.logs .time { color: var(--muted); flex-shrink: 0; }
+	.logs .route { color: var(--accent); word-break: break-all; }
 	.logs .text { white-space: pre-wrap; word-break: break-word; }
+	.logs .line.error .text, .logs .entry.error .text { color: var(--bad); }
+	.logs .entry { padding: 4px 0; }
+	.logs .entry + .entry, .logs .line + .entry, .logs .entry + .line { border-top: 1px solid var(--border); }
+	.logs .entry .meta { display: flex; gap: 8px; margin-bottom: 2px; }
 	.config-form { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
 	.config-form .field { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: center; }
 	.config-form .name { color: var(--muted); overflow-wrap: anywhere; }
@@ -82,6 +87,8 @@ export const dashboardHtml = `<!doctype html>
 		font: inherit;
 	}
 	.config-form input::placeholder { color: var(--muted); }
+	.groups { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+	.groups .group { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 	nav {
 		border-right: 1px solid var(--border);
 		overflow-y: auto;
@@ -233,6 +240,15 @@ export const dashboardHtml = `<!doctype html>
 		cursor: pointer;
 	}
 	button.primary:disabled { opacity: 0.5; cursor: wait; }
+	button.secondary {
+		background: var(--panel);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 6px 16px;
+		font: inherit;
+		cursor: pointer;
+	}
 	pre.result {
 		background: var(--panel);
 		border: 1px solid var(--border);
@@ -299,7 +315,9 @@ const GROUPS = [
 	['search', 'Searches'],
 	['store', 'Stores'],
 	['config', 'Config'],
+	['auth', 'Auth'],
 	['email', 'Emails'],
+	['worker', 'Logs'],
 	['route', 'Routes'],
 ]
 
@@ -417,11 +435,23 @@ window.addEventListener('popstate', applyLocation)
 // Detail panels
 
 const invokePanel = (main, r) => {
+	// The last payload survives reloads & panel switches, so a hand
+	// crafted event never gets lost. The envelope only prefills the
+	// first visit.
+	const storageKey = 'invoke-payload:' + r.kind + ':' + (r.stack ?? '-') + ':' + r.id
 	const placeholder = JSON.stringify(r.envelope ?? {}, null, 2)
-	const input = $('textarea', { value: placeholder, spellcheck: false })
+	const input = $('textarea', { value: localStorage.getItem(storageKey) ?? placeholder, spellcheck: false })
 	const status = $('span', { className: 'status' })
 	const result = $('pre', { className: 'result', hidden: true })
 	const run = $('button', { className: 'primary', textContent: r.kind === 'topic' ? 'Publish' : 'Invoke' })
+	const reset = $('button', { className: 'secondary', textContent: 'Reset' })
+
+	input.oninput = () => localStorage.setItem(storageKey, input.value)
+
+	reset.onclick = () => {
+		localStorage.removeItem(storageKey)
+		input.value = placeholder
+	}
 
 	run.onclick = async () => {
 		run.disabled = true
@@ -447,9 +477,14 @@ const invokePanel = (main, r) => {
 
 	main.append(
 		input,
-		$('div', { className: 'actions' }, [run, status]),
+		$('div', { className: 'actions' }, [run, reset, status]),
 		result,
 	)
+
+	// The resource's own console output, filtered from the worker feed.
+	if (r.routeKey) {
+		cleanupPanel = attachLogFeed(main, 'worker', r.routeKey)
+	}
 }
 
 const pubsubPanel = (main, r) => {
@@ -573,8 +608,10 @@ const rpcPanel = (main, r) => {
 // A terminal-style view streaming a resource's live event channel,
 // like the dev server output of a site. The bus replays the recent
 // lines, so the boot output shows even when the panel opens later.
-const attachLogFeed = (main, channel) => {
-	main.append($('h3', {}, 'Logs'))
+const attachLogFeed = (main, channel, route, title = 'Logs') => {
+	if (title) {
+		main.append($('h3', {}, title))
+	}
 
 	const feed = $('div', { className: 'logs' }, $('p', { className: 'empty' }, 'Waiting for output...'))
 	main.append(feed)
@@ -584,11 +621,34 @@ const attachLogFeed = (main, channel) => {
 	source.onmessage = message => {
 		const data = JSON.parse(message.data)
 
+		// A route filter shows only the lines of one resource, like the
+		// function panel showing its own console output.
+		if (route && data.route !== route) {
+			return
+		}
+
 		feed.querySelector('.empty')?.remove()
-		feed.append($('div', { className: 'line' }, [
-			$('span', { className: 'time' }, new Date(data.date).toLocaleTimeString()),
-			$('span', { className: 'text' }, data.line),
-		]))
+
+		const error = data.error ? ' error' : ''
+		const showRoute = !route && data.route
+
+		// Tagged or multi-line records render as a block with the
+		// metadata on its own header line, so long route names never
+		// squeeze the text. Plain lines keep the compact row.
+		if (showRoute || data.line.includes('\\n')) {
+			feed.append($('div', { className: 'entry' + error }, [
+				$('div', { className: 'meta' }, [
+					$('span', { className: 'time' }, new Date(data.date).toLocaleTimeString()),
+					showRoute ? $('span', { className: 'route' }, data.route) : '',
+				]),
+				$('div', { className: 'text' }, data.line),
+			]))
+		} else {
+			feed.append($('div', { className: 'line' + error }, [
+				$('span', { className: 'time' }, new Date(data.date).toLocaleTimeString()),
+				$('span', { className: 'text' }, data.line),
+			]))
+		}
 
 		// Only the last 200 lines stay around, pinned to the bottom.
 		while (feed.children.length > 200) {
@@ -915,6 +975,138 @@ const configPanel = async (main) => {
 	main.append(form, $('div', { className: 'actions' }, [save, status]))
 }
 
+// The users of a real deployed auth pool, with the same create &
+// group-update operations as the auth user cli commands.
+const authPanel = async (main, r) => {
+	const holder = $('div', {}, $('p', { className: 'empty' }, 'Loading users...'))
+	main.append(holder)
+
+	const groupBoxes = (groups, selected) => {
+		const boxes = new Map()
+		const row = $('div', { className: 'groups' })
+
+		for (const group of groups) {
+			const box = $('input', { type: 'checkbox', checked: selected.includes(group) })
+			boxes.set(group, box)
+			row.append($('label', { className: 'group' }, [box, ' ' + group]))
+		}
+
+		return { row, selected: () => [...boxes].filter(([, box]) => box.checked).map(([group]) => group) }
+	}
+
+	try {
+		const data = await api('/api/auth?pool=' + encodeURIComponent(r.id))
+		holder.innerHTML = ''
+
+		// --------------------------------------------------------------
+		// The user list, each row expanding into its group/password form.
+
+		if (data.users.length === 0) {
+			holder.append($('p', { className: 'empty' }, 'The pool has no users.'))
+		} else {
+			const editRow = $('tr', { style: 'display: none' })
+			const table = $('table', {}, [
+				$('tr', {}, ['username', 'email', 'status', 'groups', 'created'].map(c => $('th', {}, c))),
+			])
+
+			for (const user of data.users) {
+				const row = $('tr', {}, [
+					$('td', {}, user.username),
+					$('td', {}, user.email ?? ''),
+					$('td', {}, user.enabled ? (user.status ?? '') : 'DISABLED'),
+					$('td', {}, user.groups.join(', ')),
+					$('td', {}, user.createdAt ? new Date(user.createdAt).toLocaleString() : ''),
+				])
+
+				row.style.cursor = 'pointer'
+				row.onclick = () => {
+					const groups = groupBoxes(data.groups, user.groups)
+					const password = $('input', { type: 'password', placeholder: 'unchanged', spellcheck: false })
+					const status = $('span', { className: 'status' })
+					const save = $('button', { className: 'primary', textContent: 'Save' })
+
+					save.onclick = async () => {
+						save.disabled = true
+						try {
+							await api('/api/auth/update', {
+								method: 'POST',
+								body: JSON.stringify({
+									pool: r.id,
+									username: user.username,
+									password: password.value,
+									groups: groups.selected(),
+								}),
+							})
+							main.innerHTML = ''
+							renderResource(main)
+							return
+						} catch (error) {
+							status.textContent = String(error.message ?? error)
+						}
+						save.disabled = false
+					}
+
+					editRow.innerHTML = ''
+					editRow.style.display = ''
+					editRow.append($('td', { colSpan: 5 }, $('div', { className: 'config-form' }, [
+						$('label', { className: 'field' }, [$('span', { className: 'name' }, 'groups'), groups.row]),
+						$('label', { className: 'field' }, [$('span', { className: 'name' }, 'new password'), password]),
+						$('div', { className: 'actions' }, [save, status]),
+					])))
+					row.after(editRow)
+				}
+
+				table.append(row)
+			}
+
+			holder.append(table)
+		}
+
+		// --------------------------------------------------------------
+		// Create a new user.
+
+		const username = $('input', { placeholder: 'username', spellcheck: false })
+		const password = $('input', { type: 'password', placeholder: 'password', spellcheck: false })
+		const groups = groupBoxes(data.groups, [])
+		const status = $('span', { className: 'status' })
+		const create = $('button', { className: 'primary', textContent: 'Create user' })
+
+		create.onclick = async () => {
+			create.disabled = true
+			try {
+				await api('/api/auth/create', {
+					method: 'POST',
+					body: JSON.stringify({
+						pool: r.id,
+						username: username.value,
+						password: password.value,
+						groups: groups.selected(),
+					}),
+				})
+				main.innerHTML = ''
+				renderResource(main)
+				return
+			} catch (error) {
+				status.textContent = String(error.message ?? error)
+			}
+			create.disabled = false
+		}
+
+		holder.append(
+			$('h3', {}, 'Create user'),
+			$('div', { className: 'config-form' }, [
+				$('label', { className: 'field' }, [$('span', { className: 'name' }, 'username'), username]),
+				$('label', { className: 'field' }, [$('span', { className: 'name' }, 'password'), password]),
+				$('label', { className: 'field' }, [$('span', { className: 'name' }, 'groups'), groups.row]),
+				$('div', { className: 'actions' }, [create, status]),
+			]),
+		)
+	} catch (error) {
+		holder.innerHTML = ''
+		holder.append($('pre', { className: 'result error' }, String(error.message ?? error)))
+	}
+}
+
 const renderResource = main => {
 	const r = view.resource
 	const back = $('button', { className: 'back' }, '← ' + groupTitle(r.kind))
@@ -938,6 +1130,11 @@ const renderResource = main => {
 	if (r.kind === 'cache') return cachePanel(main, r)
 	if (r.kind === 'store') return storePanel(main, r)
 	if (r.kind === 'config') return configPanel(main)
+	if (r.kind === 'auth') return authPanel(main, r)
+	if (r.kind === 'worker') {
+		cleanupPanel = attachLogFeed(main, 'worker')
+		return
+	}
 	if (r.kind === 'route' || r.kind === 'site') {
 		const url = r.url ?? r.detail
 		main.append($('p', {}, $('a', { href: url, target: '_blank', style: 'color: var(--accent)' }, url)))
@@ -969,6 +1166,13 @@ const renderList = main => {
 	// The email page lists every captured email of the session.
 	if (view.kind === 'email') {
 		return emailPanel(main)
+	}
+
+	// The worker page streams the bundle worker output directly,
+	// instead of listing its single resource.
+	if (view.kind === 'worker') {
+		cleanupPanel = attachLogFeed(main, 'worker', undefined, null)
+		return
 	}
 
 	const matches = r => {
@@ -1058,7 +1262,7 @@ const render = () => {
 		const button = $('button', { className: view.kind === kind ? 'active' : '' }, [
 			icon(kind),
 			title,
-			kind === 'email' ? '' : $('span', { className: 'count' }, String(count)),
+			kind === 'email' || kind === 'worker' ? '' : $('span', { className: 'count' }, String(count)),
 		])
 		button.onclick = () => selectKind(kind)
 		nav.append(button)

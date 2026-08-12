@@ -33,6 +33,6 @@ describe('bundle routes', () => {
 			() => internalInvoke('stack:function:echo', { n: 1 })
 		)
 
-		expect(result).toEqual({ routeKey: 'stack:function:echo', payload: { n: 1 } })
+		expect(result).toStrictEqual({ routeKey: 'stack:function:echo', payload: { n: 1 } })
 	})
 })

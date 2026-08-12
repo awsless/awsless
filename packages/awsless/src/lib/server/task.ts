@@ -21,29 +21,32 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 
 		const ctx: Record<string, any> = {
 			[name]: async (payload: unknown, options: Options = {}) => {
+				const { schedule: scheduleAt, ...invokeOptions } = options
+
 				// In tests we keep invoking the per-task name
 				// so that the task mocks keep working.
 				if (IS_TEST) {
 					await invoke({
-						...options,
+						...invokeOptions,
 						type: 'Event',
 						name,
 						payload,
 					})
-				} else if (options.schedule) {
+				} else if (scheduleAt) {
 					const resourceTaskName = bindGlobalResourceName('task')
 
+					// A schedule can outlive its deployment, so live is the only safe target.
 					await schedule({
 						name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
 						payload: formatRoutePayload(routeKey, payload),
-						schedule: options.schedule,
+						schedule: scheduleAt,
 						group: resourceTaskName('group'),
 						roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName('schedule')}`,
 						deadLetterArn: onFailureQueueArn,
 					})
 				} else {
 					await invokeBundle({
-						...options,
+						...invokeOptions,
 						routeKey,
 						payload,
 						type: 'Event',

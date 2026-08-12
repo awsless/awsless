@@ -6,9 +6,9 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { camelCase, constantCase, kebabCase } from 'change-case'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
 import { ExpectedError, FileError } from '../../error.js'
-import { FunctionDeployment } from '../../formation/lambda.js'
 import { Route } from './route.js'
 import { compileRoutePattern } from './pattern.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
@@ -56,14 +56,39 @@ export const routerFeature = defineFeature({
 	onApp(ctx) {
 		const routers = Object.entries(ctx.appConfig.router ?? {})
 
-		// All routers share one route store, one preview distribution and
-		// one deployment; the shared resources live in the first router.
+		// All routers share one route store and one deployment; the shared
+		// resources live in their own group, so renaming or reordering
+		// routers never moves their urn.
 		const defaultRouter = routers[0]?.[0]
 		const routes: Record<string, Route | Route[]> = {}
 		const routeDependencies = new Set<Resource | DataSource>()
 		const distributionIds: Output<string>[] = []
 		let hasLambdaRoutes = false
 		let routeStore: aws.cloudfront.KeyValueStore | undefined
+		let sharedGroup: Group | undefined
+
+		if (routers.length > 0) {
+			const storeName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'router',
+				resourceName: 'store',
+			})
+
+			sharedGroup = new Group(ctx.base, 'router', 'shared')
+			routeStore = new aws.cloudfront.KeyValueStore(
+				sharedGroup,
+				'routes',
+				{
+					name: storeName,
+					comment: 'Store for routes',
+				},
+				{
+					replaceOnChanges: ['name'],
+					createBeforeReplace: true,
+					import: ctx.import ? storeName : undefined,
+				}
+			)
+		}
 
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
@@ -74,34 +99,28 @@ export const routerFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// ------------------------------------------------------------
-			// Route Store
-
-			if (id === defaultRouter) {
-				routeStore = new aws.cloudfront.KeyValueStore(group, 'routes', {
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: 'store',
-					}),
-					comment: 'Store for routes',
-				})
-			}
-
 			// the function names are capped at 64 characters
-			const productionFunction = new aws.cloudfront.Function(group, 'production-function', {
-				name: `${name.slice(0, 52)}--production`,
-				runtime: 'cloudfront-js-2.0',
-				code: getViewerRequestFunctionCode({
-					router: id,
-					blockDirectAccess: !!props.domain,
-					redirectWww: !!props.domain && props.redirectWww,
-					basicAuth: props.basicAuth,
-					passwordAuth: props.passwordAuth,
-				}),
-				publish: true,
-				keyValueStoreAssociations: [routeStore!.arn],
-			})
+			const productionFunctionName = `${name.slice(0, 52)}--production`
+			const productionFunction = new aws.cloudfront.Function(
+				group,
+				'production-function',
+				{
+					name: productionFunctionName,
+					runtime: 'cloudfront-js-2.0',
+					code: getViewerRequestFunctionCode({
+						router: id,
+						blockDirectAccess: !!props.domain,
+						redirectWww: !!props.domain && props.redirectWww,
+						basicAuth: props.basicAuth,
+						passwordAuth: props.passwordAuth,
+					}),
+					publish: true,
+					keyValueStoreAssociations: [routeStore!.arn],
+				},
+				{
+					import: ctx.import ? productionFunctionName : undefined,
+				}
+			)
 
 			// ------------------------------------------------------------
 			// Add routes API
@@ -457,106 +476,26 @@ export const routerFeature = defineFeature({
 				webAclId: waf?.arn,
 			})
 
-			// Every router gets its own preview host, serving its active
-			// deployment by default or any staged deployment selected with
-			// the awsless-deployment query parameter.
-			{
-				const previewFunction = new aws.cloudfront.Function(group, 'preview-function', {
-					name: `${name.slice(0, 55)}--preview`,
-					runtime: 'cloudfront-js-2.0',
-					code: getViewerRequestFunctionCode({
-						router: id,
-						preview: true,
-						basicAuth: props.basicAuth,
-						passwordAuth: props.passwordAuth,
-					}),
-					publish: true,
-					keyValueStoreAssociations: [routeStore!.arn],
-				})
-
-				const previewDistribution = new aws.cloudfront.Distribution(group, 'preview', {
-					tags: {
-						name: `${name}-preview`,
-					},
-					comment: `${name} preview`,
-					enabled: true,
-					isIpv6Enabled: true,
-					waitForDeployment: true,
-					origin: [
-						{
-							originId: 'default',
-							domainName: 'placeholder.awsless.dev',
-							customOriginConfig: {
-								httpPort: 80,
-								httpsPort: 443,
-								originProtocolPolicy: 'http-only',
-								originReadTimeout: 20,
-								originSslProtocols: ['TLSv1.2'],
-							},
-						},
-					],
-					customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
-						if (typeof item === 'string') {
-							return {
-								errorCode: Number(errorCode),
-								responseCode: Number(errorCode),
-								responsePagePath: item,
-							}
-						}
-
-						return {
-							errorCode: Number(errorCode),
-							errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
-							responseCode: item.statusCode ?? Number(errorCode),
-							responsePagePath: item.path,
-						}
-					}),
-					restrictions: {
-						geoRestriction: {
-							restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
-							locations: props.geoRestrictions,
-						},
-					},
-					viewerCertificate: {
-						cloudfrontDefaultCertificate: true,
-					},
-					defaultCacheBehavior: {
-						compress: true,
-						targetOriginId: 'default',
-						functionAssociation: [
-							{
-								eventType: 'viewer-request',
-								functionArn: previewFunction.arn,
-							},
-						],
-						originRequestPolicyId: originRequest.id,
-						cachePolicyId: cache.id,
-						responseHeadersPolicyId: responseHeaders.id,
-						viewerProtocolPolicy: 'redirect-to-https',
-						allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-						cachedMethods: ['GET', 'HEAD'],
-					},
-					webAclId: waf?.arn,
-				})
-
-				distributionIds.push(previewDistribution.id)
-				ctx.shared.add('router', 'preview-id', id, previewDistribution.id)
-			}
-
 			if (id === defaultRouter) {
 				ctx.onReadyLast(() => {
 					const bundle = ctx.shared.get('bundle', 'main')
 					let lambdaUrlHost: Input<string> | undefined
 
 					if (hasLambdaRoutes) {
-						const deployment = new FunctionDeployment(group, 'function-deployment', {
-							functionName: bundle.lambda.functionName,
-							functionVersion: bundle.lambda.version,
-							id,
-							sourceArns: distributionIds.map(distributionId =>
-								distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
-							),
-						})
+						const deployment = new FunctionDeployment(
+							sharedGroup!,
+							'function-deployment',
+							{
+								functionName: bundle.lambda.functionName,
+								id: ctx.deploymentId ?? 'local-0',
+								sourceArns: distributionIds.map(distributionId =>
+									distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
+								),
+							},
+							{
+								dependsOn: [bundle.deployment],
+							}
+						)
 
 						lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
 						routeDependencies.add(bundle.policy)
@@ -565,7 +504,7 @@ export const routerFeature = defineFeature({
 					}
 
 					new RouteDeployment(
-						group,
+						sharedGroup!,
 						'deployment',
 						{
 							// non-deploy commands build the graph but never apply it
@@ -670,9 +609,7 @@ export const routerFeature = defineFeature({
 			for (const [pattern, props] of Object.entries(patterns)) {
 				const compiled = compileRoutePattern(pattern)
 				const slug = kebabCase(pattern).slice(0, 20)
-				// The router id is part of the key so that different routers
-				// can define the same route pattern within a single stack.
-				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(`${id}:${pattern}`)}`)
+				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
 
 				registerBundleFunction(ctx, routeKey, props)
 
@@ -711,7 +648,9 @@ export const routerFeature = defineFeature({
 			for (const [id, patterns] of Object.entries(stackConfig.routes ?? {})) {
 				for (const pattern of Object.keys(patterns)) {
 					const slug = kebabCase(pattern).slice(0, 20)
-					const routeKey = formatRouteKey(stackConfig.name, 'route', `${slug || 'root'}-${shortId(`${id}:${pattern}`)}`)
+					// MUST match the onStack derivation above, so the local
+					// router dispatches the same keys the bundle registers.
+					const routeKey = formatRouteKey(stackConfig.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
 
 					ctx.addRoute({
 						routerId: id,

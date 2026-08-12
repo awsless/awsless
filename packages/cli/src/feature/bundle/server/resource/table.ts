@@ -1,9 +1,10 @@
 import type { DynamoDBStreamEvent } from 'aws-lambda'
+import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
 import { asyncRoute, routeFromResourceName, routeType } from './util.js'
 
 export const tableHandler: RouteMatcher<DynamoDBStreamEvent> = event => {
-	if (typeof event?.['$awsless-route'] === 'string' || typeof event?.headers?.['x-awsless-route'] === 'string') {
+	if (typeof event?.[ROUTE_PROPERTY] === 'string' || typeof event?.headers?.[ROUTE_HEADER] === 'string') {
 		return
 	}
 

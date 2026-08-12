@@ -112,7 +112,7 @@ export const assetFeature = defineFeature({
 	onApp(ctx) {
 		const bucket = ctx.shared.get('asset', 'bucket')
 
-		ctx.addAppPermission({
+		ctx.addPermission({
 			actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
 			resources: [
 				//

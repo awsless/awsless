@@ -1,5 +1,6 @@
 import { z } from 'zod'
 // import { InstanceDefaultSchema } from '../feature/__instance/schema.js'
+import { LocalEntrySchema } from './schema/local-entry.js'
 import { AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
 import { ConfigsSchema } from '../feature/config/schema.js'
@@ -37,6 +38,9 @@ export const AppSchema = z
 		protect: z.boolean().default(false).describe('Protect your app & stacks from being deleted.'),
 
 		configs: ConfigsSchema,
+		seed: LocalEntrySchema.optional().describe(
+			'The file that seeds your local dev environment with data. It runs with the full local environment on the first dev boot & through the dashboard reseed button. One app wide file, so the seeding order is explicit.'
+		),
 		removal: z
 			.enum(['remove', 'retain'])
 			.default('remove')

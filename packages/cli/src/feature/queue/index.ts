@@ -122,7 +122,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})}.fifo`
 
-				if (typeof props === 'object' && props.consumer) {
+				if (props.consumer) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -152,7 +152,7 @@ export const queueFeature = defineFeature({
 		const bundleTimeout = toSeconds(ctx.appConfig.function.timeout)
 
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
-			const props = deepmerge(ctx.appConfig.queue, typeof local === 'object' ? local : {})
+			const props = deepmerge(ctx.appConfig.queue, local)
 
 			const group = new Group(ctx.stack, 'queue', id)
 			const baseName = formatLocalResourceName({
@@ -162,35 +162,47 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const queue = new aws.sqs.Queue(group, 'queue', {
-				name: `${baseName}.fifo`,
-				visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
-				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
-				messageRetentionSeconds: toSeconds(props.retentionPeriod),
-				maxMessageSize: toBytes(props.maxMessageSize),
-				fifoQueue: true,
-				deduplicationScope: 'messageGroup',
-				fifoThroughputLimit: 'perMessageGroupId',
-			})
+			const queue = new aws.sqs.Queue(
+				group,
+				'queue',
+				{
+					name: `${baseName}.fifo`,
+					visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
+					receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
+					messageRetentionSeconds: toSeconds(props.retentionPeriod),
+					maxMessageSize: toBytes(props.maxMessageSize),
+					fifoQueue: true,
+					deduplicationScope: 'messageGroup',
+					fifoThroughputLimit: 'perMessageGroupId',
+				},
+				{
+					import: ctx.import
+						? `https://sqs.${ctx.appConfig.region}.amazonaws.com/${ctx.accountId}/${baseName}.fifo`
+						: undefined,
+				}
+			)
 
 			if (local.consumer) {
-				const consumer = local.consumer
-
 				// The bundle routes the queue event to the right consumer based on the event source arn.
-				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
+				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), local.consumer)
 
-				new aws.lambda.EventSourceMapping(group, 'event', {
-					functionName: bundle.alias.arn,
-					eventSourceArn: queue.arn,
-					batchSize: props.batchSize,
-				}, {
-					dependsOn: [bundle.policy],
-				})
+				new aws.lambda.EventSourceMapping(
+					group,
+					'event',
+					{
+						functionName: bundle.alias.arn,
+						eventSourceArn: queue.arn,
+						batchSize: props.batchSize,
+					},
+					{
+						dependsOn: [bundle.policy],
+					}
+				)
 			}
 
 			ctx.addEnv(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 
-			ctx.addGlobalPermission({
+			ctx.addPermission({
 				actions: [
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',

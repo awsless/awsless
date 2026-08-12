@@ -22,6 +22,7 @@ const handlers: {
 	{ name: 'image', entry: 'src/feature/image/server/handle.ts' },
 	{ name: 'icon', entry: 'src/feature/icon/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },
+	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
 	{ name: 'pubsub-publisher', entry: 'src/feature/pubsub/publisher/handle.ts' },
 
 	// The pubsub server runs as a bun executable on fargate, so its
@@ -56,10 +57,7 @@ for (const { name, entry, ...options } of handlers) {
 // as fully self-contained zip archives, with only the packages provided
 // by the lambda runtime left out.
 
-const prebuilds = [
-	{ name: 'on-failure', entry: 'src/feature/on-failure/server/handle.ts' },
-	{ name: 'sandbox-proxy', entry: 'src/feature/function/server/sandbox-proxy.ts' },
-]
+const prebuilds = [{ name: 'sandbox-proxy', entry: 'src/feature/function/server/sandbox-proxy.ts' }]
 
 for (const { name, entry } of prebuilds) {
 	const result = await Bun.build({

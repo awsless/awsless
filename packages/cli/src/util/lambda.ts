@@ -1,21 +1,21 @@
 import {
 	CreateAliasCommand,
 	DeleteAliasCommand,
+	DeleteFunctionEventInvokeConfigCommand,
 	DeleteFunctionUrlConfigCommand,
 	GetAliasCommand,
 	LambdaClient,
 	ListAliasesCommand,
+	ListFunctionsCommand,
+	ListVersionsByFunctionCommand,
 	UpdateAliasCommand,
-	UpdateFunctionCodeCommand,
 } from '@aws-sdk/client-lambda'
-import { Credentials, isError } from './aws'
+import { isError } from './aws'
 
 // ------------------------------------------------------------
 // Alias naming contract
 
 export const LIVE_LAMBDA_ALIAS = 'live'
-
-export const getDeploymentLambdaAliasName = (id: string) => `deployment-${id}`
 
 // ------------------------------------------------------------
 // Alias plumbing
@@ -35,6 +35,60 @@ export const getLambdaAlias = async (lambda: LambdaClient, functionName: string,
 
 		return
 	}
+}
+
+export const listLambdaFunctions = async (lambda: LambdaClient, prefix: string) => {
+	const names: string[] = []
+	let marker: string | undefined
+
+	do {
+		const result = await lambda.send(
+			new ListFunctionsCommand({
+				Marker: marker,
+			})
+		)
+
+		for (const item of result.Functions ?? []) {
+			if (item.FunctionName?.startsWith(prefix)) {
+				names.push(item.FunctionName)
+			}
+		}
+
+		marker = result.NextMarker
+	} while (marker)
+
+	return names
+}
+
+// A deleted function simply has no versions left to prune.
+export const listLambdaVersions = async (lambda: LambdaClient, functionName: string) => {
+	const versions: string[] = []
+	let marker: string | undefined
+
+	try {
+		do {
+			const result = await lambda.send(
+				new ListVersionsByFunctionCommand({
+					FunctionName: functionName,
+					Marker: marker,
+				})
+			)
+
+			for (const version of result.Versions ?? []) {
+				if (version.Version && version.Version !== '$LATEST') {
+					versions.push(version.Version)
+				}
+			}
+
+			marker = result.NextMarker
+		} while (marker)
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+	}
+
+	return versions
 }
 
 export const listLambdaAliases = async (lambda: LambdaClient, functionName: string, functionVersion: string) => {
@@ -93,37 +147,24 @@ export const upsertLambdaAlias = async (
 	}
 }
 
-// Create-first upsert for aliases that are usually new (deployment markers).
-export const createLambdaAlias = async (
-	lambda: LambdaClient,
-	props: {
-		functionName: string
-		functionVersion: string
-		name: string
-	}
-) => {
-	const input = {
-		FunctionName: props.functionName,
-		FunctionVersion: props.functionVersion,
-		Name: props.name,
-	}
-
-	try {
-		await lambda.send(new CreateAliasCommand(input))
-	} catch (error) {
-		if (!isError(error, 'ResourceConflictException')) {
-			throw error
-		}
-
-		await lambda.send(new UpdateAliasCommand(input))
-	}
-}
-
-// An alias url must be deleted before the alias itself can go.
+// The alias url & invoke config must be deleted before the alias itself can go.
 export const deleteLambdaAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
 	try {
 		await lambda.send(
 			new DeleteFunctionUrlConfigCommand({
+				FunctionName: functionName,
+				Qualifier: name,
+			})
+		)
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+	}
+
+	try {
+		await lambda.send(
+			new DeleteFunctionEventInvokeConfigCommand({
 				FunctionName: functionName,
 				Qualifier: name,
 			})
@@ -146,49 +187,4 @@ export const deleteLambdaAlias = async (lambda: LambdaClient, functionName: stri
 			throw error
 		}
 	}
-}
-
-export const restartLambdaFunctions = async ({
-	credentials,
-	region,
-	functions,
-}: {
-	credentials: Credentials
-	region: string
-	functions: {
-		functionName: string
-		s3: {
-			bucket: string
-			key: string
-			version?: string
-		}
-	}[]
-}) => {
-	const client = new LambdaClient({
-		credentials,
-		region,
-	})
-
-	await Promise.all(
-		functions.map(async item => {
-			// const result = await client.send(
-			// 	new GetFunctionCommand({
-			// 		FunctionName: item.functionName,
-			// 	})
-			// )
-
-			// console.log(result)
-
-			await client.send(
-				new UpdateFunctionCodeCommand({
-					FunctionName: item.functionName,
-					S3Bucket: item.s3.bucket,
-					S3Key: item.s3.key,
-					S3ObjectVersion: item.s3.version ? item.s3.version : undefined,
-					Publish: false,
-				})
-			)
-			// console.log(response)
-		})
-	)
 }

@@ -3,18 +3,31 @@
 	"name": "app-kennedy",
 	"region": "us-east-1",
 	"profile": "jacksclub",
+	"configs": ["greeting"],
 	"defaults": {
+		"domains": {
+			"main": {
+				"domain": "awsless.org"
+			}
+		},
+		"router": {
+			"main": {
+				"domain": "main",
+				"redirectWww": true
+			}
+		},
+		"rpc": {
+			"api": {
+				"router": "main",
+				"path": "/api"
+			}
+		},
 		"function": {
 			"log": {
 				"retention": "7 days",
-				"level": "error",
+				"level": "trace",
 				"system": "warn"
 			}
-		},
-		"alerts": {
-			"test": ["info@jacksclub.dev", "config:alert-phone"]
-		},
-		"onFailure": "./on-failure/handle.ts",
-		"onErrorLog": "./on-error-log/consumer.ts"
+		}
 	}
 }

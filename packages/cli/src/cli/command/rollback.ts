@@ -17,7 +17,7 @@ export const rollback = (program: Command) => {
 						message:
 							id === undefined
 								? `Are you sure you want to activate the previous deployment?`
-								: `Are you sure you want to activate deployment #${id}?`,
+								: `Are you sure you want to activate deployment ${id}?`,
 					})
 
 					if (!ok) {
@@ -33,7 +33,7 @@ export const rollback = (program: Command) => {
 
 				playSuccessSound()
 
-				return `Deployment #${target} is live.`
+				return `Deployment ${target} is live.`
 			})
 		})
 }

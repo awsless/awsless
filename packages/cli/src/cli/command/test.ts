@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { createApp } from '../../app.js'
 import { findFreePort } from '../../dev/util.js'
-import { Cancelled } from '../../error.js'
+import { ExpectedError } from '../../error.js'
 import { createTestManifest } from '../../test/manifest.js'
 import { directories } from '../../util/path.js'
 import { layout } from '../ui/complex/layout.js'
@@ -40,6 +40,7 @@ export const test = (program: Command) => {
 				// so they never need aws credentials - the same fake
 				// account as the dev environment feeds the synth.
 				const accountId = '000000000000'
+
 				const { tests, appId } = createApp({ ...props, accountId })
 
 				if (tests.length === 0) {
@@ -62,20 +63,17 @@ export const test = (program: Command) => {
 				manifest.servers = {}
 
 				if (manifest.searches.length > 0) {
-					const { download, downloadJdk, launch, VERSION_2_8_0 } = await import('@awsless/open-search')
+					const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
 
-					const native = process.platform === 'linux' || process.platform === 'win32'
 					const port = await findFreePort()
-					const path = await download(VERSION_2_8_0.version)
-					const javaHome = native ? undefined : await downloadJdk()
+					const path = await download(VERSION_3_5_0_MIN)
 
 					killSearch = await launch({
 						path,
 						port,
 						host: 'localhost',
-						version: VERSION_2_8_0,
+						version: VERSION_3_5_0_MIN,
 						debug: false,
-						javaHome,
 					})
 
 					await waitForSearch(port, 60_000)
@@ -115,7 +113,7 @@ export const test = (program: Command) => {
 				}
 
 				if (!passed) {
-					throw new Cancelled()
+					throw new ExpectedError('Tests failed.')
 				}
 
 				return 'All tests finished.'

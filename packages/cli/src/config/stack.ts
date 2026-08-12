@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { InstancesSchema } from '../feature/instance/schema.js'
 import { JobsSchema } from '../feature/job/schema.js'
-import { LocalEntrySchema } from './schema/local-entry.js'
 // import { AuthSchema } from '../feature/auth/schema.js'
 import { CachesSchema } from '../feature/cache/schema.js'
 import { CommandsSchema } from '../feature/command/schema.js'
@@ -60,9 +59,6 @@ export const StackSchema = z
 		pubsub: PubSubSchema,
 		searchs: SearchsSchema,
 		sites: SitesSchema,
-		seed: LocalEntrySchema.optional().describe(
-			'The file that seeds your local dev environment with data. It runs with the full local environment on the first dev boot & through the dashboard reseed button.'
-		),
 		tests: TestsSchema,
 		images: ImagesSchema,
 		icons: IconsSchema,

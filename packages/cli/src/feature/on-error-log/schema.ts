@@ -1,5 +1,13 @@
-import { TaskSchema } from '../task/schema.js'
+import { FunctionSchema } from '../function/schema.js'
 
-export const OnErrorLogDefaultSchema = TaskSchema.optional().describe(
-	'Define a subscription on all Lambda functions logs.'
-)
+// The consumer stays outside the vpc unless it opts in.
+const ConsumerSchema = FunctionSchema.transform(consumer => ({
+	...consumer,
+	vpc: consumer.vpc ?? false,
+}))
+
+export const OnErrorLogDefaultSchema = ConsumerSchema.transform(consumer => ({
+	consumer,
+}))
+	.optional()
+	.describe('Define a subscription on all Lambda functions logs.')

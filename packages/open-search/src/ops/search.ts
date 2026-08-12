@@ -1,3 +1,4 @@
+import { API } from '@opensearch-project/opensearch'
 import { AnyTable } from '../table'
 
 type Options = {
@@ -23,7 +24,7 @@ const encodeCursor = (cursor: object): string => {
 	return Buffer.from(json, 'utf8').toString('base64')
 }
 
-const decodeCursor = (cursor?: string): string | undefined => {
+const decodeCursor = (cursor?: string): unknown => {
 	if (!cursor) return
 
 	try {
@@ -41,6 +42,8 @@ export const search = async <T extends AnyTable>(
 ): Promise<Response<T>> => {
 	const result = await table.client().search({
 		index: table.index,
+		// The caller passes raw query DSL as unknown, so the spec-typed
+		// request body can only be satisfied with a cast.
 		body: {
 			from: offset,
 			size: limit + 1,
@@ -49,10 +52,10 @@ export const search = async <T extends AnyTable>(
 			query,
 			aggs,
 			sort,
-		},
+		} as API.Search_RequestBody,
 	})
 
-	const { hits, total } = result.body.hits as {
+	const { hits, total } = result.body.hits as unknown as {
 		total: { value: number }
 		hits: {
 			_source: T['schema']['ENCODED']

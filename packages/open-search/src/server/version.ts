@@ -8,9 +8,13 @@ export type VersionArgs = {
 	started: (line: string) => boolean
 }
 
-export const VERSION_2_8_0: VersionArgs = {
-	version: '2.8.0',
-	started: line => line.includes('started'),
+// The core-only min distribution: needs a local JDK 21+ reachable
+// through OPENSEARCH_JAVA_HOME or JAVA_HOME, but downloads & boots much
+// faster than the full bundle. It has no security plugin, and passing a
+// setting for an absent plugin fails the boot.
+export const VERSION_3_5_0_MIN: VersionArgs = {
+	version: '3.5.0',
+	started: line => line.includes('o.o.n.node') && line.includes('started'),
 	settings: ({ port, host, cache }) => ({
 		'discovery.type': 'single-node',
 
@@ -20,10 +24,9 @@ export const VERSION_2_8_0: VersionArgs = {
 		'path.data': `${cache}/data`,
 		'path.logs': `${cache}/logs`,
 
-		'plugins.security.disabled': true,
-
-		// A local throwaway server must keep working on a nearly full
-		// disk, instead of tripping the watermark index blocks.
-		'cluster.routing.allocation.disk.threshold_enabled': false,
+		// 3.x blocks index creation cluster-wide once the disk passes the
+		// 90% watermark - percentage-based paranoia that breaks the local
+		// server on any well-filled dev machine.
+		'cluster.routing.allocation.disk.threshold_enabled': 'false',
 	}),
 }

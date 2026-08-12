@@ -32,7 +32,7 @@ var index_exports = {};
 __export(index_exports, {
   BulkError: () => BulkError,
   BulkItemError: () => BulkItemError,
-  VERSION_2_8_0: () => VERSION_2_8_0,
+  VERSION_3_5_0_MIN: () => VERSION_3_5_0_MIN,
   array: () => array,
   bigfloat: () => bigfloat,
   bigint: () => bigint,
@@ -48,7 +48,6 @@ __export(index_exports, {
   deleteIndex: () => deleteIndex,
   deleteItem: () => deleteItem,
   download: () => download,
-  downloadJdk: () => downloadJdk,
   indexItem: () => indexItem,
   launch: () => launch,
   mockClient: () => mockClient,
@@ -70,21 +69,27 @@ module.exports = __toCommonJS(index_exports);
 var import_credential_providers = require("@aws-sdk/credential-providers");
 var import_opensearch = require("@opensearch-project/opensearch");
 var import_aws = require("@opensearch-project/opensearch/aws");
+var import_node_https = require("https");
 var mock;
 var searchClient = (options = {}, service = "es") => {
   if (mock) {
     return mock;
   }
+  const node = options.node ?? "https://" + process.env.SEARCH_DOMAIN;
   return new import_opensearch.Client({
-    node: "https://" + process.env.SEARCH_DOMAIN,
+    node,
+    // Fail fast inside a lambda instead of the 30s default, & skip
+    // socket reuse since frozen sandboxes hold dead sockets.
+    // Both can be overridden through the options. The local dev &
+    // test servers run plain http, where an https agent won't fly.
+    requestTimeout: 5e3,
+    agent: String(node).startsWith("https") ? () => new import_node_https.Agent({
+      keepAlive: false
+    }) : void 0,
     ...(0, import_aws.AwsSigv4Signer)({
       region: process.env.AWS_REGION,
       service,
       getCredentials: (0, import_credential_providers.fromEnv)()
-      // getCredentials: () => {
-      // 	const credentialsProvider = defaultProvider();
-      // 	return credentialsProvider();
-      // },
     }),
     ...options
   });
@@ -97,17 +102,22 @@ var mockClient = (host, port) => {
 var import_request_port = require("@heat/request-port");
 
 // src/server/download.ts
+var import_crypto = require("crypto");
 var import_decompress = __toESM(require("decompress"), 1);
 var import_find_cache_dir = __toESM(require("find-cache-dir"), 1);
 var import_promises = require("fs/promises");
 var import_path = require("path");
 var getArchiveName = (version) => {
+  const name = `opensearch-min-${version}`;
   switch (process.platform) {
     case "win32":
-      return `opensearch-${version}-windows-arm64.zip`;
+      return `${name}-windows-arm64.zip`;
     default:
-      return `opensearch-${version}-linux-x64.tar.gz`;
+      return `${name}-linux-x64.tar.gz`;
   }
+};
+var getDownloadUrl = (version) => {
+  return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${getArchiveName(version)}`;
 };
 var getDownloadPath = () => {
   return (0, import_path.resolve)(
@@ -125,95 +135,102 @@ var exists = async (path) => {
   }
   return true;
 };
-var download = async (version) => {
-  const path = getDownloadPath();
+var download = async ({ version }) => {
+  const path = (0, import_path.join)(getDownloadPath(), "min");
   const name = `opensearch-${version}`;
   const file = (0, import_path.join)(path, name);
   if (await exists(file)) {
     return file;
   }
   console.log(`Downloading OpenSearch ${version}`);
-  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`;
+  const url = getDownloadUrl(version);
   const response = await fetch(url, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`Downloading OpenSearch failed with status ${response.status}: ${url}`);
+  }
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
-  const temp = (0, import_path.join)(path, `.${name}-${process.pid}`);
-  await (0, import_promises.rm)(temp, { recursive: true, force: true });
-  await (0, import_promises.mkdir)(temp, { recursive: true, mode: "0777" });
-  await (0, import_decompress.default)(buffer, temp);
+  const checksumResponse = await fetch(`${url}.sha512`, { method: "GET" });
+  if (!checksumResponse.ok) {
+    throw new Error(
+      `Downloading the OpenSearch checksum failed with status ${checksumResponse.status}: ${url}.sha512`
+    );
+  }
+  const checksum = (await checksumResponse.text()).split(/\s+/)[0];
+  const digest = (0, import_crypto.createHash)("sha512").update(buffer).digest("hex");
+  if (digest !== checksum) {
+    throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`);
+  }
+  const staging = (0, import_path.join)(path, `staging-${process.pid}`);
+  await (0, import_promises.mkdir)(staging, { recursive: true, mode: "0777" });
+  await (0, import_decompress.default)(buffer, staging);
   try {
-    await (0, import_promises.rename)((0, import_path.join)(temp, name), file);
+    await (0, import_promises.rename)((0, import_path.join)(staging, name), file);
   } catch (error) {
     if (!await exists(file)) {
       throw error;
     }
-  } finally {
-    await (0, import_promises.rm)(temp, { recursive: true, force: true });
   }
+  await (0, import_promises.rm)(staging, { recursive: true, force: true });
   return file;
 };
 
-// src/server/jdk.ts
-var import_decompress2 = __toESM(require("decompress"), 1);
-var import_find_cache_dir2 = __toESM(require("find-cache-dir"), 1);
+// src/server/launch.ts
+var import_child_process2 = require("child_process");
 var import_promises2 = require("fs/promises");
+var import_path3 = require("path");
+
+// src/server/java.ts
+var import_child_process = require("child_process");
 var import_path2 = require("path");
-var exists2 = async (path) => {
+var import_util = require("util");
+var exec = (0, import_util.promisify)(import_child_process.execFile);
+var MINIMUM_JAVA_VERSION = 21;
+var getJavaVersion = async (home) => {
   try {
-    await (0, import_promises2.stat)(path);
-  } catch (error) {
-    return false;
-  }
-  return true;
-};
-var findJavaHome = async (dir) => {
-  const [root] = await (0, import_promises2.readdir)(dir);
-  const base = (0, import_path2.join)(dir, root);
-  const macHome = (0, import_path2.join)(base, "Contents", "Home");
-  return await exists2(macHome) ? macHome : base;
-};
-var downloadJdk = async (version = 17) => {
-  const path = (0, import_path2.resolve)(
-    (0, import_find_cache_dir2.default)({
-      name: "@awsless/open-search",
-      cwd: process.cwd()
-    }) || ""
-  );
-  const dir = (0, import_path2.join)(path, `jdk-${version}-${process.platform}-${process.arch}`);
-  if (await exists2(dir)) {
-    return findJavaHome(dir);
-  }
-  console.log(`Downloading JDK ${version}`);
-  const os = process.platform === "darwin" ? "mac" : process.platform === "win32" ? "windows" : "linux";
-  const arch = process.arch === "arm64" ? "aarch64" : "x64";
-  const url = `https://api.adoptium.net/v3/binary/latest/${version}/ga/${os}/${arch}/jdk/hotspot/normal/eclipse`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Downloading JDK ${version} for ${os}-${arch} failed: ${response.status}`);
-  }
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const temp = (0, import_path2.join)(path, `.jdk-${version}-${process.platform}-${process.arch}-${process.pid}`);
-  await (0, import_promises2.rm)(temp, { recursive: true, force: true });
-  await (0, import_promises2.mkdir)(temp, { recursive: true, mode: "0777" });
-  await (0, import_decompress2.default)(buffer, temp);
-  try {
-    await (0, import_promises2.rename)(temp, dir);
-  } catch (error) {
-    if (!await exists2(dir)) {
-      throw error;
+    const result = await exec((0, import_path2.join)(home, "bin/java"), ["-version"]);
+    const match = `${result.stdout}${result.stderr}`.match(/version "(\d+)/);
+    if (match) {
+      return Number(match[1]);
     }
-    await (0, import_promises2.rm)(temp, { recursive: true, force: true });
+  } catch {
   }
-  return findJavaHome(dir);
+  return void 0;
+};
+var getMacJavaHome = async () => {
+  try {
+    const result = await exec("/usr/libexec/java_home", ["-v", `${MINIMUM_JAVA_VERSION}+`]);
+    return result.stdout.trim() || void 0;
+  } catch {
+  }
+  return void 0;
+};
+var findJavaHome = async () => {
+  const candidates = [
+    process.env.OPENSEARCH_JAVA_HOME,
+    process.env.JAVA_HOME,
+    process.platform === "darwin" ? await getMacJavaHome() : void 0,
+    "/opt/homebrew/opt/openjdk",
+    "/opt/homebrew/opt/openjdk@21",
+    "/usr/local/opt/openjdk",
+    "/usr/local/opt/openjdk@21"
+  ];
+  for (const home of candidates) {
+    if (!home) {
+      continue;
+    }
+    const version = await getJavaVersion(home);
+    if (version && version >= MINIMUM_JAVA_VERSION) {
+      return home;
+    }
+  }
+  return void 0;
 };
 
 // src/server/launch.ts
-var import_child_process = require("child_process");
-var import_promises3 = require("fs/promises");
-var import_path3 = require("path");
-var exists3 = async (path) => {
+var exists2 = async (path) => {
   try {
-    await (0, import_promises3.stat)(path);
+    await (0, import_promises2.stat)(path);
   } catch (error) {
     return false;
   }
@@ -224,32 +241,37 @@ var parseSettings = (settings) => {
     return ["-E", `${key}=${value}`];
   }).flat();
 };
-var launch = ({ path, host, port, version, debug, javaHome }) => {
-  return new Promise(async (resolve3, reject) => {
+var launch = ({ path, host, port, version, debug }) => {
+  return new Promise(async (resolve2, reject) => {
     const cache = (0, import_path3.join)(path, "cache", String(port));
     const cleanUp = async () => {
-      if (await exists3(cache)) {
-        await (0, import_promises3.rm)(cache, {
+      if (await exists2(cache)) {
+        await (0, import_promises2.rm)(cache, {
           recursive: true
         });
       }
     };
     await cleanUp();
-    const binary = javaHome ? (0, import_path3.join)(path, "bin", "opensearch") : (0, import_path3.join)(path, "opensearch-tar-install.sh");
-    const child = (0, import_child_process.spawn)(
-      binary,
-      parseSettings(version.settings({ host, port, cache })),
-      javaHome ? {
-        env: {
-          ...process.env,
-          OPENSEARCH_JAVA_HOME: javaHome
-        }
-      } : {}
-    );
-    const onError = (error) => fail(error);
-    const onExit = (code) => fail(`OpenSearch exited with code ${code} during startup.`);
+    const binary = (0, import_path3.join)(path, "bin/opensearch");
+    const env = { ...process.env };
+    if (process.platform === "darwin") {
+      const javaHome = await findJavaHome();
+      if (!javaHome) {
+        reject(new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".'));
+        return;
+      }
+      env.OPENSEARCH_JAVA_HOME = javaHome;
+    }
+    const child = (0, import_child_process2.spawn)(binary, parseSettings(version.settings({ host, port, cache })), { env });
+    const output = [];
+    const onError = (error) => fail(String(error));
+    const onExit = (code) => {
+      fail(`OpenSearch exited before starting (code ${code})
+${output.join("")}`);
+    };
     const onMessage = (message) => {
       const line = message.toString("utf8").toLowerCase();
+      output.push(line);
       if (debug) {
         console.log(line);
       }
@@ -258,10 +280,10 @@ var launch = ({ path, host, port, version, debug, javaHome }) => {
       }
     };
     const kill = async () => {
-      if (child.exitCode === null && child.signalCode === null) {
-        await new Promise((resolve4) => {
+      if (child.exitCode === null && !child.killed) {
+        await new Promise((resolve3) => {
           child.once(`exit`, () => {
-            resolve4(void 0);
+            resolve3(void 0);
           });
           child.kill();
         });
@@ -286,7 +308,7 @@ var launch = ({ path, host, port, version, debug, javaHome }) => {
     };
     const done = async () => {
       off();
-      resolve3(kill);
+      resolve2(kill);
     };
     const fail = async (error) => {
       off();
@@ -298,19 +320,19 @@ var launch = ({ path, host, port, version, debug, javaHome }) => {
 };
 
 // src/server/version.ts
-var VERSION_2_8_0 = {
-  version: "2.8.0",
-  started: (line) => line.includes("started"),
+var VERSION_3_5_0_MIN = {
+  version: "3.5.0",
+  started: (line) => line.includes("o.o.n.node") && line.includes("started"),
   settings: ({ port, host, cache }) => ({
     "discovery.type": "single-node",
     "http.host": host,
     "http.port": port,
     "path.data": `${cache}/data`,
     "path.logs": `${cache}/logs`,
-    "plugins.security.disabled": true,
-    // A local throwaway server must keep working on a nearly full
-    // disk, instead of tripping the watermark index blocks.
-    "cluster.routing.allocation.disk.threshold_enabled": false
+    // 3.x blocks index creation cluster-wide once the disk passes the
+    // 90% watermark - percentage-based paranoia that breaks the local
+    // server on any well-filled dev machine.
+    "cluster.routing.allocation.disk.threshold_enabled": "false"
   })
 };
 
@@ -320,7 +342,7 @@ var ping = async () => {
   const client = await searchClient();
   try {
     const result = await client.cat.indices({ format: "json" });
-    return result.statusCode === 200 && result.body.length === 0;
+    return result.statusCode === 200;
   } catch (error) {
     return false;
   }
@@ -336,20 +358,17 @@ var wait = async (times = 10) => {
 };
 
 // src/mock.ts
-var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
+var mockOpenSearch = ({ version = VERSION_3_5_0_MIN, debug = false } = {}) => {
   beforeAll && beforeAll(async () => {
     const [port, release] = await (0, import_request_port.requestPort)();
     const host = "localhost";
-    const path = await download(version.version);
-    const native = process.platform === "linux" || process.platform === "win32";
-    const javaHome = native ? void 0 : await downloadJdk();
+    const path = await download(version);
     const kill = await launch({
       path,
       port,
       host,
       version,
-      debug,
-      javaHome
+      debug
     });
     mockClient(host, port);
     await wait();
@@ -491,6 +510,8 @@ var decodeCursor = (cursor) => {
 var search = async (table, { query, aggs, limit = 10, offset, cursor, sort, trackTotalHits }) => {
   const result = await table.client().search({
     index: table.index,
+    // The caller passes raw query DSL as unknown, so the spec-typed
+    // request body can only be satisfied with a cast.
     body: {
       from: offset,
       size: limit + 1,
@@ -696,7 +717,7 @@ var uuid = (props = {}) => new Schema(
 0 && (module.exports = {
   BulkError,
   BulkItemError,
-  VERSION_2_8_0,
+  VERSION_3_5_0_MIN,
   array,
   bigfloat,
   bigint,
@@ -712,7 +733,6 @@ var uuid = (props = {}) => new Schema(
   deleteIndex,
   deleteItem,
   download,
-  downloadJdk,
   indexItem,
   launch,
   mockClient,

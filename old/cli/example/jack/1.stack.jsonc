@@ -1,0 +1,30 @@
+{
+	"$schema": "../../dist/stack.json",
+	"name": "stack-1",
+	// "depends": ["stack-2"],
+
+	// "tests": "./test",
+	"tests": false,
+	"configs": ["test"],
+
+	"routes": {
+		"main": {
+			"/test": "./router/function.ts",
+			"/route/{id}": "./router/route.ts",
+			"/*": "./router/other.ts"
+		}
+	}
+	// "pubsub": {
+	// 	"test": {
+	// 		"connected": "./pubsub/event.ts",
+	// 		"disconnected": "./pubsub/event.ts",
+	// 		"subscribed": "./pubsub/event.ts",
+	// 		"unsubscribed": "./pubsub/event.ts"
+	// 	}
+	// },
+	// "rpc": {
+	// 	"main": {
+	// 		"publish"
+	// 	}
+	// },
+}

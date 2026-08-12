@@ -61,6 +61,29 @@ export const update = (program: Command) => {
 					}
 				}
 
+				if (name && !pools.includes(name)) {
+					throw new ExpectedError(`The auth userpool "${name}" doesn't exist.`)
+				}
+
+				if (!name) {
+					if (pools.length === 1) {
+						name = pools[0]!
+					} else if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass --pool <name> when running with --skip-prompt: [ ${pools.join(', ')} ]`
+						)
+					} else {
+						name = await prompt.select({
+							message: 'Select the auth userpool:',
+							initialValue: pools.at(0),
+							options: pools.map(name => ({
+								label: name,
+								value: name,
+							})),
+						})
+					}
+				}
+
 				const props = appConfig.auth[name]!
 
 				const userPoolId = await log.task({

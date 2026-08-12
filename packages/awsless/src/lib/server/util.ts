@@ -3,7 +3,7 @@ import { getCurrentRoute } from './bundle.js'
 
 export const APP = process.env.APP!
 export const APP_ID = process.env.APP_ID!
-export const IS_TEST = process.env.NODE_ENV === 'test'
+export const IS_TEST = !!process.env['VITEST'] || process.env['NODE_ENV'] === 'test'
 // Local dev mode (`awsless dev`) is a third mode, separate from IS_TEST:
 // tests bypass bundle routing to keep name-keyed mocks working, while local
 // dev keeps the production code paths and redirects the AWS boundary instead.

@@ -17,7 +17,7 @@ import type { Mock } from 'vitest'
 
 type Func = (...args: any[]) => any
 
-type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'reflectViewableErrors'> & {
+type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'qualifier' | 'reflectViewableErrors'> & {
 	schedule?: Duration | Date
 }
 
@@ -135,63 +135,79 @@ export const taskFeature = defineFeature({
 			resourceName: 'failure',
 		})
 
-		new aws.scheduler.ScheduleGroup(group, 'group', {
-			name: scheduleGroupName,
-			tags: {
-				app: ctx.app.name,
+		new aws.scheduler.ScheduleGroup(
+			group,
+			'group',
+			{
+				name: scheduleGroupName,
+				tags: {
+					app: ctx.app.name,
+				},
 			},
+			{
+				import: ctx.import ? scheduleGroupName : undefined,
+			}
+		)
+
+		const roleName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'task',
+			resourceName: 'schedule',
 		})
 
-		const role = new aws.iam.Role(group, 'schedule', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'task',
-				resourceName: 'schedule',
-			}),
-			description: `Task schedule ${ctx.app.name}`,
-			assumeRolePolicy: JSON.stringify({
-				Version: '2012-10-17',
-				Statement: [
-					{
-						Action: 'sts:AssumeRole',
-						Effect: 'Allow',
-						Principal: {
-							Service: 'scheduler.amazonaws.com',
+		const role = new aws.iam.Role(
+			group,
+			'schedule',
+			{
+				name: roleName,
+				description: `Task schedule ${ctx.app.name}`,
+				assumeRolePolicy: JSON.stringify({
+					Version: '2012-10-17',
+					Statement: [
+						{
+							Action: 'sts:AssumeRole',
+							Effect: 'Allow',
+							Principal: {
+								Service: 'scheduler.amazonaws.com',
+							},
 						},
+					],
+				}),
+				inlinePolicy: [
+					{
+						name: 'ScheduleTarget',
+						policy: JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Action: ['lambda:InvokeFunction'],
+									Effect: 'Allow',
+									Resource: `arn:aws:lambda:*:*:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
+								},
+								{
+									Action: ['sqs:SendMessage'],
+									Effect: 'Allow',
+									Resource: `arn:aws:sqs:*:*:${failureQueueName}`,
+								},
+							],
+						}),
 					},
 				],
-			}),
-			inlinePolicy: [
-				{
-					name: 'ScheduleTarget',
-					policy: JSON.stringify({
-						Version: '2012-10-17',
-						Statement: [
-							{
-								Action: ['lambda:InvokeFunction'],
-								Effect: 'Allow',
-								Resource: `arn:aws:lambda:*:*:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
-							},
-							{
-								Action: ['sqs:SendMessage'],
-								Effect: 'Allow',
-								Resource: `arn:aws:sqs:*:*:${failureQueueName}`,
-							},
-						],
-					}),
-				},
-			],
-		})
+			},
+			{
+				import: ctx.import ? roleName : undefined,
+			}
+		)
 
 		// role.arn.pipe(console.log)
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['scheduler:CreateSchedule'],
 			// resources: [`arn:aws:scheduler:*:*:schedule:${ctx.appConfig.name}--*`],
 			resources: [`arn:aws:scheduler:*:*:schedule/${scheduleGroupName}/*`],
 		})
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: [role.arn],
 		})
@@ -205,9 +221,7 @@ export const taskFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
-			const consumer = props.consumer
-
-			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), consumer)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), props.consumer)
 		}
 	},
 })

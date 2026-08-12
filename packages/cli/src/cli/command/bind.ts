@@ -91,8 +91,8 @@ export const bind = (program: Command) => {
 
 				const configList = opts.config ?? []
 				const configs: Record<string, string> = {}
-				for (const name of configList) {
-					configs[`CONFIG_${constantCase(name)}`] = name
+				if (configList.length > 0) {
+					configs.CONFIGS = configList.join(',')
 				}
 
 				if (configList.length ?? 0 > 0) {

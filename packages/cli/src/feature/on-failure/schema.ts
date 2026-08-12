@@ -10,14 +10,20 @@ const NotifySchema = z
 	])
 	.describe('Receive an email notification when consuming failure entries goes wrong.')
 
+// The consumer stays outside the vpc unless it opts in.
+const ConsumerSchema = FunctionSchema.transform(consumer => ({
+	...consumer,
+	vpc: consumer.vpc ?? false,
+}))
+
 export const OnFailureDefaultSchema = z
 	.union([
-		FunctionSchema.transform(consumer => ({
+		ConsumerSchema.transform(consumer => ({
 			consumer,
 			notify: [],
 		})),
 		z.object({
-			consumer: FunctionSchema,
+			consumer: ConsumerSchema,
 			notify: NotifySchema.optional(),
 		}),
 	])

@@ -1,50 +1,54 @@
 import { parse, patch } from '@awsless/json'
-import { invoke } from '@awsless/lambda'
 import { deleteObject, getObject } from '@awsless/s3'
 import { S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
-import { getBundleName, LIVE_BUNDLE_ALIAS } from '../../bundle/config.js'
+import { ROUTE_PROPERTY } from 'awsless'
 import {
 	AsyncLambdaFailureEvent,
 	DynamoDBStreamFailureEvent,
+	FailureEvent,
 	FunctionFailureEvent,
 	QueueFailureEvent,
 	UnknownFailureEvent,
 } from './types'
 import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from './util'
 
-const CONSUMER_ROUTE = 'base:on-failure:consumer'
+type Consumer = (event: FailureEvent) => Promise<unknown>
 
-export default async (event: S3CreateEvent | SQSEvent) => {
-	if (!Array.isArray(event.Records)) {
-		throw new TypeError(`Unknown Event Type: ${JSON.stringify(event)}`)
+// A consumer failure throws here & the failure object stays in the
+// bucket for the sqs retry.
+export const createHandler = (consumer: Consumer) => {
+	return async (event: S3CreateEvent | SQSEvent) => {
+		if (!Array.isArray(event.Records)) {
+			throw new TypeError(`Unknown Event Type: ${JSON.stringify(event)}`)
+		}
+
+		await Promise.all(
+			event.Records.map(record => {
+				return unknownRecord(record, consumer)
+			})
+		)
 	}
-
-	await Promise.all(
-		event.Records.map(record => {
-			return unknownRecord(record)
-		})
-	)
 }
 
-const unknownRecord = (record: S3EventRecord | SQSRecord) => {
+const unknownRecord = (record: S3EventRecord | SQSRecord, consumer: Consumer) => {
 	if (typeof record.eventSource === 'string') {
 		if (record.eventSource.startsWith('aws:sqs')) {
-			return sqsRecord(record as SQSRecord)
+			return sqsRecord(record as SQSRecord, consumer)
 		}
 
 		if (record.eventSource.startsWith('aws:s3')) {
-			return s3Record(record as S3EventRecord)
+			return s3Record(record as S3EventRecord, consumer)
 		}
 	}
 
 	throw new TypeError(`Unknown Record Type: ${JSON.stringify(record)}`)
 }
 
-const sqsRecord = async (record: SQSRecord) => {
+const sqsRecord = async (record: SQSRecord, consumer: Consumer) => {
 	const s3Records = parseS3Records(record.body)
 
 	if (s3Records) {
-		await Promise.all(s3Records.map(record => s3Record(record)))
+		await Promise.all(s3Records.map(record => s3Record(record, consumer)))
 		return
 	}
 
@@ -63,7 +67,7 @@ const sqsRecord = async (record: SQSRecord) => {
 		},
 	}
 
-	await invokeConsumer(payload)
+	await consumer(payload)
 }
 
 const parseS3Records = (body: string): S3EventRecord[] | undefined => {
@@ -82,7 +86,7 @@ const parseS3Records = (body: string): S3EventRecord[] | undefined => {
 	return
 }
 
-const s3Record = async (record: S3EventRecord) => {
+const s3Record = async (record: S3EventRecord, consumer: Consumer) => {
 	const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '))
 	const object = await getObject({
 		bucket: record.s3.bucket.name,
@@ -97,7 +101,7 @@ const s3Record = async (record: S3EventRecord) => {
 	const unknownEvent = JSON.parse(json) as UnknownFailureEvent
 	const payload = formatUnknownFailureEvent(unknownEvent)
 
-	await invokeConsumer(payload)
+	await consumer(payload)
 
 	await deleteObject({
 		bucket: record.s3.bucket.name,
@@ -114,8 +118,8 @@ const formatUnknownFailureEvent = (event: UnknownFailureEvent): FunctionFailureE
 }
 
 const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): FunctionFailureEvent => {
-	const payload = patchPayload(event.requestPayload) as { '$awsless-route'?: unknown; event?: unknown } | null
-	const route = payload && typeof payload === 'object' ? payload['$awsless-route'] : undefined
+	const payload = patchPayload(event.requestPayload) as { [ROUTE_PROPERTY]?: unknown; event?: unknown } | null
+	const route = payload && typeof payload === 'object' ? payload[ROUTE_PROPERTY] : undefined
 
 	return {
 		type: 'async-lambda',
@@ -126,9 +130,7 @@ const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): Function
 		},
 		payload: typeof route === 'string' ? (payload!.event ?? {}) : payload,
 		source:
-			typeof route === 'string'
-				? { resource: route, event: payload!.event ?? {} }
-				: getFailureSource(payload),
+			typeof route === 'string' ? { resource: route, event: payload!.event ?? {} } : getFailureSource(payload),
 		error: {
 			type: event.responsePayload.errorType,
 			message: event.responsePayload.errorMessage,
@@ -168,18 +170,4 @@ const patchPayload = (payload: unknown) => {
 	} catch {
 		return payload
 	}
-}
-
-// The consumer runs inside the live bundle, so a consumer failure throws
-// here & the failure object stays in the bucket for the sqs retry.
-const invokeConsumer = async (payload: unknown) => {
-	await invoke({
-		name: getBundleName(),
-		qualifier: LIVE_BUNDLE_ALIAS,
-		type: 'RequestResponse',
-		payload: {
-			'$awsless-route': CONSUMER_ROUTE,
-			event: payload,
-		},
-	})
 }

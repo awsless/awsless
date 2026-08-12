@@ -10,17 +10,17 @@ describe('task schedule role', () => {
 			.find(meta => meta.type === 'aws_iam_role' && meta.input.name === 'test-app--task--schedule')
 		const policy = JSON.parse((role!.input.inlinePolicy as { policy: string }[])[0]!.policy)
 
-		expect(policy.Statement).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					Action: ['lambda:InvokeFunction'],
-					Resource: 'arn:aws:lambda:*:*:function:test-app--function--bundle:*',
-				}),
-				expect.objectContaining({
-					Action: ['sqs:SendMessage'],
-					Resource: 'arn:aws:sqs:*:*:test-app--on-failure--failure',
-				}),
-			])
-		)
+		expect(policy.Statement).toStrictEqual([
+			{
+				Action: ['lambda:InvokeFunction'],
+				Effect: 'Allow',
+				Resource: 'arn:aws:lambda:*:*:function:test-app--function--bundle:*',
+			},
+			{
+				Action: ['sqs:SendMessage'],
+				Effect: 'Allow',
+				Resource: 'arn:aws:sqs:*:*:test-app--on-failure--failure',
+			},
+		])
 	})
 })

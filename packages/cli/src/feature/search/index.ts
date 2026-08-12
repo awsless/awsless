@@ -114,7 +114,7 @@ export const searchFeature = defineFeature({
 
 		ctx.addEnv('SEARCH_DOMAIN', openSearch.endpointV2)
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['es:ESHttp*'],
 			resources: [openSearch.arn.pipe(arn => `${arn}/*`)],
 		})

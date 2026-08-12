@@ -61,9 +61,16 @@ export const alertFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new aws.sns.Topic(group, 'topic', {
-				name,
-			})
+			const topic = new aws.sns.Topic(
+				group,
+				'topic',
+				{
+					name,
+				},
+				{
+					import: ctx.import ? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${name}` : undefined,
+				}
+			)
 
 			for (const endpoint of endpoints) {
 				// Private endpoints reference a remote config value & are
@@ -71,6 +78,9 @@ export const alertFeature = defineFeature({
 				if (isConfigRef(endpoint)) {
 					const name = configRefName(endpoint)
 					const value = ctx.configValues?.[name]?.trim()
+
+					// Registering the name puts unset endpoints in the missing-config warning.
+					ctx.registerConfig(name)
 
 					if (!value) {
 						continue
@@ -100,7 +110,7 @@ export const alertFeature = defineFeature({
 			}
 		}
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['sns:Publish'],
 			resources: [
 				`arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({

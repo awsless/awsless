@@ -75,3 +75,9 @@ export const decodeAwsChunked = (body: Buffer) => {
 
 	return Buffer.concat(chunks)
 }
+
+// Terminal color & cursor escape codes mean nothing in the log views.
+export const stripAnsi = (line: string) => {
+	// eslint-disable-next-line no-control-regex
+	return line.replaceAll(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
+}

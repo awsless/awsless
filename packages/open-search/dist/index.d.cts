@@ -1,7 +1,5 @@
-import * as types from '@opensearch-project/opensearch/api/types';
-export { types as Types };
 import { ClientOptions, Client } from '@opensearch-project/opensearch';
-import { Client as Client$1 } from '@opensearch-project/opensearch/.';
+export { Types } from '@opensearch-project/opensearch';
 import { Numeric, BigFloat } from '@awsless/big-float';
 
 type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
@@ -37,13 +35,12 @@ type Options$5 = {
     port: number;
     debug?: boolean;
     version: VersionArgs;
-    javaHome?: string;
 };
-declare const launch: ({ path, host, port, version, debug, javaHome }: Options$5) => Promise<() => Promise<void>>;
+declare const launch: ({ path, host, port, version, debug }: Options$5) => Promise<() => Promise<void>>;
 
-type Version$1 = `${string}.${string}.${string}`;
+type Version = `${string}.${string}.${string}`;
 type VersionArgs = {
-    version: Version$1;
+    version: Version;
     settings: (opts: {
         port: number;
         host: string;
@@ -51,7 +48,7 @@ type VersionArgs = {
     }) => Settings;
     started: (line: string) => boolean;
 };
-declare const VERSION_2_8_0: VersionArgs;
+declare const VERSION_3_5_0_MIN: VersionArgs;
 
 type Options$4 = {
     version?: VersionArgs;
@@ -59,20 +56,17 @@ type Options$4 = {
 };
 declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
 
-type Version = `${string}.${string}.${string}`;
-declare const download: (version: Version) => Promise<string>;
-
-declare const downloadJdk: (version?: number) => Promise<string>;
+declare const download: ({ version }: Pick<VersionArgs, "version">) => Promise<string>;
 
 declare const wait: (times?: number) => Promise<void>;
 
 type Table<I extends string, S extends AnySchema> = {
     index: I;
     schema: S;
-    client: () => Client$1;
+    client: () => Client;
 };
 type AnyTable = Table<string, AnySchema>;
-declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
+declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client) => Table<I, S>;
 
 declare const bulkDeleteItem: <T extends AnyTable>(table: T, id: string) => {
     readonly action: "delete";
@@ -191,4 +185,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_2_8_0, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, downloadJdk, indexItem, launch, mockClient, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid, wait };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockClient, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid, wait };

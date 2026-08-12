@@ -1,4 +1,4 @@
-import { download, downloadJdk, launch, VERSION_2_8_0 } from '@awsless/open-search'
+import { download, launch, VERSION_3_5_0_MIN } from '@awsless/open-search'
 import { Client } from '@opensearch-project/opensearch'
 import { findFreePort } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
@@ -32,24 +32,20 @@ export const searchOnDev = async (ctx: DevContext) => {
 		return
 	}
 
-	// The same real OpenSearch that the search tests run against. The
-	// bundle only ships a linux or windows jdk, so on other platforms a
-	// matching jdk is downloaded next to it & the jars run on that.
+	// The same real OpenSearch min distribution that the search tests
+	// run against - it needs a local JDK 21+, which launch resolves.
 	// The server is slow to boot, so it survives dev restarts & the
 	// declared indexes reapply on every run.
 	const { port } = await ctx.keep('opensearch', null, async () => {
-		const native = process.platform === 'linux' || process.platform === 'win32'
 		const port = await findFreePort()
-		const path = await download(VERSION_2_8_0.version)
-		const javaHome = native ? undefined : await downloadJdk()
+		const path = await download(VERSION_3_5_0_MIN)
 
 		const kill = await launch({
 			path,
 			port,
 			host: 'localhost',
-			version: VERSION_2_8_0,
+			version: VERSION_3_5_0_MIN,
 			debug: false,
-			javaHome,
 		})
 
 		await waitForSearch(port, 60_000)

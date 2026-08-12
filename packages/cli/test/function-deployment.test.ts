@@ -2,37 +2,43 @@ import {
 	AddPermissionCommand,
 	CreateAliasCommand,
 	CreateFunctionUrlConfigCommand,
-	DeleteAliasCommand,
 	DeleteFunctionUrlConfigCommand,
 	GetAliasCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
-	RemovePermissionCommand,
-	UpdateFunctionUrlConfigCommand,
+	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLambdaProvider } from '../src/formation/lambda'
 import { credentials, notFound, sent } from './_kit'
 
 const sourceArn = 'arn:aws:cloudfront::123456789012:distribution/test'
-const previewSourceArn = 'arn:aws:cloudfront::123456789012:distribution/preview'
-const sourceArns = [sourceArn, previewSourceArn]
+const sourceArns = [sourceArn]
 const onFailureArn = 'arn:aws:s3:::test-on-failure'
 
-const mockLambda = (liveVersion?: string, liveDescription?: string) => {
+const conflict = () => {
+	const error = new Error('Alias already exists')
+	error.name = 'ResourceConflictException'
+
+	return error
+}
+
+const mockLambda = (options: { liveVersion?: string; liveDescription?: string; aliasExists?: boolean } = {}) => {
 	return vi.spyOn(LambdaClient.prototype, 'send').mockImplementation(async command => {
 		if (command instanceof GetAliasCommand) {
-			if (liveVersion) {
-				return { Description: liveDescription, FunctionVersion: liveVersion }
+			if (options.liveVersion) {
+				return { Description: options.liveDescription, FunctionVersion: options.liveVersion }
 			}
 
 			throw notFound()
 		}
 
 		if (command instanceof CreateAliasCommand) {
-			return {
-				AliasArn: `arn:aws:lambda:us-east-1:123456789012:function:test-function:${command.input.Name}`,
+			if (options.aliasExists) {
+				throw conflict()
 			}
+
+			return {}
 		}
 
 		if (command instanceof CreateFunctionUrlConfigCommand) {
@@ -41,29 +47,12 @@ const mockLambda = (liveVersion?: string, liveDescription?: string) => {
 			}
 		}
 
-		if (command instanceof AddPermissionCommand) {
-			return {}
-		}
-
-		if (command instanceof UpdateFunctionUrlConfigCommand) {
-			return {
-				FunctionUrl: `https://${command.input.Qualifier}.lambda-url.us-east-1.on.aws/`,
-			}
-		}
-
-		if (command instanceof RemovePermissionCommand) {
-			return {}
-		}
-
-		if (command instanceof DeleteAliasCommand) {
-			return {}
-		}
-
-		if (command instanceof DeleteFunctionUrlConfigCommand) {
-			return {}
-		}
-
-		if (command instanceof PutFunctionEventInvokeConfigCommand) {
+		if (
+			command instanceof UpdateAliasCommand ||
+			command instanceof AddPermissionCommand ||
+			command instanceof DeleteFunctionUrlConfigCommand ||
+			command instanceof PutFunctionEventInvokeConfigCommand
+		) {
 			return {}
 		}
 
@@ -71,199 +60,110 @@ const mockLambda = (liveVersion?: string, liveDescription?: string) => {
 	})
 }
 
-describe('Lambda bundle deployment', () => {
+describe('Lambda deployment alias', () => {
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it('should tag the published version & configure async invokes', async () => {
+		const send = mockLambda()
+		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
+
+		await provider.createResource({
+			type: 'deployment-alias',
+			state: {
+				functionName: 'test-function',
+				functionVersion: '1',
+				id: 'main-1',
+				onFailureArn,
+			},
+		})
+
+		const alias = sent(send, CreateAliasCommand)[0]!
+		const config = sent(send, PutFunctionEventInvokeConfigCommand)[0]!
+
+		expect(alias.input).toEqual({
+			FunctionName: 'test-function',
+			FunctionVersion: '1',
+			Name: 'main-1',
+		})
+		expect(config.input).toEqual({
+			FunctionName: 'test-function',
+			Qualifier: 'main-1',
+			MaximumRetryAttempts: 2,
+			DestinationConfig: { OnFailure: { Destination: onFailureArn } },
+		})
+	})
+
+	it('should repoint a reused local deployment id to the new version', async () => {
+		const send = mockLambda({ aliasExists: true })
+		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
+
+		await provider.updateResource({
+			type: 'deployment-alias',
+			priorState: {
+				functionName: 'test-function',
+				functionVersion: '1',
+				id: 'local-0',
+			},
+			proposedState: {
+				functionName: 'test-function',
+				functionVersion: '2',
+				id: 'local-0',
+			},
+		})
+
+		const update = sent(send, UpdateAliasCommand)[0]!
+
+		expect(update.input).toEqual({
+			FunctionName: 'test-function',
+			FunctionVersion: '2',
+			Name: 'local-0',
+		})
+	})
+})
+
+describe('Lambda live target', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
 	})
 
 	it('should use the proposed version when live does not exist yet', async () => {
-		const send = mockLambda()
+		mockLambda()
 		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
+
 		const result = await provider.createResource({
-			type: 'bundle-deployment',
+			type: 'live-target',
 			state: {
-				deploymentId: 'main-1',
 				functionName: 'test-function',
 				functionVersion: '1',
-				onFailureArn,
-				sourceAccount: '123456789012',
 			},
 		})
 
-		expect(result.state).toEqual({
-			deploymentId: 'main-1',
-			functionName: 'test-function',
-			functionVersion: '1',
-			onFailureArn,
-			sourceAccount: '123456789012',
-			deploymentAlias: 'deployment-main-1',
-			deploymentAliases: ['deployment-main-1'],
-			liveDescription: undefined,
-			liveVersion: '1',
-			url: 'https://deployment-main-1.lambda-url.us-east-1.on.aws/',
-		})
-		expect(send.mock.calls.map(([command]) => command)).toEqual([
-			expect.any(GetAliasCommand),
-			expect.any(CreateAliasCommand),
-			expect.any(PutFunctionEventInvokeConfigCommand),
-			expect.any(CreateFunctionUrlConfigCommand),
-			expect.any(AddPermissionCommand),
-			expect.any(AddPermissionCommand),
-			expect.any(RemovePermissionCommand),
-			expect.any(RemovePermissionCommand),
-		])
-		expect(send.mock.calls[1]![0].input.Name).toBe('deployment-main-1')
-
-		// the deployment url is only invokable through cloudfront with oac
-		const created = sent(send, CreateFunctionUrlConfigCommand).map(command => command.input)
-		expect(created[0]!.AuthType).toBe('AWS_IAM')
-
-		const permissions = sent(send, AddPermissionCommand).map(command => command.input)
-		expect(permissions).toEqual([
-			expect.objectContaining({
-				Principal: 'cloudfront.amazonaws.com',
-				SourceAccount: '123456789012',
-				Action: 'lambda:InvokeFunctionUrl',
-				FunctionUrlAuthType: 'AWS_IAM',
-			}),
-			expect.objectContaining({
-				Principal: 'cloudfront.amazonaws.com',
-				SourceAccount: '123456789012',
-				Action: 'lambda:InvokeFunction',
-				InvokedViaFunctionUrl: true,
-			}),
-		])
-
-		// the legacy public permissions are dropped
-		const removed = sent(send, RemovePermissionCommand).map(command => command.input.StatementId)
-		expect(removed).toEqual(['public-url', 'public-invoke'])
-	})
-
-	it('should secure aliases from before IAM-only urls in place once', async () => {
-		const send = mockLambda('1', '$awsless:deployment:main-1:1')
-		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
-		const result = await provider.updateResource({
-			type: 'bundle-deployment',
-			priorState: {
-				deploymentId: 'main-1',
-				functionName: 'test-function',
-				functionVersion: '1',
-				onFailureArn,
-				deploymentAlias: 'deployment-main-1',
-				deploymentAliases: ['deployment-main-1'],
-				liveVersion: '1',
-				url: 'https://deployment-main-1.lambda-url.us-east-1.on.aws/',
-			},
-			proposedState: {
-				deploymentId: 'main-2',
-				functionName: 'test-function',
-				functionVersion: '2',
-				onFailureArn,
-				sourceAccount: '123456789012',
-			},
-		})
-
-		expect((result.state as { deploymentAliases: string[] }).deploymentAliases).toEqual([
-			'deployment-main-1',
-			'deployment-main-2',
-		])
-
-		// both the new & the old alias urls end up IAM-only
-		const configured = sent(send, CreateFunctionUrlConfigCommand).map(command => command.input.Qualifier)
-		expect(configured.sort()).toEqual(['deployment-main-1', 'deployment-main-2'])
+		expect(result.state.liveVersion).toBe('1')
+		expect(result.state.liveDescription).toBeUndefined()
 	})
 
 	it('should preserve the existing live target while staging a new version', async () => {
-		const liveDescription = '$awsless:deployment:7:8'
-		const send = mockLambda('7', liveDescription)
+		mockLambda({ liveVersion: '7', liveDescription: 'main-7' })
 		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
-		const result = await provider.createResource({
-			type: 'bundle-deployment',
-			state: {
-				deploymentId: 'main-8',
+
+		const result = await provider.updateResource({
+			type: 'live-target',
+			priorState: {
+				functionName: 'test-function',
+				functionVersion: '7',
+				liveVersion: '7',
+				liveDescription: 'main-7',
+			},
+			proposedState: {
 				functionName: 'test-function',
 				functionVersion: '8',
-				onFailureArn,
 			},
 		})
 
 		expect(result.state.liveVersion).toBe('7')
-		expect(result.state.liveDescription).toBe(liveDescription)
-		expect(send.mock.calls.map(([command]) => command.input)).toContainEqual({
-			FunctionName: 'test-function',
-			FunctionVersion: '8',
-			Name: 'deployment-main-8',
-		})
-		expect(
-			send.mock.calls.some(([command]) => command instanceof CreateAliasCommand && command.input.Name === 'live')
-		).toBe(false)
-	})
-
-	it('should retain deployment aliases across updates', async () => {
-		const send = mockLambda('1')
-		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
-		const result = await provider.updateResource({
-			type: 'bundle-deployment',
-			priorState: {
-				deploymentId: 'main-1',
-				functionName: 'test-function',
-				functionVersion: '1',
-				onFailureArn,
-				deploymentAlias: 'deployment-main-1',
-				deploymentAliases: ['deployment-main-1'],
-				liveDescription: '$awsless:deployment:1:1',
-				liveVersion: '1',
-			},
-			proposedState: {
-				deploymentId: 'main-2',
-				functionName: 'test-function',
-				functionVersion: '2',
-				onFailureArn,
-			},
-		})
-
-		expect(send.mock.calls.map(([command]) => command)).toEqual([
-			expect.any(GetAliasCommand),
-			expect.any(CreateAliasCommand),
-			expect.any(PutFunctionEventInvokeConfigCommand),
-			expect.any(CreateFunctionUrlConfigCommand),
-			expect.any(AddPermissionCommand),
-			expect.any(AddPermissionCommand),
-		])
-		expect(result.state.deploymentAliases).toEqual(['deployment-main-1', 'deployment-main-2'])
-		expect(result.state.liveVersion).toBe('1')
-		expect(result.state.url).toBe('https://deployment-main-2.lambda-url.us-east-1.on.aws/')
-	})
-
-	it('should delete only deployment aliases', async () => {
-		const send = mockLambda()
-		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
-
-		await provider.deleteResource({
-			type: 'bundle-deployment',
-			state: {
-				deploymentId: 'main-2',
-				functionName: 'test-function',
-				functionVersion: '2',
-				onFailureArn,
-				deploymentAlias: 'deployment-main-2',
-				deploymentAliases: ['deployment-main-1', 'deployment-main-2'],
-				liveDescription: '$awsless:deployment:1:1',
-				liveVersion: '1',
-			},
-		})
-
-		expect(send.mock.calls.map(([command]) => command.constructor)).toEqual(
-			expect.arrayContaining([DeleteAliasCommand, DeleteFunctionUrlConfigCommand])
-		)
-		expect(sent(send, DeleteAliasCommand).map(command => command.input.Name)).toEqual([
-			'deployment-main-1',
-			'deployment-main-2',
-		])
-		expect(sent(send, DeleteFunctionUrlConfigCommand).map(command => command.input.Qualifier)).toEqual([
-			'deployment-main-1',
-			'deployment-main-2',
-		])
+		expect(result.state.liveDescription).toBe('main-7')
 	})
 })
 
@@ -272,106 +172,84 @@ describe('Lambda function deployment', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('should create an immutable alias, URL, and CloudFront permissions', async () => {
+	it('should create a URL & CloudFront permissions on the deployment alias', async () => {
 		const send = mockLambda()
 		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
 		const result = await provider.createResource({
 			type: 'function-deployment',
 			state: {
 				functionName: 'test-function',
-				functionVersion: '1',
-				id: 'main',
+				id: 'main-1',
 				sourceArns,
-				retention: 60,
 			},
 		})
 
-		const alias = result.state.alias as string
 		const permissions = sent(send, AddPermissionCommand).map(command => command.input)
 
-		expect(alias).toMatch(/^main-[a-f0-9]{10}$/)
-		expect(result.state.url).toBe(`https://${alias}.lambda-url.us-east-1.on.aws/`)
-		expect(permissions).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					Qualifier: alias,
-					Action: 'lambda:InvokeFunctionUrl',
-					Principal: 'cloudfront.amazonaws.com',
-					SourceArn: sourceArn,
-					FunctionUrlAuthType: 'AWS_IAM',
-				}),
-				expect.objectContaining({
-					Qualifier: alias,
-					Action: 'lambda:InvokeFunction',
-					Principal: 'cloudfront.amazonaws.com',
-					SourceArn: sourceArn,
-					InvokedViaFunctionUrl: true,
-				}),
-			])
-		)
-		expect(permissions).toHaveLength(4)
-		expect(new Set(permissions.map(permission => permission.SourceArn))).toEqual(new Set(sourceArns))
+		expect(result.state.url).toBe('https://main-1.lambda-url.us-east-1.on.aws/')
+		expect(permissions).toEqual([
+			{
+				FunctionName: 'test-function',
+				Qualifier: 'main-1',
+				StatementId: 'cloudfront-url-0',
+				Action: 'lambda:InvokeFunctionUrl',
+				Principal: 'cloudfront.amazonaws.com',
+				SourceArn: sourceArn,
+				FunctionUrlAuthType: 'AWS_IAM',
+			},
+			{
+				FunctionName: 'test-function',
+				Qualifier: 'main-1',
+				StatementId: 'cloudfront-invoke-0',
+				Action: 'lambda:InvokeFunction',
+				Principal: 'cloudfront.amazonaws.com',
+				SourceArn: sourceArn,
+				InvokedViaFunctionUrl: true,
+			},
+		])
 	})
 
-	it('should create a new alias without changing the previous deployment', async () => {
-		const send = mockLambda()
+	it('should create a new url without changing the previous deployment', async () => {
+		mockLambda()
 		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
-		const priorState = {
-			functionName: 'test-function',
-			functionVersion: '1',
-			id: 'main',
-			sourceArns,
-			alias: 'main-previous',
-			url: 'https://previous.lambda-url.us-east-1.on.aws/',
-			oldDeployments: [],
-		}
 		const result = await provider.updateResource({
 			type: 'function-deployment',
-			priorState,
+			priorState: {
+				functionName: 'test-function',
+				id: 'main-1',
+				sourceArns,
+				url: 'https://main-1.lambda-url.us-east-1.on.aws/',
+				oldDeployments: [],
+			},
 			proposedState: {
 				functionName: 'test-function',
-				functionVersion: '2',
-				id: 'main',
+				id: 'main-2',
 				sourceArns,
 			},
 		})
 
-		const createdAlias = sent(send, CreateAliasCommand)[0]!
-
-		expect(createdAlias.input.Name).not.toBe(priorState.alias)
-		expect(result.state.alias).toBe(createdAlias.input.Name)
-		expect(result.state.oldDeployments).toEqual([priorState.alias])
+		expect(result.state.url).toBe('https://main-2.lambda-url.us-east-1.on.aws/')
+		expect(result.state.oldDeployments).toEqual(['main-1'])
 	})
 
-	it('should keep the current deployment when the function version is unchanged', async () => {
+	it('should delete the urls of every tracked deployment', async () => {
 		const send = mockLambda()
 		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
-		const created = await provider.createResource({
+
+		await provider.deleteResource({
 			type: 'function-deployment',
 			state: {
 				functionName: 'test-function',
-				functionVersion: '1',
-				id: 'main',
+				id: 'main-2',
 				sourceArns,
-			},
-		})
-		const priorState = {
-			...created.state,
-			oldDeployments: ['production'],
-		}
-		send.mockClear()
-		const result = await provider.updateResource({
-			type: 'function-deployment',
-			priorState,
-			proposedState: {
-				functionName: 'test-function',
-				functionVersion: '1',
-				id: 'main',
-				sourceArns,
+				url: 'https://main-2.lambda-url.us-east-1.on.aws/',
+				oldDeployments: ['main-1'],
 			},
 		})
 
-		expect(send).not.toHaveBeenCalled()
-		expect(result.state).toEqual(priorState)
+		expect(sent(send, DeleteFunctionUrlConfigCommand).map(command => command.input.Qualifier)).toEqual([
+			'main-2',
+			'main-1',
+		])
 	})
 })

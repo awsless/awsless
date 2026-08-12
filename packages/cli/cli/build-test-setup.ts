@@ -13,6 +13,10 @@ const result = await Bun.build({
 	target: 'node',
 	format: 'esm',
 	external,
+
+	// Keep process.env reads as runtime lookups, otherwise Bun inlines
+	// NODE_ENV as a "development" literal at build time.
+	env: 'disable',
 })
 
 if (!result.success) {

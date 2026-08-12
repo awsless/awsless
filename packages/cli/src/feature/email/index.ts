@@ -6,7 +6,7 @@ export const emailFeature = defineFeature({
 	onApp(ctx) {
 		// Email.send works out of the box: the app wide role may send
 		// through any verified ses identity of the account.
-		ctx.addAppPermission({
+		ctx.addPermission({
 			actions: ['ses:SendEmail', 'ses:SendRawEmail'],
 			resources: ['*'],
 		})

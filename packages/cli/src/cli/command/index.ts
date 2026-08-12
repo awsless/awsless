@@ -16,7 +16,8 @@ import { logs } from './logs/index.js'
 import { image } from './image/index.js'
 import { icon } from './icon/index.js'
 import { cron } from './cron/index.js'
-import { deployments, prune } from './deployment.js'
+import { deployments } from './deployment.js'
+import { prune } from './prune.js'
 import { rollback } from './rollback.js'
 
 export const commands = [

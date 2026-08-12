@@ -1,17 +1,16 @@
 import { LambdaClient } from '@aws-sdk/client-lambda'
-import { log, prompt } from '@awsless/clui'
+import { Cancelled as CancelledError, log, prompt } from '@awsless/clui'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
-import { Cancelled } from '../../error.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
 	claimDeployment,
-	formatDeploymentSummary,
 	markDeployed,
 	preflightDeployment,
 	promoteAppDeployment,
-	readDeployedFunctionVersion,
+	readDeployedFunctionVersions,
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
@@ -109,7 +108,7 @@ export const deploy = (program: Command) => {
 					})
 
 					if (!passed) {
-						throw new Cancelled()
+						throw new ExpectedError('Tests failed.')
 					}
 				}
 
@@ -135,7 +134,7 @@ export const deploy = (program: Command) => {
 				const lambda = new LambdaClient({ credentials, region })
 				const functionName = getBundleFunctionName(appConfig.name)
 
-				const deployments = await log.task({
+				await log.task({
 					initialMessage: 'Deploying the stacks to AWS',
 					successMessage: 'Done deploying the stacks to AWS.',
 					async task() {
@@ -147,7 +146,7 @@ export const deploy = (program: Command) => {
 
 							await pullRemoteState(app, state)
 							const remoteState = await state.get(app.urn)
-							const functionVersion = readDeployedFunctionVersion(remoteState)
+							const functionVersion = readDeployedFunctionVersions(remoteState)[functionName]
 
 							if (functionVersion) {
 								await markDeployed({
@@ -158,19 +157,11 @@ export const deploy = (program: Command) => {
 								})
 							}
 
-							const deployments = formatDeploymentSummary({
-								state: remoteState,
-								appConfig,
-								id: deployment.id,
-							})
-
 							// Promotion goes live, so it must be the last fallible step.
 							await promoteAppDeployment({
 								appConfig,
 								id: deployment.id,
 							})
-
-							return deployments
 						} finally {
 							await release()
 						}
@@ -179,15 +170,18 @@ export const deploy = (program: Command) => {
 
 				playSuccessSound()
 
-				// The outro truncates to the terminal width, so the multi-line
-				// summary is logged as a message, which wraps instead.
-				for (const summary of deployments) {
-					log.message(summary)
+				// The deployment is already live, so this may never fail the deploy.
+				try {
+					await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
+				} catch (error) {
+					if (error instanceof Cancelled || error instanceof CancelledError) {
+						log.warning('Skipped the alert endpoint verification.')
+					} else {
+						log.warning(`Skipped the alert endpoint verification. ${error}`)
+					}
 				}
 
-				await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
-
-				return `Deployment #${deployment.id} is live.`
+				return `Deployment ${deployment.id} is live.`
 			})
 		})
 }

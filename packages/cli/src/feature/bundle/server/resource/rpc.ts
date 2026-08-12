@@ -1,9 +1,10 @@
 import type { LambdaFunctionURLEvent } from 'aws-lambda'
+import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
 import { routeType, webRoute } from './util.js'
 
 export const rpcHandler: RouteMatcher<LambdaFunctionURLEvent> = event => {
-	const route = event?.['$awsless-route']
+	const route = event?.[ROUTE_PROPERTY]
 
 	if (typeof route === 'string') {
 		if (routeType(route) === 'rpc') {
@@ -16,7 +17,7 @@ export const rpcHandler: RouteMatcher<LambdaFunctionURLEvent> = event => {
 		return
 	}
 
-	const requestRoute = event?.headers?.['x-awsless-route']
+	const requestRoute = event?.headers?.[ROUTE_HEADER]
 
 	if (typeof requestRoute === 'string' && routeType(requestRoute) === 'rpc') {
 		return webRoute(requestRoute, event)

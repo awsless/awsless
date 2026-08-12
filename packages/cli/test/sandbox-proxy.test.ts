@@ -24,7 +24,7 @@ describe('sandbox proxy handler', () => {
 		sendMock.mockResolvedValue({ Payload: Buffer.from(JSON.stringify({ ok: true })) })
 
 		const { default: handler } = await import('../src/feature/function/server/sandbox-proxy')
-		const result = await handler({ '$awsless-route': 'stack:function:allowed', event: { n: 1 } } as never)
+		const result = await handler({ '$awsless-route': 'stack:function:allowed', event: { n: 1 } } as never, {})
 
 		expect(result).toStrictEqual({ ok: true })
 
@@ -38,13 +38,32 @@ describe('sandbox proxy handler', () => {
 		})
 	})
 
+	it('passes the invoked qualifier through to the bundle', async () => {
+		vi.stubEnv('APP', 'test-app')
+		vi.stubEnv('SANDBOX_ROUTES', JSON.stringify(['stack:function:allowed']))
+		sendMock.mockResolvedValue({ Payload: Buffer.from(JSON.stringify({ ok: true })) })
+
+		const { default: handler } = await import('../src/feature/function/server/sandbox-proxy')
+		await handler({ '$awsless-route': 'stack:function:allowed', event: {} } as never, {
+			invokedFunctionArn:
+				'arn:aws:lambda:us-east-1:123456789:function:test-app--stack--function--ssr-proxy:main-7',
+		})
+
+		const command = sendMock.mock.calls[0]![0] as { input: Record<string, unknown> }
+
+		expect(command.input).toMatchObject({
+			FunctionName: 'test-app--function--bundle',
+			Qualifier: 'main-7',
+		})
+	})
+
 	it('forwards task routes asynchronously', async () => {
 		vi.stubEnv('APP', 'test-app')
 		vi.stubEnv('SANDBOX_ROUTES', JSON.stringify(['stack:task:work']))
 		sendMock.mockResolvedValue({ StatusCode: 202 })
 
 		const { default: handler } = await import('../src/feature/function/server/sandbox-proxy')
-		const result = await handler({ '$awsless-route': 'stack:task:work', event: {} } as never)
+		const result = await handler({ '$awsless-route': 'stack:task:work', event: {} } as never, {})
 
 		expect(result).toBeUndefined()
 
@@ -60,10 +79,10 @@ describe('sandbox proxy handler', () => {
 
 		const { default: handler } = await import('../src/feature/function/server/sandbox-proxy')
 
-		await expect(handler({ '$awsless-route': 'stack:function:other' })).rejects.toThrow(
+		await expect(handler({ '$awsless-route': 'stack:function:other' }, {})).rejects.toThrow(
 			'Sandboxed route is not allowed: stack:function:other'
 		)
-		await expect(handler({})).rejects.toThrow('Sandboxed route is not allowed')
+		await expect(handler({}, {})).rejects.toThrow('Sandboxed route is not allowed')
 		expect(sendMock).not.toHaveBeenCalled()
 	})
 
@@ -77,7 +96,7 @@ describe('sandbox proxy handler', () => {
 
 		const { default: handler } = await import('../src/feature/function/server/sandbox-proxy')
 
-		await expect(handler({ '$awsless-route': 'stack:function:allowed' })).rejects.toMatchObject({
+		await expect(handler({ '$awsless-route': 'stack:function:allowed' }, {})).rejects.toMatchObject({
 			name: 'SomeError',
 			message: 'It broke',
 		})

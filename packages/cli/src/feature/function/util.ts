@@ -2,24 +2,31 @@ import { days, Duration, seconds, toDays, toSeconds } from '@awsless/duration'
 import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
-import { findInputDeps, Group, Input, Output, Resource, resolveInputs } from '@terraforge/core'
-import { constantCase, kebabCase, pascalCase } from 'change-case'
+import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
+import { kebabCase } from 'change-case'
 import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
+import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
+import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
+import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { configParameterPrefix } from '../../util/ssm.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
+import { configParameterPrefix } from '../../util/ssm.js'
+import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
 import { zipFiles } from '../bundle/build/zip.js'
-import { compactPolicyStatements, PolicyStatement } from '../bundle/policy.js'
+import { PolicyStatement } from '../bundle/policy.js'
+import { parseExportName } from '../bundle/util.js'
 import { filterPattern } from '../on-error-log/util.js'
+import { getGlobalOnFailure } from '../on-failure/util.js'
 import { StackFunctionProps } from './schema.js'
 
 // Any lambda infra field opts the function out of the shared bundle.
@@ -44,6 +51,226 @@ export const isStandaloneFunction = (props: StackFunctionProps) => {
 	return standaloneFields.some(field => typeof props[field] !== 'undefined')
 }
 
+// Every deployment tags the published version with its id alias & the
+// live alias follows promotions.
+export const createDeploymentAliases = (
+	group: Group,
+	ctx: StackContext | AppContext,
+	props: {
+		lambda: aws.lambda.Function
+		policy: aws.iam.RolePolicy
+		onFailureArn?: Output<string>
+	}
+): { deployment: Resource; liveAlias: aws.lambda.Alias } => {
+	const deployment = new DeploymentAlias(
+		group,
+		'deployment',
+		{
+			functionName: props.lambda.functionName,
+			functionVersion: props.lambda.version,
+			id: ctx.deploymentId ?? 'local-0',
+			onFailureArn: props.onFailureArn,
+		},
+		{
+			dependsOn: [props.policy],
+		}
+	)
+
+	const liveTarget = new LiveTarget(group, 'live-target', {
+		functionName: props.lambda.functionName,
+		functionVersion: props.lambda.version,
+	})
+
+	const liveAlias = new aws.lambda.Alias(
+		group,
+		'live',
+		{
+			name: LIVE_LAMBDA_ALIAS,
+			description: liveTarget.liveDescription,
+			functionName: props.lambda.functionName,
+			functionVersion: liveTarget.liveVersion,
+		},
+		{
+			dependsOn: [props.policy],
+		}
+	)
+
+	if (props.onFailureArn) {
+		new aws.lambda.FunctionEventInvokeConfig(
+			group,
+			'async',
+			{
+				functionName: props.lambda.functionName,
+				qualifier: liveAlias.name,
+				maximumRetryAttempts: 2,
+				destinationConfig: {
+					onFailure: {
+						destination: props.onFailureArn,
+					},
+				},
+			},
+			{
+				dependsOn: [props.policy],
+			}
+		)
+	}
+
+	return { deployment, liveAlias }
+}
+
+type FunctionCode = {
+	file: string
+	minify?: boolean
+	external?: string[]
+	importAsString?: string[]
+	moduleSideEffects?: string[]
+}
+
+// Build the code of a stand-alone lambda into a zip at deploy time.
+// A wrapper file provides a createHandler factory that receives the
+// user handler as the lambda entry, so features can compile their own
+// handler code together with the code of a user.
+//
+// The env vars added through the returned addEnv are baked into the
+// zip as an awsless-env.mjs file, like the bundle does, so a lambda
+// can outgrow the 4KB lambda env limit. The generated entry always
+// exports "default", so the lambda handler is "index.default".
+export const registerFunctionBuild = (
+	ctx: StackContext | AppContext,
+	name: string,
+	props: {
+		code: FunctionCode
+		handler?: string
+		external?: string[]
+		wrapper?: string
+	}
+) => {
+	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler!)
+
+	ctx.registerBuild('function', name, async (build, { workspace }) => {
+		const fingerprint = createHash('sha1')
+			.update(await generateFileHash(workspace, props.code.file))
+			.update(props.wrapper ? await readFile(props.wrapper) : '')
+			.update(
+				JSON.stringify([
+					//
+					exportName,
+					props.code.minify,
+					props.code.external,
+					props.code.importAsString,
+					props.code.moduleSideEffects,
+					props.external,
+				])
+			)
+			.digest('hex')
+
+		return build(fingerprint, async write => {
+			const handlerImport = `const { ${exportName === 'default' ? 'default: handler' : `${exportName}: handler`} } = await import(${JSON.stringify(props.code.file)})`
+
+			// The env is applied before the handler modules are loaded, so
+			// module level env reads work & the real lambda environment
+			// always wins over the bundled environment.
+			const entry = `import env from './awsless-env.mjs'
+
+for (const name in env) {
+	process.env[name] ??= env[name]
+}
+
+const { captureInvokedQualifier } = await import('awsless')
+${
+	props.wrapper
+		? `const { createHandler } = await import(${JSON.stringify(props.wrapper)})
+${handlerImport}
+
+const handle = createHandler(handler)`
+		: `${handlerImport}
+
+const handle = handler`
+}
+
+export default (event, context) => {
+	captureInvokedQualifier(context)
+
+	return handle(event, context)
+}
+`
+			const temp = await createTempFolder(name)
+			const entryFile = join(temp.path, 'entry.ts')
+
+			await writeFile(entryFile, entry)
+
+			const result = await bundleTypeScriptWithRolldown({
+				file: entryFile,
+				minify: props.code.minify,
+				external: [
+					// The env file is generated at deploy time.
+					'./awsless-env.mjs',
+					...(props.code.external ?? []),
+					...(props.external ?? []),
+				],
+				moduleSideEffects: props.code.moduleSideEffects,
+				importAsString: props.code.importAsString,
+			})
+
+			await temp.delete()
+
+			// Clear out the stale chunks from the previous build.
+			await rm(getBuildPath('function', name, 'files'), { recursive: true, force: true })
+
+			await Promise.all([
+				write('HASH', result.hash),
+				...result.files.map(file => write(`files/${file.name}`, file.code)),
+				...result.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
+			])
+
+			return {
+				size: formatByteSize(result.files.reduce((total, file) => total + file.code.byteLength, 0)),
+			}
+		})
+	})
+
+	// ------------------------------------------------------------
+	// Resolve the env at deploy time & zip it into the build output
+	// as an awsless-env.mjs file.
+
+	const env: Record<string, Input<string>> = {}
+	const envDeps = new Set<any>()
+
+	const addEnv = (name: string, value: Input<string>) => {
+		env[name] = value
+
+		for (const dep of findInputDeps(value)) {
+			envDeps.add(dep)
+		}
+	}
+
+	const zipFile = getBuildPath('function', name, 'bundle.zip')
+
+	const sourceHash = new Output<string>(envDeps, async (resolve: (value: string) => void) => {
+		const buildHash = await readFile(getBuildPath('function', name, 'HASH'), 'utf8')
+		const vars = await resolveInputs(env)
+		const sorted = Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b)))
+		const envFile = `export default ${JSON.stringify(sorted, undefined, '\t')}
+`
+
+		const dir = getBuildPath('function', name, 'files')
+		const files = await readdir(dir)
+		const archive = await zipFiles([
+			...files.filter(file => !file.endsWith('.map')).map(file => ({ name: file, path: join(dir, file) })),
+			{ name: 'awsless-env.mjs', code: Buffer.from(envFile, 'utf8') },
+		])
+
+		await writeFile(zipFile, archive)
+
+		resolve(createHash('sha1').update(buildHash).update(envFile).digest('hex'))
+	})
+
+	return {
+		zipFile,
+		sourceHash,
+		addEnv,
+	}
+}
 
 // Deploy a stack function as its own stand-alone lambda, like the old
 // awsless did for every function. Callers invoke it directly by name, so
@@ -75,50 +302,11 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// ------------------------------------------------------------
 	// Build & upload the function code.
 
-	const fileCode = local.code
-
-	ctx.registerBuild('function', name, async (build, { workspace }) => {
-		const fingerprint = createHash('sha1')
-			.update(await generateFileHash(workspace, fileCode.file))
-			.update(
-				JSON.stringify([
-					//
-					fileCode.minify,
-					fileCode.external,
-					fileCode.importAsString,
-					fileCode.moduleSideEffects,
-				])
-			)
-			.digest('hex')
-
-		return build(fingerprint, async write => {
-			const bundle = await bundleTypeScriptWithRolldown({
-				file: fileCode.file,
-				minify: fileCode.minify,
-				external: [
-					...(fileCode.external ?? []),
-					...(props.layers ?? []).flatMap(layerId => ctx.shared.entry('layer', 'packages', layerId)),
-				],
-				moduleSideEffects: fileCode.moduleSideEffects,
-				importAsString: fileCode.importAsString,
-			})
-
-			const archive = await zipFiles(bundle.files)
-
-			await Promise.all([
-				write('HASH', bundle.hash),
-				write('bundle.zip', archive),
-				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
-				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
-			])
-
-			return {
-				size: formatByteSize(archive.byteLength),
-			}
-		})
+	const build = registerFunctionBuild(ctx, name, {
+		code: local.code,
+		handler: props.handler,
+		external: (props.layers ?? []).flatMap(layerId => ctx.shared.entry('layer', 'packages', layerId)),
 	})
-
-	const sourceHash = $file(getBuildPath('function', name, 'HASH'))
 
 	const code = new aws.s3.BucketObject(
 		group,
@@ -126,8 +314,8 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		{
 			bucket: ctx.shared.get('asset', 'bucket').name,
 			key: `lambda/${name}.zip`,
-			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
-			sourceHash,
+			source: relativePath(build.zipFile),
+			sourceHash: build.sourceHash,
 		},
 		{
 			replaceOnChanges: ['bucket', 'key'],
@@ -137,22 +325,29 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// ------------------------------------------------------------
 	// The lambda role & permissions.
 
-	const role = new aws.iam.Role(group, 'role', {
-		name: roleName,
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['lambda.amazonaws.com'],
+	const role = new aws.iam.Role(
+		group,
+		'role',
+		{
+			name: roleName,
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['lambda.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-	})
+				],
+			}),
+		},
+		{
+			import: ctx.import ? roleName : undefined,
+		}
+	)
 
 	const statements: Permission[] = []
 	const statementDeps: Set<any> = new Set()
@@ -167,15 +362,14 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 
 	const sandboxed = typeof local.sandbox !== 'undefined' && local.sandbox !== false
 
-	// Sandboxed functions don't receive the app wide grants or the app
-	// level default permissions, only their own explicit permissions. So
-	// they can't touch any other lambda or resource inside the app.
-	addPermission(...((sandboxed ? local.permissions : props.permissions) ?? []))
-
-	if (!sandboxed) {
-		ctx.onPermission(statement => {
-			addPermission(statement)
-		})
+	if (sandboxed) {
+		// Sandboxed functions only receive their own explicit permissions,
+		// without the app wide grants or the app level defaults. So they
+		// can't touch any other lambda or resource inside the app.
+		addPermission(...(local.permissions ?? []))
+	} else {
+		addPermission(...(props.permissions ?? []))
+		ctx.onPermission(addPermission)
 	}
 
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
@@ -184,17 +378,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: compactPolicyStatements(list).map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 
@@ -246,7 +430,8 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			description: props.description ?? name,
 			role: role.arn,
 			runtime: props.runtime,
-			handler: props.handler,
+			handler: 'index.default', // The generated build entry always exports default.
+			publish: true,
 			timeout: toSeconds(props.timeout),
 			memorySize: toMebibytes(props.memorySize),
 			architectures: [props.architecture],
@@ -264,15 +449,9 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 
 			s3Bucket: code.bucket,
 			s3ObjectVersion: code.versionId,
-			s3Key: code.key.pipe(name => {
-				if (name.startsWith('/')) {
-					return name.substring(1)
-				}
+			s3Key: code.key,
 
-				return name
-			}),
-
-			sourceCodeHash: sourceHash,
+			sourceCodeHash: build.sourceHash,
 
 			environment: {
 				variables,
@@ -295,11 +474,34 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		},
 		{
 			dependsOn,
+			import: ctx.import ? name : undefined,
 		}
 	)
 
-	// Let "awsless config set" restart the function when a config changes.
-	ctx.addFunction(lambda)
+	// ------------------------------------------------------------
+	// Every deployment tags the published version with its id alias &
+	// the live alias follows promotions, like the bundle. Failed async
+	// invokes land in the global on-failure bucket, so they aren't
+	// dropped after the retries run out.
+
+	const onFailure = getGlobalOnFailure(ctx)
+	const { deployment } = createDeploymentAliases(group, ctx, {
+		lambda,
+		policy,
+		onFailureArn: onFailure,
+	})
+
+	if (onFailure) {
+		addPermission({
+			actions: ['s3:PutObject', 's3:ListBucket'],
+			resources: [onFailure, $interpolate`${onFailure}/*`],
+			conditions: {
+				StringEquals: {
+					's3:ResourceAccount': ctx.accountId,
+				},
+			},
+		})
+	}
 
 	// ------------------------------------------------------------
 	// Env Vars
@@ -311,16 +513,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	variables.STAGE = ctx.appConfig.stage ?? 'default'
 	variables.STACK = ctx.stackConfig.name
 
-	// Mark the lambda as living outside of the shared bundle.
-	if (sandboxed) {
-		variables.SANDBOX = 'true'
-	} else {
-		variables.STANDALONE = 'true'
-	}
-
 	if (props.vpc) {
-		// Tell all aws clients to use the dualstack endpoint when the
-		// lambda runs inside the vpc.
 		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
 	}
 
@@ -328,17 +521,13 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		variables[key] = value
 	}
 
-	// Sandboxed functions don't receive the app wide env vars, since
-	// they can only reach allowlisted routes through the sandbox proxy
-	// & the full app env can outgrow the 4KB lambda env limit.
+	// The app wide env is baked into the code zip, since the lambda env
+	// is limited to 4KB. Sandboxed functions never receive it, since it
+	// describes every resource in the app & they run untrusted code that
+	// should only see its allowlisted routes.
 	if (!sandboxed) {
-		ctx.onEnv((name, value) => {
-			variables[name] = value
-		})
-
-		ctx.onBind((name, value) => {
-			variables[name] = value
-		})
+		ctx.onEnv(build.addEnv)
+		ctx.onBind(build.addEnv)
 	}
 
 	// ------------------------------------------------------------
@@ -365,11 +554,14 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			const bundle = ctx.shared.get('bundle', 'main')
 			const distDir = dirname(fileURLToPath(import.meta.url))
 
-			const proxy = createPrebuildLambdaFunction(group, ctx, 'function', `${id}-proxy`, {
-				bundleFile: join(distDir, '/prebuild/sandbox-proxy/bundle.zip'),
-				bundleHash: join(distDir, '/prebuild/sandbox-proxy/HASH'),
+			const proxy = createLambdaFunctionFromZip(group, ctx, 'function', `${id}-proxy`, {
+				zipFile: join(distDir, '/prebuild/sandbox-proxy/bundle.zip'),
+				sourceHash: $file(join(distDir, '/prebuild/sandbox-proxy/HASH')),
 				runtime: 'nodejs24.x',
 				handler: 'index.default',
+				publish: true,
+
+				memorySize: mebibytes(512),
 
 				// The proxy forwards synchronously, so it needs at least the
 				// same timeout as the bundle.
@@ -378,32 +570,39 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 				log: {
 					format: 'json',
 					level: 'warn',
-					system: 'warn',
+					system: 'info',
 					retention: days(3),
 				},
 			})
 
 			proxy.setEnvironment('SANDBOX_ROUTES', JSON.stringify(routes))
 
+			// The proxy is versioned & promoted like every other stand-alone
+			// lambda, so a staged deploy never touches the live allowlist.
+			createDeploymentAliases(proxy.group, ctx, {
+				lambda: proxy.lambda,
+				policy: proxy.policy,
+			})
+
 			proxy.addPermission({
 				actions: ['lambda:InvokeFunction'],
-				resources: [bundle.alias.arn],
+				resources: [bundle.lambda.arn.pipe(arn => `${arn}:*`)],
 			})
 
 			variables.SANDBOX_PROXY = proxy.name
 
+			// Qualified invokes only, so sandboxed code can never reach the
+			// staged $LATEST allowlist before its deployment promotes.
 			addPermission({
 				actions: ['lambda:InvokeFunction'],
-				resources: [proxy.lambda.arn],
+				resources: [proxy.lambda.arn.pipe(arn => `${arn}:*`)],
 			})
 		}
 
 		const configs = local.sandbox.configs ?? []
 
 		if (configs.length > 0) {
-			for (const configName of configs) {
-				variables[`CONFIG_${constantCase(configName)}`] = configName
-			}
+			variables.CONFIGS = configs.join(',')
 
 			addPermission({
 				actions: [
@@ -426,10 +625,17 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// Logging
 
 	if (props.log.retention!.value > 0n) {
-		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/lambda/${name}`,
-			retentionInDays: toDays(props.log.retention),
-		})
+		const logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/lambda/${name}`,
+				retentionInDays: toDays(props.log.retention),
+			},
+			{
+				import: ctx.import ? `/aws/lambda/${name}` : undefined,
+			}
+		)
 
 		addPermission({
 			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
@@ -447,6 +653,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 					filterPattern,
 				},
 				{
+					replaceOnChanges: ['destinationArn'],
 					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
 				}
 			)
@@ -459,6 +666,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		lambda,
 		policy,
 		code,
+		deployment,
 		setEnvironment(name: string, value: Input<string>) {
 			variables[name] = value
 		},
@@ -468,18 +676,20 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	}
 }
 
-// Create a standalone lambda from a prebuilt bundle that ships with the
-// cli, for internal handlers that must run outside of the app bundle.
-export const createPrebuildLambdaFunction = (
+// Create a stand-alone lambda from a code zip, for internal handlers
+// that must run outside of the app bundle. The zip either ships with
+// the cli or comes from a registered function build.
+export const createLambdaFunctionFromZip = (
 	parentGroup: Group,
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
 	props: {
-		bundleFile: string // The file path of the prebuilt zip archive.
-		bundleHash: string // The file path of the prebuilt bundle hash.
+		zipFile: string // The file path of the zip archive.
+		sourceHash: Input<string> // The content hash of the zip archive.
 		runtime: aws.lambda.FunctionInput['runtime']
 		handler: string
+		publish?: boolean
 		timeout?: Duration
 		memorySize?: Size
 		architecture?: 'arm64' | 'x86_64'
@@ -527,16 +737,14 @@ export const createPrebuildLambdaFunction = (
 		})
 	}
 
-	const sourceHash = $file(props.bundleHash)
-
 	const code = new aws.s3.BucketObject(
 		group,
 		'code',
 		{
 			bucket: ctx.shared.get('asset', 'bucket').name,
 			key: `lambda/${name}.zip`,
-			source: relativePath(props.bundleFile),
-			sourceHash,
+			source: relativePath(props.zipFile),
+			sourceHash: props.sourceHash,
 		},
 		{
 			replaceOnChanges: ['bucket', 'key'],
@@ -546,22 +754,29 @@ export const createPrebuildLambdaFunction = (
 	// ------------------------------------------------------------
 	// The lambda role & permissions.
 
-	const role = new aws.iam.Role(group, 'role', {
-		name: roleName,
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['lambda.amazonaws.com'],
+	const role = new aws.iam.Role(
+		group,
+		'role',
+		{
+			name: roleName,
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['lambda.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-	})
+				],
+			}),
+		},
+		{
+			import: ctx.import ? roleName : undefined,
+		}
+	)
 
 	const statements: Permission[] = []
 	const statementDeps: Set<any> = new Set()
@@ -580,17 +795,7 @@ export const createPrebuildLambdaFunction = (
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = (await resolveInputs(statements)) as PolicyStatement[]
 
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: compactPolicyStatements(list).map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 
@@ -643,6 +848,7 @@ export const createPrebuildLambdaFunction = (
 			role: role.arn,
 			runtime: props.runtime,
 			handler: props.handler,
+			publish: props.publish,
 			timeout: toSeconds(props.timeout ?? seconds(10)),
 			memorySize: toMebibytes(props.memorySize ?? mebibytes(128)),
 			architectures: [props.architecture ?? 'arm64'],
@@ -655,15 +861,9 @@ export const createPrebuildLambdaFunction = (
 
 			s3Bucket: code.bucket,
 			s3ObjectVersion: code.versionId,
-			s3Key: code.key.pipe(name => {
-				if (name.startsWith('/')) {
-					return name.substring(1)
-				}
+			s3Key: code.key,
 
-				return name
-			}),
-
-			sourceCodeHash: sourceHash,
+			sourceCodeHash: props.sourceHash,
 
 			environment: {
 				variables,
@@ -680,14 +880,51 @@ export const createPrebuildLambdaFunction = (
 			loggingConfig: {
 				logGroup: `/aws/lambda/${name}`,
 				logFormat: logFormats[props.log?.format ?? 'json'],
-				applicationLogLevel: (props.log?.format ?? 'json') === 'json' ? props.log?.level?.toUpperCase() : undefined,
+				applicationLogLevel:
+					(props.log?.format ?? 'json') === 'json' ? props.log?.level?.toUpperCase() : undefined,
 				systemLogLevel: (props.log?.format ?? 'json') === 'json' ? props.log?.system?.toUpperCase() : undefined,
 			},
 		},
 		{
 			dependsOn,
+			import: ctx.import ? name : undefined,
 		}
 	)
+
+	// ------------------------------------------------------------
+	// Failed async invokes land in the global on-failure bucket, so
+	// they aren't dropped after the retries run out.
+
+	const onFailure = getGlobalOnFailure(ctx)
+
+	if (onFailure) {
+		new aws.lambda.FunctionEventInvokeConfig(
+			group,
+			'async',
+			{
+				functionName: lambda.functionName,
+				maximumRetryAttempts: 2,
+				destinationConfig: {
+					onFailure: {
+						destination: onFailure,
+					},
+				},
+			},
+			{
+				dependsOn: [policy],
+			}
+		)
+
+		addPermission({
+			actions: ['s3:PutObject', 's3:ListBucket'],
+			resources: [onFailure, $interpolate`${onFailure}/*`],
+			conditions: {
+				StringEquals: {
+					's3:ResourceAccount': ctx.accountId,
+				},
+			},
+		})
+	}
 
 	// ------------------------------------------------------------
 	// Env Vars
@@ -714,10 +951,17 @@ export const createPrebuildLambdaFunction = (
 	const retention = props.log?.retention
 
 	if (retention && retention.value > 0n) {
-		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/lambda/${name}`,
-			retentionInDays: toDays(retention),
-		})
+		const logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/lambda/${name}`,
+				retentionInDays: toDays(retention),
+			},
+			{
+				import: ctx.import ? `/aws/lambda/${name}` : undefined,
+			}
+		)
 
 		addPermission({
 			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
@@ -735,6 +979,7 @@ export const createPrebuildLambdaFunction = (
 					filterPattern,
 				},
 				{
+					replaceOnChanges: ['destinationArn'],
 					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
 				}
 			)

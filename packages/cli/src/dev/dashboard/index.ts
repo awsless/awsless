@@ -6,6 +6,7 @@ import { readdir, readFile, stat, writeFile } from 'fs/promises'
 import { createServer, IncomingMessage, Server } from 'http'
 import { join, relative, sep } from 'path'
 import { DevDispatch, DevResource, DevRoute } from '../../feature.js'
+import { AuthAdmin } from '../../feature/auth/dev.js'
 import { WorkerError } from '../worker.js'
 import { dashboardHtml } from './html.js'
 import { trackConnections } from '../util.js'
@@ -35,6 +36,8 @@ export const createDashboardServer = (props: {
 	getEmails?: () => unknown[]
 	// The config names that resolved from the boot-time ssm pull.
 	configPulled?: string[]
+	// User management against the real deployed auth pools.
+	auth?: AuthAdmin
 	// Re-runs the stack seed files, when any are configured.
 	runSeeds?: () => Promise<void>
 	events: {
@@ -252,6 +255,47 @@ export const createDashboardServer = (props: {
 
 		if (url.pathname === '/api/emails') {
 			return { status: 200, body: JSON.stringify({ emails: props.getEmails?.() ?? [] }) }
+		}
+
+		// The auth panel manages the users of the real deployed pools,
+		// with the same operations as the auth user cli commands.
+		if (url.pathname.startsWith('/api/auth') && props.auth) {
+			const auth = props.auth
+
+			try {
+				if (url.pathname === '/api/auth' && req.method === 'GET') {
+					const pool = url.searchParams.get('pool') ?? ''
+
+					return {
+						status: 200,
+						body: JSON.stringify({
+							...auth.describePool(pool),
+							users: await auth.listUsers(pool),
+						}),
+					}
+				}
+
+				if (url.pathname === '/api/auth/create' && req.method === 'POST') {
+					const { pool, username, password, groups } = JSON.parse((await readBody(req)).toString() || '{}')
+
+					await auth.createUser(pool, { username, password, groups: groups ?? [] })
+
+					return { status: 200, body: JSON.stringify({ ok: true }) }
+				}
+
+				if (url.pathname === '/api/auth/update' && req.method === 'POST') {
+					const { pool, username, password, groups } = JSON.parse((await readBody(req)).toString() || '{}')
+
+					await auth.updateUser(pool, { username, password: password || undefined, groups: groups ?? [] })
+
+					return { status: 200, body: JSON.stringify({ ok: true }) }
+				}
+			} catch (error) {
+				return {
+					status: 400,
+					body: JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+				}
+			}
 		}
 
 		if (url.pathname === '/api/config') {

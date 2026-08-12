@@ -5,6 +5,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { authOnDev } from './dev.js'
 // import { createAsyncLambdaFunction } from '../function/util.js'
 import { toDays, toHours } from '@awsless/duration'
 
@@ -20,6 +21,7 @@ import { toDays, toHours } from '@awsless/duration'
 
 export const authFeature = defineFeature({
 	name: 'auth',
+	onDev: authOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
@@ -191,7 +193,6 @@ export const authFeature = defineFeature({
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
-					import: ctx.import ? name : undefined,
 				}
 			)
 

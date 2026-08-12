@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import { rm, stat } from 'fs/promises'
 import { join } from 'path'
+import { findJavaHome } from './java'
 import { VersionArgs } from './version'
 // import findCacheDir from 'find-cache-dir';
 
@@ -30,13 +31,9 @@ type Options = {
 	port: number
 	debug?: boolean
 	version: VersionArgs
-
-	// Run the bundle with a different jdk than the bundled one, for
-	// platforms the bundle doesn't ship a native jdk for.
-	javaHome?: string
 }
 
-export const launch = ({ path, host, port, version, debug, javaHome }: Options): Promise<() => Promise<void>> => {
+export const launch = ({ path, host, port, version, debug }: Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
 		const cache = join(path, 'cache', String(port))
 
@@ -50,31 +47,38 @@ export const launch = ({ path, host, port, version, debug, javaHome }: Options):
 
 		await cleanUp()
 
-		// console.log(join(path, 'jdk'))
+		// The min distribution needs a local JDK 21+, which we resolve
+		// ourselves because an unset or stale JAVA_HOME would otherwise
+		// break the boot.
+		const binary = join(path, 'bin/opensearch')
 
-		// With a custom jdk we skip the tar install script & run the
-		// opensearch binary directly, so the bundled linux jdk never runs.
-		const binary = javaHome ? join(path, 'bin', 'opensearch') : join(path, 'opensearch-tar-install.sh')
-		const child = spawn(
-			binary,
-			parseSettings(version.settings({ host, port, cache })),
-			javaHome
-				? {
-						env: {
-							...process.env,
-							OPENSEARCH_JAVA_HOME: javaHome,
-						},
-					}
-				: {}
-		)
-		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
+		const env = { ...process.env }
 
-		const onError = (error: string) => fail(error)
-		// A child that starts & dies before opensearch reports started
-		// must reject, instead of hanging the launch promise forever.
-		const onExit = (code: number | null) => fail(`OpenSearch exited with code ${code} during startup.`)
+		// The tarball only bundles a Linux JDK, so macOS needs a local one.
+		if (process.platform === 'darwin') {
+			const javaHome = await findJavaHome()
+
+			if (!javaHome) {
+				// A throw would only reject the discarded async executor.
+				reject(new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".'))
+				return
+			}
+
+			env.OPENSEARCH_JAVA_HOME = javaHome
+		}
+
+		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env })
+
+		const output: string[] = []
+
+		const onError = (error: string) => fail(String(error))
+		const onExit = (code: number | null) => {
+			fail(`OpenSearch exited before starting (code ${code})\n${output.join('')}`)
+		}
 		const onMessage = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
+
+			output.push(line)
 
 			if (debug) {
 				console.log(line)
@@ -86,10 +90,9 @@ export const launch = ({ path, host, port, version, debug, javaHome }: Options):
 		}
 
 		const kill = async (): Promise<void> => {
-			// The child may already be dead, like from the terminal group
-			// signal of a ctrl-c - node then keeps exitCode null with
-			// signalCode set, and waiting for its exit would hang forever.
-			if (child.exitCode === null && child.signalCode === null) {
+			// The process may already be gone when a failed boot lands here,
+			// and a dead child never emits another exit event.
+			if (child.exitCode === null && !child.killed) {
 				await new Promise(resolve => {
 					child.once(`exit`, () => {
 						resolve(void 0)

@@ -9,6 +9,9 @@ import {
 	GetAliasCommand,
 	GetFunctionCommand,
 	LambdaClient,
+	ListAliasesCommand,
+	ListFunctionsCommand,
+	ListVersionsByFunctionCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
 import { DynamoDBClient } from '@awsless/dynamodb'
@@ -21,7 +24,9 @@ import {
 	preflightDeployment,
 	previousDeploymentId,
 	promoteDeployment,
+	readDeployedFunctionVersions,
 	selectPrunableDeployments,
+	selectPrunableVersions,
 	slugifyBranch,
 } from '../src/util/deployment'
 import { notFound } from './_kit'
@@ -50,18 +55,13 @@ const seedRow = (row: Partial<Deployment> & { branch: string; seq: number }): De
 	...row,
 })
 
-const mockAws = (rows: Deployment[] = []) => {
+const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, string[]> = {}) => {
 	const manifest = new Map<string, Record<string, unknown>>(rows.map(row => [row.id, { ...row }]))
 	const stores = new Map<string, Map<string, string>>()
 	let live: { FunctionVersion: string; Description: string } | undefined = {
 		FunctionVersion: '1',
 		Description: 'main-1',
 	}
-	const deploymentAliases = new Map<string, { FunctionVersion: string }>([
-		['deployment-main-1', { FunctionVersion: '1' }],
-		['deployment-main-2', { FunctionVersion: '2' }],
-		['deployment-main-3', { FunctionVersion: '3' }],
-	])
 	let failStore: string | undefined
 	let failAlias = false
 	let failMarkPromoted = false
@@ -192,21 +192,25 @@ const mockAws = (rows: Deployment[] = []) => {
 
 	vi.spyOn(LambdaClient.prototype, 'send').mockImplementation(async (command: any) => {
 		if (command instanceof GetAliasCommand) {
-			if (command.input.Name === 'live') {
-				if (!live) {
-					throw notFound()
-				}
-
+			if (command.input.Name === 'live' && live) {
 				return live
 			}
 
-			const alias = deploymentAliases.get(command.input.Name!)
+			throw notFound()
+		}
 
-			if (!alias) {
-				throw notFound()
-			}
+		if (command instanceof ListVersionsByFunctionCommand) {
+			return { Versions: Object.keys(functionVersions).map(version => ({ Version: version })) }
+		}
 
-			return alias
+		if (command instanceof ListAliasesCommand) {
+			const names = functionVersions[command.input.FunctionVersion!] ?? []
+
+			return { Aliases: names.map(name => ({ Name: name })) }
+		}
+
+		if (command instanceof ListFunctionsCommand) {
+			return { Functions: [{ FunctionName: functionName }] }
 		}
 
 		if (command instanceof GetFunctionCommand) {
@@ -304,6 +308,7 @@ const clients = () => ({
 	lambda: new LambdaClient({ region: 'us-east-1' }),
 	dynamo: new DynamoDBClient({ region: 'us-east-1' }),
 	appId,
+	appName: 'app',
 	functionName,
 })
 
@@ -343,7 +348,7 @@ describe('prune selection', () => {
 		...props,
 	})
 
-	const options = { keep: '10', main: 'main' }
+	const options = { keep: 10, main: 'main' }
 	const stale = () => subHours(new Date(), 25).toISOString()
 
 	it('should treat a claimed deploy without a function version as busy', () => {
@@ -385,6 +390,57 @@ describe('prune selection', () => {
 		]
 
 		expect(selectPrunableDeployments(items, 'main-2', { ...options, branch: 'main' })).toEqual([])
+	})
+
+	it('should sweep every version without a surviving deployment alias', async () => {
+		mockAws([], {
+			'1': ['live'],
+			'2': ['main-2'],
+			'3': ['main-3'],
+			'9': [],
+		})
+		const { lambda } = clients()
+
+		const versions = await selectPrunableVersions({
+			lambda,
+			functionName,
+			survivingIds: new Set(['main-3']),
+		})
+
+		// Version 1 backs the live alias, version 3 backs a surviving
+		// deployment & version 9 is an orphan without any alias.
+		expect(versions).toEqual(['2', '9'])
+
+		vi.restoreAllMocks()
+	})
+
+	it('should read the published lambda versions from the state', () => {
+		const state = {
+			stacks: {
+				stack: {
+					nodes: {
+						'urn:bundle': {
+							type: 'aws_lambda_function',
+							output: { functionName: 'app--function--bundle', version: '62', publish: true },
+						},
+						'urn:ssr': {
+							type: 'aws_lambda_function',
+							output: { functionName: 'app--stack--function--ssr', version: '4', publish: true },
+						},
+						'urn:proxy': {
+							type: 'aws_lambda_function',
+							output: { functionName: 'app--stack--function--proxy', version: '$LATEST', publish: false },
+						},
+						'urn:alias': { type: 'aws_lambda_alias', output: {} },
+					},
+				},
+			},
+		}
+
+		expect(readDeployedFunctionVersions(state as never)).toEqual({
+			'app--function--bundle': '62',
+			'app--stack--function--ssr': '4',
+		})
 	})
 })
 

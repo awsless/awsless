@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../../config/schema/resource-id.js'
-import { FunctionSchema } from '../../function/schema.js'
+import { BundledFunctionSchema } from '../../function/schema.js'
 import { ScheduleExpressionSchema } from './schedule.js'
 
 export const CronsSchema = z
@@ -8,7 +8,7 @@ export const CronsSchema = z
 		ResourceIdSchema,
 		z.object({
 			enabled: z.boolean().default(true).describe('If the cron is enabled.'),
-			consumer: FunctionSchema.describe('The consuming lambda function properties.'),
+			consumer: BundledFunctionSchema.describe('The consuming lambda function properties.'),
 			schedule: ScheduleExpressionSchema.describe(
 				'The scheduling expression.\n\nexample: "0 20 * * ? *"\nexample: "5 minutes"'
 			),

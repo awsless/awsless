@@ -43,7 +43,7 @@ type Mutation =
 			key: string
 	  }
 
-export type RouteDeployment = {
+export type StagedRouteDeployment = {
 	id: string
 	table: string
 	functionVersion: string
@@ -75,33 +75,14 @@ const parseValue = (value: string | undefined): [string, string] | undefined => 
 // ------------------------------------------------------------
 // Planning
 
+// Route keys are unique by construction, so the key alone sorts deterministically.
 const sortRoutes = (routes: RouteEntry[]) => {
-	return [...routes].sort((a, b) => {
-		if (a.key === b.key) {
-			return a.value < b.value ? -1 : a.value > b.value ? 1 : 0
-		}
-
-		return a.key < b.key ? -1 : 1
-	})
+	return [...routes].sort((a, b) => (a.key < b.key ? -1 : 1))
 }
 
 const getRouteTableId = (routes: RouteEntry[]) => {
 	return createHash('sha1').update(JSON.stringify(routes)).digest('hex').slice(0, 8)
 }
-
-const getTableMutations = (table: string, routes: RouteEntry[]): Mutation[] => {
-	return routes.map(route => ({
-		type: 'put',
-		key: `${table}:${route.key}`,
-		value: route.value,
-	}))
-}
-
-const getActivateMutation = (deployment: RouteDeployment): Mutation => ({
-	type: 'put',
-	key: ACTIVE_KEY,
-	value: `${deployment.table}:${deployment.id}`,
-})
 
 // ------------------------------------------------------------
 // Store access
@@ -144,7 +125,7 @@ export const readRouteDeployment = async (
 	kvs: CloudFrontKeyValueStoreClient,
 	storeArn: string,
 	deploymentId: string
-): Promise<RouteDeployment | undefined> => {
+): Promise<StagedRouteDeployment | undefined> => {
 	const value = parseValue(await getStoreValue(kvs, storeArn, `${DEPLOY_KEY_PREFIX}${deploymentId}`))
 
 	return value ? { id: deploymentId, table: value[0], functionVersion: value[1] } : undefined
@@ -176,23 +157,23 @@ const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<t
 	const routes = sortRoutes(state.routes)
 	const table = getRouteTableId(routes)
 
-	const deployment: RouteDeployment = {
-		id: state.deploymentId,
-		table,
-		functionVersion: state.functionVersion,
-	}
-
 	const mutations: Mutation[] = [
-		...getTableMutations(table, routes),
+		...routes.map(
+			(route): Mutation => ({
+				type: 'put',
+				key: `${table}:${route.key}`,
+				value: route.value,
+			})
+		),
 		{
 			type: 'put',
-			key: `${DEPLOY_KEY_PREFIX}${deployment.id}`,
-			value: `${table}:${deployment.functionVersion}`,
+			key: `${DEPLOY_KEY_PREFIX}${state.deploymentId}`,
+			value: `${table}:${state.functionVersion}`,
 		},
 	]
 
 	// Route rows are written before the mapping, so an interrupted upload
-	// can't be selected by a preview or promotion.
+	// can't be selected by a promotion.
 	// Promotion changes $active only after the full app deployment succeeds.
 	await updateKeys(kvs, {
 		storeArn: state.storeArn,
@@ -214,6 +195,8 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
 
 	return createCustomProvider('cloudfront-kvs', {
+		// Backwards compatibility for old states, can be removed later.
+		'import-keys': {},
 		'route-deployment': {
 			async createResource(props) {
 				return stageRoutes(kvs, routeDeploymentInputSchema.parse(props.state))
@@ -231,11 +214,13 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 export const setActiveRouteDeployment = async (
 	kvs: CloudFrontKeyValueStoreClient,
 	storeArn: string,
-	deployment?: RouteDeployment
+	deployment?: StagedRouteDeployment
 ) => {
 	await updateKeys(kvs, {
 		storeArn,
-		mutations: deployment ? [getActivateMutation(deployment)] : [{ type: 'delete', key: ACTIVE_KEY }],
+		mutations: deployment
+			? [{ type: 'put', key: ACTIVE_KEY, value: `${deployment.table}:${deployment.id}` }]
+			: [{ type: 'delete', key: ACTIVE_KEY }],
 	})
 }
 
@@ -271,4 +256,9 @@ export const pruneStoreDeployments = async (
 		storeArn,
 		mutations: orphans.map(entry => ({ type: 'delete', key: entry.key })),
 	})
+
+	// The surviving route values tell the caller which assets are still referenced.
+	return keys
+		.filter(entry => !entry.key.startsWith('$') && referenced.has(entry.key.split(':')[0]))
+		.map(entry => entry.value)
 }

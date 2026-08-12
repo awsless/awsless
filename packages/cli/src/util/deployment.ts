@@ -24,13 +24,21 @@ import {
 	getRouteStoreArn,
 	readActiveDeploymentId,
 	readRouteDeployment,
-	RouteDeployment,
 	setActiveRouteDeployment,
+	StagedRouteDeployment,
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
 import { currentBranch, currentCommit, currentCommitMessage, isCommitMerged } from './git.js'
-import { deleteLambdaAlias, getLambdaAlias, listLambdaAliases, LIVE_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
-import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
+import {
+	deleteLambdaAlias,
+	getLambdaAlias,
+	listLambdaAliases,
+	listLambdaFunctions,
+	listLambdaVersions,
+	LIVE_LAMBDA_ALIAS,
+	upsertLambdaAlias,
+} from './lambda.js'
+import { formatGlobalResourceName, generateGlobalAppId, getAppNamePrefix, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 // ------------------------------------------------------------
@@ -85,10 +93,7 @@ export const deploymentsTable: AnyTable = table
 const latestBranchDeployment = async (client: DynamoDBClient, appId: string, branch: string) => {
 	const items = await listDeployments(client, appId, branch)
 
-	return items.reduce<Deployment | undefined>(
-		(latest, item) => ((latest?.seq ?? 0) >= item.seq ? latest : item),
-		undefined
-	)
+	return items.sort((a, b) => b.seq - a.seq)[0]
 }
 
 export const claimDeployment = async (props: { client: DynamoDBClient; appId: string }): Promise<Deployment> => {
@@ -144,17 +149,27 @@ export const listDeployments = async (
 	let cursor: string | undefined
 
 	do {
-		const result = await query(
-			table,
-			{ appId },
-			{
-				where: branch ? e => e.id.startsWith(`${branch}-`) : undefined,
-				consistentRead: true,
-				limit: 100,
-				cursor,
-				client,
+		let result
+		try {
+			result = await query(
+				table,
+				{ appId },
+				{
+					where: branch ? e => e.id.startsWith(`${branch}-`) : undefined,
+					consistentRead: true,
+					limit: 100,
+					cursor,
+					client,
+				}
+			)
+		} catch (error) {
+			// The manifest table only exists after the first deploy.
+			if (isError(error, 'ResourceNotFoundException')) {
+				return []
 			}
-		)
+
+			throw error
+		}
 		items.push(...result.items)
 		cursor = result.cursor
 	} while (cursor)
@@ -203,7 +218,7 @@ export const removeDeployment = async (client: DynamoDBClient, appId: string, id
 
 export type PruneOptions = {
 	branch?: string
-	keep: string
+	keep: number
 	main: string
 }
 
@@ -221,7 +236,7 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 		.filter(item => item.promotedAt && item.id !== liveId)
 		.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))[0]
 
-	const keep = Math.max(1, Number(options.keep) || 10)
+	const keep = Math.max(1, options.keep)
 	const mainSlug = slugifyBranch(options.main)
 	const keptMain = new Set(
 		items
@@ -276,26 +291,28 @@ export const pruneFunctionVersion = async (lambda: LambdaClient, functionName: s
 	}
 }
 
-// The function versions that only pruned deployments reference.
+// The function versions whose aliases reference neither a surviving
+// deployment nor the live alias. Orphans without any alias are
+// prunable as well.
 export const selectPrunableVersions = async (props: {
 	lambda: LambdaClient
 	functionName: string
-	items: Deployment[]
-	prunable: Deployment[]
+	survivingIds: Set<string>
 }) => {
-	const surviving = props.items.filter(item => !props.prunable.includes(item))
-	const kept = new Set(surviving.map(item => item.functionVersion))
-	const live = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
+	const prunable: string[] = []
 
-	if (live?.FunctionVersion) {
-		kept.add(live.FunctionVersion)
+	for (const version of await listLambdaVersions(props.lambda, props.functionName)) {
+		const aliases = await listLambdaAliases(props.lambda, props.functionName, version)
+		const referenced = aliases.some(
+			alias => alias.Name === LIVE_LAMBDA_ALIAS || (alias.Name && props.survivingIds.has(alias.Name))
+		)
+
+		if (!referenced) {
+			prunable.push(version)
+		}
 	}
 
-	return new Set(
-		props.prunable
-			.map(item => item.functionVersion)
-			.filter((version): version is string => Boolean(version && !kept.has(version)))
-	)
+	return prunable
 }
 
 // ------------------------------------------------------------
@@ -321,48 +338,24 @@ const readStateNodes = (state: DeploymentState) => {
 	return stacks.flatMap(stack => Object.entries(stack.nodes))
 }
 
-// The published function version of a deployment is part of the state.
-export const readDeployedFunctionVersion = (state: DeploymentState) => {
+// The published version of every lambda in a deployment is part of
+// the state, keyed by function name.
+export const readDeployedFunctionVersions = (state: DeploymentState) => {
+	const functions: Record<string, string> = {}
+
 	for (const [, node] of readStateNodes(state)) {
-		if (node.type === 'bundle-deployment') {
-			return node.output.functionVersion
+		if (node.type !== 'aws_lambda_function') {
+			continue
+		}
+
+		const { functionName, version, publish } = node.output
+
+		if (publish && functionName && version && version !== '$LATEST') {
+			functions[functionName] = version
 		}
 	}
 
-	return
-}
-
-export const formatDeploymentSummary = (props: {
-	state: DeploymentState
-	appConfig: AppConfig
-	id: string
-}): string[] => {
-	const previewUrls = new Map<string, string>()
-
-	for (const [urn, node] of readStateNodes(props.state)) {
-		if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
-			const router = urn.match(/router:\{([^}]+)\}/)?.[1]
-
-			if (router) {
-				previewUrls.set(router, `https://${node.output.domainName}`)
-			}
-		}
-	}
-
-	// Every router has its own preview host: the plain host previews the
-	// live deployment, and the awsless-deployment query selects this
-	// deployment through the same router function.
-	return Object.keys(props.appConfig.router ?? {}).map(routerId => {
-		const previewUrl = previewUrls.get(routerId)
-
-		return [
-			`${routerId}: deployment #${props.id}`,
-			previewUrl,
-			previewUrl ? `${previewUrl}/?awsless-deployment=${props.id}` : undefined,
-		]
-			.filter(Boolean)
-			.join('\n')
-	})
+	return functions
 }
 
 // ------------------------------------------------------------
@@ -370,7 +363,7 @@ export const formatDeploymentSummary = (props: {
 
 type RouteStoreTarget = {
 	arn: string
-	deployment: RouteDeployment
+	deployment: StagedRouteDeployment
 }
 
 // The deployment that went live before the current one.
@@ -417,6 +410,7 @@ export const promoteDeployment = async (props: {
 	lambda: LambdaClient
 	dynamo: DynamoDBClient
 	appId: string
+	appName: string
 	functionName: string
 	id: string
 	store?: RouteStoreTarget
@@ -425,8 +419,12 @@ export const promoteDeployment = async (props: {
 	const deployment = await getDeployment(props.dynamo, props.appId, props.id)
 	const functionVersion = deployment?.functionVersion
 
-	if (!deployment || !functionVersion) {
+	if (!deployment) {
 		throw new ExpectedError(`Deployment "${props.id}" doesn't exist.`)
+	}
+
+	if (!functionVersion) {
+		throw new ExpectedError(`Deployment "${props.id}" hasn't finished deploying.`)
 	}
 
 	if (props.store && props.store.deployment.functionVersion !== functionVersion) {
@@ -434,13 +432,14 @@ export const promoteDeployment = async (props: {
 	}
 
 	const alias = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
-	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
+	const liveId = alias?.Description || undefined
 	const activeId = props.store ? await readActiveDeploymentId(props.kvs, props.store.arn) : undefined
 	const active =
 		props.store && activeId !== undefined
 			? await readRouteDeployment(props.kvs, props.store.arn, activeId)
 			: undefined
 
+	// The release lock is a TTL lease, so a stalled deploy can lose it mid-apply.
 	if (props.rejectStale && liveId && liveId !== props.id) {
 		const live = await getDeployment(props.dynamo, props.appId, liveId)
 
@@ -467,7 +466,42 @@ export const promoteDeployment = async (props: {
 	let routesUpdateStarted = false
 	let aliasUpdateStarted = false
 
+	const flipped: { functionName: string; liveVersion?: string; liveDescription?: string }[] = []
+
 	try {
+		// The live aliases of the stand-alone lambdas flip first & the
+		// bundle alias last, since the bundle is the async entry point.
+		for (const name of await listLambdaFunctions(props.lambda, getAppNamePrefix(props.appName))) {
+			if (name === props.functionName) {
+				continue
+			}
+
+			const target = await getLambdaAlias(props.lambda, name, props.id)
+
+			if (!target?.FunctionVersion) {
+				continue
+			}
+
+			const current = await getLambdaAlias(props.lambda, name, LIVE_LAMBDA_ALIAS)
+
+			if (current?.FunctionVersion === target.FunctionVersion && current?.Description === props.id) {
+				continue
+			}
+
+			flipped.push({
+				functionName: name,
+				liveVersion: current?.FunctionVersion,
+				liveDescription: current?.Description,
+			})
+
+			await upsertLambdaAlias(props.lambda, {
+				functionName: name,
+				functionVersion: target.FunctionVersion,
+				name: LIVE_LAMBDA_ALIAS,
+				description: props.id,
+			})
+		}
+
 		if (props.store && active?.id !== props.store.deployment.id) {
 			routesUpdateStarted = true
 			await setActiveRouteDeployment(props.kvs, props.store.arn, props.store.deployment)
@@ -501,6 +535,16 @@ export const promoteDeployment = async (props: {
 						}),
 					]
 				: []),
+			...flipped
+				.filter(item => item.liveVersion)
+				.map(item =>
+					upsertLambdaAlias(props.lambda, {
+						functionName: item.functionName,
+						functionVersion: item.liveVersion!,
+						name: LIVE_LAMBDA_ALIAS,
+						description: item.liveDescription ?? '',
+					})
+				),
 		]
 		const failures = (await Promise.allSettled(rollback))
 			.filter(result => result.status === 'rejected')
@@ -559,6 +603,7 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 		lambda,
 		dynamo,
 		appId,
+		appName: props.appConfig.name,
 		functionName,
 		id,
 		store,

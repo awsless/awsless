@@ -2,6 +2,7 @@ import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Permission } from './feature'
 import { BucketLifecycleRule } from './feature/asset/index'
+import { BundleHandler } from './feature/bundle/util'
 import { Route } from './feature/router/route'
 
 type SharedState = {
@@ -40,16 +41,10 @@ type SharedState = {
 		main: {
 			lambda: aws.lambda.Function
 			alias: aws.lambda.Alias
+			deployment: Resource
 			logGroup: aws.cloudwatch.LogGroup | undefined
 			policy: aws.iam.RolePolicy
-			addHandler: (handler: {
-				routeKey: string
-				file: string // The file path of the handler code.
-				exportName: string // The name of the exported method within the handler code.
-				external?: string[]
-				importAsString?: string[]
-				moduleSideEffects?: string[]
-			}) => void
+			addHandler: (handler: BundleHandler) => void
 			addEnv: (name: string, value: Input<string>) => void
 			addLayer: (layer: Input<string>) => void
 			addPermission: (statement: Permission) => void
@@ -112,7 +107,6 @@ type SharedEntries = {
 
 	router: {
 		id: Output<string>
-		'preview-id': Output<string>
 		endpoint: string
 		addRoutes: (
 			routes: Record<string, Route | Route[]>,

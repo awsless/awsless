@@ -1,5 +1,13 @@
 import { aws } from '@terraforge/aws'
-import { App, DynamoLockBackend, enableDebug, S3StateBackend, StateBackend, WorkSpace } from '@terraforge/core'
+import {
+	App,
+	createCustomProvider,
+	DynamoLockBackend,
+	enableDebug,
+	S3StateBackend,
+	StateBackend,
+	WorkSpace,
+} from '@terraforge/core'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
@@ -74,6 +82,10 @@ export const createWorkSpace = async (props: BackendProps) => {
 			createS3Provider(props),
 			createNameServersProvider(props),
 			createOpenSearchProvider(props),
+			// Backwards compatibility for old states, can be removed later.
+			createCustomProvider('cloudfront', {
+				invalidation: {},
+			}),
 			aws(
 				{
 					accessKey: cred.accessKeyId,

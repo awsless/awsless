@@ -8,13 +8,9 @@ const git = (command: string) => {
 	}
 }
 
-const checkedOutBranch = () => {
-	return git('rev-parse --abbrev-ref HEAD')
-}
-
 // CI checks a pull request out as a detached ref, where git only reports 'HEAD'.
 export const currentBranch = () => {
-	const branch = checkedOutBranch()
+	const branch = git('rev-parse --abbrev-ref HEAD')
 
 	if (branch && branch !== 'HEAD') {
 		return branch

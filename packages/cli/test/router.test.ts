@@ -53,7 +53,7 @@ const createRouter = (
 const route = (domainName: string) => JSON.stringify({ type: 's3', domainName })
 
 const createRouterApp = (routers: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
-	createTestApp({ router: routers, ...extra })
+	createTestApp({ defaults: { router: routers, ...extra } })
 
 describe('router routes', () => {
 	it('should collect every route into one deployment', async () => {
@@ -94,7 +94,7 @@ describe('router routes', () => {
 		expect(findInputDeps(getMeta(routeDeployment).input.routes)).toContain(getMeta(functionDeployment))
 		const sourceArnDependencies = findInputDeps(getMeta(functionDeployment).input.sourceArns)
 		expect(sourceArnDependencies.map(dependency => dependency.type)).toEqual(
-			expect.arrayContaining(['aws_cloudfront_distribution', 'aws_cloudfront_multitenant_distribution'])
+			expect.arrayContaining(['aws_cloudfront_multitenant_distribution'])
 		)
 		expect(getMeta(routeDeployment).config?.dependsOn?.map(dependency => getMeta(dependency).type)).toEqual(
 			expect.arrayContaining(['aws_iam_role_policy', 'aws_lambda_alias'])
@@ -108,15 +108,16 @@ describe('router routes', () => {
 		const resources = result.app.resources.map(getMeta)
 		const deployment = resources.find(resource => resource.type === 'route-deployment')!
 
-		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(1)
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(0)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_multitenant_distribution')).toHaveLength(
 			1
 		)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_key_value_store')).toHaveLength(1)
 
 		const functions = resources.filter(resource => resource.type === 'aws_cloudfront_function')
-		expect(functions).toHaveLength(2)
+		expect(functions).toHaveLength(1)
 		expect(functions.every(item => String(item.input.code).includes('$active'))).toBe(true)
+		expect(functions.every(item => !String(item.input.code).includes('$deploy:'))).toBe(true)
 		expect(findInputDeps(deployment.input.storeArn).map(dependency => dependency.type)).toContain(
 			'aws_cloudfront_key_value_store'
 		)
@@ -136,36 +137,10 @@ describe('router routes', () => {
 
 		expect(resources.filter(resource => resource.type === 'route-deployment')).toHaveLength(1)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_key_value_store')).toHaveLength(1)
-		// one preview distribution per router
-		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(2)
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(0)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_multitenant_distribution')).toHaveLength(
 			2
 		)
-	})
-
-	it('should keep the preview distribution on its own cloudfront host', async () => {
-		const result = createRouterApp({ main: {} })
-		result.ready()
-
-		const resources = result.app.resources.map(getMeta)
-		const preview = resources.find(resource => resource.type === 'aws_cloudfront_distribution')!
-		const previewFn = resources.find(
-			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('preview-function')
-		)!
-		const productionFn = resources.find(
-			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('production-function')
-		)!
-
-		await expect(resolveInputs(preview.input.aliases)).resolves.toBeUndefined()
-
-		// Only the preview host can select a staged deployment; production
-		// always serves the active route table.
-		expect(String(previewFn.input.code)).toContain('$deploy:')
-		expect(String(previewFn.input.code)).toContain('awsless-deployment')
-		expect(String(productionFn.input.code)).not.toContain('$deploy:')
-
-		expect(resources.find(resource => resource.type === 'aws_acm_certificate')).toBeUndefined()
-		expect(resources.find(resource => resource.type === 'aws_route53_zone')).toBeUndefined()
 	})
 
 	it('should read every route from the active route table', async () => {
@@ -186,99 +161,10 @@ describe('router routes', () => {
 		])
 	})
 
-	it('should give every router its own preview distribution', async () => {
-		const result = createRouterApp({ main: {}, admin: {} })
-		result.ready()
-
-		const resources = result.app.resources.map(getMeta)
-		const previews = resources.filter(
-			resource => resource.type === 'aws_cloudfront_distribution' && resource.urn.endsWith(':{preview}')
-		)
-		const previewFns = resources.filter(
-			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('preview-function')
-		)
-
-		expect(previews).toHaveLength(2)
-		expect(previewFns).toHaveLength(2)
-
-		const routers = previewFns.map(fn => String(fn.input.code).match(/const router = "(\w+)"/)?.[1]).sort()
-		expect(routers).toEqual(['admin', 'main'])
-	})
-
 	it('should only use syntax the cloudfront js runtime supports', async () => {
 		// The cloudfront-js-2.0 runtime rejects for...of at parse time,
 		// which breaks the whole function with a 503 on every request.
-		for (const preview of [true, false]) {
-			expect(getViewerRequestFunctionCode({ router: 'main', preview })).not.toMatch(
-				/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/
-			)
-		}
-	})
-
-	it('should preview a staged deployment selected by query and pin it in a cookie', async () => {
-		const values = new Map([
-			['$active', 'v1:1'],
-			['$deploy:local-2', 'v2:2'],
-			['v2:main:/api/*', route('staged.example.com')],
-		])
-		const { get, handler } = createRouter(values, { preview: true })
-
-		const request = createRequest('/api/users')
-		request.querystring['awsless-deployment'] = { value: 'local-2' }
-
-		const redirect = (await handler({ request })) as Response & {
-			headers: Record<string, { value: string }>
-			cookies: Record<string, { value: string }>
-		}
-
-		expect(redirect.statusCode).toBe(302)
-		expect(redirect.headers.location!.value).toBe('/api/users')
-		expect(redirect.cookies['awsless-deployment']!.value).toBe('local-2')
-		expect(get).toHaveBeenCalledWith('$deploy:local-2')
-
-		const pinned = createRequest('/api/users') as Request & {
-			cookies: Record<string, { value: string }>
-		}
-		pinned.cookies = { 'awsless-deployment': { value: 'local-2' } }
-
-		const routed = (await handler({ request: pinned })) as Request
-		expect(routed.headers['x-origin']?.value).toBe('staged.example.com')
-	})
-
-	it('should ignore an empty preview deployment selection', async () => {
-		const values = new Map([
-			['$active', 'v1:1'],
-			['v1:main:/*', route('active.example.com')],
-		])
-		const { handler } = createRouter(values, { preview: true })
-
-		const request = createRequest('/index.html')
-		request.querystring['awsless-deployment'] = { value: '' }
-
-		const routed = (await handler({ request })) as Request
-		expect(routed.headers['x-origin']?.value).toBe('active.example.com')
-	})
-
-	it('should return 404 for an unknown preview deployment', async () => {
-		const values = new Map([['$active', 'v1:1']])
-		const { handler } = createRouter(values, { preview: true })
-
-		const request = createRequest('/')
-		request.querystring['awsless-deployment'] = { value: 'missing' }
-
-		const response = (await handler({ request })) as Response
-		expect(response.statusCode).toBe(404)
-	})
-
-	it('should serve the active deployment on the preview host by default', async () => {
-		const values = new Map([
-			['$active', 'v1:1'],
-			['v1:main:/*', route('active.example.com')],
-		])
-		const { handler } = createRouter(values, { preview: true })
-		const request = (await handler({ request: createRequest('/index.html') })) as Request
-
-		expect(request.headers['x-origin']?.value).toBe('active.example.com')
+		expect(getViewerRequestFunctionCode({ router: 'main' })).not.toMatch(/for\s*\(\s*(const|let|var)\s+\w+\s+of\s/)
 	})
 
 	it('should return 503 without a staged deployment', async () => {
@@ -546,12 +432,7 @@ describe('router routes', () => {
 
 		// an ssr page: 4 reads
 		// old: 3 reads — ['/casino', '/casino/*', '/*']
-		expect(await reads('/casino')).toStrictEqual([
-			'$active',
-			'v1:main:/casino',
-			'v1:main:/casino/*',
-			'v1:main:/*',
-		])
+		expect(await reads('/casino')).toStrictEqual(['$active', 'v1:main:/casino', 'v1:main:/casino/*', 'v1:main:/*'])
 
 		// a hashed asset inside a folder: 3 reads
 		// old: 1 read — the file had its own route key
@@ -686,18 +567,21 @@ describe('router route patterns', () => {
 	})
 
 	it('should serialize stack route patterns into grouped route entries', async () => {
-		const result = createTestApp({ router: { main: {} } }, undefined, [
-			{
-				name: 'web',
-				routes: {
-					main: {
-						'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
-						'/sitemap/{locale}/static.xml': { code: { file: { nocheck: './static.ts' } } },
-						'/sitemap/*': { code: { file: { nocheck: './fallback.ts' } } },
+		const result = createTestApp({
+			defaults: { router: { main: {} } },
+			stacks: [
+				{
+					name: 'web',
+					routes: {
+						main: {
+							'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+							'/sitemap/{locale}/static.xml': { code: { file: { nocheck: './static.ts' } } },
+							'/sitemap/*': { code: { file: { nocheck: './fallback.ts' } } },
+						},
 					},
 				},
-			},
-		])
+			],
+		})
 		result.ready()
 
 		const deployment = result.app.resources.map(getMeta).find(meta => meta.type === 'route-deployment')!
@@ -708,16 +592,19 @@ describe('router route patterns', () => {
 
 	it('should reject stack routes for an unknown router', () => {
 		expect(() =>
-			createTestApp({ router: { main: {} } }, undefined, [
-				{
-					name: 'web',
-					routes: {
-						other: {
-							'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+			createTestApp({
+				defaults: { router: { main: {} } },
+				stacks: [
+					{
+						name: 'web',
+						routes: {
+							other: {
+								'/sitemap.xml': { code: { file: { nocheck: './root.ts' } } },
+							},
 						},
 					},
-				},
-			])
+				],
+			})
 		).toThrow('Router "other" is not defined on the app level.')
 	})
 

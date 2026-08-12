@@ -5,7 +5,7 @@ import { DurationSchema, durationMax, durationMin } from '../../config/schema/du
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 
 const RetentionPeriodSchema = DurationSchema.refine(durationMin(minutes(1)), 'Minimum retention period is 1 minute')
 	.refine(durationMax(days(14)), 'Maximum retention period is 14 days')
@@ -42,7 +42,7 @@ export const QueueDefaultSchema = z
 	.default({})
 
 const QueueSchema = z.object({
-	consumer: FunctionSchema.optional().describe('The consuming lambda function properties.'),
+	consumer: BundledFunctionSchema.optional().describe('The consuming lambda function properties.'),
 	retentionPeriod: RetentionPeriodSchema.optional(),
 	receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 	maxMessageSize: MaxMessageSizeSchema.optional(),

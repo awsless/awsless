@@ -1,8 +1,9 @@
 import { ExpectedError, ViewableError } from '@awsless/lambda'
-import { internalInvoke } from 'awsless'
 import { APIGatewayProxyEventV2 } from 'aws-lambda'
+import { internalInvoke } from 'awsless'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
+import { getFunctionDetails } from './details.js'
 import {
 	EXPECTED_ERROR,
 	INTERNAL_FUNCTION_ERROR,
@@ -19,7 +20,6 @@ import {
 import { invokeInternalFunction } from './internal/index.js'
 import { lock, unlock } from './lock.js'
 import { FunctionResult, Response, response } from './response.js'
-import { getFunctionDetails } from './schema.js'
 import { parseRequest } from './validate.js'
 import { buildViewerPayload } from './viewer.js'
 

@@ -84,6 +84,9 @@ export const instanceFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import
+					? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:cluster/${ctx.app.name}-instance`
+					: undefined,
 			}
 		)
 
@@ -97,13 +100,22 @@ export const instanceFeature = defineFeature({
 
 			// ------------------------------------------------------------
 
-			const queue = new aws.sqs.Queue(group, 'queue', {
-				name: task.name,
-				visibilityTimeoutSeconds: toSeconds(seconds(30)),
-				messageRetentionSeconds: toSeconds(days(4)),
-				maxMessageSize: toBytes(kibibytes(256)),
-				receiveWaitTimeSeconds: toSeconds(seconds(20)),
-			})
+			const queue = new aws.sqs.Queue(
+				group,
+				'queue',
+				{
+					name: task.name,
+					visibilityTimeoutSeconds: toSeconds(seconds(30)),
+					messageRetentionSeconds: toSeconds(days(4)),
+					maxMessageSize: toBytes(kibibytes(256)),
+					receiveWaitTimeSeconds: toSeconds(seconds(20)),
+				},
+				{
+					import: ctx.import
+						? `https://sqs.${ctx.appConfig.region}.amazonaws.com/${ctx.accountId}/${task.name}`
+						: undefined,
+				}
+			)
 
 			task.addPermission({
 				actions: [
@@ -116,7 +128,7 @@ export const instanceFeature = defineFeature({
 				resources: [queue.arn],
 			})
 
-			ctx.addGlobalPermission({
+			ctx.addPermission({
 				actions: ['sqs:SendMessage', 'sqs:GetQueueUrl', 'sqs:GetQueueAttributes'],
 				resources: [queue.arn],
 			})

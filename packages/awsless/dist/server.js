@@ -454,6 +454,7 @@ import { invoke } from "@awsless/lambda";
 import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
 var ROUTE_PROPERTY = "$awsless-route";
+var ROUTE_HEADER = "x-awsless-route";
 var LIVE_BUNDLE_ALIAS = "live";
 var getBundleName = () => `${kebabCase(process.env.APP)}--function--bundle`;
 var formatRouteKey = (stackName, resourceType, resourceName) => {
@@ -465,20 +466,27 @@ var formatRoutePayload = (routeKey, event2) => {
     event: event2
   };
 };
+var invokedQualifier;
+var captureInvokedQualifier = (context) => {
+  invokedQualifier = context.invokedFunctionArn?.split(":")[7];
+};
+var getInvokedQualifier = () => {
+  return invokedQualifier;
+};
 var invokeBundle = ({ routeKey, payload, ...options }) => {
   const proxy = process.env.SANDBOX_PROXY;
   if (proxy) {
     return invoke({
       ...options,
       name: proxy,
+      qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
       payload: formatRoutePayload(routeKey, payload)
     });
   }
-  const version = process.env.STANDALONE === "true" ? void 0 : process.env.AWS_LAMBDA_FUNCTION_VERSION;
   return invoke({
     ...options,
     name: getBundleName(),
-    qualifier: options.qualifier ?? version ?? LIVE_BUNDLE_ALIAS,
+    qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
     payload: formatRoutePayload(routeKey, payload)
   });
 };
@@ -495,11 +503,19 @@ var internalInvoke = (routeKey, payload) => {
   }
   return context.internalInvoke(routeKey, payload);
 };
+var bundleRoutes = [];
+var setBundleRoutes = (routes) => {
+  bundleRoutes = routes;
+};
+var hasBundleRoute = (routeKey) => {
+  return bundleRoutes.includes(routeKey);
+};
+var getStandaloneFunctionName = (routeKey) => {
+  const [stackName, , functionName] = routeKey.split(":");
+  return `${kebabCase(process.env.APP)}--${stackName}--function--${functionName}`;
+};
 var formatRouteEnvName = (routeKey, name) => {
   return `${routeKey}:${name}`;
-};
-var isStandaloneRoute = (routeKey) => {
-  return process.env[formatRouteEnvName(routeKey, "STANDALONE")] === "true";
 };
 var getRouteEnv = (name) => {
   const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
@@ -509,7 +525,7 @@ var getRouteEnv = (name) => {
 // src/lib/server/util.ts
 var APP = process.env.APP;
 var APP_ID = process.env.APP_ID;
-var IS_TEST = process.env.NODE_ENV === "test";
+var IS_TEST = !!process.env["VITEST"] || process.env["NODE_ENV"] === "test";
 var IS_LOCAL = process.env.AWSLESS_ENV === "local";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
@@ -571,12 +587,7 @@ var getConfigName = (name) => {
 };
 var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
   if (!IS_TEST) {
-    const keys = [];
-    for (const key of Object.keys(process.env)) {
-      if (key.startsWith("CONFIG_")) {
-        keys.push(process.env[key]);
-      }
-    }
+    const keys = process.env.CONFIGS?.split(",").filter(Boolean) ?? [];
     if (keys.length > 0) {
       const paths = {};
       for (const key of keys) {
@@ -617,7 +628,7 @@ var Config = /* @__PURE__ */ new Proxy(
 
 // src/lib/server/function.ts
 import { stringify as stringify2 } from "@awsless/json";
-import { invoke as invoke2 } from "@awsless/lambda";
+import { ExpectedError, invoke as invoke2 } from "@awsless/lambda";
 import { WeakCache } from "@awsless/weak-cache";
 var cache = new WeakCache();
 var getFunctionName = bindLocalResourceName("function");
@@ -633,15 +644,26 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
           payload
         });
       }
-      if (isStandaloneRoute(routeKey)) {
-        return invoke2({
-          ...options,
-          name,
-          payload
-        });
-      }
-      if (isInsideBundle() && !options.qualifier && !options.client) {
-        return internalInvoke(routeKey, payload);
+      if (isInsideBundle()) {
+        if (!hasBundleRoute(routeKey)) {
+          return invoke2({
+            ...options,
+            name,
+            qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
+            payload
+          });
+        }
+        if (!options.qualifier && !options.client) {
+          if (options.reflectViewableErrors === false) {
+            return internalInvoke(routeKey, payload).catch((error2) => {
+              if (error2 instanceof ExpectedError) {
+                throw new Error(error2.message);
+              }
+              throw error2;
+            });
+          }
+          return internalInvoke(routeKey, payload);
+        }
       }
       return invokeBundle({
         ...options,
@@ -853,26 +875,27 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
     const routeKey = formatRouteKey(stackName, "task", taskName);
     const ctx = {
       [name]: async (payload, options = {}) => {
+        const { schedule: scheduleAt, ...invokeOptions } = options;
         if (IS_TEST) {
           await invoke4({
-            ...options,
+            ...invokeOptions,
             type: "Event",
             name,
             payload
           });
-        } else if (options.schedule) {
+        } else if (scheduleAt) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
             name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
             payload: formatRoutePayload(routeKey, payload),
-            schedule: options.schedule,
+            schedule: scheduleAt,
             group: resourceTaskName("group"),
             roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName("schedule")}`,
             deadLetterArn: onFailureQueueArn
           });
         } else {
           await invokeBundle({
-            ...options,
+            ...invokeOptions,
             routeKey,
             payload,
             type: "Event"
@@ -1394,11 +1417,14 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
     const name = getCronName(cronName, stackName);
     const routeKey = formatRouteKey(stackName, "cron", cronName);
     const ctx = {
+      // A manual cron trigger invokes synchronously: awaiting it
+      // means the run finished, so a seed can rely on its writes &
+      // a failed run throws instead of vanishing.
       [name]: async (payload, options = {}) => {
         if (IS_TEST) {
           await invoke5({
             ...options,
-            type: "Event",
+            type: "RequestResponse",
             name,
             payload
           });
@@ -1408,7 +1434,7 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
           ...options,
           routeKey,
           payload,
-          type: "Event"
+          type: "RequestResponse"
         });
       }
     };
@@ -1495,12 +1521,18 @@ var seed = {
 // src/lib/server/store.ts
 import { deleteObject, getObject, headObject, putObject as putObject2 } from "@awsless/s3";
 import { kebabCase as kebabCase7 } from "change-case";
-var BUCKET = `${APP}--store--assets--${APP_ID}`;
+var BUCKET = /* @__PURE__ */ formatResourceName({
+  resourceType: "store",
+  resourceName: "assets",
+  postfix: APP_ID
+});
 var Store = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     const scoped = (key) => `store/${kebabCase7(stack)}/${kebabCase7(name)}/${key}`;
     return {
       name: BUCKET,
+      // For callers building their own s3 requests inside the store's folder.
+      folder: scoped(""),
       async put(key, body, options = {}) {
         await putObject2({
           bucket: BUCKET,
@@ -1541,12 +1573,14 @@ export {
   Metric,
   PubSub,
   Queue,
+  ROUTE_HEADER,
   ROUTE_PROPERTY,
   Search,
   Store,
   Table,
   Task,
   Topic,
+  captureInvokedQualifier,
   formatRouteEnvName,
   formatRouteKey,
   formatRoutePayload,
@@ -1561,6 +1595,7 @@ export {
   getFunctionName,
   getInstanceQueueName,
   getInstanceQueueUrl,
+  getInvokedQualifier,
   getJobName,
   getMetricName,
   getMetricNamespace,
@@ -1570,15 +1605,16 @@ export {
   getRouteEnv,
   getSearchProps,
   getStack,
+  getStandaloneFunctionName,
   getTableName,
   getTableProps,
   getTaskName,
   getTopicName,
   handle_exports as h,
+  hasBundleRoute,
   internalInvoke,
   invokeBundle,
   isInsideBundle,
-  isStandaloneRoute,
   mock,
   onFailureBucketArn,
   onFailureBucketName,
@@ -1586,6 +1622,7 @@ export {
   onFailureQueueName,
   s,
   seed,
+  setBundleRoutes,
   setConfigValue,
   setupTestEnv,
   t,

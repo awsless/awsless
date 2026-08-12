@@ -110,6 +110,9 @@ export const jobFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import
+					? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:cluster/${ctx.app.name}-job`
+					: undefined,
 			}
 		)
 
@@ -219,14 +222,14 @@ export const jobFeature = defineFeature({
 		// ------------------------------------------------------------
 		// Permissions for invoking jobs
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['ecs:RunTask'],
 			resources: [
 				`arn:aws:ecs:${ctx.appConfig.region}:*:task-definition/${ctx.app.name}--${ctx.stackConfig.name}--*`,
 			],
 		})
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: ['*'],
 			conditions: {
@@ -235,6 +238,5 @@ export const jobFeature = defineFeature({
 				},
 			},
 		})
-
 	},
 })

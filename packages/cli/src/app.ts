@@ -70,7 +70,6 @@ export const createApp = (props: CreateAppProps) => {
 	// const siteFunctions: aws.lambda.Function[] = []
 	const commands: Command[] = []
 	const configs = new Set<string>()
-	const functionsByConfig: Record<string, aws.lambda.Function[]> = {}
 	const tests: TestCase[] = []
 	const warnings: Warning[] = []
 	const builders: BuildTask[] = []
@@ -85,10 +84,8 @@ export const createApp = (props: CreateAppProps) => {
 	const globalEnv: BindEnv[] = []
 	const globalEnvListeners: OnEnvListener[] = []
 
-	const globalPermissions: Permission[] = []
-	const globalPermissionCallbacks: OnPermissionCallback[] = []
-	const appPermissions: Permission[] = []
-	const appPermissionCallbacks: OnPermissionCallback[] = []
+	const permissions: Permission[] = []
+	const permissionCallbacks: OnPermissionCallback[] = []
 
 	// ---------------------------------------------------------------
 
@@ -121,14 +118,10 @@ export const createApp = (props: CreateAppProps) => {
 			zones,
 			shared,
 			onPermission(callback) {
-				globalPermissionCallbacks.push(callback)
-				appPermissionCallbacks.push(callback)
+				permissionCallbacks.push(callback)
 			},
-			addGlobalPermission(permission) {
-				globalPermissions.push(permission)
-			},
-			addAppPermission(permission) {
-				appPermissions.push(permission)
+			addPermission(permission) {
+				permissions.push(permission)
 			},
 			addWarning(props) {
 				warnings.push(props)
@@ -180,7 +173,7 @@ export const createApp = (props: CreateAppProps) => {
 			feature.onStack?.({
 				...props,
 				import: props.import ?? false,
-			dev: props.dev ?? false,
+				dev: props.dev ?? false,
 				stackConfig,
 				app,
 				appId,
@@ -189,23 +182,13 @@ export const createApp = (props: CreateAppProps) => {
 				stack,
 				shared,
 				onPermission(callback) {
-					globalPermissionCallbacks.push(callback)
-					appPermissionCallbacks.push(callback)
+					permissionCallbacks.push(callback)
 				},
-				addGlobalPermission(permission) {
-					globalPermissions.push(permission)
-				},
-				addAppPermission(permission) {
-					appPermissions.push(permission)
+				addPermission(permission) {
+					permissions.push(permission)
 				},
 				addWarning(props) {
 					warnings.push(props)
-				},
-				addFunction(lambda) {
-					for (const configName of props.appConfig.configs ?? []) {
-						functionsByConfig[configName] ??= []
-						functionsByConfig[configName].push(lambda)
-					}
 				},
 				// onGlobalPolicy(callback) {
 				// 	globalPoliciesListeners.push(callback)
@@ -279,14 +262,8 @@ export const createApp = (props: CreateAppProps) => {
 	// ---------------------------------------------------------------
 	// Global app binds
 
-	for (const callback of appPermissionCallbacks) {
-		for (const permission of appPermissions) {
-			callback(permission)
-		}
-	}
-
-	for (const callback of globalPermissionCallbacks) {
-		for (const permission of globalPermissions) {
+	for (const callback of permissionCallbacks) {
+		for (const permission of permissions) {
 			callback(permission)
 		}
 	}
@@ -343,7 +320,6 @@ export const createApp = (props: CreateAppProps) => {
 		binds,
 		shared,
 		configs,
-		functionsByConfig,
 		warnings,
 		builders,
 		commands,

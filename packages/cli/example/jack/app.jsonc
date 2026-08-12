@@ -7,6 +7,7 @@
 	//
 
 	"configs": ["admin-secret", "max-tasks"],
+	"seed": "./todo/seed.ts",
 	"test": {
 		"configs": {
 			"admin-secret": "test-secret",

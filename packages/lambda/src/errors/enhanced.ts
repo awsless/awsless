@@ -2,6 +2,9 @@ import { applyRedaction, GenericSchema } from '@awsless/validate'
 import { LambdaContext } from '..'
 import { normalizeError } from '../helpers/error'
 
+// The shared bundle stamps the dispatched route key onto the context.
+export type RoutedLambdaContext = LambdaContext & { route?: string }
+
 class EnhandedError extends Error {
 	input: unknown
 	route?: string
@@ -16,7 +19,7 @@ export const enhanceError = (
 	maybeError: unknown,
 	schema: GenericSchema | undefined,
 	input: unknown,
-	context?: LambdaContext
+	context?: RoutedLambdaContext
 ) => {
 	const cause = normalizeError(maybeError)
 
@@ -28,12 +31,10 @@ export const enhanceError = (
 	error.input = schema ? applyRedaction(schema, input) : input
 
 	if (context) {
-		const route = (context as { route?: unknown }).route
-
-		if (typeof route === 'string') {
+		if (typeof context.route === 'string') {
 			// Set by the shared bundle, so errors can be attributed to the
 			// logical resource that was running.
-			error.route = route
+			error.route = context.route
 		}
 
 		error.requestId = context.awsRequestId

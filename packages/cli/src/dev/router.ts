@@ -244,7 +244,14 @@ type SocketData = {
 
 // The local router runs on Bun.serve, since the cli always runs under
 // bun & the node http server can't hand off websocket upgrades.
-export const startDevRouter = async (props: { routes: DevRoute[]; port: number; dispatch: DevDispatch }) => {
+export const startDevRouter = async (props: {
+	routes: DevRoute[]
+	port: number
+	dispatch: DevDispatch
+	// Handler errors surface here, so they reach the terminal & the
+	// dashboard's worker log instead of vanishing into a bare 500.
+	onError?: (error: unknown, routeKey: string) => void
+}) => {
 	const match = compileRoutes(props.routes)
 
 	const rewrittenPath = (route: RouteMatch, path: string) => {
@@ -324,7 +331,23 @@ export const startDevRouter = async (props: { routes: DevRoute[]; port: number; 
 
 			const body = Buffer.from(await request.arrayBuffer())
 			const sourceIp = server.requestIP(request)?.address ?? '127.0.0.1'
-			const result = await props.dispatch(formatWebEvent(request, route, body, url, sourceIp))
+
+			let result: unknown
+
+			try {
+				result = await props.dispatch(formatWebEvent(request, route, body, url, sourceIp))
+			} catch (error) {
+				props.onError?.(error, route.routeKey)
+
+				// The local 500 carries the real error, so a failing page
+				// or api call is debuggable straight from the browser.
+				const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
+
+				return new Response(`500: Internal Error\n\n${route.routeKey}\n${detail}`, {
+					status: 500,
+					headers: { 'content-type': 'text/plain' },
+				})
+			}
 
 			return toResponse(result)
 		},

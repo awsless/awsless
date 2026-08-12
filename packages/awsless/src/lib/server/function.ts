@@ -1,9 +1,17 @@
 // import { Duration } from '@awsless/duration'
 import { stringify } from '@awsless/json'
-import { invoke, InvokeOptions } from '@awsless/lambda'
+import { ExpectedError, invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
-import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle, isStandaloneRoute } from './bundle.js'
+import {
+	formatRouteKey,
+	getInvokedQualifier,
+	hasBundleRoute,
+	internalInvoke,
+	invokeBundle,
+	isInsideBundle,
+	LIVE_BUNDLE_ALIAS,
+} from './bundle.js'
 import { bindLocalResourceName, IS_TEST } from './util.js'
 
 const cache = new WeakCache<string, Promise<unknown>>()
@@ -34,22 +42,38 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 				})
 			}
 
-			// Stand-alone functions live outside the bundle & are
-			// invoked directly, like the old awsless did.
-			if (isStandaloneRoute(routeKey)) {
-				return invoke({
-					...options,
-					name,
-					payload,
-				})
+			if (isInsideBundle()) {
+				// A function route outside the bundle's own table is a
+				// stand-alone lambda, invoked directly inside the same
+				// deployment we were invoked with ourselves.
+				if (!hasBundleRoute(routeKey)) {
+					return invoke({
+						...options,
+						name,
+						qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
+						payload,
+					})
+				}
+
+				// Calls between bundled functions run in-process,
+				// unless a qualifier or custom client is given.
+				if (!options.qualifier && !options.client) {
+					if (options.reflectViewableErrors === false) {
+						return internalInvoke(routeKey, payload).catch(error => {
+							if (error instanceof ExpectedError) {
+								throw new Error(error.message)
+							}
+
+							throw error
+						})
+					}
+
+					return internalInvoke(routeKey, payload)
+				}
 			}
 
-			// Calls between bundled functions run in-process,
-			// unless a qualifier or custom client is given.
-			if (isInsideBundle() && !options.qualifier && !options.client) {
-				return internalInvoke(routeKey, payload)
-			}
-
+			// Callers outside the bundle route every call through the
+			// bundle, which forwards stand-alone routes.
 			return invokeBundle({
 				...options,
 				routeKey,

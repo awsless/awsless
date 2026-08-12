@@ -1,4 +1,3 @@
-import { formatRouteEnvName } from 'awsless'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -105,7 +104,7 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 		// Give lambda access to all policies inside your app.
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: [
 				// Allow all lambda's to invoke any lambda inside your app.
 				'lambda:InvokeFunction',
@@ -115,9 +114,7 @@ export const functionFeature = defineFeature({
 				// 'lambda:ListFunctions',
 				// 'lambda:GetFunction',
 			],
-			resources: [
-				`arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.appConfig.name}--*`,
-			],
+			resources: [`arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.appConfig.name}--*`],
 		})
 	},
 	onStack(ctx) {
@@ -133,11 +130,8 @@ export const functionFeature = defineFeature({
 
 			// The function defines its own lambda config, so it deploys as
 			// its own stand-alone lambda & the bundle invokes it directly
-			// by name instead of dispatching to a bundled handler.
+			// instead of dispatching to a bundled handler.
 			createLambdaFunction(ctx, id, props)
-
-			const bundle = ctx.shared.get('bundle', 'main')
-			bundle.addEnv(formatRouteEnvName(routeKey, 'STANDALONE'), 'true')
 		}
 	},
 })

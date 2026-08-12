@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 
 export const TaskSchema = z.union([
-	FunctionSchema.transform(consumer => ({
+	BundledFunctionSchema.transform(consumer => ({
 		consumer,
 	})),
 	z.object({
-		consumer: FunctionSchema,
+		consumer: BundledFunctionSchema,
 	}),
 ])
 

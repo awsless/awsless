@@ -1,7 +1,7 @@
 import { days } from '@awsless/duration'
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 import { LogSchema } from '../instance/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
@@ -9,7 +9,7 @@ export const PubSubDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			auth: FunctionSchema.describe(
+			auth: BundledFunctionSchema.describe(
 				'The authorizer that validates the client auth token and returns the allowed topics.'
 			),
 			router: ResourceIdSchema.describe('The router id to route pubsub traffic through.'),
@@ -26,12 +26,12 @@ export const PubSubSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			connected: FunctionSchema.optional().describe('Subscribe to the event when a client connects.'),
-			disconnected: FunctionSchema.optional().describe('Subscribe to the event when a client disconnects.'),
-			subscribed: FunctionSchema.optional().describe(
+			connected: BundledFunctionSchema.optional().describe('Subscribe to the event when a client connects.'),
+			disconnected: BundledFunctionSchema.optional().describe('Subscribe to the event when a client disconnects.'),
+			subscribed: BundledFunctionSchema.optional().describe(
 				'Subscribe to the event when a client subscribes to topics.'
 			),
-			unsubscribed: FunctionSchema.optional().describe(
+			unsubscribed: BundledFunctionSchema.optional().describe(
 				'Subscribe to the event when a client unsubscribes from topics.'
 			),
 		})

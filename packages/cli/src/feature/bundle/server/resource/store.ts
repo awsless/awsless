@@ -1,19 +1,10 @@
 import type { S3Event } from 'aws-lambda'
+import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
 import { asyncRoute, routeType } from './util.js'
 
 export const storeHandler: RouteMatcher<S3Event> = event => {
-	const requestedRoute = event?.['$awsless-route']
-
-	if (typeof requestedRoute === 'string') {
-		if (routeType(requestedRoute) === 'store') {
-			return asyncRoute(requestedRoute, event.event)
-		}
-
-		return
-	}
-
-	if (typeof event?.headers?.['x-awsless-route'] === 'string') {
+	if (typeof event?.[ROUTE_PROPERTY] === 'string' || typeof event?.headers?.[ROUTE_HEADER] === 'string') {
 		return
 	}
 

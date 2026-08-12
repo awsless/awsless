@@ -75,8 +75,6 @@ export type StackContext = AppContext & {
 	stack: Stack
 
 	registerTest: RegisterTest
-
-	addFunction: (lambda: aws.lambda.Function) => void
 }
 
 export type BeforeContext = {
@@ -108,6 +106,7 @@ export type AppContext = BeforeContext & {
 	registerConfig: RegisterConfig
 	registerCommand: RegisterCommand
 	registerDomainZone: (zone: aws.route53.Zone) => void
+
 	// registerPolicy: RegisterPolicy
 	// registerFunction: RegisterFunction
 	// registerSiteFunction: RegisterSiteFunction
@@ -137,8 +136,7 @@ export type AppContext = BeforeContext & {
 	// onAppPermission: OnPermission
 
 	onPermission: OnPermission
-	addAppPermission: OnPermissionCallback
-	addGlobalPermission: OnPermissionCallback
+	addPermission: OnPermissionCallback
 
 	// onEnv: (envVars: Record<string, Input<string>>) => void
 }
@@ -215,6 +213,8 @@ export type DevResource = {
 		| 'rpc'
 		| 'rest'
 		| 'site'
+		| 'auth'
+		| 'worker'
 	id: string
 	stack?: string
 	routeKey?: string

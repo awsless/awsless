@@ -7,6 +7,7 @@ import { createApp } from '../app.js'
 import { build, getBuildPath } from '../build/index.js'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
+import { createAuthAdmin } from '../feature/auth/dev.js'
 import { features } from '../feature/index.js'
 import { getBundleFunctionName } from '../util/name.js'
 import { directories } from '../util/path.js'
@@ -66,12 +67,17 @@ export const startDev = async (props: {
 
 	// The synth is pure, so we can run it with a fake account to collect
 	// the builders, including the bundle build with every handler route.
-	const { builders, appId } = createApp({
+	const { builders, appId, ready } = createApp({
 		appConfig,
 		stackConfigs,
 		accountId: LOCAL_ACCOUNT_ID,
 		dev: true,
 	})
+
+	// Fire the deferred feature registrations (like the on-failure &
+	// on-error-log consumers joining the local bundle), so the bundle
+	// builder sees every route.
+	ready()
 
 	// The local state folder holds the emulated resource data, seeds &
 	// the local config values.
@@ -219,7 +225,26 @@ export const startDev = async (props: {
 		await buildAll()
 	})
 
-	const worker = createBundleWorker({ buildDir, env, functionName: bundleName })
+	// Every worker output line streams to the dashboard's Worker panel,
+	// so handler logs & errors are debuggable without the terminal. The
+	// route tag also feeds the per-resource log views.
+	const emitWorkerLine = (line: string, error = false, route?: string) => {
+		dev.events.emit('worker', { date: Date.now(), line, error, route })
+	}
+
+	const worker = createBundleWorker({
+		buildDir,
+		env,
+		functionName: bundleName,
+		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
+	})
+
+	dev.resources.push({
+		kind: 'worker',
+		id: 'bundle',
+		channel: 'worker',
+		detail: 'The output & errors of the local bundle worker',
+	})
 
 	// Source changes never rebuild in the background - they only mark
 	// the bundle dirty & the next invoke loads the fresh code. Only app
@@ -315,16 +340,16 @@ export const startDev = async (props: {
 		}
 	})
 
-	// Stack seed files run on the first boot of the session, against
+	// The app seed file runs on the first boot of the session, against
 	// the fully wired environment - the dashboard reseed button runs
-	// them again on demand.
-	const seeder = createSeedRunner({ stackConfigs, env })
+	// it again on demand.
+	const seeder = createSeedRunner({ seed: appConfig.seed, env })
 	const resetData = createDataReset({ pool: props.pool, appConfig, stackConfigs })
 
 	if (firstBoot && seeder.count > 0 && !dirty) {
 		try {
-			await phase({ start: 'Seeding the local data...', done: 'Seeded the local data' }, async detail => {
-				detail(breakdown(await seeder.run()))
+			await phase({ start: 'Seeding the local data...', done: 'Seeded the local data' }, async () => {
+				await seeder.run()
 			})
 		} catch (error) {
 			log(`Seeding failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -339,6 +364,15 @@ export const startDev = async (props: {
 				routes: dev.routes.filter(route => route.routerId === id),
 				port,
 				dispatch,
+				onError(error, routeKey) {
+					// Handler errors from web routes would otherwise never
+					// print anywhere - the worker only returns them.
+					const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
+
+					process.stderr.write(`Route ${routeKey} failed: ${detail}\n`)
+
+					emitWorkerLine(`Route ${routeKey} failed: ${detail}`, true, routeKey)
+				},
 			})
 		)
 	}
@@ -365,6 +399,10 @@ export const startDev = async (props: {
 		getEmails: () =>
 			props.pool.peek<{ server: { list: () => unknown[] } }>('shim:ses-email')?.server.list() ?? [],
 		configPulled: Object.keys(props.pool.peek<Record<string, string>>('config:pull') ?? {}),
+		auth: createAuthAdmin({
+			appConfig,
+			resolvedPools: () => props.pool.peek('auth:pull'),
+		}),
 		events: dev.events,
 	})
 

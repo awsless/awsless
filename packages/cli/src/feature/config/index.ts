@@ -1,4 +1,3 @@
-import { constantCase } from 'change-case'
 import { join } from 'path'
 import { debug } from '../../cli/debug.js'
 import { createSsmServer } from '../../dev/servers/ssm.js'
@@ -50,7 +49,7 @@ export const configFeature = defineFeature({
 	onApp(ctx) {
 		// The wildcard grant covers every config parameter, so the
 		// individual configs don't need their own grants.
-		ctx.addAppPermission({
+		ctx.addPermission({
 			actions: [
 				//
 				'ssm:GetParameter',
@@ -65,9 +64,18 @@ export const configFeature = defineFeature({
 			],
 		})
 
-		for (const name of ctx.appConfig.configs ?? []) {
+		const names = ctx.appConfig.configs ?? []
+
+		for (const name of names) {
 			ctx.registerConfig(name)
-			ctx.addEnv(`CONFIG_${constantCase(name)}`, name)
+		}
+
+		// A single env var announces every config name, so the runtime
+		// knows which SSM parameters to fetch at cold start. The dev
+		// environment announces its own union, including the sandbox &
+		// site build configs.
+		if (names.length > 0 && !ctx.dev) {
+			ctx.addEnv('CONFIGS', names.join(','))
 		}
 	},
 	async onDev(ctx) {
@@ -77,8 +85,10 @@ export const configFeature = defineFeature({
 		// access, which all resolves through the same local values.
 		for (const stack of ctx.stackConfigs) {
 			for (const props of Object.values(stack.functions ?? {})) {
-				for (const name of props.sandbox?.configs ?? []) {
-					names.add(name)
+				if (typeof props.sandbox === 'object') {
+					for (const name of props.sandbox.configs ?? []) {
+						names.add(name)
+					}
 				}
 			}
 
@@ -87,8 +97,10 @@ export const configFeature = defineFeature({
 					names.add(name)
 				}
 
-				for (const name of site.ssr?.sandbox?.configs ?? []) {
-					names.add(name)
+				if (typeof site.ssr?.sandbox === 'object') {
+					for (const name of site.ssr.sandbox.configs ?? []) {
+						names.add(name)
+					}
 				}
 			}
 		}
@@ -97,8 +109,11 @@ export const configFeature = defineFeature({
 			return
 		}
 
+		// The runtime fetches every announced config at cold start, all
+		// resolving through the local ssm shim.
+		ctx.addEnv('CONFIGS', [...names].join(','))
+
 		for (const name of names) {
-			ctx.addEnv(`CONFIG_${constantCase(name)}`, name)
 			ctx.registerResource({ kind: 'config', id: name })
 		}
 
