@@ -215,9 +215,17 @@ export type DevResource = {
 		| 'site'
 		| 'auth'
 		| 'worker'
+		| 'instance'
 	id: string
 	stack?: string
 	routeKey?: string
+	// The local queue url of an instance, so the dashboard can send
+	// messages into it.
+	queueUrl?: string
+	// Restart the local process behind the resource, like an instance's
+	// program. Server side only: json serialization strips it from the
+	// dashboard state.
+	restart?: () => Promise<void>
 	// A pre-filled example payload for the dashboard invoke panel.
 	envelope?: unknown
 	// Extra display info, like a cron schedule or a physical table name.
@@ -283,6 +291,13 @@ export type DevContext = {
 	// The shared local s3 store server, booted on first use - features
 	// push their bucket notification rules into the returned array.
 	useStore: () => Promise<{ rules: import('./dev/servers/s3.js').StoreNotificationRule[] }>
+
+	// The shared local sqs server, booted on first use - queues &
+	// instances share one endpoint, since the sdk resolves every queue
+	// through it. Features register their queues in the returned map: a
+	// consumer route key dispatches sent messages into the bundle, while
+	// undefined marks a pull queue that stores messages for polling.
+	useSqs: () => Promise<{ port: number; queues: Map<string, string | undefined> }>
 
 	// Inject an env var into the local bundle environment.
 	addEnv: (name: string, value: string) => void

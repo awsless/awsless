@@ -124,6 +124,58 @@ export const createDashboardServer = (props: {
 			return { status: 200, body: JSON.stringify({ result: result ?? null }) }
 		}
 
+		if (url.pathname === '/api/instance/send' && req.method === 'POST') {
+			const { stack, id, payload } = JSON.parse((await readBody(req)).toString() || '{}')
+
+			const resource = props.resources.find(r => r.kind === 'instance' && r.stack === stack && r.id === id)
+
+			if (!resource?.queueUrl) {
+				return { status: 400, body: JSON.stringify({ error: `Unknown instance: ${stack}/${id}` }) }
+			}
+
+			// The same send the Instance proxy performs: a message into the
+			// instance's local pull queue, for its program to poll.
+			const queueName = resource.queueUrl.split('/').at(-1) ?? ''
+			const res = await fetch(resource.queueUrl, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/x-amz-json-1.0',
+					'x-amz-target': 'AmazonSQS.SendMessage',
+				},
+				body: JSON.stringify({
+					QueueUrl: resource.queueUrl,
+					MessageBody: JSON.stringify(payload ?? {}),
+					MessageAttributes: {
+						queue: { DataType: 'String', StringValue: queueName },
+						queueUrl: { DataType: 'String', StringValue: resource.queueUrl },
+						queueName: { DataType: 'String', StringValue: queueName },
+					},
+				}),
+			})
+
+			if (!res.ok) {
+				const data = (await res.json().catch(() => ({}))) as { message?: string }
+
+				return { status: 400, body: JSON.stringify({ error: data.message ?? res.statusText }) }
+			}
+
+			return { status: 200, body: JSON.stringify({ result: 'sent' }) }
+		}
+
+		if (url.pathname === '/api/instance/restart' && req.method === 'POST') {
+			const { stack, id } = JSON.parse((await readBody(req)).toString() || '{}')
+
+			const resource = props.resources.find(r => r.kind === 'instance' && r.stack === stack && r.id === id)
+
+			if (!resource?.restart) {
+				return { status: 400, body: JSON.stringify({ error: `Unknown instance: ${stack}/${id}` }) }
+			}
+
+			await resource.restart()
+
+			return { status: 200, body: JSON.stringify({ result: 'restarted' }) }
+		}
+
 		if (url.pathname === '/api/table') {
 			const name = url.searchParams.get('name')!
 

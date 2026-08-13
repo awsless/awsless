@@ -4,6 +4,7 @@ import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { DevContext, DevResource, DevRoute, DevServer } from '../feature.js'
 import { createS3Server, StoreNotificationRule } from './servers/s3.js'
+import { createSqsServer } from './servers/sqs.js'
 import { ServerPool } from './pool.js'
 import { directories } from '../util/path.js'
 
@@ -149,6 +150,56 @@ export const createDevContext = (props: {
 		return store
 	}
 
+	// Queues & instances live in one shared sqs server, since the sdk
+	// resolves every queue through the single sqs endpoint. The queues
+	// map stays mutable, so features register their queues before
+	// traffic flows. The server is kept across restarts & the queue set
+	// resets every run, while pull queue backlogs survive.
+	type SqsPoolValue = {
+		server: ReturnType<typeof createSqsServer>
+		port: number
+		queues: Map<string, string | undefined>
+	}
+
+	let sqs: Promise<{ port: number; queues: Map<string, string | undefined> }> | undefined
+
+	const useSqs = () => {
+		sqs ??= (async () => {
+			const value = await props.pool.keep<SqsPoolValue>('shim:sqs', null, async () => {
+				const queues = new Map<string, string | undefined>()
+				const server = createSqsServer({
+					region: props.appConfig.region,
+					accountId: '000000000000',
+					queues,
+				})
+
+				const port = await server.listen()
+
+				return {
+					value: { server, port, queues },
+					stop: () => server.stop(),
+				}
+			})
+
+			// The queue set of the previous run resets, so removed queues
+			// stop resolving.
+			value.queues.clear()
+
+			env['AWS_ENDPOINT_URL_SQS'] = `http://127.0.0.1:${value.port}`
+
+			servers.push({
+				name: 'sqs',
+				start({ dispatch, reportFailure }) {
+					value.server.connect(dispatch, reportFailure)
+				},
+			})
+
+			return { port: value.port, queues: value.queues }
+		})()
+
+		return sqs
+	}
+
 	return {
 		env,
 		routes,
@@ -174,6 +225,7 @@ export const createDevContext = (props: {
 			peek: props.pool.peek,
 			useDynamo,
 			useStore,
+			useSqs,
 			addEnv(name, value) {
 				if (name in env && env[name] !== value) {
 					throw new Error(

@@ -6,11 +6,18 @@ import { createServer, Socket } from 'net'
 // signals the whole process group, so the child may already be dead by
 // signal - node then keeps exitCode null forever (only signalCode is
 // set), and waiting for its exit event would hang the shutdown.
-export const stopChild = async (child: ChildProcess | undefined) => {
+export const stopChild = async (child: ChildProcess | undefined, gracePeriod = 5000) => {
 	if (child && child.exitCode === null && child.signalCode === null) {
 		const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
 		child.kill()
+
+		// A child that survives the sigterm (like a program with its own
+		// signal handler & open keep-alive sockets) gets sigkilled after
+		// the grace period, like ecs after its stop timeout - a restart
+		// or shutdown must never hang on a child that won't exit.
+		const timer = setTimeout(() => child.kill('SIGKILL'), gracePeriod)
 		await exited
+		clearTimeout(timer)
 	}
 }
 

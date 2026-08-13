@@ -302,6 +302,7 @@ const GROUPS = [
 	['function', 'Functions'],
 	['cron', 'Crons'],
 	['task', 'Tasks'],
+	['instance', 'Instances'],
 	['queue', 'Queues'],
 	['topic', 'Topics'],
 	['subscriber', 'Subscribers'],
@@ -328,6 +329,7 @@ const ICONS = {
 	function: svg('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
 	cron: svg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
 	task: svg('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+	instance: svg('<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>'),
 	queue: svg('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'),
 	topic: svg('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'),
 	subscriber: svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
@@ -484,6 +486,74 @@ const invokePanel = (main, r) => {
 	// The resource's own console output, filtered from the worker feed.
 	if (r.routeKey) {
 		cleanupPanel = attachLogFeed(main, 'worker', r.routeKey)
+	}
+}
+
+const instancePanel = (main, r) => {
+	// A message into the instance's queue, like Instance.stack.name()
+	// sends. The last payload survives reloads & panel switches.
+	const storageKey = 'invoke-payload:' + r.kind + ':' + (r.stack ?? '-') + ':' + r.id
+	const placeholder = '{}'
+	const input = $('textarea', { value: localStorage.getItem(storageKey) ?? placeholder, spellcheck: false })
+	const status = $('span', { className: 'status' })
+	const result = $('pre', { className: 'result', hidden: true })
+	const send = $('button', { className: 'primary', textContent: 'Send' })
+	const reset = $('button', { className: 'secondary', textContent: 'Reset' })
+	const restart = $('button', { className: 'secondary', textContent: 'Restart' })
+
+	input.oninput = () => localStorage.setItem(storageKey, input.value)
+
+	reset.onclick = () => {
+		localStorage.removeItem(storageKey)
+		input.value = placeholder
+	}
+
+	restart.onclick = async () => {
+		restart.disabled = true
+		status.textContent = ''
+		result.hidden = true
+		try {
+			await api('/api/instance/restart', {
+				method: 'POST',
+				body: JSON.stringify({ stack: r.stack, id: r.id }),
+			})
+			status.textContent = 'restarted'
+		} catch (error) {
+			result.className = 'result error'
+			result.textContent = String(error.message ?? error)
+			result.hidden = false
+		}
+		restart.disabled = false
+	}
+
+	send.onclick = async () => {
+		send.disabled = true
+		status.textContent = ''
+		result.hidden = true
+		try {
+			const payload = input.value.trim() ? JSON.parse(input.value) : {}
+			await api('/api/instance/send', {
+				method: 'POST',
+				body: JSON.stringify({ stack: r.stack, id: r.id, payload }),
+			})
+			status.textContent = 'sent'
+		} catch (error) {
+			result.className = 'result error'
+			result.textContent = String(error.message ?? error)
+			result.hidden = false
+		}
+		send.disabled = false
+	}
+
+	main.append(
+		$('p', {}, $('a', { href: r.detail, target: '_blank', style: 'color: var(--accent)' }, r.detail)),
+		input,
+		$('div', { className: 'actions' }, [send, reset, restart, status]),
+		result,
+	)
+
+	if (r.channel) {
+		cleanupPanel = attachLogFeed(main, r.channel)
 	}
 }
 
@@ -1123,6 +1193,7 @@ const renderResource = main => {
 		$('p', { className: 'detail' }, [r.kind, r.detail ? ' · ' + r.detail : '', r.routeKey ? ' · ' + r.routeKey : '']),
 	)
 
+	if (r.kind === 'instance') return instancePanel(main, r)
 	if (r.kind === 'pubsub') return pubsubPanel(main, r)
 	if (r.kind === 'rpc') return rpcPanel(main, r)
 	if (r.kind === 'search') return searchPanel(main, r)

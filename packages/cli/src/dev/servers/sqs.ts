@@ -66,20 +66,43 @@ const formatEventAttributes = (attributes: MessageAttributes) => {
 	return list
 }
 
-// A minimal sqs emulator that only routes: a sent message immediately
-// dispatches into the bundle as an sqs event for the queue's consumer
-// route. No retries or dlq locally - a failing consumer reports to the
-// app's on-failure consumer instead.
+// A message stored for a pull based queue, waiting for a consumer to
+// receive it.
+type PullMessage = {
+	id: string
+	body: string
+	attributes: MessageAttributes
+	sentAt: number
+	firstReceivedAt?: number
+	receiveCount: number
+	// The moment the message becomes receivable (again): a delayed send
+	// or an in-flight visibility timeout push it into the future.
+	visibleAt: number
+	receipt?: string
+}
+
+// A minimal sqs emulator with two queue shapes: a queue with a consumer
+// route dispatches every sent message straight into the bundle as an
+// sqs event, while a pull queue (like an instance polling its own
+// queue) stores messages for ReceiveMessage long polling instead. No
+// retries or dlq locally - a failing consumer reports to the app's
+// on-failure consumer instead.
 export const createSqsServer = (props: {
 	region: string
 	accountId: string
-	// The physical queue name mapped to its consumer route key.
-	queues: Map<string, string>
+	// The physical queue name mapped to its consumer route key. A queue
+	// without a route key is pull based.
+	queues: Map<string, string | undefined>
 }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined
 	let dispatch: DevDispatch | undefined
 	let reportFailure: DevReportFailure | undefined
+	let boundPort = 0
+
+	// The stored messages of the pull queues, kept outside the queues
+	// map so a dev restart re-registering the queues keeps the backlog.
+	const stores = new Map<string, PullMessage[]>()
 
 	const queueFromUrl = (url: string | undefined) => {
 		const name = url?.split('/').filter(Boolean).at(-1)
@@ -87,8 +110,32 @@ export const createSqsServer = (props: {
 		return name && props.queues.has(name) ? name : undefined
 	}
 
+	const storeOf = (queue: string) => {
+		if (!stores.has(queue)) {
+			stores.set(queue, [])
+		}
+
+		return stores.get(queue)!
+	}
+
 	const deliver = (queue: string, input: SendMessageInput, messageId: string) => {
 		const now = Date.now()
+
+		// A pull queue stores the message until a consumer receives it,
+		// instead of dispatching into the bundle.
+		if (props.queues.get(queue) === undefined) {
+			storeOf(queue).push({
+				id: messageId,
+				body: input.MessageBody ?? '',
+				attributes: input.MessageAttributes ?? {},
+				sentAt: now,
+				receiveCount: 0,
+				visibleAt: now + (input.DelaySeconds ?? 0) * 1000,
+			})
+
+			return
+		}
+
 		const event = {
 			Records: [
 				{
@@ -145,10 +192,24 @@ export const createSqsServer = (props: {
 		}
 	}
 
-	const actions: Record<string, (input: any) => unknown> = {
+	// The sdk uses the queue url as the request endpoint, so the url must
+	// carry the real bound address instead of a placeholder host.
+	const queueUrl = (name: string) => {
+		return `http://127.0.0.1:${boundPort}/${props.accountId}/${name}`
+	}
+
+	const findByReceipt = (queue: string, receipt: string | undefined) => {
+		return storeOf(queue).find(message => message.receipt === receipt)
+	}
+
+	const actions: Record<string, (input: any, signal: AbortSignal) => unknown> = {
 		GetQueueUrl(input: { QueueName?: string }) {
+			if (!input.QueueName || !props.queues.has(input.QueueName)) {
+				throw new Error(`Unknown local queue: ${input.QueueName}`)
+			}
+
 			return {
-				QueueUrl: `http://sqs.local/${props.accountId}/${input.QueueName}`,
+				QueueUrl: queueUrl(input.QueueName),
 			}
 		},
 		SendMessage(input: SendMessageInput) {
@@ -185,6 +246,151 @@ export const createSqsServer = (props: {
 				Failed: [],
 			}
 		},
+		async ReceiveMessage(
+			input: {
+				QueueUrl?: string
+				MaxNumberOfMessages?: number
+				WaitTimeSeconds?: number
+				VisibilityTimeout?: number
+			},
+			signal: AbortSignal
+		) {
+			const queue = queueFromUrl(input.QueueUrl)
+
+			if (!queue) {
+				throw new Error(`Unknown local queue: ${input.QueueUrl}`)
+			}
+
+			const store = storeOf(queue)
+			const deadline = Date.now() + (input.WaitTimeSeconds ?? 0) * 1000
+
+			// Long polling as a plain wait loop: cheap locally & a closed
+			// connection (like a consumer shutting down) stops the wait.
+			while (true) {
+				const now = Date.now()
+				const visible = store.filter(message => message.visibleAt <= now)
+
+				if (visible.length > 0) {
+					const batch = visible.slice(0, Math.max(1, input.MaxNumberOfMessages ?? 1))
+
+					return {
+						Messages: batch.map(message => {
+							message.receipt = randomUUID()
+							message.receiveCount += 1
+							message.firstReceivedAt ??= now
+							message.visibleAt = now + (input.VisibilityTimeout ?? 30) * 1000
+
+							return {
+								MessageId: message.id,
+								ReceiptHandle: message.receipt,
+								Body: message.body,
+								MD5OfBody: md5(message.body),
+								Attributes: {
+									ApproximateReceiveCount: String(message.receiveCount),
+									SentTimestamp: String(message.sentAt),
+									SenderId: 'local',
+									ApproximateFirstReceiveTimestamp: String(message.firstReceivedAt),
+								},
+								...(Object.keys(message.attributes).length > 0
+									? {
+											MessageAttributes: message.attributes,
+											MD5OfMessageAttributes: md5OfAttributes(message.attributes),
+										}
+									: {}),
+							}
+						}),
+					}
+				}
+
+				if (now >= deadline || signal.aborted) {
+					return {}
+				}
+
+				await new Promise(resolve => setTimeout(resolve, 100))
+			}
+		},
+		DeleteMessage(input: { QueueUrl?: string; ReceiptHandle?: string }) {
+			const queue = queueFromUrl(input.QueueUrl)
+
+			if (!queue) {
+				throw new Error(`Unknown local queue: ${input.QueueUrl}`)
+			}
+
+			const store = storeOf(queue)
+			const index = store.findIndex(message => message.receipt === input.ReceiptHandle)
+
+			if (index >= 0) {
+				store.splice(index, 1)
+			}
+
+			return {}
+		},
+		DeleteMessageBatch(input: { QueueUrl?: string; Entries?: Array<{ Id?: string; ReceiptHandle?: string }> }) {
+			const queue = queueFromUrl(input.QueueUrl)
+
+			if (!queue) {
+				throw new Error(`Unknown local queue: ${input.QueueUrl}`)
+			}
+
+			const store = storeOf(queue)
+
+			return {
+				Successful: (input.Entries ?? []).map(entry => {
+					const index = store.findIndex(message => message.receipt === entry.ReceiptHandle)
+
+					if (index >= 0) {
+						store.splice(index, 1)
+					}
+
+					return { Id: entry.Id }
+				}),
+				Failed: [],
+			}
+		},
+		ChangeMessageVisibility(input: { QueueUrl?: string; ReceiptHandle?: string; VisibilityTimeout?: number }) {
+			const queue = queueFromUrl(input.QueueUrl)
+
+			if (!queue) {
+				throw new Error(`Unknown local queue: ${input.QueueUrl}`)
+			}
+
+			const message = findByReceipt(queue, input.ReceiptHandle)
+
+			if (message) {
+				message.visibleAt = Date.now() + (input.VisibilityTimeout ?? 0) * 1000
+			}
+
+			return {}
+		},
+		GetQueueAttributes(input: { QueueUrl?: string }) {
+			const queue = queueFromUrl(input.QueueUrl)
+
+			if (!queue) {
+				throw new Error(`Unknown local queue: ${input.QueueUrl}`)
+			}
+
+			const now = Date.now()
+			const store = storeOf(queue)
+
+			return {
+				Attributes: {
+					QueueArn: `arn:aws:sqs:${props.region}:${props.accountId}:${queue}`,
+					ApproximateNumberOfMessages: String(store.filter(m => m.visibleAt <= now).length),
+					ApproximateNumberOfMessagesNotVisible: String(store.filter(m => m.visibleAt > now).length),
+				},
+			}
+		},
+		PurgeQueue(input: { QueueUrl?: string }) {
+			const queue = queueFromUrl(input.QueueUrl)
+
+			if (!queue) {
+				throw new Error(`Unknown local queue: ${input.QueueUrl}`)
+			}
+
+			storeOf(queue).length = 0
+
+			return {}
+		},
 	}
 
 	return {
@@ -198,20 +404,33 @@ export const createSqsServer = (props: {
 			server = createServer((req, res) => {
 				const chunks: Buffer[] = []
 				req.on('data', chunk => chunks.push(chunk))
-				req.on('end', () => {
+				req.on('end', async () => {
 					const target = String(req.headers['x-amz-target'] ?? '')
 					const action = actions[target.split('.').at(-1) ?? '']
+
+					// A consumer closing its connection (like an aborted long
+					// poll during shutdown) stops the wait loop.
+					const abort = new AbortController()
+					res.on('close', () => abort.abort())
 
 					try {
 						if (!action) {
 							throw new Error(`The local dev sqs emulator does not support: ${target}`)
 						}
 
-						const result = action(JSON.parse(Buffer.concat(chunks).toString() || '{}'))
+						const result = await action(JSON.parse(Buffer.concat(chunks).toString() || '{}'), abort.signal)
+
+						if (res.writableEnded || res.destroyed) {
+							return
+						}
 
 						res.writeHead(200, { 'content-type': 'application/x-amz-json-1.0' })
 						res.end(JSON.stringify(result))
 					} catch (error) {
+						if (res.writableEnded || res.destroyed) {
+							return
+						}
+
 						res.writeHead(400, { 'content-type': 'application/x-amz-json-1.0' })
 						res.end(
 							JSON.stringify({
@@ -229,7 +448,9 @@ export const createSqsServer = (props: {
 				server!.listen(port, '127.0.0.1', () => resolve())
 			})
 
-			return (server!.address() as { port: number }).port
+			boundPort = (server!.address() as { port: number }).port
+
+			return boundPort
 		},
 		stop() {
 			return closeServer?.() ?? Promise.resolve()

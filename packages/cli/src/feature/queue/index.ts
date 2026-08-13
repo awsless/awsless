@@ -11,7 +11,6 @@ import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
-import { createSqsServer } from '../../dev/servers/sqs.js'
 
 const typeGenCode = `
 import {
@@ -52,7 +51,10 @@ export const queueFeature = defineFeature({
 			return
 		}
 
-		const queueRoutes = new Map<string, string>()
+		// The shared sqs shim survives restarts, so long lived children
+		// (like the vite dev server) keep a valid endpoint.
+		const { port, queues: registry } = await ctx.useSqs()
+
 		const named = queues.map(({ stackName, id }) => {
 			const name = `${formatLocalResourceName({
 				appName: ctx.appConfig.name,
@@ -61,26 +63,10 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})}.fifo`
 
-			queueRoutes.set(name, formatRouteKey(stackName, 'queue', id))
+			registry.set(name, formatRouteKey(stackName, 'queue', id))
 
 			return { stackName, id, name }
 		})
-
-		// The shim survives restarts, so long lived children (like the
-		// vite dev server) keep a valid endpoint. The queue set is part
-		// of the fingerprint, so queue config changes reboot it.
-		const { server, port } = await ctx.keep('shim:sqs', queueRoutes, async () => {
-			const server = createSqsServer({
-				region: ctx.appConfig.region,
-				accountId: '000000000000',
-				queues: queueRoutes,
-			})
-			const port = await server.listen()
-
-			return { value: { server, port }, stop: () => server.stop() }
-		})
-
-		ctx.addEnv('AWS_ENDPOINT_URL_SQS', `http://127.0.0.1:${port}`)
 
 		for (const { stackName, id, name } of named) {
 			ctx.addEnv(
@@ -96,13 +82,6 @@ export const queueFeature = defineFeature({
 				detail: name,
 			})
 		}
-
-		ctx.registerServer({
-			name: 'sqs',
-			start({ dispatch, reportFailure }) {
-				server.connect(dispatch, reportFailure)
-			},
-		})
 	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')

@@ -7,6 +7,7 @@ import { defineFeature } from '../../feature'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name'
+import { instanceOnDev } from './dev.js'
 import { createFargateTask } from './util'
 
 const typeGenCode = `
@@ -29,6 +30,7 @@ type TestMockEntry = MockBuilder & MockObject
 
 export const instanceFeature = defineFeature({
 	name: 'instance',
+	onDev: instanceOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
