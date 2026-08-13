@@ -62,6 +62,10 @@ export type TestManifest = {
         };
     };
 };
+export declare const mockBaselines: Map<Mock, (...args: unknown[]) => unknown>;
+export declare const mockState: {
+    inTest: boolean;
+};
 export declare const testRegistry: {
     emails: Record<string, Mock>;
     functions: Record<string, Mock>;

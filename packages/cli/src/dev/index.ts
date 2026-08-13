@@ -341,12 +341,15 @@ export const startDev = async (props: {
 	// A worker that fails to boot must never take down the dev server:
 	// the router, dashboard & watcher stay up, and the next invoke
 	// rebuilds & retries.
-	await phase({ start: 'Starting the bundle worker...', done: 'Started the bundle worker' }, async () => {
+	await phase({ start: 'Starting the bundle worker...', done: 'Started the bundle worker' }, async detail => {
 		try {
 			await worker.start()
 		} catch (error) {
+			// The failure marks the phase line instead of a false
+			// "started" - the dev server stays up & the next invoke
+			// rebuilds & retries.
+			detail('FAILED - the next invoke retries')
 			log(`The bundle worker failed to start: ${error instanceof Error ? error.message : String(error)}`)
-			log('Fix the error - the next invoke retries.')
 			dirty = true
 			restartNeeded = true
 		}

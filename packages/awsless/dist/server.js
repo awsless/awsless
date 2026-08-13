@@ -1077,6 +1077,8 @@ var hookTestCleanup = () => {
 };
 
 // src/lib/test/setup.ts
+var mockBaselines = /* @__PURE__ */ new Map();
+var mockState = { inTest: false };
 var testRegistry = {
   emails: {},
   functions: {},
@@ -1267,11 +1269,19 @@ var setupTestEnv = async (manifest, options) => {
     });
   });
   beforeEach(() => {
+    mockState.inTest = true;
     for (const registry of Object.values(testRegistry)) {
       for (const spy of Object.values(registry)) {
         spy.mockReset();
+        const baseline = mockBaselines.get(spy);
+        if (baseline) {
+          spy.mockImplementation(baseline);
+        }
       }
     }
+  });
+  afterEach(() => {
+    mockState.inTest = false;
   });
 };
 
@@ -1286,7 +1296,11 @@ var overridable = (registry, name) => {
   return new Proxy(spy, {
     apply(_target, _thisArg, args) {
       const impl = args[0];
-      spy.mockImplementation(typeof impl === "function" ? impl : async () => impl);
+      const handler = typeof impl === "function" ? impl : async () => impl;
+      if (!mockState.inTest) {
+        mockBaselines.set(spy, handler);
+      }
+      spy.mockImplementation(handler);
     }
   });
 };
@@ -1616,6 +1630,8 @@ export {
   invokeBundle,
   isInsideBundle,
   mock,
+  mockBaselines,
+  mockState,
   onFailureBucketArn,
   onFailureBucketName,
   onFailureQueueArn,

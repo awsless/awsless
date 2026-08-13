@@ -4,6 +4,7 @@ import type { Mock } from 'vitest'
 // module never adds a runtime vitest dependency.
 declare const vi: (typeof import('vitest'))['vi']
 declare const beforeEach: (typeof import('vitest'))['beforeEach']
+declare const afterEach: (typeof import('vitest'))['afterEach']
 declare const expect: (typeof import('vitest'))['expect']
 import { getAlertName } from '../server/alert.js'
 import { setConfigValue } from '../server/config.js'
@@ -52,6 +53,13 @@ export type TestManifest = {
 		search?: { domain: string }
 	}
 }
+
+// Overrides registered OUTSIDE a running test (module or describe
+// scope, like `mock.alert.debug()` at the top of a test file) form the
+// baseline every test starts from. Overrides made INSIDE a test are
+// temporary & reset when the test ends.
+export const mockBaselines = new Map<Mock, (...args: unknown[]) => unknown>()
+export const mockState = { inTest: false }
 
 // Every materialized resource spy, keyed by its physical name - the
 // `mock` proxy resolves overrides & assertions through this registry.
@@ -334,14 +342,27 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	})
 
 	// The wrapped mocks clear themselves, but the registry spies need
-	// their own reset between tests: mockReset also restores the
-	// original implementation, so an override faked inside one test
-	// never leaks into the next.
+	// their own reset between tests: mockReset restores the original
+	// implementation, then any baseline override (registered outside a
+	// test) re-applies - so a fake set up inside one test never leaks
+	// into the next, while module scope overrides persist.
 	beforeEach(() => {
+		mockState.inTest = true
+
 		for (const registry of Object.values(testRegistry)) {
 			for (const spy of Object.values(registry)) {
 				spy.mockReset()
+
+				const baseline = mockBaselines.get(spy)
+
+				if (baseline) {
+					spy.mockImplementation(baseline)
+				}
 			}
 		}
+	})
+
+	afterEach(() => {
+		mockState.inTest = false
 	})
 }

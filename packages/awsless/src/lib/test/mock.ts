@@ -9,7 +9,7 @@ import { getPubSubPublisherName } from '../server/pubsub.js'
 import { getQueueName } from '../server/queue.js'
 import { getTaskName } from '../server/task.js'
 import { getTopicName } from '../server/topic.js'
-import { testRegistry } from './setup.js'
+import { mockBaselines, mockState, testRegistry } from './setup.js'
 
 const overridable = (registry: Record<string, Mock>, name: string) => {
 	const spy = registry[name]
@@ -26,8 +26,16 @@ const overridable = (registry: Record<string, Mock>, name: string) => {
 	return new Proxy(spy, {
 		apply(_target, _thisArg, args: unknown[]) {
 			const impl = args[0]
+			const handler = typeof impl === 'function' ? (impl as (...p: unknown[]) => unknown) : async () => impl
 
-			spy.mockImplementation(typeof impl === 'function' ? (impl as (...p: unknown[]) => unknown) : async () => impl)
+			// An override registered outside a running test (module or
+			// describe scope) becomes the baseline every test starts
+			// from - inside a test it only lasts until the test ends.
+			if (!mockState.inTest) {
+				mockBaselines.set(spy, handler)
+			}
+
+			spy.mockImplementation(handler)
 		},
 	})
 }

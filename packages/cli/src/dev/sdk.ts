@@ -1,6 +1,7 @@
-import { readdir, readFile, mkdir, rm, symlink } from 'fs/promises'
+import { readdir, readFile, mkdir, rm, stat, symlink } from 'fs/promises'
 import { createRequire } from 'module'
 import { dirname, join } from 'path'
+import { debug } from '../cli/debug.js'
 import { directories } from '../util/path.js'
 
 // The aws sdk stays external in the bundle, because the lambda runtime
@@ -53,28 +54,46 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 	}
 
 	for (const name of packages) {
-		try {
-			projectRequire.resolve(`${name}/package.json`)
-			continue
-		} catch (_) {}
-
-		let source = await resolveFromStore(name)
-
-		if (!source) {
-			try {
-				source = dirname(ownRequire.resolve(`${name}/package.json`))
-			} catch (_) {
-				onWarn?.(
-					`The bundle imports "${name}", which is neither a project dependency nor shipped with the cli. Add it to your project dependencies.`
-				)
-				continue
-			}
-		}
-
 		const target = join(buildDir, 'node_modules', name)
 
-		await mkdir(dirname(target), { recursive: true })
-		await rm(target, { recursive: true, force: true })
-		await symlink(source, target, 'dir')
+		try {
+			try {
+				projectRequire.resolve(`${name}/package.json`)
+
+				// A leftover link from an earlier run would shadow the
+				// project's own copy - a package manager prune can leave
+				// it dangling.
+				await rm(target, { recursive: true, force: true })
+				debug(`Sdk link ${name}: project resolves`)
+				continue
+			} catch (_) {}
+
+			let source = await resolveFromStore(name)
+
+			if (!source) {
+				try {
+					source = dirname(ownRequire.resolve(`${name}/package.json`))
+				} catch (_) {
+					onWarn?.(
+						`The bundle imports "${name}", which is neither a project dependency nor shipped with the cli. Add it to your project dependencies.`
+					)
+					continue
+				}
+			}
+
+			await mkdir(dirname(target), { recursive: true })
+			await rm(target, { recursive: true, force: true })
+			await symlink(source, target, 'dir')
+
+			// A link into a pruned package manager store resolves to
+			// nothing - fail loud instead of booting a worker that can't
+			// import the sdk.
+			await stat(join(target, 'package.json'))
+			debug(`Sdk link ${name}: ${source}`)
+		} catch (error) {
+			onWarn?.(
+				`Linking the "${name}" sdk package failed: ${error instanceof Error ? error.message : String(error)}`
+			)
+		}
 	}
 }
