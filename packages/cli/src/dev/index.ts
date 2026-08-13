@@ -22,10 +22,10 @@ import { startDevRouter } from './router.js'
 import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
 import { linkSdkPackages } from './sdk.js'
+import { LOCAL_ACCOUNT_ID } from './util.js'
 import { createBundleWorker } from './worker.js'
 
 export type DevInstance = {
-	port: number
 	dashboardPort: number
 	routerPorts: Record<string, number>
 	stop: () => Promise<void>
@@ -49,9 +49,6 @@ const breakdown = (timings: [string, number][]) => {
 		.join(', ')
 }
 
-// The account id backing the local environment. The value only feeds
-// derived resource names & the app id, so any stable value works.
-const LOCAL_ACCOUNT_ID = '000000000000'
 
 export const startDev = async (props: {
 	appConfig: AppConfig
@@ -252,12 +249,23 @@ export const startDev = async (props: {
 	let dirty = false
 	let fresh: Promise<void> | undefined
 
+	// A stopping environment must never rebuild or respawn workers,
+	// or a rebuild racing the shutdown would orphan node children.
+	let stopping = false
+
 	// A failed worker (re)start keeps the restart owed, so a later pass
 	// with fully cached builds still brings the worker up.
 	let restartNeeded = false
 
 	const ensureFresh = async () => {
 		if (!dirty) {
+			// A rebuild may still be in flight: the fresh code marked
+			// dirty false, but the worker restart hasn't finished -
+			// dispatching now would hit stopped or stale workers.
+			if (fresh) {
+				await fresh
+			}
+
 			return
 		}
 
@@ -266,12 +274,16 @@ export const startDev = async (props: {
 			const started = Date.now()
 
 			try {
+				if (stopping) {
+					return
+				}
+
 				const changed = await buildAll()
 				const built = Date.now()
 
 				// A save that leaves every build output untouched, like a
 				// re-save without changes, skips the worker restart.
-				if (changed || restartNeeded) {
+				if ((changed || restartNeeded) && !stopping) {
 					restartNeeded = true
 					await worker.restart()
 					restartNeeded = false
@@ -279,7 +291,7 @@ export const startDev = async (props: {
 					log(
 						`Reloaded the bundle in ${Date.now() - started}ms (build ${built - started}ms, worker ${Date.now() - built}ms)`
 					)
-				} else {
+				} else if (!changed) {
 					debug(`Rebuild found no changes in ${Date.now() - started}ms`)
 				}
 			} catch (error) {
@@ -344,9 +356,9 @@ export const startDev = async (props: {
 	// the fully wired environment - the dashboard reseed button runs
 	// it again on demand.
 	const seeder = createSeedRunner({ seed: appConfig.seed, env })
-	const resetData = createDataReset({ pool: props.pool, appConfig, stackConfigs })
+	const resetData = createDataReset({ pool: props.pool, stackConfigs })
 
-	if (firstBoot && seeder.count > 0 && !dirty) {
+	if (firstBoot && seeder.enabled && !dirty) {
 		try {
 			await phase({ start: 'Seeding the local data...', done: 'Seeded the local data' }, async () => {
 				await seeder.run()
@@ -382,7 +394,7 @@ export const startDev = async (props: {
 		// The dashboard reseed resets every data store first, so the
 		// seed lands on a known state.
 		runSeeds:
-			seeder.count > 0
+			seeder.enabled
 				? async () => {
 						await resetData()
 						await seeder.run()
@@ -396,8 +408,7 @@ export const startDev = async (props: {
 		env,
 		storeRoot: join(directories.output, 'local', 'store'),
 		configFile: join(directories.output, 'local', 'config.json'),
-		getEmails: () =>
-			props.pool.peek<{ server: { list: () => unknown[] } }>('shim:ses-email')?.server.list() ?? [],
+		getEmails: () => props.pool.peek<{ server: { list: () => unknown[] } }>('shim:ses-email')?.server.list() ?? [],
 		configPulled: Object.keys(props.pool.peek<Record<string, string>>('config:pull') ?? {}),
 		auth: createAuthAdmin({
 			appConfig,
@@ -439,18 +450,36 @@ export const startDev = async (props: {
 	const restartWatcher = dev.restartPaths.length > 0 ? watch(dev.restartPaths, { ignoreInitial: true }) : undefined
 
 	restartWatcher?.on('all', () => {
-		void worker.restart().then(() => log('Restarted the bundle worker.'))
+		if (stopping) {
+			return
+		}
+
+		void worker
+			.restart()
+			.then(() => log('Restarted the bundle worker.'))
+			.catch(error => {
+				// The next invoke retries through ensureFresh.
+				restartNeeded = true
+				dirty = true
+				log(`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`)
+			})
 	})
 
 	return {
-		port: props.port,
 		dashboardPort,
 		routerPorts,
 		async stop() {
+			stopping = true
+
 			await rm(join(directories.output, 'local', 'env.json'), { force: true })
 			clearTimeout(rebuildTimer)
 			await watcher.close()
 			await restartWatcher?.close()
+
+			// An in-flight background rebuild finishes (or bails on the
+			// stopping flag) before the teardown, so it can never respawn
+			// workers after the stop.
+			await fresh?.catch(() => {})
 
 			for (const router of routers) {
 				await router.stop()

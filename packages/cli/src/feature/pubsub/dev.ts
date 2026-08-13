@@ -1,4 +1,5 @@
 import { RedisServer } from '@awsless/redis'
+import { formatRouteEnvName } from 'awsless'
 import { spawn } from 'child_process'
 import { Redis } from 'ioredis'
 import { dirname, join } from 'path'
@@ -84,10 +85,10 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 		// The publisher handler inside the bundle publishes straight to
 		// the local redis, exactly like it does against elasticache.
-		ctx.addEnv(`${publisherRoute}:REDIS_HOST`, '127.0.0.1')
-		ctx.addEnv(`${publisherRoute}:REDIS_PORT`, String(redisPort))
-		ctx.addEnv(`${publisherRoute}:REDIS_TLS`, 'disabled')
-		ctx.addEnv(`${publisherRoute}:CHANNEL`, channel)
+		ctx.addEnv(formatRouteEnvName(publisherRoute, 'REDIS_HOST'), '127.0.0.1')
+		ctx.addEnv(formatRouteEnvName(publisherRoute, 'REDIS_PORT'), String(redisPort))
+		ctx.addEnv(formatRouteEnvName(publisherRoute, 'REDIS_TLS'), 'disabled')
+		ctx.addEnv(formatRouteEnvName(publisherRoute, 'CHANNEL'), channel)
 
 		// The websocket server sits behind the local router, exactly
 		// like the deployed router proxies it to the fargate service.
@@ -111,6 +112,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 			id,
 			routeKey: publisherRoute,
 			detail: endpoint,
+			channel,
 		})
 
 		let feed: Redis | undefined
@@ -158,7 +160,9 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 				// dashboard feed sees them all.
 				sns.connect(async event => {
 					const records = event as {
-						Records?: { Sns?: { Message?: string; MessageAttributes?: Record<string, { Value?: string }> } }[]
+						Records?: {
+							Sns?: { Message?: string; MessageAttributes?: Record<string, { Value?: string }> }
+						}[]
 					}
 					const record = records.Records?.[0]?.Sns
 					const type = record?.MessageAttributes?.event?.Value
@@ -199,6 +203,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 						env: {
 							PATH: process.env.PATH,
 							PORT: String(wsPort),
+							BIND_ADDRESS: '127.0.0.1',
 							APP: env.APP,
 							AUTH: `${getBundleFunctionName(ctx.appConfig.name)}:live`,
 							AUTH_ROUTE: formatRouteKey('base', 'pubsub', `${id}-auth`),

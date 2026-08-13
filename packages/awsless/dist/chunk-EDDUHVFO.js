@@ -1,3 +1,9 @@
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
 // src/lib/proxy.ts
 var RESERVED = /* @__PURE__ */ new Set(["then", "toJSON", "toString", "valueOf"]);
 var createProxy = /* @__NO_SIDE_EFFECTS__ */ (cb) => {
@@ -19,5 +25,6 @@ var createProxy = /* @__NO_SIDE_EFFECTS__ */ (cb) => {
 };
 
 export {
+  __export,
   createProxy
 };

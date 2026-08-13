@@ -50,7 +50,6 @@ __export(index_exports, {
   download: () => download,
   indexItem: () => indexItem,
   launch: () => launch,
-  mockClient: () => mockClient,
   mockOpenSearch: () => mockOpenSearch,
   number: () => number,
   object: () => object,
@@ -60,8 +59,7 @@ __export(index_exports, {
   string: () => string,
   total: () => total,
   updateItem: () => updateItem,
-  uuid: () => uuid,
-  wait: () => wait
+  uuid: () => uuid
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -76,6 +74,8 @@ var searchClient = (options = {}, service = "es") => {
     return mock;
   }
   const node = options.node ?? "https://" + process.env.SEARCH_DOMAIN;
+  const first = Array.isArray(node) ? node[0] : node;
+  const nodeUrl = typeof first === "string" ? first : String(first?.url ?? "");
   return new import_opensearch.Client({
     node,
     // Fail fast inside a lambda instead of the 30s default, & skip
@@ -83,7 +83,7 @@ var searchClient = (options = {}, service = "es") => {
     // Both can be overridden through the options. The local dev &
     // test servers run plain http, where an https agent won't fly.
     requestTimeout: 5e3,
-    agent: String(node).startsWith("https") ? () => new import_node_https.Agent({
+    agent: nodeUrl.startsWith("https") ? () => new import_node_https.Agent({
       keepAlive: false
     }) : void 0,
     ...(0, import_aws.AwsSigv4Signer)({
@@ -735,7 +735,6 @@ var uuid = (props = {}) => new Schema(
   download,
   indexItem,
   launch,
-  mockClient,
   mockOpenSearch,
   number,
   object,
@@ -745,6 +744,5 @@ var uuid = (props = {}) => new Schema(
   string,
   total,
   updateItem,
-  uuid,
-  wait
+  uuid
 });

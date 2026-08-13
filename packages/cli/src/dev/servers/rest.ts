@@ -1,8 +1,9 @@
+import { randomUUID } from 'crypto'
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import { DevDispatch } from '../../feature.js'
 import { ROUTE_HEADER } from '../../feature/bundle/util.js'
 import { writeWebResponse } from '../router.js'
-import { trackConnections } from '../util.js'
+import { readBody, trackConnections } from '../util.js'
 
 export type RestRoute = {
 	// The api gateway route key, like "GET /users/{id}" or "$default".
@@ -14,15 +15,6 @@ export type RestRoute = {
 type CompiledRestRoute = RestRoute & {
 	method?: string
 	segments?: string[]
-}
-
-const readBody = (req: IncomingMessage) => {
-	return new Promise<Buffer>((resolve, reject) => {
-		const chunks: Buffer[] = []
-		req.on('data', chunk => chunks.push(chunk))
-		req.on('error', reject)
-		req.on('end', () => resolve(Buffer.concat(chunks)))
-	})
 }
 
 // A minimal api gateway emulator: route keys match with the api
@@ -47,7 +39,9 @@ const matchRoute = (routes: CompiledRestRoute[], method: string, path: string) =
 			const greedy = segment.startsWith('{') && segment.endsWith('+}')
 
 			if (greedy) {
-				if (i > segments.length) {
+				// A greedy route needs at least one segment, like api
+				// gateway: /{proxy+} never matches the bare /.
+				if (i >= segments.length) {
 					matched = false
 				} else {
 					params[segment.slice(1, -2)] = segments.slice(i).join('/')
@@ -85,11 +79,14 @@ const matchRoute = (routes: CompiledRestRoute[], method: string, path: string) =
 		}
 	}
 
-	return best ?? (routes.find(route => route.routeKey === '$default') && {
-		route: routes.find(route => route.routeKey === '$default')!,
-		params: {},
-		score: 0,
-	})
+	return (
+		best ??
+		(routes.find(route => route.routeKey === '$default') && {
+			route: routes.find(route => route.routeKey === '$default')!,
+			params: {},
+			score: 0,
+		})
+	)
 }
 
 export const createRestServer = (props: { id: string; routes: RestRoute[] }) => {
@@ -164,7 +161,7 @@ export const createRestServer = (props: { id: string; routes: RestRoute[] }) => 
 					sourceIp: req.socket.remoteAddress ?? '127.0.0.1',
 					userAgent: headers['user-agent'] ?? '',
 				},
-				requestId: Math.random().toString(36).slice(2),
+				requestId: randomUUID(),
 				routeKey: found.route.routeKey,
 				stage: '$default',
 				time: now.toISOString(),

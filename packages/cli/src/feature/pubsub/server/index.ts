@@ -6,6 +6,10 @@ import { startRelay } from './relay'
 import { SocketData } from './type'
 
 const PORT = Number(process.env.PORT ?? 3000)
+// Deployed the server answers on every interface; the local dev
+// environment passes the loopback address instead, so the socket never
+// listens on the lan.
+const BIND_ADDRESS = process.env.BIND_ADDRESS ?? '0.0.0.0'
 const ORIGIN_SECRET = process.env.ORIGIN_SECRET
 
 // The time the client has to send the AUTH message
@@ -37,6 +41,7 @@ const getClientIp = (request: Request, server: Bun.Server<SocketData>) => {
 
 const server = Bun.serve({
 	port: PORT,
+	hostname: BIND_ADDRESS,
 	routes: {
 		'/health': () => {
 			return new Response('ok')

@@ -16,6 +16,9 @@ export const notFound = (name = 'ResourceNotFoundException') => {
 
 export const createTestApp = (
 	props: {
+		// Since the config flattened, `defaults` merges into the same
+		// root object as `app` - it survives purely as a readable alias
+		// for feature default options in the test cases.
 		defaults?: Record<string, unknown>
 		deploymentId?: string
 		stacks?: Record<string, unknown>[]

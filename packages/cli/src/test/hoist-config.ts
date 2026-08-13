@@ -1,9 +1,9 @@
 // Vitest hoists vi.mock calls above the imports of a test file. This
-// plugin gives top level `mock.config.<name>(value)` statements the
+// plugin gives top level `mock.config.<name> = value` statements the
 // same treatment, so config values apply before any import resolves &
 // import time Config reads see them - no manual vi.hoisted dance.
 //
-//   mock.config.greeting('special')   // hoisted above the imports
+//   mock.config.greeting = 'special'   // hoisted above the imports
 //   import handler from '../src/handler'
 //
 // The vite ssr transform hoists import statements above all module
@@ -11,7 +11,7 @@
 // hoisted statements move into a virtual module imported FIRST - esm
 // evaluation order guarantees it runs before every other import.
 
-const HOIST_PATTERN = /^mock\.config\.[A-Za-z_$][\w$]*\(.*\)\s*;?\s*$/
+const HOIST_PATTERN = /^mock\.config\.[A-Za-z_$][\w$]*\s*=\s*[^=].*?;?\s*$/
 const VIRTUAL_PREFIX = 'awsless:hoisted-config:'
 
 export const hoistConfigPlugin = () => ({

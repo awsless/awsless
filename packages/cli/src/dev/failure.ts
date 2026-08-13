@@ -1,9 +1,10 @@
 import { stringify } from '@awsless/json'
+import { formatRouteKey, formatRoutePayload } from 'awsless'
 import { randomUUID } from 'crypto'
 import { DevDispatch, DevFailureReport, DevReportFailure } from '../feature.js'
 
 // The bundle route of the global on-failure consumer.
-const CONSUMER_ROUTE = 'base:on-failure:consumer'
+const CONSUMER_ROUTE = formatRouteKey('base', 'on-failure', 'consumer')
 
 // Failed async consumers have no retries locally: the failure goes
 // straight to the on-failure consumer when the app has one, with the
@@ -19,7 +20,12 @@ export const createFailureReporter = (props: {
 			id: randomUUID(),
 			date: new Date(),
 			payload: report.event,
-			// Every failure kind carries the error details.
+		}
+
+		// The deployed queue failure comes off a dlq message that carries
+		// no error details, so the local shape matches exactly - the
+		// function failure shapes do carry the error.
+		const errorDetail = {
 			error: {
 				type: error instanceof Error ? error.name : 'Error',
 				message: error instanceof Error ? error.message : String(error),
@@ -39,6 +45,7 @@ export const createFailureReporter = (props: {
 		if (report.kind === 'stream') {
 			return {
 				...base,
+				...errorDetail,
 				type: 'dynamodb-stream',
 				function: { name: report.routeKey ?? 'bundle' },
 				source: report.routeKey ? { resource: report.routeKey } : undefined,
@@ -47,6 +54,7 @@ export const createFailureReporter = (props: {
 
 		return {
 			...base,
+			...errorDetail,
 			type: 'async-lambda',
 			function: { name: report.routeKey ?? 'bundle' },
 			source: report.routeKey ? { resource: report.routeKey, event: report.event } : undefined,
@@ -68,7 +76,7 @@ export const createFailureReporter = (props: {
 		const event = JSON.parse(stringify(format(report)))
 
 		props
-			.dispatch({ '$awsless-route': CONSUMER_ROUTE, event })
+			.dispatch(formatRoutePayload(CONSUMER_ROUTE, event))
 			.catch(error => {
 				props.log(
 					`The on-failure consumer itself failed: ${

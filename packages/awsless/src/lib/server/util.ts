@@ -61,21 +61,3 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 	}
 }
 
-// const bindResourceName = (
-// 	resourceType: string,
-// 	opts?: {
-// 		prefix?: string
-// 		postfix?: string
-// 	}
-// ) => {
-// 	return (resourceName: string, stackName?: string) => {
-// 		return [
-// 			opts?.prefix,
-// 			APP,
-// 			stackName && kebabCase(stackName),
-// 			kebabCase(resourceType),
-// 			kebabCase(resourceName),
-// 			opts?.postfix,
-// 		].join('--')
-// 	}
-// }

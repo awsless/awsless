@@ -66,14 +66,10 @@ declare const envelopeSchema: ObjectSchema<{
 type EnvelopeInput = InferInput<typeof envelopeSchema>;
 type RouteRequestOf<P extends RouteSchemaProps> = RouteRequest<Op<P['params'], Record<string, string>>, Op<P['query'], Record<string, string>>, Op<P['body'], undefined>>;
 export type RouteSchema<P extends RouteSchemaProps> = BaseSchema<EnvelopeInput, RouteRequestOf<P>, GenericIssue>;
-type LambdaUrlResult = {
-    statusCode: number;
-    [key: string]: unknown;
-};
 /** The request a route or site handler receives, validated against the route schemas. */
 export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>;
 /** What a route or site handler may return: a web Response or a lambda url result object. */
-export type RouteResponse = Response | LambdaUrlResult;
+export type RouteResponse = Response | RouteEntryResult;
 type RouteResult = RouteResponse | Promise<RouteResponse>;
 /** The lambda url result a route entry resolves to - a returned web Response converts into this shape. */
 export type RouteEntryResult = {
@@ -89,34 +85,5 @@ type RouteHandler<P extends RouteSchemaProps> = (request: RouteRequestOf<P>, con
 type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<RouteEntryResult>;
 export declare function route<H extends RouteHandler<{}>>(handle: H): RouteEntry;
 export declare function route<P extends RouteSchemaProps>(props: P, handle: RouteHandler<P>): RouteEntry;
-export declare const site: <H extends RouteHandler<{}>>(handle: H) => (event: {
-    rawPath?: string | undefined;
-    rawQueryString?: string | undefined;
-    body?: string | undefined;
-    isBase64Encoded?: boolean | undefined;
-    headers?: {
-        [x: string]: string;
-    } | undefined;
-    pathParameters?: {
-        [x: string]: string;
-    } | undefined;
-    queryStringParameters?: {
-        [x: string]: string;
-    } | undefined;
-    requestContext: {
-        domainName: string;
-        http: {
-            method: "GET" | "POST" | "HEAD" | "OPTIONS" | "PUT" | "PATCH" | "DELETE";
-            path: string;
-            sourceIp: string;
-            userAgent: string;
-        };
-    };
-}, context?: LambdaContext) => Promise<LambdaUrlResult | {
-    statusCode: number;
-    headers: Record<string, string>;
-    cookies: string[] | undefined;
-    body: string | undefined;
-    isBase64Encoded: boolean;
-}>;
+export declare const site: <H extends RouteHandler<{}>>(handle: H) => RouteEntry;
 export {};

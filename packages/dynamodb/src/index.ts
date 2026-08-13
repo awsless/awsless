@@ -1,5 +1,5 @@
 // define
-export { AnyTable, define, GenericMapSchema, Infer, Table, TableIndex } from './table.js'
+export { AnyTable, define, GenericMapSchema, Infer, Table } from './table.js'
 
 // types
 export { PrimaryKey, HashKey, SortKey } from './types/key.js'

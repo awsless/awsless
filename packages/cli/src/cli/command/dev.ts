@@ -1,6 +1,8 @@
 import { log } from '@awsless/clui'
 import { Command } from 'commander'
+import { AppConfig } from '../../config/app.js'
 import { watchConfig } from '../../config/load/watch.js'
+import { StackConfig } from '../../config/stack.js'
 import { DevInstance, startDev } from '../../dev/index.js'
 import { createServerPool } from '../../dev/pool.js'
 import { createTimer } from '../../util/timer.js'
@@ -104,18 +106,47 @@ export const dev = (program: Command) => {
 
 				await start()
 
+				// Config restarts run strictly one at a time: two quick saves
+				// would otherwise stop & start concurrently against the same
+				// ports. A save landing mid-restart queues exactly one
+				// follow-up, always with the latest config.
+				let queuedConfig: { appConfig: AppConfig; stackConfigs: StackConfig[] } | undefined
+				let restartRun: Promise<void> = Promise.resolve()
+				let restarting = false
+
+				const runRestarts = () => {
+					if (restarting) {
+						return
+					}
+
+					restarting = true
+					restartRun = (async () => {
+						try {
+							while (queuedConfig) {
+								const config = queuedConfig
+								queuedConfig = undefined
+
+								try {
+									await buildTypes({ ...props, ...config })
+									await instance?.stop()
+									await start(config.appConfig, config.stackConfigs)
+								} catch (error) {
+									logError(error)
+								}
+							}
+						} finally {
+							restarting = false
+						}
+					})()
+				}
+
 				// A config change can add or remove resources, so the whole
 				// dev environment restarts with the fresh config.
 				await watchConfig(
 					props.options,
-					async ({ appConfig, stackConfigs }) => {
-						try {
-							await buildTypes({ ...props, appConfig, stackConfigs })
-							await instance?.stop()
-							await start(appConfig, stackConfigs)
-						} catch (error) {
-							logError(error)
-						}
+					({ appConfig, stackConfigs }) => {
+						queuedConfig = { appConfig, stackConfigs }
+						runRestarts()
 					},
 					error => {
 						logError(error)
@@ -124,6 +155,11 @@ export const dev = (program: Command) => {
 
 				// idle until a signal asks for the graceful stop...
 				await shutdown
+
+				// A restart caught mid-flight finishes first, so the stop
+				// below never races a concurrent start.
+				queuedConfig = undefined
+				await restartRun
 				await instance?.stop()
 				await pool.stopAll()
 

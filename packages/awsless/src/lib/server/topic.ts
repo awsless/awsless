@@ -32,10 +32,17 @@ export const Topic: TopicResources = /*@__PURE__*/ createProxy(name => {
 		name: topic,
 		define<S extends GenericSchema>(schema: S): TopicDefinition<S> {
 			const publisher = async (payload: InferInput<S>, options: PublishTopicOptions = {}) => {
+				// Validate at the source, but publish the raw input: the
+				// subscriber runs the same schema over the wire value, so a
+				// transforming schema must only apply once - on the
+				// consuming side. Publishing the transformed output would
+				// feed it back through the schema's input checks.
+				parse(schema, payload)
+
 				await publish({
 					...options,
 					topic,
-					payload: stringify(parse(schema, payload)),
+					payload: stringify(payload),
 				})
 			}
 

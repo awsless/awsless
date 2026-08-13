@@ -23,7 +23,10 @@ const storeNotificationSchema = union(
 			transform(input => {
 				return input.Records.map(record => ({
 					bucket: record.s3.bucket.name,
-					key: record.s3.object.key,
+					// S3 url-encodes event keys with a plus for spaces -
+					// decode back to the real object key, so the handler can
+					// feed it straight into Store.get / Store.delete.
+					key: decodeURIComponent(record.s3.object.key.replace(/\+/g, ' ')),
 				}))
 			})
 		),

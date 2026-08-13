@@ -1,9 +1,9 @@
 import { createHash } from 'crypto'
-import { createServer, IncomingMessage, Server } from 'http'
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises'
-import { dirname, join, relative, sep } from 'path'
+import { createServer, IncomingMessage, Server } from 'http'
+import { dirname, isAbsolute, join, relative, sep } from 'path'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { decodeAwsChunked, trackConnections } from '../util.js'
+import { decodeAwsChunked, readBody, trackConnections } from '../util.js'
 
 export type StoreNotificationRule = {
 	id: string
@@ -11,17 +11,19 @@ export type StoreNotificationRule = {
 	prefix: string
 }
 
-const readBody = (req: IncomingMessage) => {
-	return new Promise<Buffer>((resolve, reject) => {
-		const chunks: Buffer[] = []
-		req.on('data', chunk => chunks.push(chunk))
-		req.on('error', reject)
-		req.on('end', () => resolve(Buffer.concat(chunks)))
-	})
+// Keys & messages land inside xml documents, so the xml specials must
+// be escaped - a key with & or < would otherwise break the sdk parse.
+const escapeXml = (value: string) => {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&apos;')
 }
 
 const xmlError = (code: string, message: string) => {
-	return `<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>${code}</Code><Message>${message}</Message></Error>`
+	return `<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>${escapeXml(code)}</Code><Message>${escapeXml(message)}</Message></Error>`
 }
 
 // S3 event object keys are url encoded with a plus for spaces.
@@ -98,10 +100,18 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 		const bucketDir = join(props.root, bucket)
 		const file = join(bucketDir, ...keyParts)
 
-		// Objects can never escape the local store folder.
-		if (relative(bucketDir, file).startsWith('..')) {
+		// Objects can never escape the local store folder - neither
+		// through the key nor through a traversal decoded out of the
+		// bucket segment.
+		const escapes = (base: string, path: string) => {
+			const rel = relative(base, path)
+
+			return rel.startsWith('..') || isAbsolute(rel)
+		}
+
+		if (escapes(props.root, bucketDir) || escapes(bucketDir, file)) {
 			res.writeHead(400, { 'content-type': 'application/xml' })
-			res.end(xmlError('InvalidRequest', 'Invalid object key'))
+			res.end(xmlError('InvalidRequest', 'Invalid bucket or object key'))
 			return
 		}
 
@@ -132,7 +142,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 
 						const info = await stat(path)
 						contents.push(
-							`<Contents><Key>${objectKey}</Key><Size>${info.size}</Size><LastModified>${info.mtime.toISOString()}</LastModified><ETag>&quot;local&quot;</ETag></Contents>`
+							`<Contents><Key>${escapeXml(objectKey)}</Key><Size>${info.size}</Size><LastModified>${info.mtime.toISOString()}</LastModified><ETag>&quot;local&quot;</ETag></Contents>`
 						)
 					}
 				}
@@ -142,7 +152,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 
 			res.writeHead(200, { 'content-type': 'application/xml' })
 			res.end(
-				`<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult><Name>${bucket}</Name><Prefix>${prefix}</Prefix><KeyCount>${contents.length}</KeyCount><IsTruncated>false</IsTruncated>${contents.join('')}</ListBucketResult>`
+				`<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult><Name>${escapeXml(bucket)}</Name><Prefix>${escapeXml(prefix)}</Prefix><KeyCount>${contents.length}</KeyCount><IsTruncated>false</IsTruncated>${contents.join('')}</ListBucketResult>`
 			)
 			return
 		}

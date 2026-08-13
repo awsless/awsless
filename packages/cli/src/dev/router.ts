@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { ServerResponse } from 'http'
 import { DevDispatch, DevRoute } from '../feature.js'
 import { ROUTE_HEADER } from '../feature/bundle/util.js'
@@ -97,7 +98,7 @@ const compileRoutes = (routes: DevRoute[]) => {
 
 // Lambda function urls pass textual bodies through as plain text and
 // only base64 encode binary payloads.
-export const isTextualBody = (contentType: string) => {
+const isTextualBody = (contentType: string) => {
 	return (
 		contentType.startsWith('text/') ||
 		contentType.includes('json') ||
@@ -109,9 +110,7 @@ export const isTextualBody = (contentType: string) => {
 
 const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: URL, sourceIp: string) => {
 	// Apply the route's origin path rewrite, like the deployed router.
-	const path = route.rewrite
-		? url.pathname.replace(new RegExp(route.rewrite.regex), route.rewrite.to)
-		: url.pathname
+	const path = route.rewrite ? url.pathname.replace(new RegExp(route.rewrite.regex), route.rewrite.to) : url.pathname
 
 	const headers: Record<string, string> = {}
 
@@ -138,7 +137,12 @@ const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: 
 	}
 
 	const cookie = request.headers.get('cookie')
-	const textual = isTextualBody(request.headers.get('content-type') ?? 'text/plain')
+
+	// Only a present textual content type marks the body as text -
+	// bytes without one must survive as base64 instead of corrupting
+	// through a utf-8 decode.
+	const contentType = request.headers.get('content-type')
+	const textual = typeof contentType === 'string' && isTextualBody(contentType)
 	const now = new Date()
 
 	return {
@@ -161,7 +165,7 @@ const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: 
 				sourceIp,
 				userAgent: headers['user-agent'] ?? '',
 			},
-			requestId: Math.random().toString(36).slice(2),
+			requestId: randomUUID(),
 			routeKey: '$default',
 			stage: '$default',
 			time: now.toISOString(),
@@ -181,11 +185,7 @@ type StructuredResult = {
 }
 
 const isStructured = (result: unknown): result is StructuredResult => {
-	return (
-		typeof result === 'object' &&
-		result !== null &&
-		typeof (result as StructuredResult).statusCode === 'number'
-	)
+	return typeof result === 'object' && result !== null && typeof (result as StructuredResult).statusCode === 'number'
 }
 
 // Mirror the lambda function url response semantics: a structured
@@ -260,6 +260,9 @@ export const startDevRouter = async (props: {
 
 	const server = Bun.serve<SocketData>({
 		port: props.port,
+		// Loopback only, like every other local server - the router
+		// carries the whole app & must never listen on the lan.
+		hostname: '127.0.0.1',
 		idleTimeout: 120,
 		async fetch(request, server) {
 			const url = new URL(request.url)

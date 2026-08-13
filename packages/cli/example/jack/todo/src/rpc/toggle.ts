@@ -17,5 +17,5 @@ export default h.func(v.object({ id: v.uuid() }), async ({ id }) => {
 		}
 	)
 
-	return task
+	return { ...task, done: !task.done }
 })

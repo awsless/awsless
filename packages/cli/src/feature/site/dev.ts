@@ -1,18 +1,12 @@
 import { log } from '@awsless/clui'
 import { ChildProcess, spawn } from 'child_process'
 import { glob } from 'glob'
-import { delimiter, dirname, join, normalize } from 'path'
-import { findFreePort, stopChild } from '../../dev/util.js'
+import { delimiter, dirname, isAbsolute, join, normalize, relative } from 'path'
+import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey } from '../bundle/util.js'
 import { planStaticRoutes } from './static-routes.js'
-
-// Terminal color & cursor escape codes mean nothing in the log views.
-const stripAnsi = (line: string) => {
-	// eslint-disable-next-line no-control-regex
-	return line.replaceAll(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
-}
 
 // A pooled site dev server: the child survives dev restarts & every
 // run rebinds the dashboard sink to its own event bus.
@@ -60,7 +54,7 @@ export const siteOnDev = async (ctx: DevContext) => {
 	for (const stackConfig of ctx.stackConfigs) {
 		for (const [id, props] of Object.entries(stackConfig.sites ?? {})) {
 			const routerId = props.router
-			const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
+			const pattern = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
 
 			if (props.dev) {
 				const key = `site-dev:${stackConfig.name}:${id}`
@@ -77,14 +71,17 @@ export const siteOnDev = async (ctx: DevContext) => {
 				// vite may bind the ipv6 loopback only.
 				ctx.addRoute({
 					routerId,
-					pattern: routeKey,
+					pattern,
 					proxy: `http://localhost:${port}`,
 				})
 
 				ctx.registerServer({
 					name: `site ${id} dev`,
 					async start({ env }) {
-						const value = await ctx.keep<SiteDevServer>(key, { command, port }, async () => {
+						// The env is part of the fingerprint: a config restart
+						// that adds a queue, config or endpoint must reboot the
+						// child, or it keeps running with stale variables.
+						const value = await ctx.keep<SiteDevServer>(key, { command, port, env }, async () => {
 							const [bin, ...args] = command.split(' ')
 							const cwd = join(directories.root, dirname(stackConfig.file))
 
@@ -173,7 +170,7 @@ export const siteOnDev = async (ctx: DevContext) => {
 			if (props.ssr) {
 				ctx.addRoute({
 					routerId,
-					pattern: routeKey,
+					pattern,
 					routeKey: formatRouteKey(stackConfig.name, 'site', id),
 				})
 			}
@@ -185,11 +182,17 @@ export const siteOnDev = async (ctx: DevContext) => {
 				// does, bound eagerly so the actual port is known.
 				const server = Bun.serve({
 					port: 0,
+					hostname: '127.0.0.1',
 					async fetch(request) {
 						const pathname = decodeURIComponent(new URL(request.url).pathname)
 						const path = normalize(join(staticDir, pathname))
 
-						if (!path.startsWith(normalize(staticDir))) {
+						// Path-relative containment instead of a string prefix:
+						// /site-secret passes a bare startsWith('/site') even
+						// though it escapes the static folder.
+						const rel = relative(normalize(staticDir), path)
+
+						if (rel.startsWith('..') || isAbsolute(rel)) {
 							return new Response('Forbidden', { status: 403 })
 						}
 

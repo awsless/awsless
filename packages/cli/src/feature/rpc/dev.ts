@@ -1,5 +1,6 @@
 import { CreateTableCommand } from '@aws-sdk/client-dynamodb'
 import { toSeconds } from '@awsless/duration'
+import { formatRouteEnvName } from 'awsless'
 import { kebabCase } from 'change-case'
 import { DevContext } from '../../feature.js'
 import { shortId } from '../../util/id.js'
@@ -23,13 +24,10 @@ export const rpcOnDev = async (ctx: DevContext) => {
 			routeKey: serverRouteKey,
 		})
 
-		ctx.addEnv(
-			`${serverRouteKey}:TIMEOUT`,
-			toSeconds(ctx.appConfig.function.timeout).toString()
-		)
+		ctx.addEnv(`${serverRouteKey}:TIMEOUT`, toSeconds(ctx.appConfig.function.timeout).toString())
 
 		if (props.auth) {
-			ctx.addEnv(`${serverRouteKey}:AUTH`, formatRouteKey('base', 'rpc', `${id}-auth`))
+			ctx.addEnv(formatRouteEnvName(serverRouteKey, 'AUTH'), formatRouteKey('base', 'rpc', `${id}-auth`))
 		}
 
 		// The lock table lives in the shared local dynamodb.

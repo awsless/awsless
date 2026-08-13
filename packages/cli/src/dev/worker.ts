@@ -127,20 +127,18 @@ export const createBundleWorker = (props: {
 	buildDir: string
 	env: Record<string, string>
 	functionName: string
-	// The number of worker processes. Production runs every invocation
-	// in its own isolated sandbox - a local pool approximates that, so
-	// one cpu heavy handler can't stall every other request in the app.
-	concurrency?: number
 	// Receives every output line of the workers, for the dashboard's
 	// live log view. The raw output keeps streaming to the terminal.
 	onOutput?: (line: string, stream: 'stdout' | 'stderr', route?: string) => void
 }): BundleWorker => {
 	let workers: PoolWorker[] = []
 
+	// The number of worker processes. Production runs every invocation
+	// in its own isolated sandbox - a local pool approximates that, so
+	// one cpu heavy handler can't stall every other request in the app.
 	const concurrency = Math.max(
 		1,
-		props.concurrency ??
-			(Number(process.env.AWSLESS_DEV_WORKERS) || Math.min(4, Math.max(2, availableParallelism() - 2)))
+		Number(process.env.AWSLESS_DEV_WORKERS) || Math.min(4, Math.max(2, availableParallelism() - 2))
 	)
 
 	const context = {
@@ -246,31 +244,61 @@ export const createBundleWorker = (props: {
 
 		const worker: PoolWorker = { child, port, inflight: 0 }
 
-		await waitForReady(worker)
+		try {
+			await waitForReady(worker)
+		} catch (error) {
+			// A child that failed or hung during startup never outlives
+			// the error, or every retry would leak another process.
+			await stopChild(child)
+			throw error
+		}
 
 		return worker
 	}
 
-	const start = async () => {
+	const doStart = async () => {
 		await writeFile(join(props.buildDir, 'worker.mjs'), WORKER_ENTRY)
 
-		workers = await Promise.all(Array.from({ length: concurrency }, () => startWorker()))
+		const results = await Promise.allSettled(Array.from({ length: concurrency }, () => startWorker()))
+		const started = results.filter(result => result.status === 'fulfilled').map(result => result.value)
+		const failed = results.find(result => result.status === 'rejected')
+
+		// A partial pool never leaks: the siblings that did boot stop
+		// before the failure surfaces.
+		if (failed) {
+			await Promise.all(started.map(worker => stopChild(worker.child)))
+			throw failed.reason
+		}
+
+		workers = started
 	}
 
-	const stop = async () => {
+	const doStop = async () => {
 		const stopping = workers
 		workers = []
 
 		await Promise.all(stopping.map(worker => stopChild(worker.child)))
 	}
 
+	// Lifecycle operations run strictly one at a time: a restart racing
+	// another restart (or the shutdown) would interleave stop/start &
+	// leak the losing pool's children.
+	let lifecycle: Promise<unknown> = Promise.resolve()
+
+	const serialize = <T>(action: () => Promise<T>) => {
+		const run = lifecycle.then(action)
+		lifecycle = run.catch(() => {})
+		return run
+	}
+
 	return {
-		start,
-		stop,
-		async restart() {
-			await stop()
-			await start()
-		},
+		start: () => serialize(doStart),
+		stop: () => serialize(doStop),
+		restart: () =>
+			serialize(async () => {
+				await doStop()
+				await doStart()
+			}),
 		async dispatch(event) {
 			if (workers.length === 0) {
 				throw new Error('The bundle worker is not running.')

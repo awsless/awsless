@@ -1,3 +1,4 @@
+import { formatRouteEnvName } from 'awsless'
 import { cp } from 'fs/promises'
 import { isAbsolute, join } from 'path'
 import { DevContext } from '../../feature.js'
@@ -41,22 +42,25 @@ export const iconOnDev = async (ctx: DevContext) => {
 			})
 
 			ctx.addEnv(
-				`${routeKey}:ICON_CONFIG`,
+				formatRouteEnvName(routeKey, 'ICON_CONFIG'),
 				JSON.stringify({
 					preserveIds: props.preserveIds,
 					symbols: props.symbols,
 				})
 			)
 
-			ctx.addEnv(`${routeKey}:ICON_BUCKET`, bucket)
-			ctx.addEnv(`${routeKey}:ICON_FOLDER`, folder)
+			ctx.addEnv(formatRouteEnvName(routeKey, 'ICON_BUCKET'), bucket)
+			ctx.addEnv(formatRouteEnvName(routeKey, 'ICON_FOLDER'), folder)
 
 			if (props.origin.function) {
-				ctx.addEnv(`${routeKey}:ICON_ORIGIN`, formatRouteKey(stack.name, 'icon', `${id}-origin`))
+				ctx.addEnv(
+					formatRouteEnvName(routeKey, 'ICON_ORIGIN'),
+					formatRouteKey(stack.name, 'icon', `${id}-origin`)
+				)
 			}
 
 			if (props.origin.static) {
-				ctx.addEnv(`${routeKey}:ICON_ORIGIN_S3`, 'true')
+				ctx.addEnv(formatRouteEnvName(routeKey, 'ICON_ORIGIN_S3'), 'true')
 
 				// The deploy uploads the static origin icons to s3, so
 				// locally they seed the filesystem store.

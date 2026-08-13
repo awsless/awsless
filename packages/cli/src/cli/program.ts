@@ -26,10 +26,6 @@ program.exitOverride(error => {
 	process.exit(error.exitCode)
 })
 
-program.on('option:verbose', () => {
-	process.env.VERBOSE = program.opts().verbose ? '1' : undefined
-})
-
 program.on('option:skip-prompt', () => {
 	process.env.SKIP_PROMPT = program.opts().skipPrompt ? '1' : undefined
 })

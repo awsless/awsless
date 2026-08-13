@@ -3,7 +3,7 @@ import { Command } from 'commander'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { createApp } from '../../app.js'
-import { findFreePort } from '../../dev/util.js'
+import { findFreePort, LOCAL_ACCOUNT_ID } from '../../dev/util.js'
 import { ExpectedError } from '../../error.js'
 import { createTestManifest } from '../../test/manifest.js'
 import { directories } from '../../util/path.js'
@@ -39,7 +39,7 @@ export const test = (program: Command) => {
 				// Tests run fully local against the auto test environment,
 				// so they never need aws credentials - the same fake
 				// account as the dev environment feeds the synth.
-				const accountId = '000000000000'
+				const accountId = LOCAL_ACCOUNT_ID
 
 				const { tests, appId } = createApp({ ...props, accountId })
 
@@ -62,49 +62,51 @@ export const test = (program: Command) => {
 
 				manifest.servers = {}
 
-				if (manifest.searches.length > 0) {
-					const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
-
-					const port = await findFreePort()
-					const path = await download(VERSION_3_5_0_MIN)
-
-					killSearch = await launch({
-						path,
-						port,
-						host: 'localhost',
-						version: VERSION_3_5_0_MIN,
-						debug: false,
-					})
-
-					await waitForSearch(port, 60_000)
-
-					manifest.servers.search = { domain: `localhost:${port}` }
-				}
-
-				if (manifest.caches.length > 0) {
-					redis = new RedisServer()
-					// Every vitest worker isolates into its own database.
-					await redis.start(undefined, undefined, ['--databases', '256'])
-					await redis.ping()
-
-					manifest.servers.redis = { host: '127.0.0.1', port: await redis.getPort() }
-				}
-
-				await mkdir(join(directories.output, 'test'), { recursive: true })
-				await writeFile(manifestFile, JSON.stringify(manifest))
-
-				process.env.AWSLESS_TEST_MANIFEST = manifestFile
-
 				let passed = false
 
+				// The boots live inside the try: a launched server whose
+				// readiness check fails must still tear down.
 				try {
+					if (manifest.searches.length > 0) {
+						const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
+
+						const port = await findFreePort()
+						const path = await download(VERSION_3_5_0_MIN)
+
+						killSearch = await launch({
+							path,
+							port,
+							host: 'localhost',
+							version: VERSION_3_5_0_MIN,
+							debug: false,
+						})
+
+						await waitForSearch(port, 60_000)
+
+						manifest.servers.search = { domain: `localhost:${port}` }
+					}
+
+					if (manifest.caches.length > 0) {
+						redis = new RedisServer()
+						// Every vitest worker isolates into its own database.
+						await redis.start(undefined, undefined, ['--databases', '256'])
+						await redis.ping()
+
+						manifest.servers.redis = { host: '127.0.0.1', port: await redis.getPort() }
+					}
+
+					await mkdir(join(directories.output, 'test'), { recursive: true })
+					await writeFile(manifestFile, JSON.stringify(manifest))
+
 					passed = await runTests(tests, stacks, options?.filters, {
 						showLogs: true,
+						manifest,
 						env: {
 							APP: props.appConfig.name,
 							APP_ID: appId,
 							AWS_REGION: props.appConfig.region,
 							AWS_ACCOUNT_ID: accountId,
+							AWSLESS_TEST_MANIFEST: manifestFile,
 						},
 					})
 				} finally {

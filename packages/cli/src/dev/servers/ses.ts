@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { createServer, Server } from 'http'
-import { trackConnections } from '../util.js'
+import { readBody, trackConnections } from '../util.js'
 
 export type CapturedEmail = {
 	id: string
@@ -25,29 +25,41 @@ export const createSesServer = () => {
 		},
 		async listen(port = 0) {
 			server = createServer((req, res) => {
-				const chunks: Buffer[] = []
-				req.on('data', chunk => chunks.push(chunk))
-				req.on('end', () => {
-					let body: any = {}
-					try {
-						body = JSON.parse(Buffer.concat(chunks).toString() || '{}')
-					} catch (_) {}
+				void readBody(req)
+					.then(raw => {
+						let body: any = {}
+						try {
+							body = JSON.parse(raw.toString() || '{}')
+						} catch (_) {}
 
-					// The sesv2 SendEmail request shape - anything else is
-					// accepted & ignored so unrelated calls never crash a
-					// handler.
-					emails.unshift({
-						id: randomUUID(),
-						date: Date.now(),
-						from: body.FromEmailAddress,
-						to: body.Destination?.ToAddresses ?? [],
-						subject: body.Content?.Simple?.Subject?.Data,
-						html: body.Content?.Simple?.Body?.Html?.Data,
+						// Only the sesv2 SendEmail call lands in the outbox -
+						// anything else is accepted & ignored, so unrelated
+						// calls never crash a handler or show up as an empty
+						// email.
+						if (req.method !== 'POST' || !req.url?.startsWith('/v2/email/outbound-emails')) {
+							res.writeHead(200, { 'content-type': 'application/json' })
+							res.end('{}')
+							return
+						}
+
+						emails.unshift({
+							id: randomUUID(),
+							date: Date.now(),
+							from: body.FromEmailAddress,
+							to: body.Destination?.ToAddresses ?? [],
+							subject: body.Content?.Simple?.Subject?.Data,
+							html: body.Content?.Simple?.Body?.Html?.Data,
+						})
+
+						res.writeHead(200, { 'content-type': 'application/json' })
+						res.end(JSON.stringify({ MessageId: emails[0]!.id }))
 					})
-
-					res.writeHead(200, { 'content-type': 'application/json' })
-					res.end(JSON.stringify({ MessageId: emails[0]!.id }))
-				})
+					.catch(() => {
+						if (!res.writableEnded && !res.destroyed) {
+							res.writeHead(400, { 'content-type': 'application/json' })
+							res.end('{}')
+						}
+					})
 			})
 
 			await new Promise<void>((resolve, reject) => {

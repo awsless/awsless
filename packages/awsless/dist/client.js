@@ -1,7 +1,6 @@
 import {
   createProxy
-} from "./chunk-XERFMF6Z.js";
-import "./chunk-MLKGABMK.js";
+} from "./chunk-EDDUHVFO.js";
 
 // src/lib/client/http.ts
 import { seconds, toMilliSeconds } from "@awsless/duration";

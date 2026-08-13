@@ -1,6 +1,6 @@
 {
 	"name": "awsless",
-	"version": "0.0.15-local.13",
+	"version": "0.1.0",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -49,7 +49,8 @@
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
-		"vitest": ">=4"
+		"vitest": ">=4",
+		"@awsless/ses": "workspace:^"
 	},
 	"dependencies": {
 		"@awsless/big-float": "workspace:^",
@@ -64,15 +65,14 @@
 		"@awsless/redis": "workspace:^",
 		"@awsless/s3": "workspace:^",
 		"@awsless/scheduler": "workspace:^",
-		"@awsless/ses": "workspace:*",
+		"@awsless/ses": "workspace:^",
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
 		"@types/aws-lambda": "8.10.161",
-		"change-case": "5.4.4",
-		"valibot": "^1.2.0"
+		"change-case": "5.4.4"
 	},
 	"devDependencies": {
 		"aws-lambda": "1.0.7"

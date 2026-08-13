@@ -4,7 +4,6 @@ import { Client } from '@opensearch-project/opensearch'
 import { readdir, rm } from 'fs/promises'
 import { Redis } from 'ioredis'
 import { join } from 'path'
-import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { formatSearchIndexName, resolveSearchMappings } from '../feature/search/util.js'
 import { applySearchIndex } from '../formation/open-search.js'
@@ -21,7 +20,6 @@ export const isWiping = () => wiping
 // known state instead of upserting into leftovers.
 export const createDataReset = (props: {
 	pool: ServerPool
-	appConfig: AppConfig
 	stackConfigs: StackConfig[]
 }) => {
 	return async () => {

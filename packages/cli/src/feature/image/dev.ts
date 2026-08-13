@@ -1,3 +1,4 @@
+import { formatRouteEnvName } from 'awsless'
 import { cp } from 'fs/promises'
 import { isAbsolute, join } from 'path'
 import { DevContext } from '../../feature.js'
@@ -41,22 +42,25 @@ export const imageOnDev = async (ctx: DevContext) => {
 			})
 
 			ctx.addEnv(
-				`${routeKey}:IMAGE_CONFIG`,
+				formatRouteEnvName(routeKey, 'IMAGE_CONFIG'),
 				JSON.stringify({
 					presets: props.presets,
 					extensions: props.extensions,
 				})
 			)
 
-			ctx.addEnv(`${routeKey}:IMAGE_BUCKET`, bucket)
-			ctx.addEnv(`${routeKey}:IMAGE_FOLDER`, folder)
+			ctx.addEnv(formatRouteEnvName(routeKey, 'IMAGE_BUCKET'), bucket)
+			ctx.addEnv(formatRouteEnvName(routeKey, 'IMAGE_FOLDER'), folder)
 
 			if (props.origin.function) {
-				ctx.addEnv(`${routeKey}:IMAGE_ORIGIN`, formatRouteKey(stack.name, 'image', `${id}-origin`))
+				ctx.addEnv(
+					formatRouteEnvName(routeKey, 'IMAGE_ORIGIN'),
+					formatRouteKey(stack.name, 'image', `${id}-origin`)
+				)
 			}
 
 			if (props.origin.static) {
-				ctx.addEnv(`${routeKey}:IMAGE_ORIGIN_S3`, 'true')
+				ctx.addEnv(formatRouteEnvName(routeKey, 'IMAGE_ORIGIN_S3'), 'true')
 
 				// The deploy uploads the static origin images to s3, so
 				// locally they seed the filesystem store.

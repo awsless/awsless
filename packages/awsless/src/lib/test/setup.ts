@@ -19,32 +19,35 @@ import { getTopicName } from '../server/topic.js'
 import { hookTestCleanup } from './cleanup.js'
 
 // The manifest the cli generates from the app config, handing the test
-// environment everything it needs to materialize the whole app.
+// environment everything it needs to materialize the whole app. This
+// is the single declaration - the cli imports it, so the producer &
+// consumer can never drift.
 export type TestManifest = {
 	app: string
 	region: string
 	configs: Record<string, string>
 	tables: unknown[]
+	tableKeys: { stack: string; id: string; keys: unknown }[]
 	// Tables with a stream consumer: the real handler runs on every
 	// write, settled before the write resolves.
-	streams?: { stack: string; id: string; file: string; hash: string; sort?: string }[]
+	streams: { stack: string; id: string; file: string; hash: string; sort?: string }[]
 	// The declared search indexes, created per test file on the shared
 	// run-wide opensearch server.
-	searches?: { stack: string; id: string; mappings: unknown; settings?: unknown }[]
+	searches: { stack: string; id: string; mappings: unknown; settings?: unknown }[]
 	functions: { stack: string; id: string; file: string }[]
 	tasks: { stack: string; id: string; file: string }[]
-	queues: { stack: string; id: string; file: string }[]
+	// A queue without a consumer still mocks its send.
+	queues: { stack: string; id: string; file?: string }[]
 	topics: string[]
 	pubsub: string[]
-	caches?: { stack: string; id: string }[]
-	alerts?: string[]
-	jobs?: { stack: string; id: string }[]
-	instances?: { stack: string; id: string }[]
+	caches: { stack: string; id: string }[]
+	alerts: string[]
+	jobs: { stack: string; id: string }[]
+	instances: { stack: string; id: string }[]
 
 	// The shared resource servers the cli boots once for the whole test
 	// run - test files namespace into them instead of booting their own.
 	servers?: {
-		dynamo?: { endpoint: string }
 		redis?: { host: string; port: number }
 		search?: { domain: string }
 	}
@@ -93,7 +96,7 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	// The mock packages load lazily, so importing awsless stays free of
 	// test machinery outside of test runs.
 	const [
-		{ mockDynamoDB, migrate, DynamoDBClient, streamTable, define, object, any },
+		{ mockDynamoDB, streamTable, define, object, any },
 		{ mockLambda },
 		{ mockS3 },
 		{ mockScheduler },
@@ -155,40 +158,24 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 			TableName: table.TableName.replace(`${manifest.app}--`, `${app}--`),
 		}))
 
-		const shared = manifest.servers?.dynamo
+		// Every table stream runs its real consumer, settled before
+		// the write call resolves - so a test can write & directly
+		// observe the consumer's effects.
+		const streams = (manifest.streams ?? []).map(entry => {
+			return streamTable(
+				define(getTableName(entry.id, entry.stack), {
+					hash: entry.hash,
+					sort: entry.sort,
+					schema: object({}, any()),
+				} as never),
+				async payload => {
+					const consumer = await options.importFile(entry.file)
+					await consumer.default(payload)
+				}
+			)
+		})
 
-		if (shared) {
-			// The tables live on the run-wide shared server, namespaced
-			// by this file's unique app prefix - clients reach it over
-			// the endpoint env, like the local dev environment.
-			const client = new DynamoDBClient({
-				endpoint: shared.endpoint,
-				region: manifest.region,
-				credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
-			})
-
-			await migrate(client, tables as any)
-			client.destroy()
-		} else {
-			// Every table stream runs its real consumer, settled before
-			// the write call resolves - so a test can write & directly
-			// observe the consumer's effects.
-			const streams = (manifest.streams ?? []).map(entry => {
-				return streamTable(
-					define(getTableName(entry.id, entry.stack), {
-						hash: entry.hash,
-						sort: entry.sort,
-						schema: object({}, any()),
-					} as never),
-					async payload => {
-						const consumer = await options.importFile(entry.file)
-						await consumer.default(payload)
-					}
-				)
-			})
-
-			mockDynamoDB({ tables: tables as any, stream: streams })
-		}
+		mockDynamoDB({ tables: tables as any, stream: streams })
 	}
 
 	// The declared search indexes exist on the shared run-wide search
@@ -242,9 +229,9 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 			await client.send('FLUSHDB', [])
 			await client.destroy()
 		} else {
-			const { mockCache } = await import('../mock/cache.js')
+			const { mockRedis } = await import('@awsless/redis')
 
-			mockCache()
+			mockRedis()
 		}
 	}
 
@@ -276,7 +263,9 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	}
 
 	for (const entry of manifest.queues) {
-		const spy = realHandler(options.importFile, entry.file)
+		// A producer-only queue (no consumer) records the sends as a
+		// no-op spy, so a valid send never throws.
+		const spy = entry.file ? realHandler(options.importFile, entry.file) : vi.fn(() => {})
 		testRegistry.queues[getQueueName(entry.id, entry.stack)] = spy
 		queues[getQueueName(entry.id, entry.stack)] = spy
 	}
@@ -304,6 +293,14 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	}
 
 	const jobs: Record<string, Mock> = {}
+
+	if ((manifest.jobs ?? []).length > 0) {
+		// Job.x() reads the network env vars before it ever reaches the
+		// mocked ecs client - fabricate them like the deployed job
+		// feature would.
+		process.env.JOB_SUBNETS ??= JSON.stringify(['subnet-local'])
+		process.env.JOB_SECURITY_GROUP ??= 'sg-local'
+	}
 
 	for (const entry of manifest.jobs ?? []) {
 		const spy = vi.fn(() => {})
@@ -336,12 +333,14 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 		})
 	})
 
-	// The wrapped mocks clear themselves, but the registry spies used
-	// for assertions need their own clearing between tests.
+	// The wrapped mocks clear themselves, but the registry spies need
+	// their own reset between tests: mockReset also restores the
+	// original implementation, so an override faked inside one test
+	// never leaks into the next.
 	beforeEach(() => {
 		for (const registry of Object.values(testRegistry)) {
 			for (const spy of Object.values(registry)) {
-				spy.mockClear()
+				spy.mockReset()
 			}
 		}
 	})

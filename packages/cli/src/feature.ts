@@ -160,7 +160,7 @@ export type DevFailureReport = {
 	routeKey?: string
 	event: unknown
 	error: unknown
-	queue?: { name: string; url?: string }
+	queue?: { name: string }
 }
 
 export type DevReportFailure = (report: DevFailureReport) => void

@@ -4,10 +4,10 @@ import { constantCase } from 'change-case'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { StackConfig } from '../../config/stack.js'
+import { isWiping } from '../../dev/reset.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { isWiping } from '../../dev/reset.js'
 import { formatRouteKey } from '../bundle/util.js'
 import { formatTableKeys } from './util.js'
 
@@ -98,6 +98,15 @@ export const tableOnDev = async (ctx: DevContext) => {
 
 	const { server, tableFingerprints } = await ctx.useDynamo()
 
+	const tableName = (stackName: string, id: string) => {
+		return formatLocalResourceName({
+			appName: ctx.appConfig.name,
+			stackName,
+			resourceType: 'table',
+			resourceName: id,
+		})
+	}
+
 	for (const { stackName, id, props } of tables) {
 		ctx.addEnv(`TABLE_${constantCase(stackName)}_${constantCase(id)}_KEYS`, JSON.stringify(formatTableKeys(props)))
 
@@ -106,21 +115,7 @@ export const tableOnDev = async (ctx: DevContext) => {
 			stack: stackName,
 			id,
 			routeKey: props.stream ? formatRouteKey(stackName, 'table', id) : undefined,
-			detail: formatLocalResourceName({
-				appName: ctx.appConfig.name,
-				stackName,
-				resourceType: 'table',
-				resourceName: id,
-			}),
-		})
-	}
-
-	const tableName = (stackName: string, id: string) => {
-		return formatLocalResourceName({
-			appName: ctx.appConfig.name,
-			stackName,
-			resourceType: 'table',
-			resourceName: id,
+			detail: tableName(stackName, id),
 		})
 	}
 

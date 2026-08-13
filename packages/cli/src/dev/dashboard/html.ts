@@ -597,7 +597,7 @@ const pubsubPanel = (main, r) => {
 		result,
 	)
 
-	cleanupPanel = showEventsFeed(r.id)
+	cleanupPanel = showEventsFeed(r.channel)
 }
 
 const rpcPanel = (main, r) => {
@@ -736,7 +736,7 @@ const attachLogFeed = (main, channel, route, title = 'Logs') => {
 
 // The feed only shows while a pubsub instance panel is open & only
 // streams the events of that instance.
-const showEventsFeed = id => {
+const showEventsFeed = channel => {
 	document.body.classList.add('with-events')
 
 	const aside = document.getElementById('events')
@@ -745,7 +745,7 @@ const showEventsFeed = id => {
 	aside.hidden = false
 	feed.innerHTML = '<p class="empty">Waiting for events...</p>'
 
-	const source = new EventSource('/api/events?channel=' + encodeURIComponent('pubsub:' + id))
+	const source = new EventSource('/api/events?channel=' + encodeURIComponent(channel))
 
 	source.onmessage = message => {
 		const data = JSON.parse(message.data)

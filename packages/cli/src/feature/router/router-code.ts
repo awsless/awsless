@@ -8,7 +8,6 @@ export const getViewerRequestFunctionCode = (props: {
 	router: string
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
-	preview?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
 }): string => {

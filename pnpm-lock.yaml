@@ -96,7 +96,7 @@ importers:
         specifier: workspace:^
         version: link:../scheduler
       '@awsless/ses':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ses
       '@awsless/sns':
         specifier: workspace:^
@@ -119,9 +119,6 @@ importers:
       change-case:
         specifier: 5.4.4
         version: 5.4.4
-      valibot:
-        specifier: ^1.2.0
-        version: 1.3.1(typescript@5.8.2)
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@25.5.1)(vite@7.3.1(@types/node@25.5.1)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))

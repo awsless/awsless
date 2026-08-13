@@ -1,6 +1,6 @@
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { trackConnections } from '../util.js'
+import { readBody, trackConnections } from '../util.js'
 
 // A minimal eventbridge scheduler emulator for delayed tasks: a
 // CreateSchedule call dispatches the schedule's input into the bundle
@@ -21,44 +21,57 @@ export const createSchedulerServer = () => {
 		// a stale reserved port can never end up in the environment.
 		async listen(port = 0) {
 			server = createServer((req, res) => {
-				const chunks: Buffer[] = []
-				req.on('data', chunk => chunks.push(chunk))
-				req.on('end', () => {
-					const match = req.url?.match(/^\/schedules\/([^/?]+)/)
-
-					if (!match || req.method !== 'POST') {
-						res.writeHead(400, { 'content-type': 'application/json' })
-						res.end(
-							JSON.stringify({
-								message: 'The local dev scheduler emulator only supports CreateSchedule.',
-							})
-						)
+				// A bad body or read error answers 400 instead of throwing
+				// out of the handler & killing the dev process.
+				const fail = (error: unknown) => {
+					if (res.writableEnded || res.destroyed) {
 						return
 					}
 
-					const name = decodeURIComponent(match[1]!)
-					const input = JSON.parse(Buffer.concat(chunks).toString() || '{}') as {
-						Target?: { Input?: string }
-					}
+					res.writeHead(400, { 'content-type': 'application/json' })
+					res.end(JSON.stringify({ message: error instanceof Error ? error.message : String(error) }))
+				}
 
-					const payload = input.Target?.Input ? JSON.parse(input.Target.Input) : {}
+				void readBody(req)
+					.then(body => {
+						const match = req.url?.match(/^\/schedules\/([^/?]+)/)
 
-					setImmediate(() => {
-						dispatch?.(payload).catch(error => {
-							const routeKey = (payload as { '$awsless-route'?: string })?.['$awsless-route']
+						if (!match || req.method !== 'POST') {
+							res.writeHead(400, { 'content-type': 'application/json' })
+							res.end(
+								JSON.stringify({
+									message: 'The local dev scheduler emulator only supports CreateSchedule.',
+								})
+							)
+							return
+						}
 
-							reportFailure?.({
-								kind: 'async',
-								routeKey: typeof routeKey === 'string' ? routeKey : undefined,
-								event: (payload as { event?: unknown })?.event ?? payload,
-								error,
+						const name = decodeURIComponent(match[1]!)
+						const input = JSON.parse(body.toString() || '{}') as {
+							Target?: { Input?: string }
+						}
+
+						const payload = input.Target?.Input ? JSON.parse(input.Target.Input) : {}
+
+						setImmediate(() => {
+							dispatch?.(payload).catch(error => {
+								const routeKey = (payload as { '$awsless-route'?: string })?.['$awsless-route']
+
+								reportFailure?.({
+									kind: 'async',
+									routeKey: typeof routeKey === 'string' ? routeKey : undefined,
+									event: (payload as { event?: unknown })?.event ?? payload,
+									error,
+								})
 							})
 						})
-					})
 
-					res.writeHead(200, { 'content-type': 'application/json' })
-					res.end(JSON.stringify({ ScheduleArn: `arn:aws:scheduler:local:000000000000:schedule/${name}` }))
-				})
+						res.writeHead(200, { 'content-type': 'application/json' })
+						res.end(
+							JSON.stringify({ ScheduleArn: `arn:aws:scheduler:local:000000000000:schedule/${name}` })
+						)
+					})
+					.catch(fail)
 			})
 
 			await new Promise<void>((resolve, reject) => {

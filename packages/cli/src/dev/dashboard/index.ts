@@ -9,16 +9,7 @@ import { DevDispatch, DevResource, DevRoute } from '../../feature.js'
 import { AuthAdmin } from '../../feature/auth/dev.js'
 import { WorkerError } from '../worker.js'
 import { dashboardHtml } from './html.js'
-import { trackConnections } from '../util.js'
-
-const readBody = (req: IncomingMessage) => {
-	return new Promise<Buffer>((resolve, reject) => {
-		const chunks: Buffer[] = []
-		req.on('data', chunk => chunks.push(chunk))
-		req.on('error', reject)
-		req.on('end', () => resolve(Buffer.concat(chunks)))
-	})
-}
+import { readBody, trackConnections } from '../util.js'
 
 // The local dev dashboard: lists every resource in the app & lets you
 // invoke routes, publish topics, browse table & store data, and edit
@@ -61,8 +52,48 @@ export const createDashboardServer = (props: {
 		return documentClient
 	}
 
+	// The dashboard can mutate real state (deployed auth pools, the
+	// local config file, handler invokes), so browser cross-origin
+	// requests are rejected: any web page can POST to localhost, even
+	// when it can't read the response. Requests from tools like curl
+	// carry no Origin & stay allowed, and the Host check stops dns
+	// rebinding.
+	const isLocalHost = (value: string | undefined) => {
+		const host = value?.split(':')[0]?.toLowerCase()
+
+		return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
+	}
+
+	const allowed = (req: IncomingMessage) => {
+		if (!isLocalHost(req.headers.host)) {
+			return false
+		}
+
+		const origin = req.headers.origin
+
+		if (typeof origin === 'string' && origin !== 'null') {
+			try {
+				return isLocalHost(new URL(origin).host)
+			} catch (_) {
+				return false
+			}
+		}
+
+		// A "null" opaque origin (like a sandboxed iframe or a local
+		// file) is a browser context we can't identify - block writes.
+		if (origin === 'null' && req.method !== 'GET') {
+			return false
+		}
+
+		return true
+	}
+
 	const handle = async (req: IncomingMessage): Promise<{ status: number; body: string; type?: string }> => {
 		const url = new URL(req.url ?? '/', 'http://localhost')
+
+		if (!allowed(req)) {
+			return { status: 403, body: JSON.stringify({ error: 'Cross-origin requests are not allowed.' }) }
+		}
 
 		if (!url.pathname.startsWith('/api/')) {
 			// Every non-api path serves the page & the client routes on
@@ -77,19 +108,9 @@ export const createDashboardServer = (props: {
 				seeds: Boolean(props.runSeeds),
 			}).replaceAll('<', '\\u003c')
 
-			return { status: 200, body: dashboardHtml.replace('__STATE__', state), type: 'text/html' }
-		}
-
-		if (url.pathname === '/api/state') {
-			return {
-				status: 200,
-				body: JSON.stringify({
-					app: props.app,
-					routerPorts: props.routerPorts,
-					resources: props.resources,
-					routes: props.routes,
-				}),
-			}
+			// The replacement is a function, so $-patterns inside the
+			// state json can never expand as replacement patterns.
+			return { status: 200, body: dashboardHtml.replace('__STATE__', () => state), type: 'text/html' }
 		}
 
 		if (url.pathname === '/api/invoke' && req.method === 'POST') {
@@ -193,7 +214,15 @@ export const createDashboardServer = (props: {
 		}
 
 		if (url.pathname === '/api/cache') {
-			const [host, port] = (url.searchParams.get('target') ?? '').split(':')
+			const target = url.searchParams.get('target') ?? ''
+
+			// The proxy only reaches targets belonging to a registered
+			// resource, so the api can't probe arbitrary hosts.
+			if (!props.resources.some(r => r.kind === 'cache' && r.detail === target)) {
+				return { status: 400, body: JSON.stringify({ error: `Unknown cache target: ${target}` }) }
+			}
+
+			const [host, port] = target.split(':')
 			const redis = new Redis({ host, port: Number(port), lazyConnect: true })
 
 			try {
@@ -244,6 +273,12 @@ export const createDashboardServer = (props: {
 				target: string
 				path: string
 				body?: unknown
+			}
+
+			// The proxy only reaches targets belonging to a registered
+			// resource, so the api can't probe arbitrary hosts.
+			if (!props.resources.some(r => r.kind === 'search' && r.detail === target)) {
+				return { status: 400, body: JSON.stringify({ error: `Unknown search target: ${target}` }) }
 			}
 
 			const result = await fetch(`http://${target}${path}`, {

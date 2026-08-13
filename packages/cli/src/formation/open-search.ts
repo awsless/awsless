@@ -99,9 +99,19 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 			async updateResource(props) {
 				return apply(props.proposedState)
 			},
-			// Removing the resource keeps the index & its data, like the
-			// retained table policy - dropping data needs a manual delete.
-			async deleteResource() {},
+			// Removing the resource drops the index & its data. The app's
+			// retain removal policy skips this through the resource's
+			// retainOnDelete flag, like the domain itself.
+			async deleteResource(props) {
+				const state = inputSchema.parse(props.state)
+
+				await getClient(state.endpoint).indices.delete(
+					{ index: state.index },
+					// An already missing index (or a manually deleted
+					// domain) shouldn't fail the removal.
+					{ ignore: [404] }
+				)
+			},
 		},
 	})
 }

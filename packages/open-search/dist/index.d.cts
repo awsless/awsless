@@ -26,7 +26,6 @@ declare class Schema<Encoded, Input, Output> {
 }
 
 declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") => Client;
-declare const mockClient: (host: string, port: number) => void;
 
 type Settings = Record<string, string | number | boolean>;
 type Options$5 = {
@@ -57,8 +56,6 @@ type Options$4 = {
 declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
 
 declare const download: ({ version }: Pick<VersionArgs, "version">) => Promise<string>;
-
-declare const wait: (times?: number) => Promise<void>;
 
 type Table<I extends string, S extends AnySchema> = {
     index: I;
@@ -185,4 +182,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockClient, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid, wait };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

@@ -12,13 +12,10 @@ export const logHandler: RouteMatcher<CloudWatchLogsEvent> = event => {
 		if (routeType(route) === 'on-error-log') {
 			return asyncRoute(route, event.event)
 		}
-
-		return
 	}
 
-	if (typeof event?.awslogs?.data === 'string') {
-		return asyncRoute('base:on-error-log:handler', event)
-	}
-
+	// A raw awslogs event never reaches the bundle: locally only the
+	// consumer route registers & deployed apps run the handler as a
+	// stand-alone lambda outside the bundle.
 	return
 }

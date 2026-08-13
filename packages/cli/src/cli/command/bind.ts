@@ -35,9 +35,16 @@ export const bind = (program: Command) => {
 						throw new ExpectedError('No local dev environment found. Start it first with: awsless dev')
 					}
 
+					// The runtime resolves configs from the CONFIGS comma list,
+					// merged with whatever the dev environment already
+					// announces.
 					const configs: Record<string, string> = {}
-					for (const name of opts.config ?? []) {
-						configs[`CONFIG_${constantCase(name)}`] = name
+					const configList = opts.config ?? []
+
+					if (configList.length > 0) {
+						configs.CONFIGS = [
+							...new Set([...(env.CONFIGS ? env.CONFIGS.split(',') : []), ...configList]),
+						].join(',')
 					}
 
 					if (commands.length === 0) {

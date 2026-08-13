@@ -1,9 +1,7 @@
 import {
+  __export,
   createProxy
-} from "./chunk-XERFMF6Z.js";
-import {
-  __export
-} from "./chunk-MLKGABMK.js";
+} from "./chunk-EDDUHVFO.js";
 
 // src/server.ts
 import * as s from "@awsless/open-search";
@@ -196,7 +194,7 @@ var extractParts = (event2) => {
   if (Object.keys(params).length === 0) {
     for (const [name, value] of Object.entries(event2.headers ?? {})) {
       if (name.startsWith("x-param-")) {
-        params[name.slice("x-param-".length)] = value;
+        params[name.slice("x-param-".length)] = decodeURIComponent(value);
       }
     }
   }
@@ -262,7 +260,8 @@ var toLambdaUrlResult = async (response) => {
     }
   });
   const buffer = Buffer.from(await response.arrayBuffer());
-  const textual = isTextual(headers["content-type"] ?? "text/plain");
+  const contentType = headers["content-type"];
+  const textual = typeof contentType === "string" && isTextual(contentType);
   return {
     statusCode: response.status,
     headers,
@@ -284,23 +283,22 @@ function route(arg1, arg2) {
   return async (event2, context) => {
     const result = await handler(event2, context);
     if (isErrorResponse(result)) {
+      const error2 = result.__error__;
       return {
-        statusCode: 500,
+        statusCode: error2.type === "validation" ? 400 : 500,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: result.__error__.message })
+        body: JSON.stringify({
+          type: error2.type,
+          message: error2.message,
+          data: error2.data
+        })
       };
     }
     return result;
   };
 }
 var site = (handle) => {
-  return lambda2({
-    schema: routeSchema({}),
-    handle: async (request, context) => {
-      const result = await handle(request, context);
-      return result instanceof Response ? toLambdaUrlResult(result) : result;
-    }
-  });
+  return route(handle);
 };
 
 // src/lib/handle/topic.ts
@@ -421,7 +419,10 @@ var storeNotificationSchema = union2(
       transform3((input) => {
         return input.Records.map((record2) => ({
           bucket: record2.s3.bucket.name,
-          key: record2.s3.object.key
+          // S3 url-encodes event keys with a plus for spaces -
+          // decode back to the real object key, so the handler can
+          // feed it straight into Store.get / Store.delete.
+          key: decodeURIComponent(record2.s3.object.key.replace(/\+/g, " "))
         }));
       })
     )
@@ -618,11 +619,15 @@ var Config = /* @__PURE__ */ new Proxy(
   {
     get(_, name) {
       return getConfigValue(name);
+    },
+    // Without a set trap an assignment would silently land on the
+    // empty proxy target while reads keep failing - fail loud &
+    // point at the test api instead.
+    set(_, name) {
+      throw new Error(
+        `Config values are read only. Use "mock.config.${String(name)}" to fake a value inside tests.`
+      );
     }
-    // set(_, name: string, value: string) {
-    // 	setConfigValue(name, value)
-    // 	return true
-    // },
   }
 );
 
@@ -918,10 +923,11 @@ var Topic = /* @__PURE__ */ createProxy((name) => {
     name: topic,
     define(schema) {
       const publisher = async (payload, options = {}) => {
+        parse(schema, payload);
         await publish2({
           ...options,
           topic,
-          payload: stringify4(parse(schema, payload))
+          payload: stringify4(payload)
         });
       };
       Object.defineProperty(publisher, "name", { value: topic });
@@ -1097,7 +1103,7 @@ var realHandler = (importFile, file) => {
 };
 var setupTestEnv = async (manifest, options) => {
   const [
-    { mockDynamoDB, migrate, DynamoDBClient, streamTable, define: define3, object: object7, any },
+    { mockDynamoDB, streamTable, define: define3, object: object7, any },
     { mockLambda },
     { mockS3 },
     { mockScheduler },
@@ -1137,31 +1143,20 @@ var setupTestEnv = async (manifest, options) => {
       ...table,
       TableName: table.TableName.replace(`${manifest.app}--`, `${app}--`)
     }));
-    const shared = manifest.servers?.dynamo;
-    if (shared) {
-      const client = new DynamoDBClient({
-        endpoint: shared.endpoint,
-        region: manifest.region,
-        credentials: { accessKeyId: "local", secretAccessKey: "local" }
-      });
-      await migrate(client, tables);
-      client.destroy();
-    } else {
-      const streams = (manifest.streams ?? []).map((entry) => {
-        return streamTable(
-          define3(getTableName(entry.id, entry.stack), {
-            hash: entry.hash,
-            sort: entry.sort,
-            schema: object7({}, any())
-          }),
-          async (payload) => {
-            const consumer2 = await options.importFile(entry.file);
-            await consumer2.default(payload);
-          }
-        );
-      });
-      mockDynamoDB({ tables, stream: streams });
-    }
+    const streams = (manifest.streams ?? []).map((entry) => {
+      return streamTable(
+        define3(getTableName(entry.id, entry.stack), {
+          hash: entry.hash,
+          sort: entry.sort,
+          schema: object7({}, any())
+        }),
+        async (payload) => {
+          const consumer2 = await options.importFile(entry.file);
+          await consumer2.default(payload);
+        }
+      );
+    });
+    mockDynamoDB({ tables, stream: streams });
   }
   if (manifest.servers?.search) {
     const domain = manifest.servers.search.domain;
@@ -1195,8 +1190,8 @@ var setupTestEnv = async (manifest, options) => {
       await client.send("FLUSHDB", []);
       await client.destroy();
     } else {
-      const { mockCache } = await import("./cache-G4ZG5FQ4.js");
-      mockCache();
+      const { mockRedis } = await import("@awsless/redis");
+      mockRedis();
     }
   }
   const lambdas = {};
@@ -1221,7 +1216,8 @@ var setupTestEnv = async (manifest, options) => {
     lambdas[getPubSubPublisherName(id)] = spy;
   }
   for (const entry of manifest.queues) {
-    const spy = realHandler(options.importFile, entry.file);
+    const spy = entry.file ? realHandler(options.importFile, entry.file) : vi.fn(() => {
+    });
     testRegistry.queues[getQueueName(entry.id, entry.stack)] = spy;
     queues[getQueueName(entry.id, entry.stack)] = spy;
   }
@@ -1244,6 +1240,10 @@ var setupTestEnv = async (manifest, options) => {
     queues[getInstanceQueueName(entry.id, entry.stack)] = spy;
   }
   const jobs = {};
+  if ((manifest.jobs ?? []).length > 0) {
+    process.env.JOB_SUBNETS ??= JSON.stringify(["subnet-local"]);
+    process.env.JOB_SECURITY_GROUP ??= "sg-local";
+  }
   for (const entry of manifest.jobs ?? []) {
     const spy = vi.fn(() => {
     });
@@ -1269,7 +1269,7 @@ var setupTestEnv = async (manifest, options) => {
   beforeEach(() => {
     for (const registry of Object.values(testRegistry)) {
       for (const spy of Object.values(registry)) {
-        spy.mockClear();
+        spy.mockReset();
       }
     }
   });

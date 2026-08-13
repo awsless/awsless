@@ -1,7 +1,7 @@
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
+import { readBody, trackConnections } from '../util.js'
 import { WorkerError } from '../worker.js'
-import { trackConnections } from '../util.js'
 
 // A minimal lambda emulator that routes Invoke calls into the bundle
 // worker. This carries the bundle's own sns fan-out self-invokes, the
@@ -21,66 +21,77 @@ export const createLambdaServer = (props: { functionName: string }) => {
 		// a stale reserved port can never end up in the environment.
 		async listen(port = 0) {
 			server = createServer((req, res) => {
-				const chunks: Buffer[] = []
-				req.on('data', chunk => chunks.push(chunk))
-				req.on('end', async () => {
-					const match = req.url?.match(/^\/2015-03-31\/functions\/([^/]+)\/invocations/)
-
-					if (!match || req.method !== 'POST') {
-						res.writeHead(400, { 'content-type': 'application/json' })
-						res.end(JSON.stringify({ message: `The local dev lambda emulator only supports Invoke.` }))
+				// A bad body or read error answers 400 instead of throwing
+				// out of the handler & killing the dev process.
+				const fail = (error: unknown) => {
+					if (res.writableEnded || res.destroyed) {
 						return
 					}
 
-					// The name can be a bare name, name:qualifier or a full arn.
-					const name = decodeURIComponent(match[1]!).split(':function:').at(-1)!.split(':')[0]!
+					res.writeHead(400, { 'content-type': 'application/json' })
+					res.end(JSON.stringify({ message: error instanceof Error ? error.message : String(error) }))
+				}
 
-					if (name !== props.functionName) {
-						res.writeHead(404, { 'content-type': 'application/json' })
-						res.end(
-							JSON.stringify({
-								message: `Unknown local function: ${name}. Only the app bundle runs locally.`,
+				void readBody(req)
+					.then(async body => {
+						const match = req.url?.match(/^\/2015-03-31\/functions\/([^/]+)\/invocations/)
+
+						if (!match || req.method !== 'POST') {
+							res.writeHead(400, { 'content-type': 'application/json' })
+							res.end(JSON.stringify({ message: `The local dev lambda emulator only supports Invoke.` }))
+							return
+						}
+
+						// The name can be a bare name, name:qualifier or a full arn.
+						const name = decodeURIComponent(match[1]!).split(':function:').at(-1)!.split(':')[0]!
+
+						if (name !== props.functionName) {
+							res.writeHead(404, { 'content-type': 'application/json' })
+							res.end(
+								JSON.stringify({
+									message: `Unknown local function: ${name}. Only the app bundle runs locally.`,
+								})
+							)
+							return
+						}
+
+						const type = String(req.headers['x-amz-invocation-type'] ?? 'RequestResponse')
+						const event = JSON.parse(body.toString() || '{}')
+
+						if (type === 'Event') {
+							res.writeHead(202, { 'content-type': 'application/json' })
+							res.end()
+
+							dispatch?.(event).catch(error => {
+								const routeKey = (event as { '$awsless-route'?: string })?.['$awsless-route']
+
+								reportFailure?.({
+									kind: 'async',
+									routeKey: typeof routeKey === 'string' ? routeKey : undefined,
+									event: (event as { event?: unknown })?.event ?? event,
+									error,
+								})
 							})
-						)
-						return
-					}
+							return
+						}
 
-					const type = String(req.headers['x-amz-invocation-type'] ?? 'RequestResponse')
-					const event = JSON.parse(Buffer.concat(chunks).toString() || '{}')
+						try {
+							const result = await dispatch?.(event)
 
-					if (type === 'Event') {
-						res.writeHead(202, { 'content-type': 'application/json' })
-						res.end()
+							res.writeHead(200, { 'content-type': 'application/json' })
+							res.end(typeof result === 'undefined' || result === null ? '' : JSON.stringify(result))
+						} catch (error) {
+							const name = error instanceof WorkerError ? error.name : 'Error'
+							const message = error instanceof Error ? error.message : String(error)
 
-						dispatch?.(event).catch(error => {
-							const routeKey = (event as { '$awsless-route'?: string })?.['$awsless-route']
-
-							reportFailure?.({
-								kind: 'async',
-								routeKey: typeof routeKey === 'string' ? routeKey : undefined,
-								event: (event as { event?: unknown })?.event ?? event,
-								error,
+							res.writeHead(200, {
+								'content-type': 'application/json',
+								'x-amz-function-error': 'Unhandled',
 							})
-						})
-						return
-					}
-
-					try {
-						const result = await dispatch?.(event)
-
-						res.writeHead(200, { 'content-type': 'application/json' })
-						res.end(typeof result === 'undefined' || result === null ? '' : JSON.stringify(result))
-					} catch (error) {
-						const name = error instanceof WorkerError ? error.name : 'Error'
-						const message = error instanceof Error ? error.message : String(error)
-
-						res.writeHead(200, {
-							'content-type': 'application/json',
-							'x-amz-function-error': 'Unhandled',
-						})
-						res.end(JSON.stringify({ errorType: name, errorMessage: message, trace: [] }))
-					}
-				})
+							res.end(JSON.stringify({ errorType: name, errorMessage: message, trace: [] }))
+						}
+					})
+					.catch(fail)
 			})
 
 			await new Promise<void>((resolve, reject) => {

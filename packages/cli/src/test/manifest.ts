@@ -1,3 +1,4 @@
+import type { TestManifest } from 'awsless'
 import { isAbsolute, join } from 'path'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
@@ -10,36 +11,9 @@ import { directories } from '../util/path.js'
 // The manifest hands the vitest setup everything it needs to
 // materialize the whole app: every table, the real handler file of
 // every function, task & queue consumer, and the test config values.
-export type TestManifest = {
-	app: string
-	region: string
-	configs: Record<string, string>
-	tables: unknown[]
-	tableKeys: { stack: string; id: string; keys: unknown }[]
-	// Tables with a stream consumer: the real handler runs on every
-	// write, settled before the write resolves.
-	streams: { stack: string; id: string; file: string; hash: string; sort?: string }[]
-	// The declared search indexes, created per test file on the shared
-	// run-wide opensearch server.
-	searches: { stack: string; id: string; mappings: unknown; settings?: unknown }[]
-	functions: { stack: string; id: string; file: string }[]
-	tasks: { stack: string; id: string; file: string }[]
-	queues: { stack: string; id: string; file: string }[]
-	topics: string[]
-	pubsub: string[]
-	caches: { stack: string; id: string }[]
-	alerts: string[]
-	jobs: { stack: string; id: string }[]
-	instances: { stack: string; id: string }[]
-
-	// The shared resource servers the cli boots once for the whole test
-	// run - test files namespace into them instead of booting their own.
-	servers?: {
-		dynamo?: { endpoint: string }
-		redis?: { host: string; port: number }
-		search?: { domain: string }
-	}
-}
+// The shape is declared once in awsless (lib/test/setup.ts), so the
+// producer & consumer can never drift.
+export type { TestManifest }
 
 const absolute = (file: string) => {
 	return isAbsolute(file) ? file : join(directories.root, file)
@@ -106,9 +80,13 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		}
 
 		for (const [id, props] of Object.entries(stack.queues ?? {})) {
-			if (props.consumer) {
-				manifest.queues.push({ stack: stack.name, id, file: absolute(props.consumer.code.file) })
-			}
+			// A producer-only queue registers without a handler file, so
+			// its sends still resolve against the sqs mock.
+			manifest.queues.push({
+				stack: stack.name,
+				id,
+				file: props.consumer ? absolute(props.consumer.code.file) : undefined,
+			})
 		}
 
 		for (const id of Object.keys(stack.caches ?? {})) {

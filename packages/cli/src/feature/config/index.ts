@@ -170,16 +170,9 @@ export const configFeature = defineFeature({
 			return { value: values, stop: () => {} }
 		})
 
-		server.setValues({ pulled })
+		server.setValues({ pulled, log: ctx.log })
 
 		// The worker reads config values once during module init.
 		ctx.restartOnChange(file)
-
-		ctx.registerServer({
-			name: 'config',
-			start({ log }) {
-				server.connect(log)
-			},
-		})
 	},
 })

@@ -94,11 +94,16 @@ ${entries.join('\n')}
 `
 		// The lockfile joins the fingerprint, so dependency updates
 		// rebuild the bundle - the source files alone can't see them.
-		const lockfile = await Promise.any(
-			['pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'package-lock.json', 'yarn.lock'].map(name =>
-				readFile(join(directories.root, name))
-			)
-		).catch(() => Buffer.alloc(0))
+		// A fixed priority order keeps the fingerprint stable when more
+		// than one lockfile exists.
+		let lockfile = Buffer.alloc(0)
+
+		for (const name of ['pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'package-lock.json', 'yarn.lock']) {
+			try {
+				lockfile = await readFile(join(directories.root, name))
+				break
+			} catch (_) {}
+		}
 
 		// Handlers next to the runtime are prebuilt dist/handlers files outside the ts workspace.
 		const hashes = await Promise.all([

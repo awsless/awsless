@@ -62,5 +62,5 @@ export const createSeedRunner = (props: { seed?: string; env: Record<string, str
 		return running
 	}
 
-	return { count: file ? 1 : 0, run }
+	return { enabled: Boolean(file), run }
 }

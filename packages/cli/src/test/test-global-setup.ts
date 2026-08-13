@@ -1,9 +1,8 @@
-import { BigFloat, eq } from '@awsless/big-float'
 import { $mockdate, setGlobalTypes } from '@awsless/json'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
-import { beforeAll, expect } from 'vitest'
+import { beforeAll } from 'vitest'
 
 // The awsless module MUST be the exact same instance the test files
 // import, so the registry & client mocks land in the right copy. The
@@ -36,16 +35,11 @@ if (manifestFile) {
 	// Resources on a shared run-wide server (like the search indexes)
 	// namespace through a unique per-file app prefix - full isolation
 	// without booting those servers per file.
-	process.env.APP =
-		manifest.servers?.dynamo || manifest.servers?.search
-			? `${manifest.app}-t${Math.random().toString(36).slice(2, 8)}`
-			: manifest.app
+	process.env.APP = manifest.servers?.search
+		? `${manifest.app}-t${Math.random().toString(36).slice(2, 8)}`
+		: manifest.app
 
 	process.env.AWS_REGION = manifest.region
-
-	if (manifest.servers?.dynamo) {
-		process.env.AWS_ENDPOINT_URL_DYNAMODB = manifest.servers.dynamo.endpoint
-	}
 
 	process.env.AWS_ACCESS_KEY_ID ??= 'local'
 	process.env.AWS_SECRET_ACCESS_KEY ??= 'local'
@@ -81,19 +75,6 @@ beforeAll(() => {
 	// FIX json stringify & parse for MockDate's
 	setGlobalTypes({ $mockdate })
 
-	// FIX equality checks for bigfloats
-	expect.addEqualityTesters([areBigFloatsEqual])
+	// The bigfloat equality tester registers in the awsless test setup,
+	// which also covers cross-module instances via duck typing.
 })
-
-export const areBigFloatsEqual = (a: unknown, b: unknown): boolean | undefined => {
-	const isA = a instanceof BigFloat
-	const isB = b instanceof BigFloat
-
-	if (isA && isB) {
-		return eq(a, b)
-	} else if (isA === isB) {
-		return undefined
-	} else {
-		return false
-	}
-}

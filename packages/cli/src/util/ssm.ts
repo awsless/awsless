@@ -57,7 +57,8 @@ export class SsmStore {
 
 		const value = result.Parameter?.Value
 
-		debug('Value:', color.info(value))
+		// The value itself stays out of the debug log: config values are
+		// encrypted secrets & the log persists on disk.
 		debug('Done getting remote config value')
 
 		return value
@@ -66,7 +67,6 @@ export class SsmStore {
 	async set(name: string, value: string) {
 		debug('Save remote config value')
 		debug('Name:', color.info(name))
-		debug('Value:', color.info(value))
 
 		await this.client.send(
 			new PutParameterCommand({

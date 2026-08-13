@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { trackConnections } from '../util.js'
+import { readBody, trackConnections } from '../util.js'
 
 type MessageAttributes = Record<string, { DataType?: string; StringValue?: string; BinaryValue?: string }>
 
@@ -104,6 +104,9 @@ export const createSqsServer = (props: {
 	// map so a dev restart re-registering the queues keeps the backlog.
 	const stores = new Map<string, PullMessage[]>()
 
+	// The pending DelaySeconds timers of push queues.
+	const delayed = new Set<ReturnType<typeof setTimeout>>()
+
 	const queueFromUrl = (url: string | undefined) => {
 		const name = url?.split('/').filter(Boolean).at(-1)
 
@@ -176,7 +179,14 @@ export const createSqsServer = (props: {
 		}
 
 		if (input.DelaySeconds) {
-			setTimeout(send, input.DelaySeconds * 1000)
+			// Tracked so stop() can clear them: a delay goes up to 900s &
+			// must never dispatch into a torn down environment.
+			const timer = setTimeout(() => {
+				delayed.delete(timer)
+				send()
+			}, input.DelaySeconds * 1000)
+
+			delayed.add(timer)
 		} else {
 			setImmediate(send)
 		}
@@ -402,44 +412,51 @@ export const createSqsServer = (props: {
 		// a stale reserved port can never end up in the environment.
 		async listen(port = 0) {
 			server = createServer((req, res) => {
-				const chunks: Buffer[] = []
-				req.on('data', chunk => chunks.push(chunk))
-				req.on('end', async () => {
-					const target = String(req.headers['x-amz-target'] ?? '')
-					const action = actions[target.split('.').at(-1) ?? '']
+				void readBody(req)
+					.then(async body => {
+						const target = String(req.headers['x-amz-target'] ?? '')
+						const action = actions[target.split('.').at(-1) ?? '']
 
-					// A consumer closing its connection (like an aborted long
-					// poll during shutdown) stops the wait loop.
-					const abort = new AbortController()
-					res.on('close', () => abort.abort())
+						// A consumer closing its connection (like an aborted long
+						// poll during shutdown) stops the wait loop.
+						const abort = new AbortController()
+						res.on('close', () => abort.abort())
 
-					try {
-						if (!action) {
-							throw new Error(`The local dev sqs emulator does not support: ${target}`)
+						try {
+							if (!action) {
+								throw new Error(`The local dev sqs emulator does not support: ${target}`)
+							}
+
+							const result = await action(JSON.parse(body.toString() || '{}'), abort.signal)
+
+							if (res.writableEnded || res.destroyed) {
+								return
+							}
+
+							res.writeHead(200, { 'content-type': 'application/x-amz-json-1.0' })
+							res.end(JSON.stringify(result))
+						} catch (error) {
+							if (res.writableEnded || res.destroyed) {
+								return
+							}
+
+							res.writeHead(400, { 'content-type': 'application/x-amz-json-1.0' })
+							res.end(
+								JSON.stringify({
+									__type: 'InvalidAction',
+									message: error instanceof Error ? error.message : String(error),
+								})
+							)
 						}
-
-						const result = await action(JSON.parse(Buffer.concat(chunks).toString() || '{}'), abort.signal)
-
-						if (res.writableEnded || res.destroyed) {
-							return
+					})
+					.catch(() => {
+						if (!res.writableEnded && !res.destroyed) {
+							res.writeHead(400, { 'content-type': 'application/x-amz-json-1.0' })
+							res.end(
+								JSON.stringify({ __type: 'InvalidAction', message: 'Failed to read the request body.' })
+							)
 						}
-
-						res.writeHead(200, { 'content-type': 'application/x-amz-json-1.0' })
-						res.end(JSON.stringify(result))
-					} catch (error) {
-						if (res.writableEnded || res.destroyed) {
-							return
-						}
-
-						res.writeHead(400, { 'content-type': 'application/x-amz-json-1.0' })
-						res.end(
-							JSON.stringify({
-								__type: 'InvalidAction',
-								message: error instanceof Error ? error.message : String(error),
-							})
-						)
-					}
-				})
+					})
 			})
 
 			await new Promise<void>((resolve, reject) => {
@@ -453,6 +470,12 @@ export const createSqsServer = (props: {
 			return boundPort
 		},
 		stop() {
+			for (const timer of delayed) {
+				clearTimeout(timer)
+			}
+
+			delayed.clear()
+
 			return closeServer?.() ?? Promise.resolve()
 		},
 	}

@@ -7,7 +7,9 @@ import { TestCase } from '../../../app.js'
 // import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
 // import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
 import { parse, stringify } from '@awsless/json'
-import { generateFolderHash, loadWorkspace, Workspace } from '@awsless/ts-file-cache'
+import { generateFileHash, generateFolderHash, loadWorkspace, Workspace } from '@awsless/ts-file-cache'
+import type { TestManifest } from 'awsless'
+import { createHash } from 'crypto'
 import { ExpectedError } from '../../../error.js'
 import { startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
@@ -154,12 +156,15 @@ export const runTest = async (
 	opts: {
 		showLogs: boolean
 		env?: Record<string, string>
+		// Extra fingerprint material beyond the test folder, like the
+		// manifest & the handler files it loads dynamically.
+		fingerprint?: string
 	}
 ) => {
 	await mkdir(directories.test, { recursive: true })
 
 	const file = join(directories.test, `${stack}.json`)
-	const fingerprint = await generateFolderHash(workspace, dir)
+	const fingerprint = (await generateFolderHash(workspace, dir)) + (opts.fingerprint ?? '')
 
 	if (!process.env.NO_CACHE) {
 		const exists = await fileExist(file)
@@ -241,9 +246,28 @@ export const runTests = async (
 	opts: {
 		showLogs: boolean
 		env?: Record<string, string>
+		manifest?: TestManifest
 	}
 ) => {
 	const workspace = await loadWorkspace(directories.root)
+
+	// The manifest & every handler file it references join the cache
+	// fingerprint: cross-stack handlers & the test config values load
+	// dynamically, so the test folder hash alone misses their changes.
+	let manifestFingerprint = ''
+
+	if (opts.manifest) {
+		const { servers: _servers, ...stable } = opts.manifest
+
+		const files = [...stable.streams, ...stable.functions, ...stable.tasks, ...stable.queues]
+			.map(entry => entry.file)
+			.filter((file): file is string => typeof file === 'string')
+			.sort()
+
+		const hashes = await Promise.all(files.map(file => generateFileHash(workspace, file).catch(() => 'missing')))
+
+		manifestFingerprint = createHash('sha1').update(JSON.stringify(stable)).update(hashes.join(',')).digest('hex')
+	}
 
 	for (const test of tests) {
 		if (stackFilters && stackFilters.length > 0) {
@@ -256,7 +280,8 @@ export const runTests = async (
 
 		for (const path of test.paths) {
 			const result = await runTest(test.name, path, testFilters, workspace, {
-				...opts,
+				showLogs: opts.showLogs,
+				fingerprint: manifestFingerprint,
 				env: {
 					...opts.env,
 					STACK: test.stackName,

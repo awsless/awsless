@@ -1,6 +1,22 @@
 import { ChildProcess } from 'child_process'
-import { Server } from 'http'
+import { IncomingMessage, Server } from 'http'
 import { createServer, Socket } from 'net'
+
+// The fake account every fully-local environment synthesizes with -
+// the dev environment & the test runner share it.
+export const LOCAL_ACCOUNT_ID = '000000000000'
+
+// Reads a request body with an error listener attached: a request
+// stream failing without one (like a reset connection) throws out of
+// the emitter & takes down the whole dev process.
+export const readBody = (req: IncomingMessage) => {
+	return new Promise<Buffer>((resolve, reject) => {
+		const chunks: Buffer[] = []
+		req.on('data', chunk => chunks.push(chunk))
+		req.on('error', reject)
+		req.on('end', () => resolve(Buffer.concat(chunks)))
+	})
+}
 
 // Gracefully stops a spawned child process. A ctrl-c in the terminal
 // signals the whole process group, so the child may already be dead by

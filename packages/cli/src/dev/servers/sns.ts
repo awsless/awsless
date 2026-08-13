@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { trackConnections } from '../util.js'
+import { readBody, trackConnections } from '../util.js'
 
 type PublishInput = {
 	TopicArn?: string
@@ -94,34 +94,45 @@ export const createSnsServer = () => {
 		// a stale reserved port can never end up in the environment.
 		async listen(port = 0) {
 			server = createServer((req, res) => {
-				const chunks: Buffer[] = []
-				req.on('data', chunk => chunks.push(chunk))
-				req.on('end', () => {
-					const body = Buffer.concat(chunks).toString()
-					const target = String(req.headers['x-amz-target'] ?? '')
-					const isJson = target.length > 0
-
-					const input = isJson ? (JSON.parse(body || '{}') as PublishInput) : parseQueryPublish(body)
-					const action = isJson ? target.split('.').at(-1) : new URLSearchParams(body).get('Action')
-
-					if (action !== 'Publish') {
-						res.writeHead(400, { 'content-type': 'text/plain' })
-						res.end(`The local dev sns emulator only supports Publish, got: ${action}`)
+				// A bad body or read error answers 400 instead of throwing
+				// out of the handler & killing the dev process.
+				const fail = (error: unknown) => {
+					if (res.writableEnded || res.destroyed) {
 						return
 					}
 
-					const messageId = publish(input)
+					res.writeHead(400, { 'content-type': 'text/plain' })
+					res.end(error instanceof Error ? error.message : String(error))
+				}
 
-					if (isJson) {
-						res.writeHead(200, { 'content-type': 'application/x-amz-json-1.0' })
-						res.end(JSON.stringify({ MessageId: messageId }))
-					} else {
-						res.writeHead(200, { 'content-type': 'text/xml' })
-						res.end(
-							`<?xml version="1.0"?>\n<PublishResponse xmlns="https://sns.amazonaws.com/doc/2010-03-31/"><PublishResult><MessageId>${messageId}</MessageId></PublishResult><ResponseMetadata><RequestId>${randomUUID()}</RequestId></ResponseMetadata></PublishResponse>`
-						)
-					}
-				})
+				void readBody(req)
+					.then(raw => {
+						const body = raw.toString()
+						const target = String(req.headers['x-amz-target'] ?? '')
+						const isJson = target.length > 0
+
+						const input = isJson ? (JSON.parse(body || '{}') as PublishInput) : parseQueryPublish(body)
+						const action = isJson ? target.split('.').at(-1) : new URLSearchParams(body).get('Action')
+
+						if (action !== 'Publish') {
+							res.writeHead(400, { 'content-type': 'text/plain' })
+							res.end(`The local dev sns emulator only supports Publish, got: ${action}`)
+							return
+						}
+
+						const messageId = publish(input)
+
+						if (isJson) {
+							res.writeHead(200, { 'content-type': 'application/x-amz-json-1.0' })
+							res.end(JSON.stringify({ MessageId: messageId }))
+						} else {
+							res.writeHead(200, { 'content-type': 'text/xml' })
+							res.end(
+								`<?xml version="1.0"?>\n<PublishResponse xmlns="https://sns.amazonaws.com/doc/2010-03-31/"><PublishResult><MessageId>${messageId}</MessageId></PublishResult><ResponseMetadata><RequestId>${randomUUID()}</RequestId></ResponseMetadata></PublishResponse>`
+							)
+						}
+					})
+					.catch(fail)
 			})
 
 			await new Promise<void>((resolve, reject) => {

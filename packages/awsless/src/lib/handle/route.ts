@@ -160,7 +160,9 @@ const extractParts = (event: EnvelopeEvent): Extracted => {
 	if (Object.keys(params).length === 0) {
 		for (const [name, value] of Object.entries(event.headers ?? {})) {
 			if (name.startsWith('x-param-')) {
-				params[name.slice('x-param-'.length)] = value
+				// The deployed router encodes the param value into the
+				// header, so it round-trips any character - decode it back.
+				params[name.slice('x-param-'.length)] = decodeURIComponent(value)
 			}
 		}
 	}
@@ -271,7 +273,13 @@ const toLambdaUrlResult = async (response: Response) => {
 	})
 
 	const buffer = Buffer.from(await response.arrayBuffer())
-	const textual = isTextual(headers['content-type'] ?? 'text/plain')
+
+	// Only a present textual content type marks the body as text: a
+	// Response over raw bytes has no content type (a string body gets
+	// text/plain automatically), and decoding unknown bytes as utf-8
+	// would corrupt them.
+	const contentType = headers['content-type']
+	const textual = typeof contentType === 'string' && isTextual(contentType)
 
 	return {
 		statusCode: response.status,
@@ -285,13 +293,11 @@ const toLambdaUrlResult = async (response: Response) => {
 // ------------------------------------------------------------------
 // Handlers
 
-type LambdaUrlResult = { statusCode: number; [key: string]: unknown }
-
 /** The request a route or site handler receives, validated against the route schemas. */
 export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>
 
 /** What a route or site handler may return: a web Response or a lambda url result object. */
-export type RouteResponse = Response | LambdaUrlResult
+export type RouteResponse = Response | RouteEntryResult
 
 type RouteResult = RouteResponse | Promise<RouteResponse>
 
@@ -334,12 +340,19 @@ export function route(
 		const result = await handler(event as EnvelopeInput, context)
 
 		// Validation & unexpected errors render as a json error
-		// response instead of a viewable error payload.
+		// response instead of a viewable error payload. A client
+		// sending bad input is a 400, not a server error.
 		if (isErrorResponse(result)) {
+			const error = result.__error__
+
 			return {
-				statusCode: 500,
+				statusCode: error.type === 'validation' ? 400 : 500,
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ message: result.__error__.message }),
+				body: JSON.stringify({
+					type: error.type,
+					message: error.message,
+					data: error.data,
+				}),
 			}
 		}
 
@@ -347,15 +360,9 @@ export function route(
 	}
 }
 
-// Site ssr handlers receive the same request object without any route
-// schemas & return either a web Response or the lambda url result.
-export const site = <H extends RouteHandler<{}>>(handle: H) => {
-	return lambda({
-		schema: routeSchema({}),
-		handle: async (request, context) => {
-			const result = await handle(request, context)
-
-			return result instanceof Response ? toLambdaUrlResult(result) : result
-		},
-	})
+// Site ssr handlers behave exactly like a schema-less route: the same
+// request object & the same error conversion into a json response -
+// an expected error must never serialize as a 200 error payload.
+export const site = <H extends RouteHandler<{}>>(handle: H): RouteEntry => {
+	return route(handle)
 }

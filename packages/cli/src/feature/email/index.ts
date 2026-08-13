@@ -14,14 +14,12 @@ export const emailFeature = defineFeature({
 	async onDev(ctx) {
 		// Every sent email is captured for the dashboard instead of
 		// being delivered.
-		const { server, port } = await ctx.keep('shim:ses-email', null, async () => {
+		const { port } = await ctx.keep('shim:ses-email', null, async () => {
 			const server = createSesServer()
 			const port = await server.listen()
 
 			return { value: { server, port }, stop: () => server.stop() }
 		})
-
-		void server
 
 		ctx.addEnv('AWS_ENDPOINT_URL_SESV2', `http://127.0.0.1:${port}`)
 		ctx.addEnv('AWS_ENDPOINT_URL_SES', `http://127.0.0.1:${port}`)

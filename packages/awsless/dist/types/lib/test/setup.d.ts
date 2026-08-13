@@ -4,14 +4,19 @@ export type TestManifest = {
     region: string;
     configs: Record<string, string>;
     tables: unknown[];
-    streams?: {
+    tableKeys: {
+        stack: string;
+        id: string;
+        keys: unknown;
+    }[];
+    streams: {
         stack: string;
         id: string;
         file: string;
         hash: string;
         sort?: string;
     }[];
-    searches?: {
+    searches: {
         stack: string;
         id: string;
         mappings: unknown;
@@ -30,27 +35,24 @@ export type TestManifest = {
     queues: {
         stack: string;
         id: string;
-        file: string;
+        file?: string;
     }[];
     topics: string[];
     pubsub: string[];
-    caches?: {
+    caches: {
         stack: string;
         id: string;
     }[];
-    alerts?: string[];
-    jobs?: {
+    alerts: string[];
+    jobs: {
         stack: string;
         id: string;
     }[];
-    instances?: {
+    instances: {
         stack: string;
         id: string;
     }[];
     servers?: {
-        dynamo?: {
-            endpoint: string;
-        };
         redis?: {
             host: string;
             port: number;
