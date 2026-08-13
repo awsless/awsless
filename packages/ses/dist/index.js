@@ -1,10 +1,11 @@
 // src/mock.ts
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { mockClient } from "aws-sdk-client-mock";
-var mockSES = () => {
-  const fn = vi.fn();
-  mockClient(SESv2Client).on(SendEmailCommand).callsFake(() => {
-    fn();
+var mockSES = (handler) => {
+  const fn = vi.fn(handler ?? (() => {
+  }));
+  mockClient(SESv2Client).on(SendEmailCommand).callsFake((input) => {
+    fn(input);
   });
   beforeEach(() => {
     fn.mockClear();

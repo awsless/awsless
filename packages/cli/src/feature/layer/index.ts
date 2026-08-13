@@ -10,7 +10,7 @@ import { shortId } from '../../util/id.js'
 export const layerFeature = defineFeature({
 	name: 'layer',
 	// onValidate(ctx) {
-	// 	const layers = Object.keys(ctx.appConfig.defaults.layers ?? [])
+	// 	const layers = Object.keys(ctx.appConfig.layers ?? [])
 
 	// 	for (const stack of ctx.stackConfigs) {
 	// 		const stackLayers = stackSearch<string[]>(stack, 'layers').flat()
@@ -22,7 +22,7 @@ export const layerFeature = defineFeature({
 	// 	}
 	// },
 	onApp(ctx) {
-		const layers = Object.entries(ctx.appConfig.defaults.layers ?? {})
+		const layers = Object.entries(ctx.appConfig.layers ?? {})
 
 		if (layers.length === 0) {
 			return

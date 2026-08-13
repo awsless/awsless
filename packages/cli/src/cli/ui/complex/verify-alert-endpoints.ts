@@ -46,7 +46,7 @@ export const verifyAlertEndpoints = async (props: Props) => {
 const resolveAlertEndpoints = (props: Props): ResolvedAlerts => {
 	const alerts: ResolvedAlerts = {}
 
-	for (const [id, endpoints] of Object.entries(props.appConfig.defaults.alerts ?? {})) {
+	for (const [id, endpoints] of Object.entries(props.appConfig.alerts ?? {})) {
 		const resolved: string[] = []
 
 		for (const endpoint of endpoints) {

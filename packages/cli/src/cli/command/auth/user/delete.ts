@@ -24,7 +24,7 @@ export const del = (program: Command) => {
 				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const pools = Object.keys(appConfig.defaults.auth ?? {})
+				const pools = Object.keys(appConfig.auth ?? {})
 
 				if (pools.length === 0) {
 					throw new ExpectedError('No auth resources are defined.')

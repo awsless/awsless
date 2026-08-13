@@ -145,7 +145,7 @@ export const registerFunctionBuild = (
 		wrapper?: string
 	}
 ) => {
-	const exportName = parseExportName(props.handler ?? ctx.appConfig.defaults.function.handler!)
+	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler!)
 
 	ctx.registerBuild('function', name, async (build, { workspace }) => {
 		const fingerprint = createHash('sha1')
@@ -277,14 +277,14 @@ export default (event, context) => {
 // it deploys in place & doesn't participate in blue-green deployments.
 export const createLambdaFunction = (ctx: StackContext, id: string, local: StackFunctionProps) => {
 	const group = new Group(ctx.stack, 'function', id)
-	const props = deepmerge(ctx.appConfig.defaults.function, local)
+	const props = deepmerge(ctx.appConfig.function, local)
 
 	if (props.runtime === 'container') {
 		throw new FileError(ctx.stackConfig.file, `The "container" runtime isn't supported for stack functions.`)
 	}
 
 	for (const layerId of props.layers ?? []) {
-		if (!(layerId in (ctx.appConfig.defaults.layers ?? {}))) {
+		if (!(layerId in (ctx.appConfig.layers ?? {}))) {
 			throw new FileError(ctx.stackConfig.file, `Layer "${layerId}" is not defined in app.json`)
 		}
 	}
@@ -565,7 +565,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 
 				// The proxy forwards synchronously, so it needs at least the
 				// same timeout as the bundle.
-				timeout: ctx.appConfig.defaults.function.timeout,
+				timeout: ctx.appConfig.function.timeout,
 
 				log: {
 					format: 'json',

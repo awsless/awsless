@@ -8,6 +8,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { createSchedulerServer } from '../../dev/servers/scheduler.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -34,21 +35,62 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const taskFeature = defineFeature({
 	name: 'task',
+	async onDev(ctx) {
+		const tasks = ctx.stackConfigs.flatMap(stack => {
+			return Object.keys(stack.tasks ?? {}).map(id => ({ stackName: stack.name, id }))
+		})
+
+		if (tasks.length === 0) {
+			return
+		}
+
+		for (const { stackName, id } of tasks) {
+			ctx.registerResource({
+				kind: 'task',
+				stack: stackName,
+				id,
+				routeKey: formatRouteKey(stackName, 'task', id),
+			})
+		}
+
+		// Immediate task invokes already flow through the local lambda
+		// emulator. Delayed tasks create one-off schedules, which the
+		// local scheduler emulator turns into timers.
+		// The shim survives restarts, so long lived children (like the
+		// vite dev server) keep a valid endpoint.
+		const { server, port } = await ctx.keep('shim:scheduler', null, async () => {
+			const server = createSchedulerServer()
+			const port = await server.listen()
+
+			return { value: { server, port }, stop: () => server.stop() }
+		})
+
+		ctx.addEnv('AWS_ENDPOINT_URL_SCHEDULER', `http://127.0.0.1:${port}`)
+
+		ctx.registerServer({
+			name: 'scheduler',
+			start({ dispatch, reportFailure }) {
+				server.connect(dispatch, reportFailure)
+			},
+		})
+	},
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.tasks || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -63,19 +105,19 @@ export const taskFeature = defineFeature({
 
 				types.addImport(varName, relFile)
 				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				mock.addType(name, `MockBuilder<typeof ${varName}>`)
-				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('task', testMocks)
 
 		types.addCode(typeGenCode)
 		types.addInterface('TaskResources', resources)
-		types.addInterface('TaskMock', mocks)
-		types.addInterface('TaskMockResponse', mockResponses)
+		types.addInterface('TestMock', testMock)
 
 		await ctx.write('task.d.ts', types, true)
 	},

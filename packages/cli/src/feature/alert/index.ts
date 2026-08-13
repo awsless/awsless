@@ -19,6 +19,10 @@ type Alert<Name extends string> = {
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry = MockBuilder & Mock<(payload: unknown) => unknown>
 `
 
 export const alertFeature = defineFeature({
@@ -26,10 +30,9 @@ export const alertFeature = defineFeature({
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
-		for (const alert of Object.keys(ctx.appConfig.defaults.alerts ?? {})) {
+		for (const alert of Object.keys(ctx.appConfig.alerts ?? {})) {
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
 				resourceType: 'alert',
@@ -37,19 +40,20 @@ export const alertFeature = defineFeature({
 			})
 
 			resources.addType(alert, `Alert<'${name}'>`)
-			mockResponses.addType(alert, 'Mock')
-			mocks.addType(alert, `MockBuilder`)
+			testMocks.addType(alert, `TestMockEntry`)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('alert', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('AlertResources', resources)
-		gen.addInterface('AlertMock', mocks)
-		gen.addInterface('AlertMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('alert.d.ts', gen, true)
 	},
 	onApp(ctx) {
-		for (const [id, endpoints] of Object.entries(ctx.appConfig.defaults.alerts ?? {})) {
+		for (const [id, endpoints] of Object.entries(ctx.appConfig.alerts ?? {})) {
 			const group = new Group(ctx.base, 'alert', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,

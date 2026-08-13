@@ -1,12 +1,15 @@
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { kebabCase } from 'change-case'
+import { cp } from 'fs/promises'
 import { glob } from 'glob'
 import { join } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
+import { formatGlobalResourceName } from '../../util/name.js'
+import { directories } from '../../util/path.js'
 import { toDays } from '@awsless/duration'
 import { getFeatureFolder } from '../asset/index.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
@@ -39,6 +42,70 @@ const eventMap: Record<string, string> = {
 
 export const storeFeature = defineFeature({
 	name: 'store',
+	async onDev(ctx) {
+		const stores = ctx.stackConfigs.flatMap(stack => Object.entries(stack.stores ?? {}))
+
+		if (stores.length === 0) {
+			return
+		}
+
+		// The same notification rules as the deployed bucket notification.
+		const rules = ctx.stackConfigs.flatMap(stack => {
+			return Object.entries(stack.stores ?? {}).flatMap(([id, props]) => {
+				const folder = getFeatureFolder('store', stack.name, id)
+
+				return Object.keys(props.events ?? {}).map(event => {
+					const eventId = kebabCase(`${id}-${shortId(event)}`)
+
+					return {
+						id: formatRouteKey(stack.name, 'store', eventId),
+						events: [eventMap[event]!],
+						prefix: folder,
+					}
+				})
+			})
+		})
+
+		for (const stack of ctx.stackConfigs) {
+			for (const id of Object.keys(stack.stores ?? {})) {
+				ctx.registerResource({
+					kind: 'store',
+					stack: stack.name,
+					id,
+					detail: getFeatureFolder('store', stack.name, id),
+				})
+			}
+		}
+
+		// The shared store server carries every feature's bucket data -
+		// this feature contributes its notification rules & its declared
+		// static files.
+		const shared = await ctx.useStore()
+
+		shared.rules.push(...rules)
+
+		// The static files exist locally like the deploy uploads them,
+		// so Store.has/get find them.
+		const bucket = formatGlobalResourceName({
+			appName: ctx.appConfig.name,
+			resourceType: 'store',
+			resourceName: 'assets',
+			postfix: ctx.appId,
+		})
+
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, props] of Object.entries(stack.stores ?? {})) {
+				if (typeof props.static === 'string') {
+					const folder = getFeatureFolder('store', stack.name, id)
+
+					await cp(props.static, join(directories.output, 'local', 'store', bucket, folder), {
+						recursive: true,
+						force: true,
+					})
+				}
+			}
+		}
+	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)

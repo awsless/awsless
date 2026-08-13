@@ -11,10 +11,12 @@ import {
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
+import { debug } from '../cli/debug.js'
 import { Region } from '../config/schema/region.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
+import { createOpenSearchProvider } from '../formation/open-search.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
@@ -59,9 +61,8 @@ export const createWorkSpace = async (props: BackendProps) => {
 	// 	providerLocation: join(homedir(), `.awsless/providers`),
 	// })
 
-	if (process.env.VERBOSE) {
-		enableDebug()
-	}
+	// The engine debug output always streams into the debug log file.
+	enableDebug((group, ...args) => debug(`${group}:`, ...args))
 
 	await aws.install()
 
@@ -80,6 +81,7 @@ export const createWorkSpace = async (props: BackendProps) => {
 			createCloudFrontKvsProvider(props),
 			createS3Provider(props),
 			createNameServersProvider(props),
+			createOpenSearchProvider(props),
 			// Backwards compatibility for old states, can be removed later.
 			createCustomProvider('cloudfront', {
 				invalidation: {},

@@ -10,6 +10,11 @@ minimumReleaseAgeExclude:
     - '@napi-rs/*'
     - '@emnapi/*'
 
+# Every v4 vitest resolves to one exact version, so the chai plugin
+# registration never mixes vitest subpackage versions.
+overrides:
+    'vitest@>=4': 4.1.10
+
 strictPeerDependencies: false
 gitChecks: false
 

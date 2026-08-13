@@ -18,6 +18,7 @@ describe('error', () => {
 			__error__: {
 				type: 'type',
 				message: 'message',
+				data: { foo: 'bar' },
 			},
 		})
 	})

@@ -84,11 +84,13 @@ type ErrorResponse = {
     __error__: {
         type: string;
         message: string;
+        data?: unknown;
     };
 };
 declare const isErrorResponse: (response: unknown) => response is ErrorResponse;
 declare const toErrorResponse: (error: Error & {
     type: string;
+    data?: unknown;
 }) => ErrorResponse;
 
 declare const lambdaClient: {

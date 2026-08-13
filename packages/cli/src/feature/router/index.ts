@@ -54,7 +54,7 @@ const createRouteStoreEntries = (key: string, route: object | object[]) => {
 export const routerFeature = defineFeature({
 	name: 'router',
 	onApp(ctx) {
-		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
+		const routers = Object.entries(ctx.appConfig.router ?? {})
 
 		// All routers share one route store and one deployment; the shared
 		// resources live in their own group, so renaming or reordering
@@ -530,6 +530,8 @@ export const routerFeature = defineFeature({
 							dependsOn: Array.from(routeDependencies),
 						}
 					)
+
+
 				})
 			}
 
@@ -597,7 +599,7 @@ export const routerFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, patterns] of Object.entries(ctx.stackConfig.routes ?? {})) {
-			if (!ctx.appConfig.defaults.router?.[id]) {
+			if (!ctx.appConfig.router?.[id]) {
 				throw new FileError(ctx.stackConfig.file, `Router "${id}" is not defined on the app level.`)
 			}
 
@@ -637,6 +639,26 @@ export const routerFeature = defineFeature({
 			}
 
 			addRoutes(merged)
+		}
+	},
+	onDev(ctx) {
+		// Register every route pattern on the local dev router with the
+		// same route key derivation as the deployed route store.
+		for (const stackConfig of ctx.stackConfigs) {
+			for (const [id, patterns] of Object.entries(stackConfig.routes ?? {})) {
+				for (const pattern of Object.keys(patterns)) {
+					const slug = kebabCase(pattern).slice(0, 20)
+					// MUST match the onStack derivation above, so the local
+					// router dispatches the same keys the bundle registers.
+					const routeKey = formatRouteKey(stackConfig.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
+
+					ctx.addRoute({
+						routerId: id,
+						pattern,
+						routeKey,
+					})
+				}
+			}
 		}
 	},
 })

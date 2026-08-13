@@ -1,0 +1,43 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "site",
+	"tests": false,
+	"routes": {
+		"main": {
+			"/sitemap.xml": "./src/sitemap.ts"
+		}
+	},
+	"images": {
+		"images": {
+			"router": "main",
+			"path": "/images",
+			"extensions": {
+				"png": {}
+			},
+			"presets": {
+				"default": {
+					"width": 200
+				}
+			},
+			"origin": {
+				"static": "./image"
+			}
+		}
+	},
+	"sites": {
+		"app": {
+			"router": "main",
+			"path": "/",
+			"static": {
+				"nocheck": "./dist"
+			},
+			"build": {
+				"command": "vite build",
+				"cacheKey": ["./index.html", "./src"]
+			},
+			"dev": {
+				"command": "vite --port $PORT --strictPort"
+			}
+		}
+	}
+}

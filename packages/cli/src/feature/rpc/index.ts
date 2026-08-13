@@ -13,9 +13,11 @@ import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'url'
 import { toSeconds } from '@awsless/duration'
+import { rpcOnDev } from './dev.js'
 
 export const rpcFeature = defineFeature({
 	name: 'rpc',
+	onDev: rpcOnDev,
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless/client')
 
@@ -26,7 +28,7 @@ export const rpcFeature = defineFeature({
 
 		const schemas = new TypeObject(1)
 
-		for (const id of Object.keys(ctx.appConfig.defaults.rpc ?? {})) {
+		for (const id of Object.keys(ctx.appConfig.rpc ?? {})) {
 			const schema = new TypeObject(2)
 
 			for (const stack of ctx.stackConfigs) {
@@ -49,7 +51,7 @@ export const rpcFeature = defineFeature({
 	onValidate(ctx) {
 		const names: Record<string, Set<string>> = {}
 
-		for (const id of Object.keys(ctx.appConfig.defaults.rpc ?? {})) {
+		for (const id of Object.keys(ctx.appConfig.rpc ?? {})) {
 			names[id] = new Set()
 		}
 
@@ -74,7 +76,7 @@ export const rpcFeature = defineFeature({
 	onApp(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
 
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.rpc ?? {})) {
+		for (const [id, props] of Object.entries(ctx.appConfig.rpc ?? {})) {
 			const group = new Group(ctx.base, 'rpc', id)
 
 			// ------------------------------------------------------
@@ -90,7 +92,7 @@ export const rpcFeature = defineFeature({
 
 			bundle.addEnv(
 				formatRouteEnvName(serverRouteKey, 'TIMEOUT'),
-				toSeconds(ctx.appConfig.defaults.function.timeout).toString()
+				toSeconds(ctx.appConfig.function.timeout).toString()
 			)
 
 			// ------------------------------------------------------
@@ -162,7 +164,7 @@ export const rpcFeature = defineFeature({
 		const bundle = ctx.shared.get('bundle', 'main')
 
 		for (const [id, queries] of Object.entries(ctx.stackConfig.rpc ?? {})) {
-			const defaultProps = ctx.appConfig.defaults.rpc?.[id]
+			const defaultProps = ctx.appConfig.rpc?.[id]
 
 			if (!defaultProps) {
 				throw new FileError(ctx.stackConfig.file, `RPC definition is not defined on app level for "${id}"`)

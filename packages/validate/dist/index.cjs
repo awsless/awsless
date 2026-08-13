@@ -195,25 +195,15 @@ var import_valibot7 = require("valibot");
 var snsTopic = (schema, message = "Invalid SNS Topic payload") => {
   return (0, import_valibot7.union)(
     [
-      // Prioritize the expected payload during production
+      // SNS always delivers exactly one record per invocation.
       (0, import_valibot7.pipe)(
         (0, import_valibot7.object)({
-          Records: (0, import_valibot7.array)(
-            (0, import_valibot7.object)({
-              Sns: (0, import_valibot7.object)({
-                Message: json(schema)
-              })
-            })
-          )
+          Records: (0, import_valibot7.pipe)((0, import_valibot7.array)((0, import_valibot7.object)({ Sns: (0, import_valibot7.object)({ Message: json(schema) }) })), (0, import_valibot7.minLength)(1))
         }),
-        (0, import_valibot7.transform)((v) => v.Records.map((r) => r.Sns.Message))
+        (0, import_valibot7.transform)((v) => v.Records[0].Sns.Message)
       ),
-      // These are allowed during testing
-      (0, import_valibot7.pipe)(
-        schema,
-        (0, import_valibot7.transform)((v) => [v])
-      ),
-      (0, import_valibot7.array)(schema)
+      // The plain payload is allowed during testing
+      schema
     ],
     message
   );

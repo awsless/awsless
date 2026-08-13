@@ -1,6 +1,6 @@
 {
 	"name": "awsless",
-	"version": "0.0.15-next.10",
+	"version": "0.1.1",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -15,20 +15,20 @@
 		"dist"
 	],
 	"module": "./dist/server.js",
-	"types": "./dist/server.d.ts",
+	"types": "./dist/types/server.d.ts",
 	"exports": {
 		".": {
-			"import": "./dist/server.js",
-			"types": "./dist/server.d.ts"
+			"types": "./dist/types/server.d.ts",
+			"import": "./dist/server.js"
 		},
 		"./client": {
-			"import": "./dist/client.js",
-			"types": "./dist/client.d.ts"
+			"types": "./dist/types/client.d.ts",
+			"import": "./dist/client.js"
 		}
 	},
 	"scripts": {
 		"test": "pnpm vitest run",
-		"build": "pnpm tsup ./src/server.ts ./src/client.ts --format esm --dts --clean",
+		"build": "pnpm tsup ./src/server.ts ./src/client.ts --format esm --clean && tsc -p tsconfig.build.json",
 		"prepublish": "pnpm build"
 	},
 	"peerDependencies": {
@@ -49,7 +49,8 @@
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
-		"vitest": ">=4"
+		"vitest": ">=4",
+		"@awsless/ses": "workspace:^"
 	},
 	"dependencies": {
 		"@awsless/big-float": "workspace:^",
@@ -64,6 +65,7 @@
 		"@awsless/redis": "workspace:^",
 		"@awsless/s3": "workspace:^",
 		"@awsless/scheduler": "workspace:^",
+		"@awsless/ses": "workspace:^",
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",

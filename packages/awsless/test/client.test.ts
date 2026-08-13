@@ -7,7 +7,7 @@ describe('HTTP client', () => {
 	})
 
 	it('should address the route and hash POST bodies for Lambda URL OAC', async () => {
-		const fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true })))
+		const fetch = vi.fn(async (..._args: [URL, RequestInit]) => new Response(JSON.stringify({ ok: true })))
 		vi.stubGlobal('fetch', fetch)
 
 		const body = { hello: 'world' }
@@ -28,7 +28,7 @@ describe('HTTP client', () => {
 	})
 
 	it('should hash empty POST bodies for Lambda URL OAC', async () => {
-		const fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true })))
+		const fetch = vi.fn(async (..._args: [URL, RequestInit]) => new Response(JSON.stringify({ ok: true })))
 		vi.stubGlobal('fetch', fetch)
 
 		await createHttpFetcher('https://example.com')({

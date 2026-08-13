@@ -75,8 +75,8 @@ describe('bundle', () => {
 			.map(getMeta)
 			.find(meta => meta.type === 'aws_lambda_function' && meta.urn.includes(':function:{bundle}:'))
 
-		expect(appConfig.defaults.function.minify).toBe(false)
-		expect('bundle' in appConfig.defaults.function).toBe(false)
+		expect(appConfig.function.minify).toBe(false)
+		expect('bundle' in appConfig.function).toBe(false)
 		expect(lambda?.input.memorySize).toBe(256)
 		expect(lambda?.input.timeout).toBe(20)
 	})
@@ -553,6 +553,26 @@ describe('bundle handler', () => {
 		await expect(handler({ '$awsless-route': 'unknown:cron:route', event: {} }, context)).rejects.toThrow(
 			'Unknown bundle route'
 		)
+	})
+
+	it('should silently drop topics without subscribers', async () => {
+		const before = topicInvokes.length
+		const event = {
+			Records: [
+				{
+					EventSource: 'aws:sns',
+					Sns: {
+						TopicArn: 'arn:aws:sns:eu-west-1:123456789:test-app--topic--nobody-listens',
+						Message: 'hello',
+					},
+				},
+			],
+		}
+
+		// Publishing to a topic without subscribers is a no-op on aws,
+		// so the bundle drops it instead of erroring.
+		await expect(handler(event, context)).resolves.toBeUndefined()
+		expect(topicInvokes.length).toBe(before)
 	})
 
 	it('should rethrow for a single failing topic subscriber', async () => {

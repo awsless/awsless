@@ -5,12 +5,13 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { createLambdaFunctionFromZip, registerFunctionBuild } from '../function/util.js'
 
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
 	onApp(ctx) {
-		const props = ctx.appConfig.defaults.onErrorLog
+		const props = ctx.appConfig.onErrorLog
 
 		if (!props) {
 			return
@@ -18,6 +19,17 @@ export const onErrorLogFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'on-error-log', 'main')
 		const consumer = props.consumer
+
+		// The local dev environment has no stand-alone lambdas - the
+		// consumer builds into the local bundle worker instead. The
+		// bundle feature runs after this one, so the registration waits
+		// until every feature has set up.
+		if (ctx.dev) {
+			ctx.onReady(() => {
+				registerBundleFunction(ctx, formatRouteKey('base', 'on-error-log', 'consumer'), consumer)
+			})
+			return
+		}
 
 		// ------------------------------------------------
 		// Build the log handler & consumer into a single
@@ -43,9 +55,9 @@ export const onErrorLogFeature = defineFeature({
 			sourceHash: build.sourceHash,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
-			memorySize: consumer.memorySize ?? ctx.appConfig.defaults.function.memorySize,
-			timeout: consumer.timeout ?? ctx.appConfig.defaults.function.timeout,
-			architecture: consumer.architecture ?? ctx.appConfig.defaults.function.architecture,
+			memorySize: consumer.memorySize ?? ctx.appConfig.function.memorySize,
+			timeout: consumer.timeout ?? ctx.appConfig.function.timeout,
+			architecture: consumer.architecture ?? ctx.appConfig.function.architecture,
 			vpc: consumer.vpc,
 			log: {
 				format: consumer.log?.format ?? 'json',

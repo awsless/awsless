@@ -23,5 +23,10 @@ export const VERSION_3_5_0_MIN: VersionArgs = {
 
 		'path.data': `${cache}/data`,
 		'path.logs': `${cache}/logs`,
+
+		// 3.x blocks index creation cluster-wide once the disk passes the
+		// 90% watermark - percentage-based paranoia that breaks the local
+		// server on any well-filled dev machine.
+		'cluster.routing.allocation.disk.threshold_enabled': 'false',
 	}),
 }

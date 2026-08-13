@@ -24,7 +24,10 @@ var toErrorResponse = (error) => {
     __error__: {
       type: error.type,
       // name: error.name,
-      message: error.message
+      message: error.message,
+      // The viewable data rides along, so a caller (or the http
+      // error response) keeps the structured details.
+      data: error.data
     }
   };
 };

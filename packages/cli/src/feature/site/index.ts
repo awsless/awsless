@@ -14,11 +14,13 @@ import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { createLambdaFunction, isStandaloneFunction } from '../function/util.js'
 import { Route } from '../router/route.js'
+import { binPath, siteOnDev } from './dev.js'
 import { planStaticRoutes } from './static-routes.js'
 import { getFeatureFolder } from '../asset/index.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
+	onDev: siteOnDev,
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
 			const group = new Group(ctx.stack, 'site', id)
@@ -36,7 +38,10 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Build your site
 
-			if (props.build) {
+			// A site with a dev command is fully served by its own dev
+			// server locally, so the local dev environment never needs its
+			// build output & skips the (expensive) build entirely.
+			if (props.build && !(ctx.dev && props.dev)) {
 				const buildProps = props.build
 				ctx.registerBuild('site', name, async build => {
 					const fingerprint = await generateCacheKey(buildProps.cacheKey)
@@ -48,6 +53,10 @@ export const siteFeature = defineFeature({
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
 						const env: Record<string, string | undefined> = {
 							...process.env,
+
+							// Resolve bins from every ancestor node_modules/.bin,
+							// like npm scripts do.
+							PATH: binPath(cwd),
 
 							// Never inherit NODE_ENV=test from an in-process test run,
 							// it would flip the Config proxy into mock mode mid-build.
@@ -122,7 +131,11 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Server Side Rendering
 
-			if (props.ssr && isStandaloneFunction(props.ssr)) {
+			if (props.ssr && ctx.dev && props.dev) {
+				// The site dev server renders ssr itself locally, so the ssr
+				// handler stays out of the local dev bundle - often the
+				// biggest part of the bundle build.
+			} else if (props.ssr && isStandaloneFunction(props.ssr) && !ctx.dev) {
 				// A custom lambda config deploys the ssr as its own stand-alone
 				// lambda & the router hits its function url directly, with the
 				// same cloudfront signing as the shared bundle url.

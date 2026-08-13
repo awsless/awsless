@@ -8,15 +8,19 @@ var searchClient = (options = {}, service = "es") => {
   if (mock) {
     return mock;
   }
+  const node = options.node ?? "https://" + process.env.SEARCH_DOMAIN;
+  const first = Array.isArray(node) ? node[0] : node;
+  const nodeUrl = typeof first === "string" ? first : String(first?.url ?? "");
   return new Client({
-    node: "https://" + process.env.SEARCH_DOMAIN,
+    node,
     // Fail fast inside a lambda instead of the 30s default, & skip
     // socket reuse since frozen sandboxes hold dead sockets.
-    // Both can be overridden through the options.
+    // Both can be overridden through the options. The local dev &
+    // test servers run plain http, where an https agent won't fly.
     requestTimeout: 5e3,
-    agent: () => new Agent({
+    agent: nodeUrl.startsWith("https") ? () => new Agent({
       keepAlive: false
-    }),
+    }) : void 0,
     ...AwsSigv4Signer({
       region: process.env.AWS_REGION,
       service,
@@ -82,12 +86,15 @@ var download = async ({ version }) => {
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
   const checksumResponse = await fetch(`${url}.sha512`, { method: "GET" });
-  if (checksumResponse.ok) {
-    const checksum = (await checksumResponse.text()).split(/\s+/)[0];
-    const digest = createHash("sha512").update(buffer).digest("hex");
-    if (checksum && digest !== checksum) {
-      throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`);
-    }
+  if (!checksumResponse.ok) {
+    throw new Error(
+      `Downloading the OpenSearch checksum failed with status ${checksumResponse.status}: ${url}.sha512`
+    );
+  }
+  const checksum = (await checksumResponse.text()).split(/\s+/)[0];
+  const digest = createHash("sha512").update(buffer).digest("hex");
+  if (digest !== checksum) {
+    throw new Error(`The OpenSearch archive doesn't match its published sha512 checksum: ${url}`);
   }
   const staging = join(path, `staging-${process.pid}`);
   await mkdir(staging, { recursive: true, mode: "0777" });
@@ -185,7 +192,8 @@ var launch = ({ path, host, port, version, debug }) => {
     if (process.platform === "darwin") {
       const javaHome = await findJavaHome();
       if (!javaHome) {
-        throw new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".');
+        reject(new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".'));
+        return;
       }
       env.OPENSEARCH_JAVA_HOME = javaHome;
     }
@@ -255,7 +263,11 @@ var VERSION_3_5_0_MIN = {
     "http.host": host,
     "http.port": port,
     "path.data": `${cache}/data`,
-    "path.logs": `${cache}/logs`
+    "path.logs": `${cache}/logs`,
+    // 3.x blocks index creation cluster-wide once the disk passes the
+    // 90% watermark - percentage-based paranoia that breaks the local
+    // server on any well-filled dev machine.
+    "cluster.routing.allocation.disk.threshold_enabled": "false"
   })
 };
 
@@ -654,7 +666,9 @@ export {
   define,
   deleteIndex,
   deleteItem,
+  download,
   indexItem,
+  launch,
   mockOpenSearch,
   number,
   object,

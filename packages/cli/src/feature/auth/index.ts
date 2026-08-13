@@ -5,6 +5,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { authOnDev } from './dev.js'
 // import { createAsyncLambdaFunction } from '../function/util.js'
 import { toDays, toHours } from '@awsless/duration'
 
@@ -20,11 +21,12 @@ import { toDays, toHours } from '@awsless/duration'
 
 export const authFeature = defineFeature({
 	name: 'auth',
+	onDev: authOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
 
-		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
+		for (const name of Object.keys(ctx.appConfig.auth)) {
 			resources.addType(name, `{ readonly userPoolId: string, readonly clientId: string }`)
 		}
 
@@ -128,7 +130,7 @@ export const authFeature = defineFeature({
 	// 	// }
 	// },
 	onApp(ctx) {
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
+		for (const [id, props] of Object.entries(ctx.appConfig.auth ?? {})) {
 			const group = new Group(ctx.base, 'auth', id)
 
 			// let emailConfig: aws.cognito.UserPoolProps['email'] | undefined

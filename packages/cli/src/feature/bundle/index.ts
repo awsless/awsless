@@ -26,7 +26,7 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// Create the app bundle lambda that contains all handlers.
 
-		const defaults = ctx.appConfig.defaults.function
+		const defaults = ctx.appConfig.function
 		const group = new Group(ctx.base, 'function', 'bundle')
 
 		// ------------------------------------------------------
@@ -70,7 +70,7 @@ export const bundleFeature = defineFeature({
 		// Attach the configured layers & keep their packages out
 		// of the bundle, so imports resolve from the layer.
 
-		const layerIds = Object.keys(ctx.appConfig.defaults.layers ?? {})
+		const layerIds = Object.keys(ctx.appConfig.layers ?? {})
 		const layerPackages = layerIds.flatMap(id => ctx.shared.entry('layer', 'packages', id))
 
 		for (const id of layerIds) {
@@ -94,7 +94,9 @@ export const bundleFeature = defineFeature({
 			buildBundle({
 				name,
 				handlers,
-				minify: defaults.minify,
+				// The local dev bundle skips minification - it only costs
+				// reload time & garbles stack traces.
+				minify: ctx.dev ? false : defaults.minify,
 				external: [...(defaults.external ?? []), ...layerPackages],
 			})
 		)

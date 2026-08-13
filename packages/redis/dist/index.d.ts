@@ -1,8 +1,18 @@
+import { Redis, Cluster, RedisOptions } from 'ioredis';
 import { Numeric } from '@awsless/big-float';
 import { Duration } from '@awsless/duration';
-import { RedisOptions } from 'ioredis';
 
 declare const mockRedis: () => void;
+
+declare class RedisServer {
+    private client?;
+    private process?;
+    start(port?: number, version?: string, args?: string[]): Promise<void>;
+    kill(): Promise<void>;
+    getPort(): Promise<number>;
+    ping(): Promise<boolean>;
+    getClient(): Promise<Redis | Cluster>;
+}
 
 type InputValue = number | string;
 type RedisCommandOptions = {
@@ -1137,4 +1147,4 @@ declare const createRedisClient: (options: RedisClientOptions) => RedisClient;
 
 declare const createLazyClient: (cb: () => RedisClient) => RedisClient;
 
-export { type Command, type InputValue, type IoRedisOptions, type RedisClient, type RedisClientOptions, type RedisCommand, type RedisCommandOptions, createIoRedisClient, createLazyClient, createRedisClient, mockRedis, overrideOptions, index as redis };
+export { type Command, type InputValue, type IoRedisOptions, type RedisClient, type RedisClientOptions, type RedisCommand, type RedisCommandOptions, RedisServer, createIoRedisClient, createLazyClient, createRedisClient, mockRedis, overrideOptions, index as redis };

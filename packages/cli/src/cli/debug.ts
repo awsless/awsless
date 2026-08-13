@@ -1,33 +1,58 @@
-import { color } from './ui/style.js'
+import { appendFileSync, mkdirSync, writeFileSync } from 'fs'
+import { join } from 'path'
+import { directories } from '../util/path.js'
 
-const queue: {
-	date: Date
-	// color: string
-	type: string
-	message: string
-}[] = []
+// Debug logs always write to a plain text log file, so the terminal
+// ui stays clean & the last run stays inspectable after a crash. The
+// file truncates at the start of every run.
+export const debugLogFile = join(directories.output, 'debug.log')
 
-export const debugError = (error: unknown) => {
-	queue.push({
-		date: new Date(),
-		type: color.error.dim('error'),
-		message:
-			typeof error === 'string'
-				? error
-				: error instanceof Error
-					? color.error(error.message || '')
-					: JSON.stringify(error),
-	})
+let ready = false
+
+// Called at the start of every cli run, so the file only ever holds
+// the current run.
+export const clearDebugLog = () => {
+	try {
+		mkdirSync(directories.output, { recursive: true })
+		writeFileSync(debugLogFile, '')
+		ready = true
+	} catch (_) {
+		// Debug logging must never take down the cli.
+	}
+}
+
+const write = (type: string, message: string) => {
+	try {
+		if (!ready) {
+			clearDebugLog()
+		}
+
+		appendFileSync(debugLogFile, `${new Date().toISOString()} [${type}] ${message}\n`)
+	} catch (_) {
+		// Debug logging must never take down the cli.
+	}
+}
+
+const format = (parts: unknown[]) => {
+	return parts
+		.map(part => {
+			if (typeof part === 'string') {
+				return part
+			}
+
+			if (part instanceof Error) {
+				return part.stack ?? part.message
+			}
+
+			return JSON.stringify(part)
+		})
+		.join(' ')
 }
 
 export const debug = (...parts: unknown[]) => {
-	queue.push({
-		date: new Date(),
-		type: color.warning.dim('debug'),
-		message: parts.map(part => (typeof part === 'string' ? part : JSON.stringify(part))).join(' '),
-	})
+	write('debug', format(parts))
 }
 
-export const flushDebug = () => {
-	return queue.splice(0, queue.length)
+export const debugError = (error: unknown) => {
+	write('error', format([error]))
 }

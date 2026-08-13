@@ -3,15 +3,57 @@
 	"name": "app-jack",
 	"region": "us-east-1",
 	"profile": "jacksclub",
+	// "protect": true,
+	//
 
-	"configs": ["test"],
+	"configs": ["admin-secret", "max-tasks"],
+	"seed": "./todo/seed.ts",
+	"test": {
+		"configs": {
+			"admin-secret": "test-secret",
+			"max-tasks": "10"
+		}
+	},
 
-	"defaults": {
-		"function": {
-			"log": {
-				"retention": "1 days",
-				"level": "trace"
-			}
+	"onFailure": "./on-failure.ts",
+	"domains": {
+		"main": {
+			"domain": "awsless.com"
+		}
+	},
+	"router": {
+		"main": {
+			"domain": "main"
+		}
+	},
+	"rpc": {
+		"main": {
+			"router": "main",
+			"path": "/api",
+			"auth": "./rpc-auth.ts"
+		}
+	},
+	"rest": {
+		"hooks": {}
+	},
+
+	// "auth": {
+	// 	"users": {
+	// 		"groups": ["admin", "support", "marketing"]
+	// 	}
+	// },
+	"pubsub": {
+		"main": {
+			"router": "main",
+			"path": "/ws",
+			"auth": "./auth-pubsub.ts"
+		}
+	},
+	"topics": ["task-created"],
+	"function": {
+		"log": {
+			"retention": "1 days",
+			"level": "trace"
 		}
 	}
 }

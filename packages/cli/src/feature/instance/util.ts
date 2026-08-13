@@ -40,7 +40,7 @@ export const createFargateTask = (
 
 	const shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 
-	const props = deepmerge(ctx.appConfig.defaults.instance, local)
+	const props = deepmerge(ctx.appConfig.instance, local)
 
 	const image =
 		props.image ||
@@ -450,8 +450,8 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 	// Add user defined permissions
 
-	if (ctx.appConfig.defaults.instance.permissions) {
-		statements.push(...ctx.appConfig.defaults.instance.permissions)
+	if (ctx.appConfig.instance.permissions) {
+		statements.push(...ctx.appConfig.instance.permissions)
 	}
 
 	if (local.permissions) {

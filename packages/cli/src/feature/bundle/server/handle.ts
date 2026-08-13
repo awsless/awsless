@@ -16,7 +16,9 @@ import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
 import { imageHandler } from './resource/image.js'
+import { logHandler } from './resource/log.js'
 import { metricHandler } from './resource/metric.js'
+import { onFailureHandler } from './resource/on-failure.js'
 import { pubsubHandler } from './resource/pubsub.js'
 import { queueHandler } from './resource/queue.js'
 import { restHandler } from './resource/rest.js'
@@ -32,6 +34,9 @@ import { routeType } from './resource/util.js'
 
 type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unknown>
 
+// The local dev worker reads the active route to tag console output.
+export { getCurrentRoute } from 'awsless'
+
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
 
@@ -43,6 +48,11 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		iconHandler,
 		imageHandler,
 		metricHandler,
+		// The on-failure & on-error-log consumers only run as bundle
+		// routes on the local dev worker - deployed apps run them as
+		// stand-alone lambdas outside the bundle.
+		onFailureHandler,
+		logHandler,
 		queueHandler,
 		pubsubHandler,
 		topicHandler,
@@ -91,7 +101,12 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
-			console.trace(`Bundle route: ${match.key}`)
+			// Lambda's JSON logging turns console.trace into a structured
+			// TRACE entry, but plain node prints a full stack - so the
+			// local dev worker skips the route tracing.
+			if (process.env.AWSLESS_ENV !== 'local') {
+				console.trace(`Bundle route: ${match.key}`)
+			}
 
 			process.env.AWSLESS_ROUTE = match.key
 

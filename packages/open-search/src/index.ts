@@ -8,6 +8,10 @@ export { mockOpenSearch } from './mock'
 export { VERSION_3_5_0_MIN } from './server/version'
 export type { VersionArgs } from './server/version'
 
+// local server, used by the awsless local dev environment
+export { download } from './server/download'
+export { launch } from './server/launch'
+
 // table
 export { define, Table, AnyTable } from './table'
 

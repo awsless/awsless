@@ -33,21 +33,64 @@ type Send<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const queueFeature = defineFeature({
 	name: 'queue',
+	async onDev(ctx) {
+		const queues = ctx.stackConfigs.flatMap(stack => {
+			return Object.keys(stack.queues ?? {}).map(id => ({ stackName: stack.name, id }))
+		})
+
+		if (queues.length === 0) {
+			return
+		}
+
+		// The shared sqs shim survives restarts, so long lived children
+		// (like the vite dev server) keep a valid endpoint.
+		const { port, queues: registry } = await ctx.useSqs()
+
+		const named = queues.map(({ stackName, id }) => {
+			const name = `${formatLocalResourceName({
+				appName: ctx.appConfig.name,
+				stackName,
+				resourceType: 'queue',
+				resourceName: id,
+			})}.fifo`
+
+			registry.set(name, formatRouteKey(stackName, 'queue', id))
+
+			return { stackName, id, name }
+		})
+
+		for (const { stackName, id, name } of named) {
+			ctx.addEnv(
+				`QUEUE_${constantCase(stackName)}_${constantCase(id)}_URL`,
+				`http://127.0.0.1:${port}/000000000000/${name}`
+			)
+
+			ctx.registerResource({
+				kind: 'queue',
+				stack: stackName,
+				id,
+				routeKey: formatRouteKey(stackName, 'queue', id),
+				detail: name,
+			})
+		}
+	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.queues || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -63,33 +106,32 @@ export const queueFeature = defineFeature({
 
 					gen.addImport(varName, relFile)
 
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
 					resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 				} else {
 					resource.addType(name, `Send<'${queueName}', Func>`)
-					mock.addType(name, `MockBuilder<Func>`)
-					mockResponse.addType(name, `MockObject<Func>`)
+					testMock.addType(name, `TestMockEntry<Func>`)
 				}
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('queue', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('QueueResources', resources)
-		gen.addInterface('QueueMock', mocks)
-		gen.addInterface('QueueMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
+		const bundleTimeout = toSeconds(ctx.appConfig.function.timeout)
 
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
-			const props = deepmerge(ctx.appConfig.defaults.queue, local)
+			const props = deepmerge(ctx.appConfig.queue, local)
 
 			const group = new Group(ctx.stack, 'queue', id)
 			const baseName = formatLocalResourceName({

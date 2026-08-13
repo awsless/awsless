@@ -8,7 +8,6 @@ export type ProgramOptions = {
 	// profile?: string
 	// region?: string
 	mute?: boolean
-	verbose?: boolean
 }
 
 const program = new Command()
@@ -21,15 +20,10 @@ program.option('--stage <string>', 'The stage to use')
 // program.option('--region <string>', 'The AWS region to use')
 program.option('-c --no-cache', 'Always build & test without the cache')
 program.option('-s --skip-prompt', 'Skip prompts')
-program.option('-v --verbose', 'Print verbose logs')
 // program.option('-m --mute', 'Mute sound effects')
 
 program.exitOverride(error => {
 	process.exit(error.exitCode)
-})
-
-program.on('option:verbose', () => {
-	process.env.VERBOSE = program.opts().verbose ? '1' : undefined
 })
 
 program.on('option:skip-prompt', () => {

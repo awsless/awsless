@@ -28,6 +28,14 @@ declare class Schema<Encoded, Input, Output> {
 declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") => Client;
 
 type Settings = Record<string, string | number | boolean>;
+type Options$5 = {
+    path: string;
+    host: string;
+    port: number;
+    debug?: boolean;
+    version: VersionArgs;
+};
+declare const launch: ({ path, host, port, version, debug }: Options$5) => Promise<() => Promise<void>>;
 
 type Version = `${string}.${string}.${string}`;
 type VersionArgs = {
@@ -46,6 +54,8 @@ type Options$4 = {
     debug?: boolean;
 };
 declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
+
+declare const download: ({ version }: Pick<VersionArgs, "version">) => Promise<string>;
 
 type Table<I extends string, S extends AnySchema> = {
     index: I;
@@ -172,4 +182,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

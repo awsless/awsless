@@ -3,15 +3,19 @@ import { getCurrentRoute } from './bundle.js'
 
 export const APP = process.env.APP!
 export const APP_ID = process.env.APP_ID!
-
 export const IS_TEST = !!process.env['VITEST'] || process.env['NODE_ENV'] === 'test'
+// Local dev mode (`awsless dev`) is a third mode, separate from IS_TEST:
+// tests bypass bundle routing to keep name-keyed mocks working, while local
+// dev keeps the production code paths and redirects the AWS boundary instead.
+export const IS_LOCAL = process.env.AWSLESS_ENV === 'local'
 export const REGION = process.env.AWS_REGION!
 export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID!
 export const STACK = process.env.STACK!
 
 // One bundled lambda process hosts every stack, so the active route
 // is only known while a request is being handled, not at startup.
-export const getStack = () => (getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(':')[0] ?? STACK
+export const getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE
+export const getStack = () => getRoute()?.split(':')[0] ?? STACK
 
 export const formatResourceName = (opt: {
 	prefix?: string
@@ -56,3 +60,4 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		}) as `${typeof APP}--${T}--${N}`
 	}
 }
+

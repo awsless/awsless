@@ -4,6 +4,7 @@ import { readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { Builder, getBuildPath } from '../../build/index.js'
+import { directories } from '../../util/path.js'
 import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
@@ -38,7 +39,7 @@ export const registerBundleFunction = (
 	bundle.addHandler({
 		routeKey,
 		file: props.code.file,
-		exportName: parseExportName(props.handler ?? ctx.appConfig.defaults.function.handler!),
+		exportName: parseExportName(props.handler ?? ctx.appConfig.function.handler!),
 		external: props.code.external,
 		importAsString: props.code.importAsString,
 		moduleSideEffects: props.code.moduleSideEffects,
@@ -80,12 +81,30 @@ for (const name in env) {
 	process.env[name] ??= env[name]
 }
 
-const { createBundle } = await import(${JSON.stringify(runtime)})
+const runtime = await import(${JSON.stringify(runtime)})
 
-export default createBundle({
+// The local dev worker tags console output with the active route. A
+// lazy accessor instead of a re-export, since a static re-export would
+// hoist the runtime import above the env application.
+export const getCurrentRoute = () => runtime.getCurrentRoute?.()
+
+export default runtime.createBundle({
 ${entries.join('\n')}
 })
 `
+		// The lockfile joins the fingerprint, so dependency updates
+		// rebuild the bundle - the source files alone can't see them.
+		// A fixed priority order keeps the fingerprint stable when more
+		// than one lockfile exists.
+		let lockfile = Buffer.alloc(0)
+
+		for (const name of ['pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'package-lock.json', 'yarn.lock']) {
+			try {
+				lockfile = await readFile(join(directories.root, name))
+				break
+			} catch (_) {}
+		}
+
 		// Handlers next to the runtime are prebuilt dist/handlers files outside the ts workspace.
 		const hashes = await Promise.all([
 			readFile(runtime),
@@ -105,6 +124,8 @@ ${entries.join('\n')}
 					handlers.map(h => [h.external, h.importAsString, h.moduleSideEffects]),
 				])
 			)
+
+		hash.update(lockfile)
 
 		for (const item of hashes) {
 			hash.update(item)

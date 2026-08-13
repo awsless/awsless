@@ -34,6 +34,22 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 export const cronFeature = defineFeature({
 	name: 'cron',
+	onDev(ctx) {
+		// Crons never fire on a timer locally, they only run through a
+		// manual trigger on the dev dashboard.
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, props] of Object.entries(stack.crons ?? {})) {
+				ctx.registerResource({
+					kind: 'cron',
+					stack: stack.name,
+					id,
+					routeKey: formatRouteKey(stack.name, 'cron', id),
+					envelope: props.payload,
+					detail: props.schedule,
+				})
+			}
+		}
+	},
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
@@ -126,7 +142,7 @@ export const cronFeature = defineFeature({
 											Resource: arn,
 										},
 										// The on-failure queue only exists when the app configures it.
-										...(ctx.appConfig.defaults.onFailure
+										...(ctx.appConfig.onFailure
 											? [
 													{
 														Action: ['sqs:SendMessage'],
@@ -191,7 +207,7 @@ export const cronFeature = defineFeature({
 						roleArn: ctx.shared.get('cron', 'role-arn'),
 						input: JSON.stringify(formatRoutePayload(routeKey, props.payload)),
 						// Fires the scheduler can't deliver land on the on-failure queue.
-						deadLetterConfig: ctx.appConfig.defaults.onFailure
+						deadLetterConfig: ctx.appConfig.onFailure
 							? {
 									arn: `arn:aws:sqs:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName(
 										{

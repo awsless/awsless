@@ -5,12 +5,13 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { createLambdaFunctionFromZip, registerFunctionBuild } from '../function/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
 	onBefore(ctx) {
-		const props = ctx.appConfig.defaults.onFailure
+		const props = ctx.appConfig.onFailure
 
 		if (!props) {
 			return
@@ -43,7 +44,7 @@ export const onFailureFeature = defineFeature({
 
 		// ----------------------------------------------------------------
 
-		const handlerTimeout = toSeconds(props.consumer.timeout ?? ctx.appConfig.defaults.function.timeout)
+		const handlerTimeout = toSeconds(props.consumer.timeout ?? ctx.appConfig.function.timeout)
 		const queueName = formatGlobalResourceName({
 			appName: ctx.app.name,
 			resourceType: 'on-failure',
@@ -239,9 +240,20 @@ export const onFailureFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		const props = ctx.appConfig.defaults.onFailure
+		const props = ctx.appConfig.onFailure
 
 		if (!props) {
+			return
+		}
+
+		// The local dev environment has no stand-alone lambdas - the dev
+		// failure relay invokes the consumer as a bundle route on the
+		// local worker instead. The bundle feature runs after this one,
+		// so the registration waits until every feature has set up.
+		if (ctx.dev) {
+			ctx.onReady(() => {
+				registerBundleFunction(ctx, formatRouteKey('base', 'on-failure', 'consumer'), props.consumer)
+			})
 			return
 		}
 
@@ -266,9 +278,9 @@ export const onFailureFeature = defineFeature({
 			sourceHash: build.sourceHash,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
-			memorySize: consumer.memorySize ?? ctx.appConfig.defaults.function.memorySize,
-			timeout: consumer.timeout ?? ctx.appConfig.defaults.function.timeout,
-			architecture: consumer.architecture ?? ctx.appConfig.defaults.function.architecture,
+			memorySize: consumer.memorySize ?? ctx.appConfig.function.memorySize,
+			timeout: consumer.timeout ?? ctx.appConfig.function.timeout,
+			architecture: consumer.architecture ?? ctx.appConfig.function.architecture,
 			vpc: consumer.vpc,
 			log: {
 				format: consumer.log?.format ?? 'json',

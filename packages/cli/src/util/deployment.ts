@@ -575,7 +575,7 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 	const id = props.id ?? (await previousDeploymentId({ lambda, dynamo, appId, functionName }))
 	let store: RouteStoreTarget | undefined
 
-	if (Object.keys(props.appConfig.defaults.router ?? {}).length > 0) {
+	if (Object.keys(props.appConfig.router ?? {}).length > 0) {
 		const storeArn = await getRouteStoreArn(
 			cloudfront,
 			formatGlobalResourceName({

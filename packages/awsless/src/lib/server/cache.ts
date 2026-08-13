@@ -2,7 +2,8 @@ import { getContext } from '@awsless/lambda'
 import { createIoRedisClient, createLazyClient } from '@awsless/redis'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { getStack } from './util.js'
+import { registerTestCleanup } from '../test/cleanup.js'
+import { getStack, IS_LOCAL, IS_TEST } from './util.js'
 
 export const getCacheProps = (name: string, stack: string = getStack()) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`
@@ -21,19 +22,34 @@ export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 			return createLazyClient(() => {
 				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
-					cluster: true,
 					db,
-					tls: {
-						checkServerIdentity: (/*host, cert*/) => {
-							// skip certificate hostname validation
-							return undefined
-						},
-					},
+					// The local dev cache runs a plain single node redis
+					// without tls.
+					...(IS_LOCAL
+						? {
+								cluster: false,
+								tls: undefined,
+							}
+						: {
+								cluster: true,
+								tls: {
+									checkServerIdentity: (/*host, cert*/) => {
+										// skip certificate hostname validation
+										return undefined
+									},
+								},
+							}),
 				})
 
-				getContext().onFinally(() => {
-					return client.destroy()
-				})
+				// Tests call handlers directly without a lambda context,
+				// so the client cleans up when the test file finishes.
+				if (IS_TEST) {
+					registerTestCleanup(() => client.destroy())
+				} else {
+					getContext().onFinally(() => {
+						return client.destroy()
+					})
+				}
 
 				return client
 			})

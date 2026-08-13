@@ -7,6 +7,7 @@ import { defineFeature } from '../../feature'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name'
+import { instanceOnDev } from './dev.js'
 import { createFargateTask } from './util'
 
 const typeGenCode = `
@@ -20,21 +21,24 @@ type Send<Name extends string> = {
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<(payload: unknown) => unknown>
+type MockObject = Mock<[unknown], unknown>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry = MockBuilder & MockObject
 `
 
 export const instanceFeature = defineFeature({
 	name: 'instance',
+	onDev: instanceOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const name of Object.keys(stack.instances || {})) {
 				const queueName = formatLocalResourceName({
@@ -44,19 +48,19 @@ export const instanceFeature = defineFeature({
 					resourceName: name,
 				})
 				resource.addType(name, `Send<'${queueName}'>`)
-				mock.addType(name, `MockBuilder`)
-				mockResponse.addType(name, `MockObject`)
+				testMock.addType(name, `TestMockEntry`)
 			}
 
 			resources.addType(stack.name, resource)
-			mocks.addType(stack.name, mock)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('instance', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('InstanceResources', resources)
-		gen.addInterface('InstanceMock', mocks)
-		gen.addInterface('InstanceMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('instance.d.ts', gen, true)
 	},

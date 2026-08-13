@@ -19,6 +19,10 @@ export type CreateAppProps = {
 	deploymentId?: string
 	import?: boolean
 
+	// The local dev environment builds every function into the bundle,
+	// standalone or not - locally there's only the bundle worker.
+	dev?: boolean
+
 	// The remote config values, only provided by the deploy command.
 	configValues?: Record<string, string>
 }
@@ -89,6 +93,7 @@ export const createApp = (props: CreateAppProps) => {
 		feature.onBefore?.({
 			...props,
 			import: props.import ?? false,
+			dev: props.dev ?? false,
 			app,
 			appId,
 			base,
@@ -106,6 +111,7 @@ export const createApp = (props: CreateAppProps) => {
 		feature.onApp?.({
 			...props,
 			import: props.import ?? false,
+			dev: props.dev ?? false,
 			app,
 			appId,
 			base,
@@ -167,6 +173,7 @@ export const createApp = (props: CreateAppProps) => {
 			feature.onStack?.({
 				...props,
 				import: props.import ?? false,
+				dev: props.dev ?? false,
 				stackConfig,
 				app,
 				appId,

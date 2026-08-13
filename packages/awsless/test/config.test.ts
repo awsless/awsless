@@ -48,11 +48,14 @@ describe('config', () => {
 	it('skips the fetch in test mode & allows mock values', async () => {
 		vi.stubEnv('CONFIGS', 'SECRET')
 
-		const { Config } = await import('../src/lib/server/config')
+		const { Config, setConfigValue } = await import('../src/lib/server/config')
 
 		expect(ssm).not.toHaveBeenCalled()
 		expect(() => (Config as any).SECRET).toThrow()
-		;(Config as any).SECRET = 'mocked'
+
+		// Mock values are set through the mock.config proxy, which
+		// resolves to setConfigValue - Config itself stays read-only.
+		setConfigValue('SECRET', 'mocked')
 
 		expect((Config as any).SECRET).toBe('mocked')
 	})
