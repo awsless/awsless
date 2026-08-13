@@ -8,7 +8,8 @@ var searchClient = (options = {}, service = "es") => {
   if (mock) {
     return mock;
   }
-  const node = options.node ?? "https://" + process.env.SEARCH_DOMAIN;
+  const scheme = process.env.AWSLESS_ENV === "local" ? "http://" : "https://";
+  const node = options.node ?? scheme + process.env.SEARCH_DOMAIN;
   const first = Array.isArray(node) ? node[0] : node;
   const nodeUrl = typeof first === "string" ? first : String(first?.url ?? "");
   return new Client({

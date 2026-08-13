@@ -10,7 +10,10 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 		return mock
 	}
 
-	const node = options.node ?? 'https://' + process.env.SEARCH_DOMAIN
+	// The local dev server runs plain http - the scheme follows the
+	// environment, like the aws sdk clients do through AWS_ENDPOINT_URL.
+	const scheme = process.env.AWSLESS_ENV === 'local' ? 'http://' : 'https://'
+	const node = options.node ?? scheme + process.env.SEARCH_DOMAIN
 
 	// The node option also accepts object & array forms - resolve the
 	// first entry's url to detect the protocol, instead of stringifying

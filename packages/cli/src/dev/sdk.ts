@@ -28,8 +28,23 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 		}
 	}
 
-	const projectRequire = createRequire(join(directories.root, 'noop.js'))
 	const ownRequire = createRequire(import.meta.url)
+
+	// The check must mirror the worker's esm resolution: a plain walk up
+	// from the build folder to the project's node_modules. It can't use
+	// require.resolve, because the package manager's bin shim exports
+	// NODE_PATH pointing into the hoisted pnpm store - resolve would
+	// report every transitive sdk client as a project dependency, while
+	// the worker, which never sees NODE_PATH & imports esm, can't load
+	// them.
+	const isProjectDep = async (name: string) => {
+		try {
+			await stat(join(directories.root, 'node_modules', name, 'package.json'))
+			return true
+		} catch (_) {
+			return false
+		}
+	}
 
 	// A transitive dependency (like the sdk client of a library the
 	// project uses) lives in the pnpm store without being resolvable
@@ -57,16 +72,14 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 		const target = join(buildDir, 'node_modules', name)
 
 		try {
-			try {
-				projectRequire.resolve(`${name}/package.json`)
-
+			if (await isProjectDep(name)) {
 				// A leftover link from an earlier run would shadow the
 				// project's own copy - a package manager prune can leave
 				// it dangling.
 				await rm(target, { recursive: true, force: true })
 				debug(`Sdk link ${name}: project resolves`)
 				continue
-			} catch (_) {}
+			}
 
 			let source = await resolveFromStore(name)
 
