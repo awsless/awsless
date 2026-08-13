@@ -90,7 +90,6 @@ export const cacheFeature = defineFeature({
 				{
 					name,
 					engine: 'valkey',
-					networkType: 'dual_stack',
 					dailySnapshotTime: '02:00',
 					majorEngineVersion: '8',
 					snapshotRetentionLimit: props.snapshotRetentionLimit,
@@ -104,8 +103,6 @@ export const cacheFeature = defineFeature({
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
 					import: ctx.import ? name : undefined,
-					// The network type can only be set at creation time.
-					replaceOnChanges: ['networkType'],
 				}
 			)
 
