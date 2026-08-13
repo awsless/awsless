@@ -123,7 +123,7 @@ export const searchFeature = defineFeature({
 		// indexes & applies the mappings, with the physical name prefixed
 		// by the stack name.
 		for (const { stackName, id, props: indexProps } of indexes) {
-			new SearchIndex(group, `index-${stackName}-${id}`, {
+			new SearchIndex(group, `index-${stackName}--${id}`, {
 				endpoint: openSearch.endpointV2,
 				index: formatSearchIndexName(stackName, id),
 				mappings: JSON.stringify(resolveSearchMappings(indexProps) ?? {}),
