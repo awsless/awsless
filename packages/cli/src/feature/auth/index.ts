@@ -5,6 +5,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { authOnDev } from './dev.js'
 // import { createAsyncLambdaFunction } from '../function/util.js'
 import { toDays, toHours } from '@awsless/duration'
 
@@ -20,11 +21,12 @@ import { toDays, toHours } from '@awsless/duration'
 
 export const authFeature = defineFeature({
 	name: 'auth',
+	onDev: authOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
 
-		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
+		for (const name of Object.keys(ctx.appConfig.auth)) {
 			resources.addType(name, `{ readonly userPoolId: string, readonly clientId: string }`)
 		}
 
@@ -128,7 +130,7 @@ export const authFeature = defineFeature({
 	// 	// }
 	// },
 	onApp(ctx) {
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
+		for (const [id, props] of Object.entries(ctx.appConfig.auth ?? {})) {
 			const group = new Group(ctx.base, 'auth', id)
 
 			// let emailConfig: aws.cognito.UserPoolProps['email'] | undefined
@@ -191,7 +193,6 @@ export const authFeature = defineFeature({
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
-					import: ctx.import ? name : undefined,
 				}
 			)
 
@@ -223,9 +224,7 @@ export const authFeature = defineFeature({
 			ctx.bind(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
 			ctx.bind(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
 
-			ctx.shared.add('auth', 'user-pool-arn', id, userPool.arn)
 			ctx.shared.add('auth', 'user-pool-id', id, userPool.id)
-			ctx.shared.add('auth', 'client-id', id, client.id)
 		}
 	},
 })

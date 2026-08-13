@@ -1,60 +1,96 @@
 import { parse, patch } from '@awsless/json'
-import { invoke } from '@awsless/lambda'
 import { deleteObject, getObject } from '@awsless/s3'
 import { S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
+import { ROUTE_PROPERTY } from 'awsless'
 import {
 	AsyncLambdaFailureEvent,
 	DynamoDBStreamFailureEvent,
+	FailureEvent,
 	FunctionFailureEvent,
 	QueueFailureEvent,
 	UnknownFailureEvent,
 } from './types'
+import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from './util'
 
-export default async (event: S3CreateEvent | SQSEvent) => {
-	if (!Array.isArray(event.Records)) {
-		throw new TypeError(`Unknown Event Type: ${JSON.stringify(event)}`)
+type Consumer = (event: FailureEvent) => Promise<unknown>
+
+// A consumer failure throws here & the failure object stays in the
+// bucket for the sqs retry.
+export const createHandler = (consumer: Consumer) => {
+	return async (event: S3CreateEvent | SQSEvent) => {
+		if (!Array.isArray(event.Records)) {
+			throw new TypeError(`Unknown Event Type: ${JSON.stringify(event)}`)
+		}
+
+		await Promise.all(
+			event.Records.map(record => {
+				return unknownRecord(record, consumer)
+			})
+		)
 	}
-
-	await Promise.all(
-		event.Records.map(record => {
-			return unknownRecord(record)
-		})
-	)
 }
 
-const unknownRecord = (record: S3EventRecord | SQSRecord) => {
+const unknownRecord = (record: S3EventRecord | SQSRecord, consumer: Consumer) => {
 	if (typeof record.eventSource === 'string') {
 		if (record.eventSource.startsWith('aws:sqs')) {
-			return sqsRecord(record as SQSRecord)
+			return sqsRecord(record as SQSRecord, consumer)
 		}
 
 		if (record.eventSource.startsWith('aws:s3')) {
-			return s3Record(record as S3EventRecord)
+			return s3Record(record as S3EventRecord, consumer)
 		}
 	}
 
 	throw new TypeError(`Unknown Record Type: ${JSON.stringify(record)}`)
 }
 
-const sqsRecord = async (record: SQSRecord) => {
+const sqsRecord = async (record: SQSRecord, consumer: Consumer) => {
+	const s3Records = parseS3Records(record.body)
+
+	if (s3Records) {
+		await Promise.all(s3Records.map(record => s3Record(record, consumer)))
+		return
+	}
+
+	const queueName = record.messageAttributes.queueName?.stringValue
+	const body = parsePayload(record.body)
+
 	const payload: QueueFailureEvent = {
 		type: 'queue',
 		id: record.messageId,
 		date: new Date(Number(record.attributes.SentTimestamp)),
-		payload: parsePayload(record.body),
+		payload: body,
+		source: queueName ? { resource: logicalResourceName(queueName), event: body } : undefined,
 		queue: {
-			name: record.messageAttributes.queueName?.stringValue,
+			name: queueName,
 			url: record.messageAttributes.queueUrl?.stringValue,
 		},
 	}
 
-	await invokeConsumer(payload)
+	await consumer(payload)
 }
 
-const s3Record = async (record: S3EventRecord) => {
+const parseS3Records = (body: string): S3EventRecord[] | undefined => {
+	try {
+		const event = JSON.parse(body)
+
+		if (event?.Event === 's3:TestEvent') {
+			return []
+		}
+
+		if (Array.isArray(event?.Records) && event.Records[0]?.eventSource === 'aws:s3') {
+			return event.Records
+		}
+	} catch {}
+
+	return
+}
+
+const s3Record = async (record: S3EventRecord, consumer: Consumer) => {
+	const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '))
 	const object = await getObject({
 		bucket: record.s3.bucket.name,
-		key: record.s3.object.key,
+		key,
 	})
 
 	if (!object) {
@@ -65,16 +101,12 @@ const s3Record = async (record: S3EventRecord) => {
 	const unknownEvent = JSON.parse(json) as UnknownFailureEvent
 	const payload = formatUnknownFailureEvent(unknownEvent)
 
-	await invokeConsumer(payload)
+	await consumer(payload)
 
 	await deleteObject({
 		bucket: record.s3.bucket.name,
-		key: record.s3.object.key,
+		key,
 	})
-}
-
-const isDynamoDBFailureEvent = (event: UnknownFailureEvent): event is DynamoDBStreamFailureEvent => {
-	return 'DDBStreamBatchInfo' in event
 }
 
 const formatUnknownFailureEvent = (event: UnknownFailureEvent): FunctionFailureEvent => {
@@ -86,14 +118,19 @@ const formatUnknownFailureEvent = (event: UnknownFailureEvent): FunctionFailureE
 }
 
 const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): FunctionFailureEvent => {
+	const payload = patchPayload(event.requestPayload) as { [ROUTE_PROPERTY]?: unknown; event?: unknown } | null
+	const route = payload && typeof payload === 'object' ? payload[ROUTE_PROPERTY] : undefined
+
 	return {
 		type: 'async-lambda',
 		date: new Date(event.timestamp),
 		id: event.requestContext.requestId,
 		function: {
-			name: event.requestContext.functionArn.split(':')[6]!,
+			name: typeof route === 'string' ? route : event.requestContext.functionArn.split(':')[6]!,
 		},
-		payload: patchPayload(event.requestPayload),
+		payload: typeof route === 'string' ? (payload!.event ?? {}) : payload,
+		source:
+			typeof route === 'string' ? { resource: route, event: payload!.event ?? {} } : getFailureSource(payload),
 		error: {
 			type: event.responsePayload.errorType,
 			message: event.responsePayload.errorMessage,
@@ -103,6 +140,10 @@ const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): Function
 }
 
 const formatDynamoDBStreamFailureEvent = (event: DynamoDBStreamFailureEvent): FunctionFailureEvent => {
+	const payload = parsePayload(event.payload)
+	const streamArn = event.DDBStreamBatchInfo?.streamArn
+	const table = streamArn?.split('/')[1]
+
 	return {
 		type: 'dynamodb-stream',
 		date: new Date(event.timestamp),
@@ -110,7 +151,8 @@ const formatDynamoDBStreamFailureEvent = (event: DynamoDBStreamFailureEvent): Fu
 		function: {
 			name: event.requestContext.functionArn.split(':')[6]!,
 		},
-		payload: parsePayload(event.payload),
+		payload,
+		source: table ? { resource: logicalResourceName(table) } : getFailureSource(payload),
 	}
 }
 
@@ -128,18 +170,4 @@ const patchPayload = (payload: unknown) => {
 	} catch {
 		return payload
 	}
-}
-
-const invokeConsumer = async (payload: unknown) => {
-	const name = process.env.CONSUMER
-
-	if (!name) {
-		throw new Error('CONSUMER environment variable is not set')
-	}
-
-	await invoke({
-		name,
-		type: 'RequestResponse',
-		payload,
-	})
 }

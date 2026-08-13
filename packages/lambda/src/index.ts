@@ -1,6 +1,7 @@
 // lambda
 export { LambdaClient } from '@aws-sdk/client-lambda'
 export type { Context as LambdaContext } from 'aws-lambda'
+export type { RoutedLambdaContext } from './errors/enhanced'
 // commands
 export { invoke } from './commands/invoke'
 export { listFunctions } from './commands/list-functions'

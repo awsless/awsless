@@ -6,7 +6,7 @@ describe('SNS Topic', () => {
 	it('should allow easy test input', () => {
 		const result = parse(schema, { id: 1 })
 
-		expect(result).toStrictEqual([{ id: 1 }])
+		expect(result).toStrictEqual({ id: 1 })
 		expect(() => parse(schema, { id: '1' })).toThrow(ValiError)
 	})
 
@@ -22,20 +22,23 @@ describe('SNS Topic', () => {
 			],
 		})
 
-		expect(result).toStrictEqual([{ id: 1 }])
+		expect(result).toStrictEqual({ id: 1 })
+	})
+
+	it('should reject an empty record list', () => {
+		expect(() => parse(schema, { Records: [] })).toThrow(ValiError)
 	})
 
 	it('should allow array schemas', () => {
 		const result = parse(snsTopic(array(object({ id: number() }))), [{ id: 1 }])
 
-		expect(result).toStrictEqual([[{ id: 1 }]])
+		expect(result).toStrictEqual([{ id: 1 }])
 		expect(() => parse(schema, [{ id: '1' }])).toThrow(ValiError)
 	})
 
 	it('types', () => {
 		expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<
 			| { id: number }
-			| { id: number }[]
 			| {
 					Records: {
 						Sns: {
@@ -45,6 +48,6 @@ describe('SNS Topic', () => {
 			  }
 		>()
 
-		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<{ id: number }[]>()
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<{ id: number }>()
 	})
 })

@@ -19,27 +19,49 @@ export const update = (program: Command) => {
 	program
 		.command('update')
 		.description('Update an user in your userpool')
-		.action(async () => {
+		.option('--pool <name>', 'The auth userpool name')
+		.option('--username <username>', 'The username of the user')
+		.option('--password <password>', 'The new password for the user')
+		.option('--groups <groups...>', 'The groups the user should be in, replacing the current groups')
+		.action(async (options: { pool?: string; username?: string; password?: string; groups?: string[] }) => {
 			await layout('auth user update', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
 				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
-				if (Object.keys(appConfig.defaults.auth ?? {}).length === 0) {
+				const pools = Object.keys(appConfig.auth ?? {})
+
+				if (pools.length === 0) {
 					throw new ExpectedError('No auth resources are defined.')
 				}
 
-				const name = await prompt.select({
-					message: 'Select the auth userpool:',
-					initialValue: Object.keys(appConfig.defaults.auth).at(0),
-					options: Object.keys(appConfig.defaults.auth).map(name => ({
-						label: name,
-						value: name,
-					})),
-				})
+				let name = options.pool
 
-				const props = appConfig.defaults.auth[name]!
+				if (name && !pools.includes(name)) {
+					throw new ExpectedError(`The auth userpool "${name}" doesn't exist.`)
+				}
+
+				if (!name) {
+					if (pools.length === 1) {
+						name = pools[0]!
+					} else if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass --pool <name> when running with --skip-prompt: [ ${pools.join(', ')} ]`
+						)
+					} else {
+						name = await prompt.select({
+							message: 'Select the auth userpool:',
+							initialValue: pools.at(0),
+							options: pools.map(name => ({
+								label: name,
+								value: name,
+							})),
+						})
+					}
+				}
+
+				const props = appConfig.auth[name]!
 
 				const userPoolId = await log.task({
 					initialMessage: 'Loading auth userpool...',
@@ -64,16 +86,24 @@ export const update = (program: Command) => {
 					},
 				})
 
-				const username = await prompt.text({
-					message: 'Username:',
-					validate(value) {
-						if (!value) {
-							return 'Required'
-						}
+				let username = options.username
 
-						return
-					},
-				})
+				if (!username) {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError('Pass --username <username> when running with --skip-prompt.')
+					}
+
+					username = await prompt.text({
+						message: 'Username:',
+						validate(value) {
+							if (!value) {
+								return 'Required'
+							}
+
+							return
+						},
+					})
+				}
 
 				const client = new CognitoIdentityProviderClient({
 					region,
@@ -121,47 +151,69 @@ export const update = (program: Command) => {
 					},
 				})
 
-				const changePass = await prompt.confirm({
-					message: `Do you wanna change the user's password`,
-					initialValue: false,
-				})
+				const validatePassword = (value: string) => {
+					if (!value) {
+						return 'Required'
+					}
 
-				let password: string | undefined
-				if (changePass) {
-					password = await prompt.password({
-						message: 'New Password:',
-						validate(value) {
-							if (!value) {
-								return 'Required'
-							}
+					if (value.length < props.password.minLength) {
+						return `Min length is ${props.password.minLength}`
+					}
 
-							if (value.length < props.password.minLength) {
-								return `Min length is ${props.password.minLength}`
-							}
+					if (props.password.lowercase && value.toUpperCase() === value) {
+						return `Should include lowercase characters`
+					}
 
-							if (props.password.lowercase && value.toUpperCase() === value) {
-								return `Should include lowercase characters`
-							}
+					if (props.password.uppercase && value.toLowerCase() === value) {
+						return `Should include uppercase characters`
+					}
 
-							if (props.password.uppercase && value.toLowerCase() === value) {
-								return `Should include uppercase characters`
-							}
+					if (props.password.numbers && !/\d/.test(value)) {
+						return `Should include numbers`
+					}
 
-							if (props.password.numbers && !/\d/.test(value)) {
-								return `Should include numbers`
-							}
+					if (props.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
+						return `Should include symbols`
+					}
 
-							if (props.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
-								return `Should include symbols`
-							}
-
-							return
-						},
-					})
+					return
 				}
 
-				let newGroups: string[] = []
-				if (props.groups.length > 0) {
+				let password = options.password
+
+				if (password) {
+					const issue = validatePassword(password)
+
+					if (issue) {
+						throw new ExpectedError(`Invalid password: ${issue}`)
+					}
+				} else if (!process.env.SKIP_PROMPT) {
+					const changePass = await prompt.confirm({
+						message: `Do you wanna change the user's password`,
+						initialValue: false,
+					})
+
+					if (changePass) {
+						password = await prompt.password({
+							message: 'New Password:',
+							validate: validatePassword,
+						})
+					}
+				}
+
+				// Without an explicit groups flag a non-interactive run
+				// keeps the current groups untouched.
+				let newGroups: string[] = oldGroups
+
+				if (options.groups) {
+					newGroups = options.groups
+
+					for (const group of newGroups) {
+						if (!props.groups.includes(group)) {
+							throw new ExpectedError(`The group "${group}" doesn't exist.`)
+						}
+					}
+				} else if (!process.env.SKIP_PROMPT && props.groups.length > 0) {
 					newGroups = await prompt.multiSelect({
 						message: 'Groups:',
 						required: false,
@@ -177,7 +229,7 @@ export const update = (program: Command) => {
 					successMessage: 'User updated.',
 					errorMessage: 'Failed updating user.',
 					async task() {
-						if (changePass && password) {
+						if (password) {
 							await client.send(
 								new AdminSetUserPasswordCommand({
 									UserPoolId: userPoolId,

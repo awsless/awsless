@@ -49,7 +49,10 @@ export const pnpm = async (search: string) => {
 
 			const entry = packageData.module ?? packageData.main
 
-			packages[packageData.name] = {
+			// Keyed by path - package names can repeat inside a workspace
+			// (like a package & its next generation sharing a name), and
+			// name keys would let one clobber the other.
+			packages[join(cwd, path)] = {
 				name: packageData.name,
 				path: join(cwd, path),
 				main: entry ? join(cwd, path, entry) : undefined,

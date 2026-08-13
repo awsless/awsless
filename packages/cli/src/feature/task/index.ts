@@ -5,9 +5,10 @@ import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { createSchedulerServer } from '../../dev/servers/scheduler.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -16,7 +17,7 @@ import type { Mock } from 'vitest'
 
 type Func = (...args: any[]) => any
 
-type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'reflectViewableErrors'> & {
+type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'qualifier' | 'reflectViewableErrors'> & {
 	schedule?: Duration | Date
 }
 
@@ -34,21 +35,62 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<F>
+type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const taskFeature = defineFeature({
 	name: 'task',
+	async onDev(ctx) {
+		const tasks = ctx.stackConfigs.flatMap(stack => {
+			return Object.keys(stack.tasks ?? {}).map(id => ({ stackName: stack.name, id }))
+		})
+
+		if (tasks.length === 0) {
+			return
+		}
+
+		for (const { stackName, id } of tasks) {
+			ctx.registerResource({
+				kind: 'task',
+				stack: stackName,
+				id,
+				routeKey: formatRouteKey(stackName, 'task', id),
+			})
+		}
+
+		// Immediate task invokes already flow through the local lambda
+		// emulator. Delayed tasks create one-off schedules, which the
+		// local scheduler emulator turns into timers.
+		// The shim survives restarts, so long lived children (like the
+		// vite dev server) keep a valid endpoint.
+		const { server, port } = await ctx.keep('shim:scheduler', null, async () => {
+			const server = createSchedulerServer()
+			const port = await server.listen()
+
+			return { value: { server, port }, stop: () => server.stop() }
+		})
+
+		ctx.addEnv('AWS_ENDPOINT_URL_SCHEDULER', `http://127.0.0.1:${port}`)
+
+		ctx.registerServer({
+			name: 'scheduler',
+			start({ dispatch, reportFailure }) {
+				server.connect(dispatch, reportFailure)
+			},
+		})
+	},
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.tasks || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -59,25 +101,23 @@ export const taskFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.consumer.code) {
-					const relFile = relative(directories.types, props.consumer.code.file)
+				const relFile = relative(directories.types, props.consumer.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('task', testMocks)
 
 		types.addCode(typeGenCode)
 		types.addInterface('TaskResources', resources)
-		types.addInterface('TaskMock', mocks)
-		types.addInterface('TaskMockResponse', mockResponses)
+		types.addInterface('TestMock', testMock)
 
 		await ctx.write('task.d.ts', types, true)
 	},
@@ -89,59 +129,85 @@ export const taskFeature = defineFeature({
 			resourceType: 'task',
 			resourceName: 'group',
 		})
-
-		new aws.scheduler.ScheduleGroup(group, 'group', {
-			name: scheduleGroupName,
-			tags: {
-				app: ctx.app.name,
-			},
+		const failureQueueName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'failure',
 		})
 
-		const role = new aws.iam.Role(group, 'schedule', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'task',
-				resourceName: 'schedule',
-			}),
-			description: `Task schedule ${ctx.app.name}`,
-			assumeRolePolicy: JSON.stringify({
-				Version: '2012-10-17',
-				Statement: [
-					{
-						Action: 'sts:AssumeRole',
-						Effect: 'Allow',
-						Principal: {
-							Service: 'scheduler.amazonaws.com',
+		new aws.scheduler.ScheduleGroup(
+			group,
+			'group',
+			{
+				name: scheduleGroupName,
+				tags: {
+					app: ctx.app.name,
+				},
+			},
+			{
+				import: ctx.import ? scheduleGroupName : undefined,
+			}
+		)
+
+		const roleName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'task',
+			resourceName: 'schedule',
+		})
+
+		const role = new aws.iam.Role(
+			group,
+			'schedule',
+			{
+				name: roleName,
+				description: `Task schedule ${ctx.app.name}`,
+				assumeRolePolicy: JSON.stringify({
+					Version: '2012-10-17',
+					Statement: [
+						{
+							Action: 'sts:AssumeRole',
+							Effect: 'Allow',
+							Principal: {
+								Service: 'scheduler.amazonaws.com',
+							},
 						},
+					],
+				}),
+				inlinePolicy: [
+					{
+						name: 'ScheduleTarget',
+						policy: JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Action: ['lambda:InvokeFunction'],
+									Effect: 'Allow',
+									Resource: `arn:aws:lambda:*:*:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
+								},
+								{
+									Action: ['sqs:SendMessage'],
+									Effect: 'Allow',
+									Resource: `arn:aws:sqs:*:*:${failureQueueName}`,
+								},
+							],
+						}),
 					},
 				],
-			}),
-			inlinePolicy: [
-				{
-					name: 'InvokeFunction',
-					policy: JSON.stringify({
-						Version: '2012-10-17',
-						Statement: [
-							{
-								Action: ['lambda:InvokeFunction'],
-								Effect: 'Allow',
-								Resource: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*--task--*`],
-							},
-						],
-					}),
-				},
-			],
-		})
+			},
+			{
+				import: ctx.import ? roleName : undefined,
+			}
+		)
 
 		// role.arn.pipe(console.log)
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['scheduler:CreateSchedule'],
 			// resources: [`arn:aws:scheduler:*:*:schedule:${ctx.appConfig.name}--*`],
 			resources: [`arn:aws:scheduler:*:*:schedule/${scheduleGroupName}/*`],
 		})
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: [role.arn],
 		})
@@ -155,8 +221,7 @@ export const taskFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
-			const group = new Group(ctx.stack, 'task', id)
-			createAsyncLambdaFunction(group, ctx, 'task', id, props)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), props.consumer)
 		}
 	},
 })

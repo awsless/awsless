@@ -1,67 +1,50 @@
 import { kebabCase } from 'change-case'
+import { getCurrentRoute } from './bundle.js'
 
-export const APP = (process.env.APP ?? 'app') as 'app'
-export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
-export const STACK = (process.env.STACK ?? 'stack') as 'stack'
-export const IS_TEST = process.env.NODE_ENV === 'test'
-export const REGION = process.env.AWS_REGION
-export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
+export const APP = process.env.APP!
+export const APP_ID = process.env.APP_ID!
+export const IS_TEST = !!process.env['VITEST'] || process.env['NODE_ENV'] === 'test'
+// Local dev mode (`awsless dev`) is a third mode, separate from IS_TEST:
+// tests bypass bundle routing to keep name-keyed mocks working, while local
+// dev keeps the production code paths and redirects the AWS boundary instead.
+export const IS_LOCAL = process.env.AWSLESS_ENV === 'local'
+export const REGION = process.env.AWS_REGION!
+export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID!
+export const STACK = process.env.STACK!
 
-// const bindResourceName = (
-// 	resourceType: string,
-// 	opts?: {
-// 		prefix?: string
-// 		postfix?: string
-// 	}
-// ) => {
-// 	return (resourceName: string, stackName?: string) => {
-// 		return [
-// 			opts?.prefix,
-// 			APP,
-// 			stackName && kebabCase(stackName),
-// 			kebabCase(resourceType),
-// 			kebabCase(resourceName),
-// 			opts?.postfix,
-// 		].join('--')
-// 	}
-// }
+// One bundled lambda process hosts every stack, so the active route
+// is only known while a request is being handled, not at startup.
+export const getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE
+export const getStack = () => getRoute()?.split(':')[0] ?? STACK
 
-export const build = (opt: {
+export const formatResourceName = (opt: {
 	prefix?: string
 	stackName?: string
 	resourceType: string
 	resourceName: string
 	postfix?: string
-	seperator?: string
+	separator?: string
 }) => {
 	return [
 		//
-		opt?.prefix,
+		opt.prefix,
 		APP,
 		opt.stackName,
 		opt.resourceType,
 		opt.resourceName,
-		opt?.postfix,
+		opt.postfix,
 	]
 		.filter(v => typeof v === 'string')
 		.map(v => kebabCase(v))
-		.join(opt.seperator ?? '--')
-}
-
-export const bindPostfixedLocalResourceName = <T extends string, P extends string>(resourceType: T, postfix: P) => {
-	return <N extends string, S extends string = typeof STACK>(resourceName: N, stackName: S = STACK as S) => {
-		return build({
-			stackName,
-			resourceName,
-			resourceType,
-			postfix,
-		}) as `${typeof APP}--${S}--${T}--${N}--${P}`
-	}
+		.join(opt.separator ?? '--')
 }
 
 export const bindLocalResourceName = <T extends string>(resourceType: T) => {
-	return <N extends string, S extends string = typeof STACK>(resourceName: N, stackName: S = STACK as S) => {
-		return build({
+	return <N extends string, S extends string = ReturnType<typeof getStack>>(
+		resourceName: N,
+		stackName: S = getStack() as S
+	) => {
+		return formatResourceName({
 			stackName,
 			resourceType,
 			resourceName,
@@ -71,17 +54,10 @@ export const bindLocalResourceName = <T extends string>(resourceType: T) => {
 
 export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 	return <N extends string>(resourceName: N) => {
-		return build({
+		return formatResourceName({
 			resourceType,
 			resourceName,
 		}) as `${typeof APP}--${T}--${N}`
 	}
 }
 
-// export const getEnv = (name: string) => {
-// 	if (name in process.env) {
-// 		return process.env[name]
-// 	}
-
-// 	throw new TypeError(`Env var not defined: ${name}`)
-// }

@@ -1,10 +1,13 @@
 import { log } from '@awsless/clui'
+import { DynamoDBClient } from '@awsless/dynamodb'
 import { ResourceStatus, URN } from '@terraforge/core'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { currentDeployment } from '../../util/deployment.js'
+import { generateGlobalAppId } from '../../util/name.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color, icon } from '../ui/style.js'
@@ -22,8 +25,15 @@ export const resources = (program: Command) => {
 				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const { app, ready } = createApp({ appConfig, stackConfigs, accountId })
-				// const resources: string[][] = []
+				// Build the graph with the last deployed id, so the deployment
+				// resources don't show up as changed right after a deploy.
+				const dynamo = new DynamoDBClient({ credentials, region })
+				const deployment = await currentDeployment(
+					dynamo,
+					generateGlobalAppId({ accountId, region, appName: appConfig.name })
+				)
+
+				const { app, ready } = createApp({ appConfig, stackConfigs, accountId, deploymentId: deployment?.id })
 
 				ready()
 

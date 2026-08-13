@@ -1,6 +1,5 @@
 import { GetHostedZoneCommand, Route53Client } from '@aws-sdk/client-route-53'
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
-import { resolveNs } from 'node:dns/promises'
 import { z } from 'zod'
 import { color, icon } from '../cli/ui/style'
 import { Region } from '../config/schema/region'
@@ -11,6 +10,24 @@ type NsCheckInput = {
 }
 
 export const NsCheck = createCustomResourceClass<NsCheckInput, {}>('nameservers', 'check')
+
+// Resolve through public DNS, so a stale local resolver cache can't fail the check.
+const resolveNameServers = async (domainName: string) => {
+	const response = await fetch(`https://dns.google/resolve?name=${domainName}&type=NS`)
+
+	const result = z
+		.object({
+			Status: z.number(),
+			Answer: z.object({ type: z.number(), data: z.string() }).array().optional(),
+		})
+		.parse(await response.json())
+
+	if (result.Status !== 0) {
+		throw new Error(`queryNs status ${result.Status} ${domainName}`)
+	}
+
+	return (result.Answer ?? []).filter(answer => answer.type === 2).map(answer => answer.data.replace(/\.$/, ''))
+}
 
 type ProviderProps = {
 	credentials: Credentials
@@ -50,7 +67,7 @@ export const createNameServersProvider = ({ credentials, region }: ProviderProps
 				const domainName = response.HostedZone.Name.replace(/\.$/, '')
 				let resolvedNameServers: string[]
 				try {
-					resolvedNameServers = await resolveNs(domainName)
+					resolvedNameServers = await resolveNameServers(domainName)
 				} catch (error) {
 					throw new Error(
 						[

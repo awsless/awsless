@@ -7,15 +7,15 @@ import {
 } from '@awsless/sqs'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { bindLocalResourceName, STACK } from './util.js'
+import { bindLocalResourceName, getStack } from './util.js'
 
 const bindQueueBaseName = bindLocalResourceName('queue')
 
-export const getQueueName = (name: string, stack: string = STACK) => {
+export const getQueueName = (name: string, stack: string = getStack()) => {
 	return `${bindQueueBaseName(name, stack)}.fifo`
 }
 
-export const getQueueUrl = (name: string, stack: string = STACK) => {
+export const getQueueUrl = (name: string, stack: string = getStack()) => {
 	return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`]
 }
 

@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalEntrySchema } from '../../config/schema/local-entry.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { ConfigNameSchema } from '../config/schema.js'
+import { StackFunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 export const SitesSchema = z
@@ -24,19 +25,37 @@ export const SitesSchema = z
 						.describe(
 							`Specifies the files and directories to generate the cache key for your custom build command.`
 						),
-					configs: z.string().array().optional().describe('Define the config values for your build command.'),
+					configs: ConfigNameSchema.array()
+						.optional()
+						.describe('Define the config values for your build command.'),
 				})
 				.optional()
 				.describe(`Specifies the build process for sites that need a build step.`),
 
-			static: z
-				.union([LocalDirectorySchema, z.boolean()])
+			static: LocalDirectorySchema.optional().describe('Specifies the path to the static files directory.'),
+
+			ssr: StackFunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
+
+			dev: z
+				.object({
+					command: z
+						.string()
+						.describe(
+							'The command that starts your own dev server, with every "$PORT" replaced by the assigned port. The command also receives the port as the PORT environment variable.'
+						),
+					port: z
+						.number()
+						.int()
+						.positive()
+						.optional()
+						.describe(
+							'The fixed port your dev server listens on. Leave out to assign a free port automatically.'
+						),
+				})
 				.optional()
 				.describe(
-					"Specifies the path to the static files directory. Additionally you can also pass `true` when you don't have local static files, but still want to make an S3 bucket."
+					'Serve the site through your own dev server (like vite) during "awsless dev". The local router proxies the site routes to it, so your frontend & api share one origin. Deployments ignore this option.'
 				),
-
-			ssr: FunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
 		})
 	)
 	.optional()

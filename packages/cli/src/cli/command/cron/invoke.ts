@@ -1,9 +1,10 @@
 import { log, prompt } from '@awsless/clui'
 import { invoke as invokeLambda, LambdaClient } from '@awsless/lambda'
+import { formatRouteKey, formatRoutePayload, LIVE_BUNDLE_ALIAS } from 'awsless'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../error.js'
 import { getCredentials } from '../../../util/aws.js'
-import { formatLocalResourceName } from '../../../util/name.js'
+import { getBundleFunctionName } from '../../../util/name.js'
 import { layout } from '../../ui/complex/layout.js'
 
 export const invoke = (program: Command) => {
@@ -31,6 +32,14 @@ export const invoke = (program: Command) => {
 						throw new ExpectedError('There are no crons defined inside your app.')
 					}
 
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the stack argument when running with --skip-prompt: [ ${cronStacks
+								.map(stack => stack.name)
+								.join(', ')} ]`
+						)
+					}
+
 					stack = await prompt.select({
 						message: 'Select the stack:',
 						options: cronStacks.map(stack => ({
@@ -48,7 +57,17 @@ export const invoke = (program: Command) => {
 
 				const names = Object.keys(stackConfig.crons ?? {})
 
+				if (names.length === 0) {
+					throw new ExpectedError(`No crons are defined in stack "${stack}".`)
+				}
+
 				if (!name) {
+					if (process.env.SKIP_PROMPT) {
+						throw new ExpectedError(
+							`Pass the cron name argument when running with --skip-prompt: [ ${names.join(', ')} ]`
+						)
+					}
+
 					name = await prompt.select({
 						message: 'Select the cron:',
 						options: names.map(name => ({
@@ -58,21 +77,17 @@ export const invoke = (program: Command) => {
 					})
 				}
 
-				if (!names) {
-					throw new ExpectedError(`No image resources are defined in stack "${stack}".`)
+				if (!names.includes(name)) {
+					throw new ExpectedError(`The cron "${name}" doesn't exist in stack "${stack}".`)
 				}
 
 				// ------------------------------------------------
 				// Get the cron
 
-				const functionName = formatLocalResourceName({
-					appName: appConfig.name,
-					stackName: stackConfig.name,
-					resourceType: 'cron',
-					resourceName: name,
-				})
+				const functionName = getBundleFunctionName(appConfig.name)
 
 				const payload = stackConfig.crons?.[name]?.payload ?? {}
+				const routeKey = formatRouteKey(stackConfig.name, 'cron', name)
 
 				const response = await log.task({
 					initialMessage: 'Invoking cron...',
@@ -81,7 +96,8 @@ export const invoke = (program: Command) => {
 					task() {
 						return invokeLambda({
 							name: functionName,
-							payload,
+							qualifier: LIVE_BUNDLE_ALIAS,
+							payload: formatRoutePayload(routeKey, payload),
 							client: new LambdaClient({
 								credentials,
 								region,

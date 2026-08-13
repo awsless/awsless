@@ -6,14 +6,33 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { configDefaults } from 'vitest/config'
 import { Reporter, RunnerTask, startVitest } from 'vitest/node'
+import { hoistConfigPlugin } from './hoist-config.js'
 
 class NullReporter implements Reporter {}
 
-export const startTest = async (props: { dir: string; filters: string[] }): Promise<TestResponse> => {
+export const startTest = async (props: {
+	dir: string
+	filters: string[]
+	env?: Record<string, string>
+}): Promise<TestResponse> => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
 	const startTime = process.hrtime.bigint()
 
 	process.noDeprecation = true
+
+	// Vitest sets NODE_ENV=test on the whole CLI process and never restores
+	// it, which leaks test mode into subprocesses spawned after the tests,
+	// like site builds where it flips the Config proxy into mock mode.
+	// Bracket access on purpose: Bun.build inlines the dot access as a
+	// "development" literal at bundle time, which breaks the restore.
+	const nodeEnv = process.env['NODE_ENV']
+	const restoreNodeEnv = () => {
+		if (nodeEnv === undefined) {
+			delete process.env['NODE_ENV']
+		} else {
+			process.env['NODE_ENV'] = nodeEnv
+		}
+	}
 
 	const vitest = await startVitest(
 		'test',
@@ -41,6 +60,8 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 			// 	checker: 'tsc',
 			// 	enabled: true,
 			// },
+			env: props.env,
+
 			setupFiles: [
 				//
 				join(__dirname, 'test-global-setup.js'),
@@ -69,6 +90,9 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 		{
 			logLevel: 'silent',
 			plugins: [
+				// Hoists top level mock.config calls above the imports,
+				// like vitest does for vi.mock.
+				hoistConfigPlugin(),
 				// // @ts-ignore
 				// commonjs({ sourceMap: true }),
 				// // @ts-ignore
@@ -84,7 +108,7 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 				// json(),
 			],
 		}
-	)
+	).finally(restoreNodeEnv)
 
 	let skipped = 0
 	let passed = 0

@@ -17,3 +17,7 @@ Desktop.ini
 .cache
 .awsless
 *~
+*.tgz
+
+# vite config loader temp files
+*.timestamp-*.mjs

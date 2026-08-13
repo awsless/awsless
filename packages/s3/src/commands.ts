@@ -4,6 +4,7 @@ import {
 	GetObjectCommand,
 	HeadObjectCommand,
 	NoSuchKey,
+	NotFound,
 	PutObjectCommand,
 	S3Client,
 	StorageClass,
@@ -110,7 +111,9 @@ export const headObject = async ({ client = s3Client(), bucket, key, versionId }
 	try {
 		result = await client.send(command)
 	} catch (error) {
-		if (error instanceof NoSuchKey) {
+		// HeadObject answers a missing key with a bodiless 404, which the sdk
+		// models as NotFound instead of NoSuchKey.
+		if (error instanceof NotFound || error instanceof NoSuchKey) {
 			return
 		}
 

@@ -22,6 +22,20 @@ export const formatGlobalResourceName = (opt: {
 		.join(opt.seperator ?? '--')
 }
 
+// Every resource name of an app starts with this prefix.
+export const getAppNamePrefix = (appName: string) => {
+	return `${kebabCase(appName)}--`
+}
+
+// The name of the shared bundle lambda that contains all handler code.
+export const getBundleFunctionName = (appName: string) => {
+	return formatGlobalResourceName({
+		appName,
+		resourceType: 'function',
+		resourceName: 'bundle',
+	})
+}
+
 export const formatLocalResourceName = (opt: {
 	appName: string
 	stackName: string

@@ -1,0 +1,53 @@
+{
+	"$schema": "../../dist/app.json",
+	"name": "app-kennedy",
+	"region": "us-east-1",
+	"profile": "jacksclub",
+	"defaults": {
+		// "pubsub": {
+		// 	"test": {
+		// 		"auth": "./pubsub/auth.ts"
+		// 		// "logLevel": "all"
+		// 	}
+		// },
+		"function": {
+			"log": {
+				"retention": "7 days",
+				"level": "error",
+				"system": "warn"
+			}
+		},
+		"instance": {
+			"cpu": 0.25,
+			"memorySize": "512 MB",
+			"healthCheck": {
+				"path": "/",
+				"interval": "10 seconds",
+				"timeout": "5 seconds",
+				"retries": 3,
+				"startPeriod": "30 second"
+			},
+			"log": {
+				"retention": "1 week"
+			}
+		},
+		// "onFailure": "./on-failure/handle.ts",
+		"onErrorLog": {
+			"code": "./on-error-log/consumer.ts",
+			"log": {
+				"level": "info"
+			}
+		}
+		// "layers": {
+		// 	"test": {
+		// 		"file": "./layer/2.zip",
+		// 		"architecture": "x86_64"
+		// 	}
+		// }
+		// "pubsub": {
+		// 	"test": {
+		// 		"auth": "./function.ts"
+		// 	}
+		// }
+	}
+}

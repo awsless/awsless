@@ -2,14 +2,14 @@ import { z } from 'zod'
 import { DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema, LogSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 const staticOriginSchema = LocalDirectorySchema.describe(
 	'Specifies the path to a local image directory that will be uploaded in S3.'
 )
 
-const functionOriginSchema = FunctionSchema.describe(
+const functionOriginSchema = BundledFunctionSchema.describe(
 	"Specifies the file that will be called when an image isn't found in the (cache) bucket."
 )
 
@@ -23,7 +23,6 @@ export const IconsSchema = z
 			router: ResourceIdSchema.describe('The router id to link your icon proxy.'),
 			path: RouteSchema.describe('The path inside the router to link your icon proxy to.'),
 
-			log: LogSchema.optional(),
 			cacheDuration: DurationSchema.optional().describe('The cache duration of the cached icons.'),
 
 			preserveIds: z.boolean().optional().default(false).describe('Preserve the IDs of the icons.'),

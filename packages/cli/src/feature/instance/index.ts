@@ -6,7 +6,8 @@ import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
+import { formatLocalResourceName } from '../../util/name'
+import { instanceOnDev } from './dev.js'
 import { createFargateTask } from './util'
 
 const typeGenCode = `
@@ -20,21 +21,24 @@ type Send<Name extends string> = {
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<(payload: unknown) => unknown>
+type MockObject = Mock<[unknown], unknown>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry = MockBuilder & MockObject
 `
 
 export const instanceFeature = defineFeature({
 	name: 'instance',
+	onDev: instanceOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const name of Object.keys(stack.instances || {})) {
 				const queueName = formatLocalResourceName({
@@ -44,36 +48,21 @@ export const instanceFeature = defineFeature({
 					resourceName: name,
 				})
 				resource.addType(name, `Send<'${queueName}'>`)
-				mock.addType(name, `MockBuilder`)
-				mockResponse.addType(name, `MockObject`)
+				testMock.addType(name, `TestMockEntry`)
 			}
 
 			resources.addType(stack.name, resource)
-			mocks.addType(stack.name, mock)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('instance', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('InstanceResources', resources)
-		gen.addInterface('InstanceMock', mocks)
-		gen.addInterface('InstanceMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('instance.d.ts', gen, true)
-	},
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'instance', 'asset')
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'instance',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-		})
-
-		ctx.shared.set('instance', 'bucket-name', bucket.bucket)
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {
@@ -97,6 +86,9 @@ export const instanceFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import
+					? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:cluster/${ctx.app.name}-instance`
+					: undefined,
 			}
 		)
 
@@ -110,13 +102,22 @@ export const instanceFeature = defineFeature({
 
 			// ------------------------------------------------------------
 
-			const queue = new aws.sqs.Queue(group, 'queue', {
-				name: task.name,
-				visibilityTimeoutSeconds: toSeconds(seconds(30)),
-				messageRetentionSeconds: toSeconds(days(4)),
-				maxMessageSize: toBytes(kibibytes(256)),
-				receiveWaitTimeSeconds: toSeconds(seconds(20)),
-			})
+			const queue = new aws.sqs.Queue(
+				group,
+				'queue',
+				{
+					name: task.name,
+					visibilityTimeoutSeconds: toSeconds(seconds(30)),
+					messageRetentionSeconds: toSeconds(days(4)),
+					maxMessageSize: toBytes(kibibytes(256)),
+					receiveWaitTimeSeconds: toSeconds(seconds(20)),
+				},
+				{
+					import: ctx.import
+						? `https://sqs.${ctx.appConfig.region}.amazonaws.com/${ctx.accountId}/${task.name}`
+						: undefined,
+				}
+			)
 
 			task.addPermission({
 				actions: [
@@ -129,7 +130,7 @@ export const instanceFeature = defineFeature({
 				resources: [queue.arn],
 			})
 
-			ctx.addGlobalPermission({
+			ctx.addPermission({
 				actions: ['sqs:SendMessage', 'sqs:GetQueueUrl', 'sqs:GetQueueAttributes'],
 				resources: [queue.arn],
 			})

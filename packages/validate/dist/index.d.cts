@@ -1,5 +1,5 @@
 import * as valibot from 'valibot';
-import { MetadataAction, GenericSchema, ErrorMessage, GenericIssue, BaseSchema, InferOutput, InferInput, CheckIssue } from 'valibot';
+import { GenericSchema, MetadataAction, BaseSchema, InferOutput, GenericIssue, ErrorMessage, InferInput, CheckIssue } from 'valibot';
 export * from 'valibot';
 import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
@@ -30,13 +30,13 @@ type SqsQueueSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | InferI
 }, InferOutput<S>[], GenericIssue>;
 declare const sqsQueue: <S extends GenericSchema>(schema: S, message?: ErrorMessage<GenericIssue>) => SqsQueueSchema<S>;
 
-type SnsTopicSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | InferInput<S>[] | {
+type SnsTopicSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | {
     Records: {
         Sns: {
             Message: string | InferInput<S>;
         };
     }[];
-}, InferOutput<S>[], GenericIssue>;
+}, InferOutput<S>, GenericIssue>;
 declare const snsTopic: <S extends GenericSchema>(schema: S, message?: ErrorMessage<GenericIssue>) => SnsTopicSchema<S>;
 
 type DynamoDBStreamInputRecord = {
@@ -48,9 +48,13 @@ type DynamoDBStreamInputRecord = {
     };
 };
 type DynamoDBStreamOutputRecord<T extends AnyTable> = {
+    /** The kind of change that produced this record. */
     event: 'insert' | 'modify' | 'remove';
+    /** The primary key of the affected item. */
     keys: PrimaryKey<T>;
+    /** The item before the change, when the stream captures old images. */
     old?: Infer<T>;
+    /** The item after the change, when the stream captures new images. */
     new?: Infer<T>;
 };
 type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{

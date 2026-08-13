@@ -6,7 +6,7 @@ import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { createFargateJob } from './util.js'
 
@@ -33,7 +33,11 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void>
 type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
 `
 
 export const jobFeature = defineFeature({
@@ -41,13 +45,11 @@ export const jobFeature = defineFeature({
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
-			const mock = new TypeObject(2)
-			const mockResponse = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.jobs || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -58,50 +60,25 @@ export const jobFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.code) {
-					const relFile = relative(directories.types, props.code.file)
+				const relFile = relative(directories.types, props.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 			}
 
-			mocks.addType(stack.name, mock)
 			resources.addType(stack.name, resource)
-			mockResponses.addType(stack.name, mockResponse)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('job', testMocks)
 
 		types.addCode(typeGenCode)
 		types.addInterface('JobResources', resources)
-		types.addInterface('JobMock', mocks)
-		types.addInterface('JobMockResponse', mockResponses)
+		types.addInterface('TestMock', testMock)
 
 		await ctx.write('job.d.ts', types, true)
-	},
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'job', 'asset')
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'job',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-			lifecycleRule: [
-				{
-					id: 'expire-payloads',
-					enabled: true,
-					prefix: 'payloads/',
-					expiration: { days: 1 },
-				},
-			],
-		})
-
-		ctx.shared.set('job', 'bucket-name', bucket.bucket)
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {
@@ -111,6 +88,14 @@ export const jobFeature = defineFeature({
 		if (found.length === 0) {
 			return
 		}
+
+		// The job payloads only need to live for the duration of a job run.
+		ctx.shared.get('asset', 'bucket').addLifecycleRule({
+			id: 'expire-job-payloads',
+			enabled: true,
+			prefix: 'job/payloads/',
+			expiration: { days: 1 },
+		})
 
 		// ------------------------------------------------------------
 		// Create the ECS cluster
@@ -125,6 +110,9 @@ export const jobFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import
+					? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:cluster/${ctx.app.name}-job`
+					: undefined,
 			}
 		)
 
@@ -161,7 +149,7 @@ export const jobFeature = defineFeature({
 
 		const needsPersistentStorage = ctx.stackConfigs.some(stack =>
 			Object.values(stack.jobs ?? {}).some(job => {
-				const merged = deepmerge(ctx.appConfig.defaults.job, job)
+				const merged = deepmerge(ctx.appConfig.job, job)
 				return merged.persistentStorage
 			})
 		)
@@ -191,12 +179,21 @@ export const jobFeature = defineFeature({
 				},
 			})
 
-			for (const [index, subnetId] of ctx.shared.get('vpc', 'public-subnets').entries()) {
-				new aws.efs.MountTarget(storageGroup, `mount-target-${index + 1}`, {
-					fileSystemId: fileSystem.id,
-					subnetId,
-					securityGroups: [securityGroup.id],
-				})
+			for (const [index, subnetId] of ctx.shared.get('vpc', 'private-subnets').entries()) {
+				new aws.efs.MountTarget(
+					storageGroup,
+					`mount-target-${index + 1}`,
+					{
+						fileSystemId: fileSystem.id,
+						subnetId,
+						securityGroups: [securityGroup.id],
+					},
+					{
+						// Mount targets are immutable per subnet, so a subnet
+						// change replaces them.
+						replaceOnChanges: ['subnetId'],
+					}
+				)
 			}
 
 			ctx.shared.set('job', 'persistent-storage-file-system-id', fileSystem.id)
@@ -206,7 +203,7 @@ export const jobFeature = defineFeature({
 		const jobs = Object.entries(ctx.stackConfig.jobs ?? {})
 		if (jobs.length === 0) return
 
-		const subnets = ctx.shared.get('vpc', 'public-subnets')
+		const subnets = ctx.shared.get('vpc', 'private-subnets')
 		ctx.addEnv(
 			'JOB_SUBNETS',
 			new Output(new Set(findInputDeps(subnets)), async (resolve: (value: string) => void) => {
@@ -215,7 +212,7 @@ export const jobFeature = defineFeature({
 			})
 		)
 		ctx.addEnv('JOB_SECURITY_GROUP', ctx.shared.get('job', 'security-group-id'))
-		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('job', 'bucket-name'))
+		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('asset', 'bucket').name)
 
 		for (const [id, props] of jobs) {
 			const group = new Group(ctx.stack, 'job', id)
@@ -225,14 +222,14 @@ export const jobFeature = defineFeature({
 		// ------------------------------------------------------------
 		// Permissions for invoking jobs
 
-		ctx.addStackPermission({
+		ctx.addPermission({
 			actions: ['ecs:RunTask'],
 			resources: [
 				`arn:aws:ecs:${ctx.appConfig.region}:*:task-definition/${ctx.app.name}--${ctx.stackConfig.name}--*`,
 			],
 		})
 
-		ctx.addStackPermission({
+		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: ['*'],
 			conditions: {
@@ -240,18 +237,6 @@ export const jobFeature = defineFeature({
 					'iam:PassedToService': 'ecs-tasks.amazonaws.com',
 				},
 			},
-		})
-
-		ctx.addStackPermission({
-			actions: ['s3:PutObject'],
-			resources: [
-				`arn:aws:s3:::${formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'job',
-					resourceName: 'assets',
-					postfix: ctx.appId,
-				})}/payloads/*`,
-			],
 		})
 	},
 })

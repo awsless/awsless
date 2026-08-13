@@ -5,7 +5,7 @@ import { readdir } from "fs/promises";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 import { builtinModules } from "module";
-import { relative } from "path";
+import { relative, sep } from "path";
 
 // src/import.ts
 import { parse } from "@swc/core";
@@ -126,7 +126,7 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
     if (dependency.type === "package") {
       hashes.set(module, Buffer.from(`${module}:${dependency.version}`, "utf8"));
     } else {
-      const localPackage = workspace.packages[module];
+      const localPackage = workspace.packages[dependency.link];
       if (!localPackage) {
         throw new Error(`Can't find the local workspace package for: ${file}`);
       }
@@ -164,7 +164,7 @@ var getPackageName = (importee) => {
   throw new Error(`Malformed importee: ${importee}`);
 };
 var findDependency = (workspace, module, source) => {
-  const pkg = Object.values(workspace.packages).filter((p) => source.startsWith(p.path)).sort((a, b) => b.path.split("/").length - a.path.split("/").length).find((p) => p.dependencies[module]);
+  const pkg = Object.values(workspace.packages).filter((p) => source === p.path || source.startsWith(p.path + sep)).sort((a, b) => b.path.split(sep).length - a.path.split(sep).length).find((p) => p.dependencies[module]);
   if (!pkg) {
     return;
   }
@@ -202,7 +202,7 @@ var pnpm = async (search) => {
         }
       }
       const entry = packageData.module ?? packageData.main;
-      packages[packageData.name] = {
+      packages[join2(cwd, path)] = {
         name: packageData.name,
         path: join2(cwd, path),
         main: entry ? join2(cwd, path, entry) : void 0,

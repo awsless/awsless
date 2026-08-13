@@ -2,9 +2,9 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
 	test: {
-		watch: false,
 		globals: true,
-		include: ['./test/**'],
+		watch: false,
+		include: ['./test/**/*.test.ts'],
 		setupFiles: ['./src/test/test-global-setup.ts'],
 	},
 })

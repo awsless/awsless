@@ -9,7 +9,10 @@ export class TypeFile {
 	constructor(readonly module: string) {}
 
 	addImport(varName: string | Record<string, string>, path: string) {
-		this.imports.set(varName, path)
+		// Explicit .ts extensions only resolve when the app's tsconfig
+		// sets allowImportingTsExtensions - without it every import
+		// silently types as `any`. Extensionless paths resolve anywhere.
+		this.imports.set(varName, path.replace(/\.(ts|tsx|mts)$/, ''))
 		return this
 	}
 

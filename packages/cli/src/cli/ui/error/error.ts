@@ -1,4 +1,6 @@
 import { Cancelled as CancelledError, log } from '@awsless/clui'
+import { relative } from 'path'
+import { debugError, debugLogFile } from '../../debug.js'
 import { AppError, ResourceError } from '@terraforge/core'
 import { Cancelled, ConfigError, ExpectedError, FileError } from '../../../error.js'
 import { color } from '../style.js'
@@ -9,7 +11,9 @@ import { logFileError } from './file-error.js'
 import { logResourceError } from './stack-error.js'
 
 export const logError = (error: unknown) => {
-	// console.log(error)
+	// The full picture is often in the debug log, so every printed
+	// error points at it.
+	debugError(error)
 
 	if (error instanceof ConfigError) {
 		logConfigError(error)
@@ -45,5 +49,10 @@ export const logError = (error: unknown) => {
 		} catch {
 			log.error(color.error('Unknown error!'))
 		}
+	}
+
+	// Cancels are user intent, not failures worth investigating.
+	if (!(error instanceof Cancelled) && !(error instanceof CancelledError) && !Array.isArray(error)) {
+		log.message(color.dim(`Debug log: ${relative(process.cwd(), debugLogFile)}`))
 	}
 }

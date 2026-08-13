@@ -16,6 +16,7 @@ import {
 	unknown,
 } from '@awsless/validate'
 import { WeakCache } from '@awsless/weak-cache'
+import { formatRoutePayload } from 'awsless'
 import { addSeconds, isFuture } from 'date-fns'
 
 const authResponseSchema = union([
@@ -91,14 +92,14 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	}
 
 	// ------------------------------------------
-	// Invoke the custom auth lambda
+	// Invoke the auth handler inside the app bundle
 
 	let response: unknown
 
 	try {
 		response = await invoke({
 			name: process.env.AUTH,
-			payload: { token: token ?? undefined },
+			payload: formatRoutePayload(process.env.AUTH_ROUTE!, { token: token ?? undefined }),
 		})
 	} catch (error) {
 		console.error(error)

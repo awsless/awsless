@@ -12,17 +12,22 @@ import { state } from './state/index.js'
 import { test } from './test.js'
 import { types } from './types.js'
 import { domain } from './domain/index.js'
-import { logs } from './logs.js'
+import { logs } from './logs/index.js'
 import { image } from './image/index.js'
 import { icon } from './icon/index.js'
 import { cron } from './cron/index.js'
-import { activity } from './activity/index.js'
+import { deployments } from './deployment.js'
+import { prune } from './prune.js'
+import { rollback } from './rollback.js'
 
 export const commands = [
 	bootstrap,
 	types,
 	build,
 	deploy,
+	deployments,
+	rollback,
+	prune,
 	// diff,
 	del,
 	dev,
@@ -30,7 +35,6 @@ export const commands = [
 	bind,
 	run,
 	logs,
-	activity,
 
 	auth,
 	domain,

@@ -1,7 +1,7 @@
 import { aws } from '@terraforge/aws'
 import {
 	App,
-	DynamoActivityLogBackend,
+	createCustomProvider,
 	DynamoLockBackend,
 	enableDebug,
 	S3StateBackend,
@@ -9,14 +9,15 @@ import {
 	WorkSpace,
 } from '@terraforge/core'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
-import { userInfo } from 'node:os'
 import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
+import { debug } from '../cli/debug.js'
 import { Region } from '../config/schema/region.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
-import { createCloudFrontProvider } from '../formation/cloudfront.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
+import { createOpenSearchProvider } from '../formation/open-search.js'
+import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
 
@@ -26,12 +27,17 @@ export const getStateBucketName = (region: Region, accountId: string) => {
 	return `awsless-state-${region}-${accountId}`
 }
 
-export const createWorkSpace = async (props: {
+export const getAppReleaseLockUrn = (appId: string) => {
+	return `urn:app-release:${appId}` as const
+}
+
+type BackendProps = {
 	credentials: Credentials
 	accountId: string
-	// profile: string
 	region: Region
-}) => {
+}
+
+export const createDeploymentBackends = (props: BackendProps) => {
 	const lock = new DynamoLockBackend({
 		...props,
 		tableName: 'awsless-locks',
@@ -42,19 +48,21 @@ export const createWorkSpace = async (props: {
 		bucket: getStateBucketName(props.region, props.accountId),
 	})
 
-	const activityLog = new DynamoActivityLogBackend({
-		...props,
-		tableName: 'awsless-logs',
-		user: userInfo().username,
-	})
+	return {
+		lock,
+		state,
+	}
+}
+
+export const createWorkSpace = async (props: BackendProps) => {
+	const { lock, state } = createDeploymentBackends(props)
 
 	// const terraform = new Terraform({
 	// 	providerLocation: join(homedir(), `.awsless/providers`),
 	// })
 
-	if (process.env.VERBOSE) {
-		enableDebug()
-	}
+	// The engine debug output always streams into the debug log file.
+	enableDebug((group, ...args) => debug(`${group}:`, ...args))
 
 	await aws.install()
 
@@ -70,9 +78,14 @@ export const createWorkSpace = async (props: {
 	const workspace = new WorkSpace({
 		providers: [
 			createLambdaProvider(props),
-			createCloudFrontProvider(props),
 			createCloudFrontKvsProvider(props),
+			createS3Provider(props),
 			createNameServersProvider(props),
+			createOpenSearchProvider(props),
+			// Backwards compatibility for old states, can be removed later.
+			createCustomProvider('cloudfront', {
+				invalidation: {},
+			}),
 			aws(
 				{
 					accessKey: cred.accessKeyId,
@@ -81,7 +94,11 @@ export const createWorkSpace = async (props: {
 
 					// profile: props.profile,
 					region: props.region,
-					maxRetries: 5,
+
+					// Control plane calls like dynamodb DescribeTimeToLive
+					// throttle hard when we refresh many resources at once,
+					// so match the terraform aws provider default of 25.
+					maxRetries: 25,
 				}
 				// {
 				// 	debug: true,
@@ -95,7 +112,7 @@ export const createWorkSpace = async (props: {
 
 					// profile: props.profile,
 					region: 'us-east-1',
-					maxRetries: 5,
+					maxRetries: 25,
 				},
 				{
 					id: 'global-aws',
@@ -104,7 +121,6 @@ export const createWorkSpace = async (props: {
 		],
 		concurrency: 15,
 		backend: {
-			activityLog,
 			state,
 			lock,
 		},
@@ -112,7 +128,6 @@ export const createWorkSpace = async (props: {
 
 	return {
 		workspace,
-		activityLog,
 		lock,
 		state,
 	}
@@ -130,7 +145,7 @@ export const pullRemoteState = async (app: App, stateBackend: StateBackend) => {
 			await rm(file)
 		}
 	} else {
-		await writeFile(file, JSON.stringify(state, undefined, 2))
+		await writeFile(file, JSON.stringify(state, undefined, 2), { mode: 0o600 })
 	}
 }
 

@@ -7,10 +7,6 @@ export const createTempFolder = async (name: string) => {
 
 	await mkdir(join(directories.temp, name), { recursive: true })
 
-	process.on('SIGTERM', async () => {
-		await rm(path, { recursive: true })
-	})
-
 	return {
 		path,
 		async files() {

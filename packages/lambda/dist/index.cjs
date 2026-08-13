@@ -60,7 +60,10 @@ var toErrorResponse = (error) => {
     __error__: {
       type: error.type,
       // name: error.name,
-      message: error.message
+      message: error.message,
+      // The viewable data rides along, so a caller (or the http
+      // error response) keeps the structured details.
+      data: error.data
     }
   };
 };
@@ -153,6 +156,7 @@ var normalizeError = (maybeError) => {
 // src/errors/enhanced.ts
 var EnhandedError = class extends Error {
   input;
+  route;
   requestId;
   functionName;
   functionVersion;
@@ -166,6 +170,9 @@ var enhanceError = (maybeError, schema, input, context) => {
   });
   error.input = schema ? (0, import_validate.applyRedaction)(schema, input) : input;
   if (context) {
+    if (typeof context.route === "string") {
+      error.route = context.route;
+    }
     error.requestId = context.awsRequestId;
     error.functionName = context.functionName;
     error.functionVersion = context.functionVersion;
@@ -218,25 +225,23 @@ var transformValidationErrors = async (callback) => {
   }
 };
 
-// src/context/global-context.ts
-var GlobalContext = class {
-  #store;
-  async run(store, callback) {
-    this.#store = store;
-    try {
-      const res = await callback();
-      return res;
-    } finally {
-      this.#store = void 0;
-    }
+// src/context/async-context.ts
+var import_node_async_hooks = require("async_hooks");
+var AsyncContext = class {
+  #storage;
+  constructor() {
+    this.#storage = new import_node_async_hooks.AsyncLocalStorage();
+  }
+  run(store, callback) {
+    return this.#storage.run(store, callback);
   }
   get() {
-    return this.#store;
+    return this.#storage.getStore();
   }
 };
 
 // src/context/lambda-context.ts
-var eventContext = new GlobalContext();
+var eventContext = new AsyncContext();
 var getContext = () => {
   const ctx = eventContext.get();
   if (!ctx) {

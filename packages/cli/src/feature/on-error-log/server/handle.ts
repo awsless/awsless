@@ -1,4 +1,3 @@
-import { invoke } from '@awsless/lambda'
 import {
 	array,
 	literal,
@@ -14,7 +13,7 @@ import {
 	transform,
 	uuid,
 } from '@awsless/validate'
-import { CloudWatchLogsEvent } from 'aws-lambda'
+import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { createHash, UUID } from 'crypto'
 import * as zlib from 'zlib'
 
@@ -63,9 +62,10 @@ const EventSchema = object({
 	),
 })
 
-type Error = {
+type ErrorLog = {
 	hash: string
 	requestId: UUID
+	origin: string
 	level: 'warn' | 'error' | 'fatal'
 	type: string
 	message: string
@@ -73,44 +73,58 @@ type Error = {
 	data?: unknown
 }
 
-const consumer = process.env.CONSUMER
-
-if (!consumer) {
-	throw new Error('CONSUMER environment variable is not set')
+export type ErrorEvent = ErrorLog & {
+	date: Date
 }
 
-export default async (event: CloudWatchLogsEvent) => {
-	const payload = Buffer.from(event.awslogs.data, 'base64')
-	const unzipped = zlib.gunzipSync(new Uint8Array(payload))
-	const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
+// The handler runs in its own stand-alone lambda whose log group is
+// never subscribed to the error logs, so an error produced by the
+// consumer can never be consumed again & loop forever.
+export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>) => {
+	return async (event: CloudWatchLogsEvent, context: Context) => {
+		try {
+			const payload = Buffer.from(event.awslogs.data, 'base64')
+			const unzipped = zlib.gunzipSync(new Uint8Array(payload))
+			const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
 
-	if (!result.success) {
-		console.log('Failed to parse log data', result.issues)
-		return
-	}
+			if (!result.success) {
+				console.warn('Failed to parse log data', result.issues)
+				return
+			}
 
-	const origin = result.output.logGroup.split('/').pop()!
+			const origin = result.output.logGroup.split('/').pop()!
 
-	for (const logEvent of result.output.logEvents) {
-		const error = parseError(logEvent.message, origin)
+			for (const logEvent of result.output.logEvents) {
+				const error = parseError(logEvent.message, origin)
 
-		if (!error) {
-			continue
+				if (!error) {
+					continue
+				}
+
+				// A hung consumer is abandoned right before the invocation
+				// deadline, so the log handling always finishes cleanly
+				// instead of timing out the whole invocation.
+				const invoke = Promise.resolve()
+					.then(() => {
+						return consumer({
+							...error,
+							date: logEvent.timestamp,
+						})
+					})
+					// Logging here is loop-safe, since this log group is never subscribed.
+					.catch(error => console.error('The on-error-log consumer failed', error))
+
+				const deadline = Math.max(0, context.getRemainingTimeInMillis() - 3_000)
+
+				await Promise.race([invoke, new Promise(resolve => setTimeout(resolve, deadline))])
+			}
+		} catch (error) {
+			console.warn('Failed to consume the error logs', error)
 		}
-
-		await invoke({
-			name: consumer,
-			type: 'Event',
-			payload: {
-				...error,
-				origin,
-				date: logEvent.timestamp,
-			},
-		})
 	}
 }
 
-const parseError = (message: string, origin: string): Error | undefined => {
+const parseError = (message: string, origin: string): ErrorLog | undefined => {
 	let parsed
 	try {
 		parsed = JSON.parse(message)
@@ -123,11 +137,21 @@ const parseError = (message: string, origin: string): Error | undefined => {
 	if (runtimeError.success) {
 		const { requestId, level } = runtimeError.output
 		const { errorType, errorMessage, stackTrace, ...extra } = runtimeError.output.message
+
+		// Errors thrown inside the shared bundle carry the route key of the
+		// logical resource that was running, which names the origin better
+		// than the bundles own function name.
+		if (typeof extra.route === 'string') {
+			origin = extra.route
+			delete extra.route
+		}
+
 		const hash = createHash('sha256').update([origin, errorType, errorMessage, stackTrace].join('-')).digest('hex')
 
 		return {
 			hash,
 			requestId,
+			origin,
 			level,
 			type: errorType,
 			message: errorMessage,
@@ -144,6 +168,7 @@ const parseError = (message: string, origin: string): Error | undefined => {
 		return {
 			hash,
 			requestId,
+			origin,
 			level: 'fatal',
 			type: errorType ?? status,
 			message: `Fatal system error: ${errorType ?? status}`,
@@ -159,6 +184,7 @@ const parseError = (message: string, origin: string): Error | undefined => {
 		return {
 			hash,
 			requestId,
+			origin,
 			level,
 			type: 'Error',
 			message,

@@ -2,8 +2,12 @@ import { log } from '@awsless/clui'
 import chalk from 'chalk'
 import { constantCase } from 'change-case'
 import { Command } from 'commander'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { createApp } from '../../app.js'
+import { ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { directories } from '../../util/path.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
@@ -14,10 +18,57 @@ export const bind = (program: Command) => {
 
 		.argument('[command...]', 'The command to execute')
 		.option('--config <string...>', 'List of config values that will be accessable', v => v.split(','))
+		.option('--local', 'Bind against the running local dev environment instead of the deployed app')
 		.description(`Bind your site environment variables to a command`)
 
-		.action(async (commands: string[] = [], opts: { config?: string[] }) => {
+		.action(async (commands: string[] = [], opts: { config?: string[]; local?: boolean }) => {
 			await layout('bind', async ({ appConfig, stackConfigs }) => {
+				// The local dev environment persists its env, so sibling
+				// commands run against the local emulators.
+				if (opts.local) {
+					const file = join(directories.output, 'local', 'env.json')
+					let env: Record<string, string>
+
+					try {
+						env = JSON.parse(await readFile(file, 'utf8'))
+					} catch (_) {
+						throw new ExpectedError('No local dev environment found. Start it first with: awsless dev')
+					}
+
+					// The runtime resolves configs from the CONFIGS comma list,
+					// merged with whatever the dev environment already
+					// announces.
+					const configs: Record<string, string> = {}
+					const configList = opts.config ?? []
+
+					if (configList.length > 0) {
+						configs.CONFIGS = [
+							...new Set([...(env.CONFIGS ? env.CONFIGS.split(',') : []), ...configList]),
+						].join(',')
+					}
+
+					if (commands.length === 0) {
+						return 'No command to execute.'
+					}
+
+					console.log(chalk.black(`│`))
+					console.log(chalk.black(`└  ${chalk.yellow(commands.join(' '))}`))
+					console.log('')
+
+					const instance = Bun.spawn(commands, {
+						env: {
+							...process.env,
+							...env,
+							...configs,
+						},
+						stdout: 'inherit',
+						stderr: 'inherit',
+					})
+
+					await instance.exited
+					process.exit(instance.exitCode ?? 1)
+				}
+
 				const region = appConfig.region
 				const profile = appConfig.profile
 				const credentials = await getCredentials(profile)
@@ -47,8 +98,8 @@ export const bind = (program: Command) => {
 
 				const configList = opts.config ?? []
 				const configs: Record<string, string> = {}
-				for (const name of configList) {
-					configs[`CONFIG_${constantCase(name)}`] = name
+				if (configList.length > 0) {
+					configs.CONFIGS = configList.join(',')
 				}
 
 				if (configList.length ?? 0 > 0) {
@@ -97,7 +148,8 @@ export const bind = (program: Command) => {
 
 				await instance.exited
 
-				process.exit(0)
+				// A signal termination has no exit code, but is still a failure.
+				process.exit(instance.exitCode ?? 1)
 
 				// return
 			})

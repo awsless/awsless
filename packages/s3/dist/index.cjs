@@ -107,7 +107,7 @@ var headObject = async ({ client = s3Client(), bucket, key, versionId }) => {
   try {
     result = await client.send(command);
   } catch (error) {
-    if (error instanceof import_client_s32.NoSuchKey) {
+    if (error instanceof import_client_s32.NotFound || error instanceof import_client_s32.NoSuchKey) {
       return;
     }
     throw error;
@@ -282,9 +282,9 @@ var mockS3 = () => {
         ChecksumSHA1: data.sha1
       };
     }
-    throw new import_client_s33.NoSuchKey({
+    throw new import_client_s33.NotFound({
       $metadata: {},
-      message: "No such key"
+      message: "Not found"
     });
   });
   s3ClientMock.on(import_client_s33.CopyObjectCommand).callsFake(async (input) => {

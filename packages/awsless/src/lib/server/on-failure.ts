@@ -1,12 +1,12 @@
-import { ACCOUNT_ID, APP_ID, build, REGION } from './util'
+import { ACCOUNT_ID, APP_ID, formatResourceName, REGION } from './util'
 
-export const onFailureBucketName = build({
+export const onFailureBucketName = formatResourceName({
 	resourceType: 'on-failure',
 	resourceName: 'failure',
 	postfix: APP_ID,
 })
 
-export const onFailureQueueName = build({
+export const onFailureQueueName = formatResourceName({
 	resourceType: 'on-failure',
 	resourceName: 'failure',
 })

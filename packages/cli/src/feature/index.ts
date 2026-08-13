@@ -1,7 +1,10 @@
+import { assetFeature } from './asset/index.js'
 import { authFeature } from './auth/index.js'
+import { bundleFeature } from './bundle/index.js'
 import { cacheFeature } from './cache/index.js'
 import { commandFeature } from './command/index.js'
 import { configFeature } from './config/index.js'
+import { emailFeature } from './email/index.js'
 import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
 import { functionFeature } from './function/index.js'
@@ -29,28 +32,31 @@ import { metricFeature } from './metric/index.js'
 import { routerFeature } from './router/index.js'
 
 export const features = [
-	// 1
+	// 1. The base infra that everything below builds on.
 	vpcFeature,
 	domainFeature,
+	assetFeature,
 	routerFeature,
 	commandFeature,
 	layerFeature,
 
-	// 2
+	// 2. The global failure/error-log handlers. Both handlers exclude
+	// themselves from their own failure wiring by sharing their keys
+	// only after their handler lambda exists, so they must come before
+	// every other lambda creating feature.
 	onFailureFeature,
-
-	// 3
 	onErrorLogFeature,
 
-	// 4
-	authFeature,
+	// 3. The shared bundle lambda that hosts all feature handlers.
+	bundleFeature,
 
-	// 5
+	// 4. The remaining app features, building on everything above.
+	authFeature,
 	functionFeature,
 	instanceFeature,
 	jobFeature,
-	// graphqlFeature,
 	configFeature,
+	emailFeature,
 	searchFeature,
 	pubsubFeature,
 	metricFeature,
@@ -70,6 +76,6 @@ export const features = [
 	imageFeature,
 	iconFeature,
 
-	// 6
+	// 5. The rpc api serves routes from the features above.
 	rpcFeature,
 ]

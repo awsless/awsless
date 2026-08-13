@@ -1,20 +1,22 @@
-import { createHash } from 'crypto'
 import { toDays, toSeconds } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
-import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
+import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
 import { constantCase, pascalCase } from 'change-case'
+import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
+import { getFeatureFolder } from '../asset/index.js'
+import { PolicyStatement } from '../bundle/policy.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { buildJobExecutable } from './build/executable.js'
 import { JobProps } from './schema.js'
@@ -31,7 +33,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 
 	const shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 
-	const props = deepmerge(ctx.appConfig.defaults.job, local)
+	const props = deepmerge(ctx.appConfig.job, local)
 	const image =
 		props.image ||
 		(props.architecture === 'arm64'
@@ -60,33 +62,47 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('job', 'bucket-name'),
-		key: name,
-		source: relativePath(getBuildPath('job', name, 'program')),
-		sourceHash: $file(getBuildPath('job', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('asset', 'bucket').name,
+			key: `${getFeatureFolder('job', ctx.stack.name, id)}code`,
+			source: relativePath(getBuildPath('job', name, 'program')),
+			sourceHash: $file(getBuildPath('job', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions
 
-	const executionRole = new aws.iam.Role(group, 'execution-role', {
-		name: shortId(`${shortName}:execution-role`),
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['ecs-tasks.amazonaws.com'],
+	const executionRole = new aws.iam.Role(
+		group,
+		'execution-role',
+		{
+			name: shortId(`${shortName}:execution-role`),
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['ecs-tasks.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-		managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
-	})
+				],
+			}),
+			managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+		},
+		{
+			import: ctx.import ? shortId(`${shortName}:execution-role`) : undefined,
+		}
+	)
 
 	const role = new aws.iam.Role(
 		group,
@@ -116,7 +132,10 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 								{
 									Effect: pascalCase('allow'),
 									Action: ['s3:GetObject', 's3:HeadObject'],
-									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/payloads/*`],
+									Resource: [
+										`arn:aws:s3:::${bucket}/${key}`,
+										`arn:aws:s3:::${bucket}/job/payloads/*`,
+									],
 								},
 							],
 						})
@@ -126,6 +145,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		},
 		{
 			dependsOn: [code],
+			import: ctx.import ? shortId(`${shortName}:task-role`) : undefined,
 		}
 	)
 
@@ -136,8 +156,8 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		role: role.name,
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-			const list = await resolveInputs(statements)
-			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 
@@ -157,21 +177,36 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 
 	let logGroup: aws.cloudwatch.LogGroup | undefined
 	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/ecs/${name}`,
-			retentionInDays: toDays(props.log.retention),
-		})
+		logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/ecs/${name}`,
+				retentionInDays: toDays(props.log.retention),
+			},
+			{
+				import: ctx.import ? `/aws/ecs/${name}` : undefined,
+			}
+		)
 
 		// ------------------------------------------------------------
 		// Add log subscription
 
 		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
-				name: 'error-log-subscription',
-				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-				logGroupName: logGroup.name,
-				filterPattern,
-			})
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
+				{
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
+				},
+				{
+					replaceOnChanges: ['destinationArn'],
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
 		}
 	}
 
@@ -268,9 +303,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 							entryPoint: ['sh', '-c'],
 							command: [
 								[
-									...(props.startupCommand?.length
-										? [props.startupCommand.join(' && ')]
-										: []),
+									...(props.startupCommand?.length ? [props.startupCommand.join(' && ')] : []),
 									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program.tmp && mv /root/program.tmp /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
 									`exec timeout --kill-after=10 ${toSeconds(props.timeout)} /root/program`,
 								].join(' && '),
@@ -349,11 +382,11 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	// ------------------------------------------------------------
 	// Add user defined permissions
 
-	if (ctx.appConfig.defaults.job.permissions) {
-		statements.push(...ctx.appConfig.defaults.job.permissions)
+	if (ctx.appConfig.job.permissions) {
+		statements.push(...ctx.appConfig.job.permissions)
 	}
 
-	if ('permissions' in local && local.permissions) {
+	if (local.permissions) {
 		statements.push(...local.permissions)
 	}
 

@@ -8,10 +8,10 @@ import { SizeSchema } from '../../config/schema/size.js'
 
 const CpuSchema = z
 	.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(2), z.literal(4), z.literal(8), z.literal(16)])
-	.transform(v => `${v} vCPU`)
-	.describe(
-		'The number of virtual CPU units (vCPU) used by the instance. Valid values: 0.25, 0.5, 1, 2, 4, 8, 16 vCPU.'
-	)
+	// AWS canonicalizes the cpu value to plain cpu units, so we store the
+	// same form to keep refreshed state diff-free.
+	.transform(v => `${v * 1024}`)
+	.describe('The number of vCPUs used by the instance. Valid values: 0.25, 0.5, 1, 2, 4, 8, 16.')
 
 const validMemorySize = [
 	// 0.25 vCPU

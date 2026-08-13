@@ -1,3 +1,5 @@
+import { Duration, seconds, toMilliSeconds } from '@awsless/duration'
+
 export interface HTTP {}
 
 type Method = 'GET' | 'POST'
@@ -32,9 +34,27 @@ export type HttpFetcher = (props: {
 	body?: Body
 }) => unknown
 
-export const createHttpFetcher = (host: string): HttpFetcher => {
+export class HttpError extends Error {
+	constructor(
+		readonly status: number,
+		readonly body: string,
+		readonly url: string
+	) {
+		super(`HTTP ${status} from ${url}: ${body.slice(0, 500)}`)
+		this.name = 'HttpError'
+	}
+}
+
+export type HttpFetcherOptions = {
+	// Without one a hung upstream holds the caller until its own timeout.
+	timeout?: Duration
+}
+
+export const createHttpFetcher = (host: string, options: HttpFetcherOptions = {}): HttpFetcher => {
+	const timeout = toMilliSeconds(options.timeout ?? seconds(30))
+
 	return async ({ method, path, headers, body, query }) => {
-		const url = new URL(host, path)
+		const url = new URL(path, host)
 
 		if (query) {
 			for (const [key, value] of Object.entries(query)) {
@@ -43,16 +63,32 @@ export const createHttpFetcher = (host: string): HttpFetcher => {
 		}
 
 		headers.set('content-type', 'application/json')
+		const payload = body === undefined ? undefined : JSON.stringify(body)
+
+		if (method === 'POST') {
+			const bytes = new TextEncoder().encode(payload ?? '')
+			const hash = await crypto.subtle.digest('SHA-256', bytes)
+
+			headers.set(
+				'x-amz-content-sha256',
+				Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
+			)
+		}
 
 		const response = await fetch(url, {
 			method,
 			headers,
-			body: body ? JSON.stringify(body) : undefined,
+			body: payload,
+			signal: AbortSignal.timeout(timeout),
 		})
 
-		const result = await response.json()
+		// A non-2xx body is rarely json, so reading it as text keeps the status
+		// & the real message instead of failing inside json parsing.
+		if (!response.ok) {
+			throw new HttpError(response.status, await response.text().catch(() => ''), url.toString())
+		}
 
-		return result
+		return await response.json()
 	}
 }
 
@@ -62,8 +98,8 @@ export const createHttpClient = <S extends Schema>(fetcher: HttpFetcher) => {
 		routeKey: Extract<P, string>,
 		props?: Props<GetRoute<S, M, P>>
 	) => {
-		const path = routeKey.replaceAll(/{([a-z0-1-]+)}/, key => {
-			return props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? ''
+		const path = routeKey.replaceAll(/{([a-z0-9-]+)}/g, key => {
+			return encodeURIComponent(props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? '')
 		})
 
 		return fetcher({

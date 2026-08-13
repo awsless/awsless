@@ -6,6 +6,7 @@ import {
 	InferInput,
 	InferOutput,
 	array,
+	minLength,
 	object,
 	pipe,
 	transform,
@@ -14,8 +15,8 @@ import {
 import { json } from '../json'
 
 export type SnsTopicSchema<S extends GenericSchema> = BaseSchema<
-	InferInput<S> | InferInput<S>[] | { Records: { Sns: { Message: string | InferInput<S> } }[] },
-	InferOutput<S>[],
+	InferInput<S> | { Records: { Sns: { Message: string | InferInput<S> } }[] },
+	InferOutput<S>,
 	GenericIssue
 >
 
@@ -25,25 +26,15 @@ export const snsTopic = <S extends GenericSchema>(
 ): SnsTopicSchema<S> => {
 	return union(
 		[
-			// Prioritize the expected payload during production
+			// SNS always delivers exactly one record per invocation.
 			pipe(
 				object({
-					Records: array(
-						object({
-							Sns: object({
-								Message: json(schema),
-							}),
-						})
-					),
+					Records: pipe(array(object({ Sns: object({ Message: json(schema) }) })), minLength(1)),
 				}),
-				transform(v => v.Records.map(r => r.Sns.Message))
+				transform(v => v.Records[0]!.Sns.Message)
 			),
-			// These are allowed during testing
-			pipe(
-				schema,
-				transform(v => [v])
-			),
-			array(schema),
+			// The plain payload is allowed during testing
+			schema,
 		],
 		message
 	)

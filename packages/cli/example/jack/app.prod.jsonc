@@ -1,0 +1,25 @@
+{
+	"$schema": "../../dist/app.stage.json",
+	"operations": [
+		{
+			"op": "replace",
+			"path": "/name",
+			"value": "app-jack-prod",
+		},
+		{
+			"op": "replace",
+			"path": "/function/log/retention",
+			"value": "3 days",
+		},
+		{
+			"op": "add",
+			"path": "/protect",
+			"value": true,
+		},
+		{
+			"op": "add",
+			"path": "/removal",
+			"value": "retain",
+		},
+	],
+}

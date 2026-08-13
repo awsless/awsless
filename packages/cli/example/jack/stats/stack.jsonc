@@ -1,0 +1,20 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "stats",
+	"tests": "./test",
+
+	"functions": {
+		"get": "./src/function/get.ts"
+	},
+	"tasks": {
+		"log": "./src/task/log.ts"
+	},
+
+	"caches": {
+		"stats": {}
+	},
+
+	"subscribers": {
+		"task-created": "./src/subscriber/on-create.ts"
+	}
+}

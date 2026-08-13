@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { builtinModules } from 'node:module'
-import { relative } from 'path'
+import { relative, sep } from 'path'
 import { findImports } from './import'
 import { isLocalCodeFile, resolveModuleImportFile } from './module'
 import { Workspace } from './types'
@@ -57,7 +57,9 @@ export const generateRecursiveFileHashes = async (
 		if (dependency.type === 'package') {
 			hashes.set(module, Buffer.from(`${module}:${dependency.version}`, 'utf8'))
 		} else {
-			const localPackage = workspace.packages[module]
+			// The lockfile link points at the exact package directory,
+			// which stays unambiguous even with duplicate package names.
+			const localPackage = workspace.packages[dependency.link]
 
 			if (!localPackage) {
 				throw new Error(`Can't find the local workspace package for: ${file}`)
@@ -109,8 +111,10 @@ const getPackageName = (importee: string) => {
 const findDependency = (workspace: Workspace, module: string, source: string) => {
 	// const module = getPackageName(importee)
 	const pkg = Object.values(workspace.packages)
-		.filter(p => source.startsWith(p.path))
-		.sort((a, b) => b.path.split('/').length - a.path.split('/').length)
+		// The separator suffix stops prefix packages from matching their
+		// sibling's sources, like "cli" matching "cli-next" files.
+		.filter(p => source === p.path || source.startsWith(p.path + sep))
+		.sort((a, b) => b.path.split(sep).length - a.path.split(sep).length)
 		.find(p => p.dependencies[module])
 
 	if (!pkg) {

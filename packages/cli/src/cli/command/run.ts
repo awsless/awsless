@@ -40,6 +40,12 @@ export const run = (program: CliCommand) => {
 					command = commands.find(cmd => {
 						return cmd.name === selected
 					})
+				} else if (process.env.SKIP_PROMPT) {
+					throw new ExpectedError(
+						`Pass the command argument when running with --skip-prompt: [ ${commands
+							.map(cmd => cmd.name)
+							.join(', ')} ]`
+					)
 				} else {
 					command = await prompt.select({
 						message: 'Pick the command you want to run:',

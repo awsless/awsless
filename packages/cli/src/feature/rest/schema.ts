@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { RouteSchema } from '../../config/schema/route.js'
-import { FunctionSchema } from '../function/schema.js'
+import { BundledFunctionSchema } from '../function/schema.js'
 
 export const RestDefaultSchema = z
 	.record(
@@ -25,7 +25,7 @@ export const RestSchema = z
 					'Example: GET /posts/{id}',
 				].join('\n')
 			),
-			FunctionSchema
+			BundledFunctionSchema
 		)
 	)
 	.optional()

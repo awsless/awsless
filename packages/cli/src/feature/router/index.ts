@@ -1,24 +1,96 @@
 import { days, seconds, toSeconds, years } from '@awsless/duration'
-import { Future, Group, Input, Resource } from '@terraforge/core'
+import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { camelCase, constantCase, kebabCase } from 'change-case'
-import { ImportKeys } from '../../formation/cloudfront-kvs.js'
+import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
-import { Invalidation } from '../../formation/cloudfront.js'
-import { createHash } from 'node:crypto'
 import { ExpectedError, FileError } from '../../error.js'
-import { createLambdaFunction } from '../function/util.js'
-import { shortId } from '../../util/id.js'
+import { Route } from './route.js'
 import { compileRoutePattern } from './pattern.js'
-import { createRouteStoreEntries, Route } from './route.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { shortId } from '../../util/id.js'
+
+// The route store caps a value at 1KB.
+const MAX_VALUE_SIZE = 1000
+
+// Serialized lambda routes gain a function url host, which tops out under 64 chars.
+const ORIGIN_PLACEHOLDER = 'x'.repeat(64)
+
+const assertRouteValueSize = (key: string, route: Route | Route[]) => {
+	const withOrigin = (entry: Route) => {
+		return entry.type === 'lambda' && !entry.domainName ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
+	}
+
+	// Route lists shard over multiple entries, so only a single route can outgrow one.
+	for (const entry of Array.isArray(route) ? route : [route]) {
+		if (Buffer.byteLength(JSON.stringify(withOrigin(entry)), 'utf8') > MAX_VALUE_SIZE) {
+			throw new ExpectedError(`The route value of the "${key}" route key is too large.`)
+		}
+	}
+}
+
+// Route lists that are too big for a single key value pair are
+// sharded over multiple entries behind a route index.
+const createRouteStoreEntries = (key: string, route: object | object[]) => {
+	const value = JSON.stringify(route)
+
+	if (!Array.isArray(route) || Buffer.byteLength(value, 'utf8') <= MAX_VALUE_SIZE) {
+		return [{ key, value }]
+	}
+
+	return [
+		{ key, value: JSON.stringify({ list: route.length }) },
+		...route.map((entry, index) => ({
+			key: `${key}#${index}`,
+			value: JSON.stringify(entry),
+		})),
+	]
+}
 
 export const routerFeature = defineFeature({
 	name: 'router',
 	onApp(ctx) {
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.router ?? {})) {
+		const routers = Object.entries(ctx.appConfig.router ?? {})
+
+		// All routers share one route store and one deployment; the shared
+		// resources live in their own group, so renaming or reordering
+		// routers never moves their urn.
+		const defaultRouter = routers[0]?.[0]
+		const routes: Record<string, Route | Route[]> = {}
+		const routeDependencies = new Set<Resource | DataSource>()
+		const distributionIds: Output<string>[] = []
+		let hasLambdaRoutes = false
+		let routeStore: aws.cloudfront.KeyValueStore | undefined
+		let sharedGroup: Group | undefined
+
+		if (routers.length > 0) {
+			const storeName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'router',
+				resourceName: 'store',
+			})
+
+			sharedGroup = new Group(ctx.base, 'router', 'shared')
+			routeStore = new aws.cloudfront.KeyValueStore(
+				sharedGroup,
+				'routes',
+				{
+					name: storeName,
+					comment: 'Store for routes',
+				},
+				{
+					replaceOnChanges: ['name'],
+					createBeforeReplace: true,
+					import: ctx.import ? storeName : undefined,
+				}
+			)
+		}
+
+		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
 
 			const name = formatGlobalResourceName({
@@ -27,44 +99,53 @@ export const routerFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// ------------------------------------------------------------
-			// Route Store
-
-			const routeStore = new aws.cloudfront.KeyValueStore(group, 'routes', {
-				name,
-				comment: 'Store for routes',
-			})
+			// the function names are capped at 64 characters
+			const productionFunctionName = `${name.slice(0, 52)}--production`
+			const productionFunction = new aws.cloudfront.Function(
+				group,
+				'production-function',
+				{
+					name: productionFunctionName,
+					runtime: 'cloudfront-js-2.0',
+					code: getViewerRequestFunctionCode({
+						router: id,
+						blockDirectAccess: !!props.domain,
+						redirectWww: !!props.domain && props.redirectWww,
+						basicAuth: props.basicAuth,
+						passwordAuth: props.passwordAuth,
+					}),
+					publish: true,
+					keyValueStoreAssociations: [routeStore!.arn],
+				},
+				{
+					import: ctx.import ? productionFunctionName : undefined,
+				}
+			)
 
 			// ------------------------------------------------------------
 			// Add routes API
 
-			const routeKeys: string[] = []
-			const importedRoutes: Resource[] = []
-
-			ctx.shared.add('router', 'addRoutes', id, (group, name, routes, options) => {
-				for (const key of Object.keys(routes)) {
-					if (routeKeys.includes(key)) {
+			ctx.shared.add('router', 'addRoutes', id, (newRoutes, options) => {
+				for (const [key, route] of Object.entries(newRoutes)) {
+					if (Object.hasOwn(routes, `${id}:${key}`)) {
 						throw new ExpectedError(`Duplicate route key: ${key} in the "${id}" router`)
 					}
 
-					routeKeys.push(key)
+					assertRouteValueSize(`${id}:${key}`, route)
+					routes[`${id}:${key}`] = route
 				}
 
-				const importKeys = new ImportKeys(
-					group,
-					[id, name].join('-'),
-					{
-						kvsArn: routeStore.arn,
-						keys: $resolve([routes], routes => {
-							return createRouteStoreEntries(routes) as any
-						}),
-					},
-					{
-						dependsOn: options?.dependsOn,
-					}
-				)
+				for (const dependency of options?.dependsOn ?? []) {
+					routeDependencies.add(dependency)
+				}
 
-				importedRoutes.push(importKeys)
+				if (
+					Object.values(newRoutes)
+						.flat()
+						.some(route => route.type === 'lambda' && !route.domainName)
+				) {
+					hasLambdaRoutes = true
+				}
 			})
 
 			// ------------------------------------------------------------
@@ -91,6 +172,9 @@ export const routerFeature = defineFeature({
 								//
 								...(props.cache?.headers ?? []),
 								'x-origin',
+								// host dependent SSR responses must be cached
+								// per deployment url host
+								'x-forwarded-host',
 							],
 						},
 					},
@@ -167,23 +251,6 @@ export const routerFeature = defineFeature({
 						protection: true,
 					},
 				},
-			})
-
-			// ------------------------------------------------------------
-			// Viewer Request CloudFront Function
-
-			const viewerRequest = new aws.cloudfront.Function(group, 'viewer-request', {
-				name,
-				runtime: `cloudfront-js-2.0`,
-				comment: `Viewer Request - ${name}`,
-				publish: true,
-				keyValueStoreAssociations: [routeStore.arn],
-				code: getViewerRequestFunctionCode({
-					blockDirectAccess: !!props.domain,
-					redirectWww: !!props.domain && props.redirectWww,
-					basicAuth: props.basicAuth,
-					passwordAuth: props.passwordAuth,
-				}),
 			})
 
 			const wafSettingsConfig = props.waf
@@ -391,7 +458,7 @@ export const routerFeature = defineFeature({
 						functionAssociation: [
 							{
 								eventType: 'viewer-request',
-								functionArn: viewerRequest.arn,
+								functionArn: productionFunction.arn,
 							},
 						],
 						originRequestPolicyId: originRequest.id,
@@ -409,45 +476,67 @@ export const routerFeature = defineFeature({
 				webAclId: waf?.arn,
 			})
 
-			ctx.shared.add('router', 'id', id, distribution.id)
+			if (id === defaultRouter) {
+				ctx.onReadyLast(() => {
+					const bundle = ctx.shared.get('bundle', 'main')
+					let lambdaUrlHost: Input<string> | undefined
 
-			// if (waf) {
-			// 	new aws.wafv2.WebAclAssociation(group, 'association', {
-			// 		'webAclArn': waf.arn,
-			// 		'resourceArn':
-			// 	})
-			// }
+					if (hasLambdaRoutes) {
+						const deployment = new FunctionDeployment(
+							sharedGroup!,
+							'function-deployment',
+							{
+								functionName: bundle.lambda.functionName,
+								id: ctx.deploymentId ?? 'local-0',
+								sourceArns: distributionIds.map(distributionId =>
+									distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
+								),
+							},
+							{
+								dependsOn: [bundle.deployment],
+							}
+						)
 
-			// ------------------------------------------------------------
-			// Add Invalidation API
+						lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
+						routeDependencies.add(bundle.policy)
+						routeDependencies.add(bundle.alias)
+						routeDependencies.add(deployment)
+					}
 
-			ctx.shared.add('router', 'addInvalidation', id, (group, name, paths, versions, options) => {
-				ctx.onReady(() => {
-					new Invalidation(
-						group,
-						[id, name].join('-'),
+					new RouteDeployment(
+						sharedGroup!,
+						'deployment',
 						{
-							distributionId: distribution.id,
-							paths,
-							version: new Future(resolve => {
-								$combine(...versions).then(versions => {
-									const combined = versions
-										.filter(v => !!v)
-										.sort()
-										.join(',')
+							// non-deploy commands build the graph but never apply it
+							deploymentId: ctx.deploymentId ?? 'local-0',
+							storeArn: routeStore!.arn,
+							functionVersion: bundle.lambda.version,
+							routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
+								const withOrigin = (route: Route) => {
+									return route.type === 'lambda' && !route.domainName
+										? { ...route, domainName: lambdaUrlHost }
+										: route
+								}
 
-									const version = createHash('sha1').update(combined).digest('hex')
-
-									resolve(version)
-								})
+								return Object.entries(routes).flatMap(([key, route]) =>
+									createRouteStoreEntries(
+										key,
+										Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
+									)
+								)
 							}),
 						},
 						{
-							dependsOn: [...(options?.dependsOn ?? []), ...importedRoutes],
+							dependsOn: Array.from(routeDependencies),
 						}
 					)
+
+
 				})
-			})
+			}
+
+			ctx.shared.add('router', 'id', id, distribution.id)
+			distributionIds.push(distribution.id)
 
 			// ------------------------------------------------------------
 			// Link to Route53
@@ -460,6 +549,7 @@ export const routerFeature = defineFeature({
 
 				const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
 					name,
+					ipv6Enabled: true,
 				})
 
 				new aws.cloudfront.DistributionTenant(group, `tenant`, {
@@ -475,22 +565,25 @@ export const routerFeature = defineFeature({
 					customizations: [{ certificate: [{ arn: certificateArn }] }],
 				})
 
-				new aws.route53.Record(group, `record`, {
-					zoneId,
-					type: 'A',
-					name: domainName,
-					alias: {
-						name: connectionGroup.routingEndpoint,
-						zoneId: 'Z2FDTNDATAQYW2',
-						evaluateTargetHealth: false,
-					},
-				})
-
-				if (wwwDomainName) {
-					new aws.route53.Record(group, `www-record`, {
+				for (const [recordId, recordName] of [
+					['record', domainName],
+					...(wwwDomainName ? [['www-record', wwwDomainName]] : []),
+				] as const) {
+					new aws.route53.Record(group, recordId, {
 						zoneId,
 						type: 'A',
-						name: wwwDomainName,
+						name: recordName,
+						alias: {
+							name: connectionGroup.routingEndpoint,
+							zoneId: 'Z2FDTNDATAQYW2',
+							evaluateTargetHealth: false,
+						},
+					})
+
+					new aws.route53.Record(group, `${recordId}-ipv6`, {
+						zoneId,
+						type: 'AAAA',
+						name: recordName,
 						alias: {
 							name: connectionGroup.routingEndpoint,
 							zoneId: 'Z2FDTNDATAQYW2',
@@ -500,88 +593,41 @@ export const routerFeature = defineFeature({
 				}
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
+				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
 		}
 	},
 	onStack(ctx) {
-		for (const [id, routes] of Object.entries(ctx.stackConfig.routes ?? {})) {
-			if (!ctx.appConfig.defaults.router?.[id]) {
+		for (const [id, patterns] of Object.entries(ctx.stackConfig.routes ?? {})) {
+			if (!ctx.appConfig.router?.[id]) {
 				throw new FileError(ctx.stackConfig.file, `Router "${id}" is not defined on the app level.`)
 			}
 
-			const group = new Group(ctx.stack, 'routes', id)
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', id)
-			const addInvalidation = ctx.shared.entry('router', 'addInvalidation', id)
-
 			const grouped: Record<string, Route[]> = {}
-			const invalidationPaths = new Set<string>()
-			const versions: Array<Input<string> | Input<string | undefined>> = []
 
-			for (const [pattern, props] of Object.entries(routes)) {
+			for (const [pattern, props] of Object.entries(patterns)) {
 				const compiled = compileRoutePattern(pattern)
-				const slug = pattern
-					.replace(/[^a-zA-Z0-9]+/g, '-')
-					.replace(/^-+|-+$/g, '')
-					.slice(0, 20)
+				const slug = kebabCase(pattern).slice(0, 20)
+				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
 
-				const entryId = kebabCase(`${slug || 'root'}-${shortId(pattern)}`)
-				const routeGroup = new Group(group, 'route', entryId)
-
-				// ------------------------------------------------------
-				// The lambda function that will handle the route
-
-				const result = createLambdaFunction(routeGroup, ctx, 'route', entryId, props)
-
-				versions.push(result.code.sourceHash)
-
-				ctx.onBind((name, value) => {
-					result.setEnvironment(name, value)
-				})
-
-				// ------------------------------------------------------
-				// Give the router access to the function url.
-				// The wildcard source arn is needed because requests
-				// from a multi-tenant distribution are signed on
-				// behalf of the distribution tenant.
-
-				new aws.lambda.Permission(routeGroup, 'permission', {
-					principal: 'cloudfront.amazonaws.com',
-					action: 'lambda:InvokeFunctionUrl',
-					functionName: result.lambda.functionName,
-					functionUrlAuthType: 'AWS_IAM',
-					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:*`,
-				})
-
-				new aws.lambda.Permission(routeGroup, 'invoke-permission', {
-					principal: 'cloudfront.amazonaws.com',
-					action: 'lambda:InvokeFunction',
-					functionName: result.lambda.functionName,
-					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:*`,
-				})
-
-				const url = new aws.lambda.FunctionUrl(routeGroup, 'url', {
-					functionName: result.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				})
+				registerBundleFunction(ctx, routeKey, props)
 
 				grouped[compiled.key] ??= []
 				grouped[compiled.key]!.push({
 					type: 'lambda',
-					domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
 					forwardHost: true,
 					urlEncodedQueryString: true,
 					match: compiled.match,
 					params: compiled.params,
+					requestHeaders: {
+						[ROUTE_HEADER]: routeKey,
+					},
 				})
-
-				invalidationPaths.add(compiled.key)
 			}
 
-			// ------------------------------------------------------
-			// Add the routes to the router, where patterns that share
-			// the same route key are matched in order of definition,
+			// Patterns that share a route key match in order of definition,
 			// with the basic wildcard route last.
-
 			const merged: Record<string, Route | Route[]> = {}
 
 			for (const [key, list] of Object.entries(grouped)) {
@@ -592,8 +638,27 @@ export const routerFeature = defineFeature({
 				}
 			}
 
-			addRoutes(group, 'routes', merged)
-			addInvalidation(group, 'invalidate', [...invalidationPaths], versions)
+			addRoutes(merged)
+		}
+	},
+	onDev(ctx) {
+		// Register every route pattern on the local dev router with the
+		// same route key derivation as the deployed route store.
+		for (const stackConfig of ctx.stackConfigs) {
+			for (const [id, patterns] of Object.entries(stackConfig.routes ?? {})) {
+				for (const pattern of Object.keys(patterns)) {
+					const slug = kebabCase(pattern).slice(0, 20)
+					// MUST match the onStack derivation above, so the local
+					// router dispatches the same keys the bundle registers.
+					const routeKey = formatRouteKey(stackConfig.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
+
+					ctx.addRoute({
+						routerId: id,
+						pattern,
+						routeKey,
+					})
+				}
+			}
 		}
 	},
 })

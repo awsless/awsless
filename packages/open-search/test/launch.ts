@@ -1,49 +1,31 @@
-import { Client } from '@opensearch-project/opensearch'
+import { stat } from 'fs/promises'
+import { join } from 'path'
 import { download } from '../src/server/download'
-import { launch } from '../src/server/launch'
-import { VERSION_2_8_0 } from '../src/server/version'
+import { VERSION_3_5_0_MIN } from '../src/server/version'
 
-describe('Download & Launch', () => {
-	let kill: () => void
-	let path: string
-
-	const version = VERSION_2_8_0
-	const port = 55700
-	const host = 'localhost'
-
-	afterAll(async () => {
-		await kill?.()
-	}, 30 * 1000)
+// Booting a node is covered by the mock suite through mockOpenSearch;
+// booting a second one in parallel only slows the whole run down.
+describe('Download', () => {
+	const version = VERSION_3_5_0_MIN
 
 	it(
 		'download',
 		async () => {
-			path = await download(version.version)
+			const path = await download(version)
+
+			await stat(join(path, 'bin/opensearch'))
 		},
 		1000 * 1000
 	)
 
 	it(
-		'launch',
+		'download is cached',
 		async () => {
-			kill = await launch({
-				path,
-				port,
-				host,
-				// debug: true,
-				version,
-			})
-		},
-		100 * 1000
-	)
+			const start = Date.now()
+			await download(version)
 
-	it(
-		'client',
-		async () => {
-			const client = new Client({ node: `http://${host}:${port}` })
-			const result = await client.cat.indices({ format: 'json' })
-			expect(result.body).toStrictEqual([])
+			expect(Date.now() - start).toBeLessThan(1000)
 		},
-		50 * 1000
+		10 * 1000
 	)
 })

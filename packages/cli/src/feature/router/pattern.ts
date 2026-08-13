@@ -16,8 +16,9 @@ const escapeRegex = (value: string) => {
 // plus an optional regex for patterns that are more specific than the
 // lookup key can express.
 //
-// The viewer request function only looks up the exact request path,
-// the first path segment wildcard (/root/*) and the catch-all (/*).
+// The viewer request function looks up the exact request path, the first
+// path segment wildcard (/root/*) and the catch-all (/*), plus the file
+// wildcards (/root/*. and /*.) that only the static site routes register.
 // So every dynamic pattern needs a static & dot-free first path segment
 // to be reachable.
 export const compileRoutePattern = (pattern: string): CompiledRoutePattern => {

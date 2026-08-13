@@ -1,7 +1,8 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { formatRoutePayload } from 'awsless'
 import { defineFeature } from '../../feature.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { shortId } from '../../util/id.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -33,6 +34,22 @@ type InvokeWithoutPayload<Name extends string, F extends Func> = {
 
 export const cronFeature = defineFeature({
 	name: 'cron',
+	onDev(ctx) {
+		// Crons never fire on a timer locally, they only run through a
+		// manual trigger on the dev dashboard.
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, props] of Object.entries(stack.crons ?? {})) {
+				ctx.registerResource({
+					kind: 'cron',
+					stack: stack.name,
+					id,
+					routeKey: formatRouteKey(stack.name, 'cron', id),
+					envelope: props.payload,
+					detail: props.schedule,
+				})
+			}
+		}
+	},
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
@@ -49,12 +66,10 @@ export const cronFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.consumer.code) {
-					const relFile = relative(directories.types, props.consumer.code.file)
+				const relFile = relative(directories.types, props.consumer.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
 			}
 
 			resources.addType(stack.name, resource)
@@ -68,28 +83,101 @@ export const cronFeature = defineFeature({
 	onApp(ctx) {
 		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)
 		if (found) {
-			const group = new aws.scheduler.ScheduleGroup(ctx.base, 'cron', {
-				name: formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'cron',
-					resourceName: 'group',
-				}),
-				tags: {
-					app: ctx.app.name,
-				},
+			const bundle = ctx.shared.get('bundle', 'main')
+			const groupName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'cron',
+				resourceName: 'group',
 			})
 
+			const group = new aws.scheduler.ScheduleGroup(
+				ctx.base,
+				'cron',
+				{
+					name: groupName,
+					tags: {
+						app: ctx.app.name,
+					},
+				},
+				{
+					import: ctx.import ? groupName : undefined,
+				}
+			)
+
+			const roleName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'cron',
+				resourceName: 'schedule',
+			})
+
+			// All cron schedules share one role to invoke the bundle.
+			const role = new aws.iam.Role(
+				ctx.base,
+				'cron-role',
+				{
+					name: roleName,
+					description: `${ctx.app.name} cron scheduler`,
+					assumeRolePolicy: JSON.stringify({
+						Version: '2012-10-17',
+						Statement: [
+							{
+								Action: 'sts:AssumeRole',
+								Effect: 'Allow',
+								Principal: {
+									Service: 'scheduler.amazonaws.com',
+								},
+							},
+						],
+					}),
+					inlinePolicy: [
+						{
+							name: 'InvokeFunction',
+							policy: bundle.alias.arn.pipe(arn =>
+								JSON.stringify({
+									Version: '2012-10-17',
+									Statement: [
+										{
+											Action: ['lambda:InvokeFunction'],
+											Effect: 'Allow',
+											Resource: arn,
+										},
+										// The on-failure queue only exists when the app configures it.
+										...(ctx.appConfig.onFailure
+											? [
+													{
+														Action: ['sqs:SendMessage'],
+														Effect: 'Allow',
+														Resource: `arn:aws:sqs:*:*:${formatGlobalResourceName({
+															appName: ctx.app.name,
+															resourceType: 'on-failure',
+															resourceName: 'failure',
+														})}`,
+													},
+												]
+											: []),
+									],
+								})
+							),
+						},
+					],
+				},
+				{
+					import: ctx.import ? roleName : undefined,
+				}
+			)
+
 			ctx.shared.set('cron', 'group-name', group.name)
+			ctx.shared.set('cron', 'role-arn', role.arn)
 		}
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Group(ctx.stack, 'cron', id)
+			const routeKey = formatRouteKey(ctx.stack.name, 'cron', id)
 
-			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, {
-				consumer: props.consumer,
-				retryAttempts: props.retryAttempts,
-			})
+			registerBundleFunction(ctx, routeKey, props.consumer)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,
@@ -98,53 +186,44 @@ export const cronFeature = defineFeature({
 				resourceName: shortId(id),
 			})
 
-			const scheduleRole = new aws.iam.Role(group, 'warm', {
-				name,
-				description: `Cron ${ctx.stack.name} ${id}`,
-				assumeRolePolicy: JSON.stringify({
-					Version: '2012-10-17',
-					Statement: [
-						{
-							Action: 'sts:AssumeRole',
-							Effect: 'Allow',
-							Principal: {
-								Service: 'scheduler.amazonaws.com',
-							},
-						},
-					],
-				}),
-				inlinePolicy: [
-					{
-						name: 'InvokeFunction',
-						policy: lambda.arn.pipe(arn =>
-							JSON.stringify({
-								Version: '2012-10-17',
-								Statement: [
-									{
-										Action: ['lambda:InvokeFunction'],
-										Effect: 'Allow',
-										Resource: arn,
-									},
-								],
-							})
-						),
-					},
-				],
+			const scheduleGroupName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'cron',
+				resourceName: 'group',
 			})
 
-			new aws.scheduler.Schedule(group, 'warm', {
-				name,
-				state: props.enabled ? 'ENABLED' : 'DISABLED',
-				groupName: ctx.shared.get('cron', 'group-name'),
-				description: `${ctx.stack.name} ${id}`,
-				scheduleExpression: props.schedule,
-				flexibleTimeWindow: { mode: 'OFF' },
-				target: {
-					arn: lambda.arn,
-					roleArn: scheduleRole.arn,
-					input: JSON.stringify(props.payload) ?? '{}',
+			new aws.scheduler.Schedule(
+				group,
+				'cron',
+				{
+					name,
+					state: props.enabled ? 'ENABLED' : 'DISABLED',
+					groupName: ctx.shared.get('cron', 'group-name'),
+					description: `${ctx.stack.name} ${id}`,
+					scheduleExpression: props.schedule,
+					flexibleTimeWindow: { mode: 'OFF' },
+					target: {
+						arn: bundle.alias.arn,
+						roleArn: ctx.shared.get('cron', 'role-arn'),
+						input: JSON.stringify(formatRoutePayload(routeKey, props.payload)),
+						// Fires the scheduler can't deliver land on the on-failure queue.
+						deadLetterConfig: ctx.appConfig.onFailure
+							? {
+									arn: `arn:aws:sqs:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName(
+										{
+											appName: ctx.app.name,
+											resourceType: 'on-failure',
+											resourceName: 'failure',
+										}
+									)}`,
+								}
+							: undefined,
+					},
 				},
-			})
+				{
+					import: ctx.import ? `${scheduleGroupName}/${name}` : undefined,
+				}
+			)
 		}
 	},
 })

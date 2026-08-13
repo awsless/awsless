@@ -1,11 +1,11 @@
 import { getCachedQueueUrl, sendMessage, SendMessageOptions } from '@awsless/sqs'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { bindLocalResourceName, STACK } from './util.js'
+import { bindLocalResourceName, getStack } from './util.js'
 
 export const getInstanceQueueName = bindLocalResourceName('instance')
 
-export const getInstanceQueueUrl = (name: string, stack: string = STACK) => {
+export const getInstanceQueueUrl = (name: string, stack: string = getStack()) => {
 	return process.env[`INSTANCE_${constantCase(stack)}_${constantCase(name)}_URL`]
 }
 

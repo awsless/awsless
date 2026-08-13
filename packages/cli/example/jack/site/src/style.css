@@ -1,0 +1,100 @@
+:root {
+	color-scheme: light dark;
+	font-family: system-ui, sans-serif;
+}
+
+body {
+	margin: 0;
+	display: flex;
+	justify-content: center;
+	min-height: 100vh;
+	background: light-dark(#f4f4f5, #18181b);
+	color: light-dark(#18181b, #f4f4f5);
+}
+
+main {
+	width: min(28rem, 90vw);
+	margin-top: 10vh;
+}
+
+header {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+header img {
+	width: 1.5rem;
+	height: 1.5rem;
+	border-radius: 50%;
+}
+
+h1 {
+	font-size: 1.5rem;
+	margin: 0;
+}
+
+form {
+	display: flex;
+	gap: 0.5rem;
+	margin: 1.5rem 0 0.5rem;
+}
+
+input {
+	flex: 1;
+	padding: 0.6rem 0.8rem;
+	border: 1px solid light-dark(#d4d4d8, #3f3f46);
+	border-radius: 0.5rem;
+	background: light-dark(#fff, #27272a);
+	color: inherit;
+	font: inherit;
+}
+
+button {
+	padding: 0.6rem 1rem;
+	border: 0;
+	border-radius: 0.5rem;
+	background: #6366f1;
+	color: #fff;
+	font: inherit;
+	cursor: pointer;
+}
+
+#search {
+	width: 100%;
+	box-sizing: border-box;
+	margin-bottom: 1rem;
+}
+
+ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-radius: 0.75rem;
+	overflow: hidden;
+}
+
+li label {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem 1rem;
+	margin-bottom: 1px;
+	background: light-dark(#fff, #27272a);
+	cursor: pointer;
+}
+
+li input {
+	flex: 0;
+}
+
+li.done span {
+	text-decoration: line-through;
+	opacity: 0.5;
+}
+
+footer {
+	margin-top: 1rem;
+	font-size: 0.85rem;
+	opacity: 0.6;
+}

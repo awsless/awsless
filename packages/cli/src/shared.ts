@@ -1,5 +1,8 @@
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
+import { Permission } from './feature'
+import { BucketLifecycleRule } from './feature/asset/index'
+import { BundleHandler } from './feature/bundle/util'
 import { Route } from './feature/router/route'
 
 type SharedState = {
@@ -12,40 +15,54 @@ type SharedState = {
 
 	'on-error-log': {
 		'subscriber-arn': Output<string>
+		permission: aws.lambda.Permission
 	}
 
 	'on-failure': {
 		'bucket-arn': Output<string>
-		'queue-arn': Output<string>
+		resources: {
+			group: Group
+			bucket: aws.s3.Bucket
+			queue: aws.sqs.Queue
+		}
 	}
 
-	function: {
-		'bucket-name': Output<string>
-		'repository-name': Output<string>
-		'repository-url': Output<string>
-		'warm-group-name': Output<string>
+	asset: {
+		bucket: {
+			name: Output<string>
+			arn: Output<string>
+			regionalDomainName: Output<string>
+			policy: aws.s3.BucketPolicy
+			addLifecycleRule: (rule: BucketLifecycleRule) => void
+		}
+	}
+
+	bundle: {
+		main: {
+			lambda: aws.lambda.Function
+			alias: aws.lambda.Alias
+			deployment: Resource
+			logGroup: aws.cloudwatch.LogGroup | undefined
+			policy: aws.iam.RolePolicy
+			addHandler: (handler: BundleHandler) => void
+			addEnv: (name: string, value: Input<string>) => void
+			addLayer: (layer: Input<string>) => void
+			addPermission: (statement: Permission) => void
+			statements: ReadonlySet<Permission>
+		}
 	}
 
 	cron: {
 		'group-name': Output<string>
-	}
-
-	layer: {
-		'bucket-name': Output<string>
+		'role-arn': Output<string>
 	}
 
 	instance: {
-		'bucket-name': Output<string>
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 	}
 
-	pubsub: {
-		'bucket-name': Output<string>
-	}
-
 	job: {
-		'bucket-name': Output<string>
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 		'security-group-id': Output<string>
@@ -56,21 +73,8 @@ type SharedState = {
 type SharedEntries = {
 	domain: {
 		'zone-id': Output<string>
-		'mail-arn': Output<string>
 		'certificate-arn': Output<string>
 		'global-certificate-arn': Output<string>
-	}
-
-	topic: {
-		arn: Output<string>
-	}
-
-	pubsub: {
-		'events-topic-arn': Output<string>
-	}
-
-	rpc: {
-		'schema-table': aws.dynamodb.Table
 	}
 
 	layer: {
@@ -79,45 +83,33 @@ type SharedEntries = {
 	}
 
 	auth: {
-		'user-pool-arn': Output<string>
 		'user-pool-id': Output<string>
-		'client-id': Output<string>
 	}
 
 	rest: {
 		id: Output<string>
+		permission: aws.lambda.Permission
+	}
+
+	pubsub: {
+		'events-topic-arn': Output<string>
 	}
 
 	image: {
 		'distribution-id': Output<string>
-		'cache-bucket': Output<string>
-		path: string
+		cache: { bucket: Output<string>; prefix: string }
 	}
 
 	icon: {
 		'distribution-id': Output<string>
-		'cache-bucket': Output<string>
-		path: string
+		cache: { bucket: Output<string>; prefix: string }
 	}
-
-	// cron: {
-
-	// }
 
 	router: {
 		id: Output<string>
+		endpoint: string
 		addRoutes: (
-			//
-			group: Group,
-			name: string,
 			routes: Record<string, Route | Route[]>,
-			options?: { dependsOn?: Array<Resource | DataSource> }
-		) => void
-		addInvalidation: (
-			group: Group,
-			name: string,
-			paths: string[],
-			versions: Array<Input<string> | Input<string | undefined>>,
 			options?: { dependsOn?: Array<Resource | DataSource> }
 		) => void
 	}
@@ -137,10 +129,20 @@ export class SharedData {
 		return this.data.get(key)
 	}
 
-	has<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): boolean {
-		const key = `${feature}/${name.toString()}`
+	has<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): boolean
+	has<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(
+		feature: F,
+		name: K,
+		entry: number | string
+	): boolean
+	has(feature: string, name: string, entry?: number | string): boolean {
+		const key = `${feature}/${name}`
 
-		return this.data.has(key)
+		if (typeof entry === 'undefined') {
+			return this.data.has(key)
+		}
+
+		return this.entries.get(key)?.has(entry) ?? false
 	}
 
 	set<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K, value: SharedState[F][K]) {
@@ -182,15 +184,5 @@ export class SharedData {
 		entries.set(entry, value)
 
 		return this
-	}
-
-	list<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(
-		feature: F,
-		name: K
-	): MapIterator<[string | number, SharedEntries[F][K]]> {
-		const key = `${feature}/${name.toString()}`
-		const entries = this.entries.get(key) ?? new Map()
-
-		return entries.entries()
 	}
 }

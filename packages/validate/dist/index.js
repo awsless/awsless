@@ -173,6 +173,7 @@ var sqsQueue = (schema, message = "Invalid SQS Queue payload") => {
 // src/schema/aws/sns-topic.ts
 import {
   array as array2,
+  minLength,
   object as object2,
   pipe as pipe5,
   transform as transform3,
@@ -181,25 +182,15 @@ import {
 var snsTopic = (schema, message = "Invalid SNS Topic payload") => {
   return union3(
     [
-      // Prioritize the expected payload during production
+      // SNS always delivers exactly one record per invocation.
       pipe5(
         object2({
-          Records: array2(
-            object2({
-              Sns: object2({
-                Message: json(schema)
-              })
-            })
-          )
+          Records: pipe5(array2(object2({ Sns: object2({ Message: json(schema) }) })), minLength(1))
         }),
-        transform3((v) => v.Records.map((r) => r.Sns.Message))
+        transform3((v) => v.Records[0].Sns.Message)
       ),
-      // These are allowed during testing
-      pipe5(
-        schema,
-        transform3((v) => [v])
-      ),
-      array2(schema)
+      // The plain payload is allowed during testing
+      schema
     ],
     message
   );

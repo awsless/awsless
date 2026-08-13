@@ -5,10 +5,17 @@ export type QueueFailureEvent = {
 	id: string
 	date: Date
 	payload: unknown
+	source?: FailureSource
 	queue: {
 		url?: string
 		name?: string
 	}
+}
+
+/** The logical resource whose invocation failed, with the app level event it received. */
+export type FailureSource = {
+	resource: string
+	event?: unknown
 }
 
 export type FunctionFailureEvent = {
@@ -16,6 +23,7 @@ export type FunctionFailureEvent = {
 	date: Date
 	id: string
 	payload: unknown
+	source?: FailureSource
 	function: {
 		name: string
 	}
@@ -80,4 +88,23 @@ export type DynamoDBStreamFailureEvent = {
 	 * The FULL stringified DynamoDBStreamEvent (Records[]).
 	 */
 	payload: string
+}
+
+// The delivery record shapes inside a raw invocation payload.
+export type TopicRecord = {
+	Sns: {
+		TopicArn?: string
+		Message?: string
+	}
+}
+
+export type StreamRecord = {
+	eventSource: 'aws:dynamodb'
+	eventSourceARN: string
+}
+
+export type QueueRecord = {
+	eventSource: 'aws:sqs'
+	eventSourceARN: string
+	body?: string
 }

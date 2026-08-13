@@ -1,22 +1,32 @@
+import { minutes, seconds, toSeconds } from '@awsless/duration'
+
+// updateRequestOrigin accepts 1-120s, while functions may run for 15 minutes.
+const ORIGIN_READ_TIMEOUT = toSeconds(minutes(2))
+const ORIGIN_CONNECTION_TIMEOUT = toSeconds(seconds(10))
+
 export const getViewerRequestFunctionCode = (props: {
+	router: string
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
 }): string => {
-	return CODE([
-		props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
-		props.redirectWww ? REDIRECT_WWW : '',
-		(props.passwordAuth ?? props.basicAuth)
-			? AUTH_WRAPPER(
-					[
-						//
-						props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
-						props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
-					].join('\n')
-				)
-			: '',
-	])
+	return CODE(
+		[
+			props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
+			props.redirectWww ? REDIRECT_WWW : '',
+			(props.passwordAuth ?? props.basicAuth)
+				? AUTH_WRAPPER(
+						[
+							//
+							props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
+							props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
+						].join('\n')
+					)
+				: '',
+		],
+		ACTIVE_PREFIX(props.router)
+	)
 }
 
 const BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT = `
@@ -74,11 +84,25 @@ const PASSWORD_AUTH_CHECK = (password: string) => `
 authMethods.push('Password realm="Protected"');
 
 if(!isAuthorized) {
-	if(authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === '${password}') {
+	if(authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === ${JSON.stringify(password)}) {
 		isAuthorized = true;
 	}
 }
 `
+
+// '$active' points at the route table of the live deployment.
+const ACTIVE_PREFIX = (router: string) => `
+const router = ${JSON.stringify(router)};
+let prefix;
+
+try {
+	prefix = (await cf.kvs().get('$active')).split(':')[0] + ':' + router + ':';
+} catch (e) {
+	return {
+		statusCode: 503,
+		statusDescription: 'Service Unavailable'
+	};
+}`
 
 const AUTH_WRAPPER = (code: string) => `
 const authHeader = headers.authorization && headers.authorization.value;
@@ -101,7 +125,7 @@ if (!isAuthorized) {
 	};
 }`
 
-const CODE = (injection: string[]) => `
+const CODE = (injection: string[], prefixCode: string) => `
 import cf from "cloudfront";
 
 function getPossibleRouteKeys(path) {
@@ -111,9 +135,14 @@ function getPossibleRouteKeys(path) {
 
 	const parts = path.split('/');
 	const root = path.startsWith('/') ? parts[1] : parts[0];
+	const file = parts[parts.length - 1].includes('.');
 
 	if(root.includes('.')) {
-		return [path, '/*'];
+		return [path, '/*.', '/*'];
+	}
+
+	if(file) {
+		return [path, '/'+root+'/*.', '/'+root+'/*', '/*.', '/*'];
 	}
 
 	return [path, '/'+root+'/*', '/*'];
@@ -156,14 +185,19 @@ function matchRoute(value, path, method) {
 				}
 			}
 
-			return { route, params };
+			return { route: route, params: params };
 		}
 
-		return { route };
+		return { route: route };
 	}
 }
 
-async function findRoute(path, method) {
+async function findRoute(path, method, prefix) {
+	// only route selection is normalized, the forwarded uri stays untouched
+	if (path.length > 1 && path.slice(-1) === '/') {
+		path = path.slice(0, -1);
+	}
+
 	const store = cf.kvs();
 	const keys = getPossibleRouteKeys(path);
 
@@ -172,7 +206,7 @@ async function findRoute(path, method) {
 		let value;
 
 		try {
-			value = await store.get(key, { format: 'json' });
+			value = await store.get(prefix + key, { format: 'json' });
 		} catch (e) {
 			continue;
 		}
@@ -182,7 +216,7 @@ async function findRoute(path, method) {
 		if(value && value.list) {
 			for(let n = 0; n < value.list; n++) {
 				try {
-					const route = await store.get(key + '#' + n, { format: 'json' });
+					const route = await store.get(prefix + key + '#' + n, { format: 'json' });
 					const result = matchRoute(route, path, method);
 
 					if(result) {
@@ -190,14 +224,12 @@ async function findRoute(path, method) {
 					}
 				} catch (e) {}
 			}
+		} else {
+			const result = matchRoute(value, path, method);
 
-			continue;
-		}
-
-		const result = matchRoute(value, path, method);
-
-		if(result) {
-			return result;
+			if(result) {
+				return result;
+			}
 		}
 	}
 }
@@ -265,7 +297,17 @@ function setS3Origin(route) {
 }
 
 function setLambdaOrigin(route) {
-	cf.updateRequestOrigin(Object.assign(getRequestOriginConfig(route), {
+	const config = getRequestOriginConfig(route);
+
+	if(typeof config.timeouts.readTimeout !== 'number') {
+		config.timeouts.readTimeout = ${ORIGIN_READ_TIMEOUT};
+	}
+
+	if(typeof config.timeouts.connectionTimeout !== 'number') {
+		config.timeouts.connectionTimeout = ${ORIGIN_CONNECTION_TIMEOUT};
+	}
+
+	cf.updateRequestOrigin(Object.assign(config, {
 		customOriginConfig: {
 			port: 443,
 			protocol: 'https',
@@ -287,7 +329,13 @@ function setUrlOrigin(route) {
 async function handler(event) {
 	const request = event.request;
 	const headers = request.headers;
-	const path = decodeURIComponent(request.uri);
+	let path;
+
+	try {
+		path = decodeURIComponent(request.uri);
+	} catch (e) {
+		path = request.uri;
+	}
 
 	if (request.method === 'OPTIONS') {
 		return {
@@ -303,46 +351,82 @@ async function handler(event) {
 
 	${injection.join('\n')}
 
-	const result = await findRoute(path, request.method);
+	${prefixCode}
 
-	if(result) {
-		const route = result.route;
+	const result = await findRoute(path, request.method, prefix);
 
-		setRouteOrigin(route);
+	if(!result) {
+		return {
+			statusCode: 404,
+			statusDescription: 'Not Found'
+		};
+	}
 
-		if(result.params) {
-			for(const name in result.params) {
-				headers['x-param-' + name.toLowerCase()] = { value: encodeURIComponent(result.params[name]) };
+	const route = result.route;
+
+	// A client provided param header can never reach the origin.
+	const spoofed = [];
+
+	for(const name in headers) {
+		if(name.indexOf('x-param-') === 0) {
+			spoofed.push(name);
+		}
+	}
+
+	for(const i in spoofed) {
+		delete headers[spoofed[i]];
+	}
+
+	if(result.params) {
+		for(const name in result.params) {
+			headers['x-param-' + name.toLowerCase()] = { value: encodeURIComponent(result.params[name]) };
+		}
+	}
+
+	if(route.requestHeaders) {
+		for(const name in route.requestHeaders) {
+			headers[name] = { value: route.requestHeaders[name] };
+		}
+	}
+
+	if(route.type === 'lambda') {
+		if(headers.authorization) {
+			headers['x-awsless-authorization'] = headers.authorization;
+		} else {
+			delete headers['x-awsless-authorization'];
+		}
+	}
+
+	setRouteOrigin(route);
+
+	if(route.forwardHost && headers.host && headers.host.value) {
+		headers['x-forwarded-host'] = { value: headers.host.value };
+	} else {
+		delete headers['x-forwarded-host'];
+	}
+
+	headers['x-origin'] = { value: route.domainName };
+
+	if(route.urlEncodedQueryString) {
+		for (var key in request.querystring) {
+			if (key.includes('/')) {
+				request.querystring[encodeURIComponent(key)] = request.querystring[key];
+				delete request.querystring[key];
 			}
 		}
+	}
 
-		if(route.forwardHost && headers.host && headers.host.value) {
-			headers['x-forwarded-host'] = { value: headers.host.value };
-		}
+	if(route.type === 's3' || route.removeCookies) {
+		delete headers["Cookies"];
+		delete headers["cookies"];
+		delete request.cookies;
+	}
 
-		headers['x-origin'] = { value: route.domainName };
-
-		if(route.urlEncodedQueryString) {
-			for (var key in request.querystring) {
-				if (key.includes('/')) {
-					request.querystring[encodeURIComponent(key)] = request.querystring[key];
-					delete request.querystring[key];
-				}
-			}
-		}
-
-		if(route.type === 's3' || route.removeCookies) {
-			delete headers["Cookies"];
-			delete headers["cookies"];
-			delete request.cookies;
-		}
-
-		if (route.rewrite) {
-			if(route.rewrite.regex) {
-				request.uri = request.uri.replace(new RegExp(route.rewrite.regex), route.rewrite.to);
-			} else {
-				request.uri = route.rewrite.to;
-			}
+	if (route.rewrite) {
+		if(route.rewrite.regex) {
+			request.uri = request.uri.replace(new RegExp(route.rewrite.regex), route.rewrite.to);
+		} else {
+			request.uri = route.rewrite.to;
 		}
 	}
 

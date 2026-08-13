@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import { rm, stat } from 'fs/promises'
 import { join } from 'path'
+import { findJavaHome } from './java'
 import { VersionArgs } from './version'
 // import findCacheDir from 'find-cache-dir';
 
@@ -46,24 +47,38 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 
 		await cleanUp()
 
-		// console.log(join(path, 'jdk'))
+		// The min distribution needs a local JDK 21+, which we resolve
+		// ourselves because an unset or stale JAVA_HOME would otherwise
+		// break the boot.
+		const binary = join(path, 'bin/opensearch')
 
-		const binary = join(path, 'opensearch-tar-install.sh')
-		const child = spawn(
-			// `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
-			binary,
-			parseSettings(version.settings({ host, port, cache }))
-			// {
-			// 	env: {
-			// 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
-			// 	},
-			// }
-		)
-		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
+		const env = { ...process.env }
 
-		const onError = (error: string) => fail(error)
+		// The tarball only bundles a Linux JDK, so macOS needs a local one.
+		if (process.platform === 'darwin') {
+			const javaHome = await findJavaHome()
+
+			if (!javaHome) {
+				// A throw would only reject the discarded async executor.
+				reject(new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".'))
+				return
+			}
+
+			env.OPENSEARCH_JAVA_HOME = javaHome
+		}
+
+		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env })
+
+		const output: string[] = []
+
+		const onError = (error: string) => fail(String(error))
+		const onExit = (code: number | null) => {
+			fail(`OpenSearch exited before starting (code ${code})\n${output.join('')}`)
+		}
 		const onMessage = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
+
+			output.push(line)
 
 			if (debug) {
 				console.log(line)
@@ -75,13 +90,17 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 		}
 
 		const kill = async (): Promise<void> => {
-			await new Promise(resolve => {
-				child.once(`exit`, () => {
-					resolve(void 0)
-				})
+			// The process may already be gone when a failed boot lands here,
+			// and a dead child never emits another exit event.
+			if (child.exitCode === null && !child.killed) {
+				await new Promise(resolve => {
+					child.once(`exit`, () => {
+						resolve(void 0)
+					})
 
-				child.kill()
-			})
+					child.kill()
+				})
+			}
 
 			await cleanUp()
 		}
@@ -95,12 +114,14 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 			child.stderr.off('data', onMessage)
 			child.stdout.off('data', onMessage)
 			child.off('error', onError)
+			child.off('exit', onExit)
 		}
 
 		const on = () => {
 			child.stderr.on('data', onMessage)
 			child.stdout.on('data', onMessage)
 			child.on('error', onError)
+			child.on('exit', onExit)
 		}
 
 		const done = async () => {

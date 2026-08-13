@@ -21,7 +21,8 @@ export const startRelay = (server: Bun.Server<SocketData>) => {
 	const redis = new Redis({
 		host,
 		port,
-		tls: {},
+		// The local dev environment runs a plain redis without tls.
+		tls: process.env.REDIS_TLS === 'disabled' ? undefined : {},
 		keepAlive: 0,
 		noDelay: true,
 		enableReadyCheck: false,

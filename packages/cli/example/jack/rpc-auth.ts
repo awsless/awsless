@@ -1,12 +1,15 @@
-export default async (event: { token: string }) => {
-	console.log(event)
+import { hours } from '@awsless/duration'
+import { Config, h } from 'awsless'
+
+export default h.rpc.auth(async event => {
+	if (event.token !== Config.ADMIN_SECRET) {
+		return { authorized: false }
+	}
 
 	return {
 		authorized: true,
-		lockKey: 'user-2',
-		context: {
-			token: event.token,
-		},
-		ttl: '1 hour',
+		ttl: hours(1),
+		lockKey: event.token,
+		context: { role: 'admin' },
 	}
-}
+})

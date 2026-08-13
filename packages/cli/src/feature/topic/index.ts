@@ -4,51 +4,115 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { FileError } from '../../error.js'
+import { createSnsServer } from '../../dev/servers/sns.js'
 
 const typeGenCode = `
-import type { Mock } from 'vitest'
 import type { PublishOptions } from '@awsless/sns'
+import type { GenericSchema, InferInput } from '@awsless/validate'
+import type { Mock } from 'vitest'
+
+type PublishTopicOptions = Omit<PublishOptions, 'topic' | 'payload'>
+
+type TopicPublisher<Name extends string, S extends GenericSchema> = {
+	(payload: InferInput<S>, options?: PublishTopicOptions): Promise<void>
+	readonly name: Name
+	readonly schema: S
+}
 
 type Publish<Name extends string> = {
 	readonly name: Name
-	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
+
+	// The payload schema lives with the topic: publishing only happens
+	// through a defined topic, so every message is validated at the
+	// source & the subscriber shares the exact same contract.
+	readonly define: <S extends GenericSchema>(schema: S) => TopicPublisher<Name, S>
 }
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
+
+// Calling overrides the implementation & the same value works as the
+// vitest mock inside expect().
+type TestMockEntry = MockBuilder & Mock<(payload: unknown) => unknown>
 `
 
 export const topicFeature = defineFeature({
 	name: 'topic',
+	async onDev(ctx) {
+		if ((ctx.appConfig.topics ?? []).length === 0) {
+			return
+		}
+
+		for (const id of ctx.appConfig.topics ?? []) {
+			ctx.registerResource({
+				kind: 'topic',
+				id,
+				detail: formatGlobalResourceName({
+					appName: ctx.appConfig.name,
+					resourceType: 'topic',
+					resourceName: id,
+				}),
+			})
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const id of Object.keys(stack.subscribers ?? {})) {
+				ctx.registerResource({
+					kind: 'subscriber',
+					stack: stack.name,
+					id,
+					routeKey: formatRouteKey(stack.name, 'topic', id),
+				})
+			}
+		}
+
+		// The shim survives restarts, so long lived children (like the
+		// vite dev server) keep a valid endpoint.
+		const { server, port } = await ctx.keep('shim:sns', null, async () => {
+			const server = createSnsServer()
+			const port = await server.listen()
+
+			return { value: { server, port }, stop: () => server.stop() }
+		})
+
+		ctx.addEnv('AWS_ENDPOINT_URL_SNS', `http://127.0.0.1:${port}`)
+
+		ctx.registerServer({
+			name: 'sns',
+			start({ dispatch, reportFailure }) {
+				server.connect(dispatch, reportFailure)
+			},
+		})
+	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
 		const resources = new TypeObject(1)
-		const mocks = new TypeObject(1)
-		const mockResponses = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
-		for (const topic of ctx.appConfig.defaults.topics ?? []) {
+		for (const topic of ctx.appConfig.topics ?? []) {
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
 				resourceType: 'topic',
 				resourceName: topic,
 			})
 
-			mockResponses.addType(topic, 'Mock')
 			resources.addType(topic, `Publish<'${name}'>`)
-			mocks.addType(topic, `MockBuilder`)
+			testMocks.addType(topic, `TestMockEntry`)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('topic', testMocks)
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('TopicResources', resources)
-		gen.addInterface('TopicMock', mocks)
-		gen.addInterface('TopicMockResponse', mockResponses)
+		gen.addInterface('TestMock', testMock)
 
 		await ctx.write('topic.d.ts', gen, true)
 	},
 	onValidate(ctx) {
-		const topics = ctx.appConfig.defaults.topics ?? []
+		const topics = ctx.appConfig.topics ?? []
 
 		for (const stack of ctx.stackConfigs) {
 			for (const topic of Object.keys(stack.subscribers ?? {})) {
@@ -59,7 +123,7 @@ export const topicFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		for (const id of ctx.appConfig.defaults.topics ?? []) {
+		for (const id of ctx.appConfig.topics ?? []) {
 			const group = new Group(ctx.base, 'topic', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
@@ -67,14 +131,43 @@ export const topicFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new aws.sns.Topic(group, 'topic', {
-				name,
-			})
+			const topic = new aws.sns.Topic(
+				group,
+				'topic',
+				{
+					name,
+				},
+				{
+					import: ctx.import ? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${name}` : undefined,
+				}
+			)
 
-			ctx.shared.add('topic', `arn`, id, topic.arn)
+			// All subscribers share the bundle as their endpoint, so we subscribe the bundle once per topic.
+			const subscribed = ctx.stackConfigs.some(stack => stack.subscribers?.[id])
+
+			if (subscribed) {
+				const bundle = ctx.shared.get('bundle', 'main')
+
+				// Accepted staging window: a NEW subscription on an already
+				// active topic delivers to the old live bundle until promote,
+				// which retries those events as unknown routes.
+				new aws.sns.TopicSubscription(group, 'subscription', {
+					topicArn: topic.arn,
+					protocol: 'lambda',
+					endpoint: bundle.alias.arn,
+				})
+
+				new aws.lambda.Permission(group, 'permission', {
+					action: 'lambda:InvokeFunction',
+					principal: 'sns.amazonaws.com',
+					functionName: bundle.lambda.functionName,
+					qualifier: bundle.alias.name,
+					sourceArn: topic.arn,
+				})
+			}
 		}
 
-		ctx.addGlobalPermission({
+		ctx.addPermission({
 			actions: ['sns:Publish'],
 			resources: [
 				`arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({
@@ -87,22 +180,7 @@ export const topicFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.subscribers ?? {})) {
-			const group = new Group(ctx.stack, 'topic', id)
-			const topicArn = ctx.shared.entry('topic', 'arn', id)
-			const { lambda } = createAsyncLambdaFunction(group, ctx, `topic`, id, props)
-
-			new aws.sns.TopicSubscription(group, id, {
-				topicArn,
-				protocol: 'lambda',
-				endpoint: lambda.arn,
-			})
-
-			new aws.lambda.Permission(group, id, {
-				action: 'lambda:InvokeFunction',
-				principal: 'sns.amazonaws.com',
-				functionName: lambda.functionName,
-				sourceArn: topicArn,
-			})
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), props.consumer)
 		}
 	},
 })

@@ -1,7 +1,7 @@
 import { toDays } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { aws } from '@terraforge/aws'
-import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
+import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
 import { pascalCase } from 'change-case'
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
@@ -11,10 +11,11 @@ import { getBuildPath } from '../../build/index.js'
 import { AppContext, Permission } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
-import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
+import { PolicyStatement } from '../bundle/policy.js'
 import { buildExecutable } from '../instance/build/executable.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { PubSubDefaultProps } from './schema.js'
@@ -25,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // Capacity is handled by the autoscaling policy.
 export const WS_PORT = 3000
 const ARCHITECTURE = 'arm64'
-const CPU = '0.25 vCPU'
+const CPU = '256'
 const MEMORY = '512'
 const MIN_CAPACITY = 1
 const MAX_CAPACITY = 10
@@ -58,12 +59,13 @@ export const createPubSubService = (
 	// ------------------------------------------------------------
 	// Compile the prebuilt server bundle into a bun executable
 
-	const bundleFile = join(__dirname, 'prebuild/pubsub-server/index.mjs')
-	const bundleHash = join(__dirname, 'prebuild/pubsub-server/HASH')
+	const bundleFile = join(__dirname, 'handlers/pubsub-server.js')
 
 	ctx.registerBuild('pubsub', name, async build => {
-		const hash = await readFile(bundleHash, 'utf8')
-		const fingerprint = `${hash.trim()}-${ARCHITECTURE}`
+		const hash = createHash('sha1')
+			.update(await readFile(bundleFile))
+			.digest('hex')
+		const fingerprint = `${hash}-${ARCHITECTURE}`
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`pubsub--${name}`)
@@ -82,33 +84,47 @@ export const createPubSubService = (
 		})
 	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('pubsub', 'bucket-name'),
-		key: name,
-		source: relativePath(getBuildPath('pubsub', name, 'program')),
-		sourceHash: $file(getBuildPath('pubsub', name, 'HASH')),
-	})
+	const code = new aws.s3.BucketObject(
+		group,
+		'code',
+		{
+			bucket: ctx.shared.get('asset', 'bucket').name,
+			key: `pubsub/${name}`,
+			source: relativePath(getBuildPath('pubsub', name, 'program')),
+			sourceHash: $file(getBuildPath('pubsub', name, 'HASH')),
+		},
+		{
+			replaceOnChanges: ['bucket', 'key'],
+		}
+	)
 
 	// ------------------------------------------------------------
 	// Permissions
 
-	const executionRole = new aws.iam.Role(group, 'execution-role', {
-		name: shortId(`${shortName}:execution-role`),
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['ecs-tasks.amazonaws.com'],
+	const executionRole = new aws.iam.Role(
+		group,
+		'execution-role',
+		{
+			name: shortId(`${shortName}:execution-role`),
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['ecs-tasks.amazonaws.com'],
+						},
 					},
-				},
-			],
-		}),
-		managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
-	})
+				],
+			}),
+			managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+		},
+		{
+			import: ctx.import ? shortId(`${shortName}:execution-role`) : undefined,
+		}
+	)
 
 	const role = new aws.iam.Role(
 		group,
@@ -148,6 +164,7 @@ export const createPubSubService = (
 		},
 		{
 			dependsOn: [code],
+			import: ctx.import ? shortId(`${shortName}:task-role`) : undefined,
 		}
 	)
 
@@ -158,8 +175,8 @@ export const createPubSubService = (
 		role: role.name,
 		name: 'task-policy',
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
-			const list = await resolveInputs(statements)
-			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
+			const list = (await resolveInputs(statements)) as PolicyStatement[]
+			resolve(formatPolicyDocument(list))
 		}),
 	})
 
@@ -179,21 +196,36 @@ export const createPubSubService = (
 
 	let logGroup: aws.cloudwatch.LogGroup | undefined
 	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/ecs/${name}`,
-			retentionInDays: toDays(props.log.retention),
-		})
+		logGroup = new aws.cloudwatch.LogGroup(
+			group,
+			'log',
+			{
+				name: `/aws/ecs/${name}`,
+				retentionInDays: toDays(props.log.retention),
+			},
+			{
+				import: ctx.import ? `/aws/ecs/${name}` : undefined,
+			}
+		)
 
 		// ------------------------------------------------------------
 		// Add log subscription
 
 		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
-				name: 'error-log-subscription',
-				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-				logGroupName: logGroup.name,
-				filterPattern,
-			})
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
+				{
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
+				},
+				{
+					replaceOnChanges: ['destinationArn'],
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
 		}
 	}
 
@@ -308,9 +340,9 @@ export const createPubSubService = (
 			taskDefinition: task.arn,
 			launchType: 'FARGATE',
 			networkConfiguration: {
-				subnets: ctx.shared.get('vpc', 'public-subnets'),
+				subnets: ctx.shared.get('vpc', 'private-subnets'),
 				securityGroups: [inputs.securityGroupId],
-				assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+				assignPublicIp: false,
 			},
 
 			loadBalancer: [

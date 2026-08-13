@@ -1,19 +1,26 @@
-import { Input, Group } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
+import { constantCase } from 'change-case'
+import { createHash } from 'crypto'
 import { glob } from 'glob'
 import { dirname, join } from 'path'
+import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
-import { formatLocalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
-import { getCacheControl, getContentType } from './util.js'
-import { constantCase } from 'change-case'
-import { generateCacheKey } from '../../util/cache.js'
-import { directories } from '../../util/path.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
+import { SiteDeployment } from '../../formation/s3.js'
 import { getCredentials } from '../../util/aws.js'
+import { generateCacheKey } from '../../util/cache.js'
+import { formatLocalResourceName } from '../../util/name.js'
+import { directories } from '../../util/path.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { createLambdaFunction, isStandaloneFunction } from '../function/util.js'
 import { Route } from '../router/route.js'
+import { binPath, siteOnDev } from './dev.js'
+import { planStaticRoutes } from './static-routes.js'
+import { getFeatureFolder } from '../asset/index.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
+	onDev: siteOnDev,
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
 			const group = new Group(ctx.stack, 'site', id)
@@ -25,15 +32,16 @@ export const siteFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const routerId = ctx.shared.entry('router', 'id', props.router)
-			const addInvalidation = ctx.shared.entry('router', 'addInvalidation', props.router)
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
 			const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
 
 			// ------------------------------------------------------------
 			// Build your site
 
-			if (props.build) {
+			// A site with a dev command is fully served by its own dev
+			// server locally, so the local dev environment never needs its
+			// build output & skips the (expensive) build entirely.
+			if (props.build && !(ctx.dev && props.dev)) {
 				const buildProps = props.build
 				ctx.registerBuild('site', name, async build => {
 					const fingerprint = await generateCacheKey(buildProps.cacheKey)
@@ -45,6 +53,14 @@ export const siteFeature = defineFeature({
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
 						const env: Record<string, string | undefined> = {
 							...process.env,
+
+							// Resolve bins from every ancestor node_modules/.bin,
+							// like npm scripts do.
+							PATH: binPath(cwd),
+
+							// Never inherit NODE_ENV=test from an in-process test run,
+							// it would flip the Config proxy into mock mode mid-build.
+							NODE_ENV: 'production',
 
 							// Pass the app config name
 							APP: ctx.appConfig.name,
@@ -59,14 +75,18 @@ export const siteFeature = defineFeature({
 							AWS_SESSION_TOKEN: credentials.sessionToken,
 						}
 
-						// Add the config values for just the site.
+						// Vitest stamps these on the whole CLI process during
+						// in-process test runs; a build inheriting them would
+						// flip the runtime into test mode.
+						delete env.TEST
+						delete env.VITEST
 
-						for (const name of props.build?.configs ?? []) {
-							env[`CONFIG_${constantCase(name)}`] = name
-						}
+						// Announce the config names for just the site build.
 
-						for (const name of ctx.stackConfig.configs ?? []) {
-							env[`CONFIG_${constantCase(name)}`] = name
+						const configs = props.build?.configs ?? []
+
+						if (configs.length > 0) {
+							env.CONFIGS = configs.join(',')
 						}
 
 						const instance = Bun.spawn(buildProps.command.split(' '), {
@@ -74,24 +94,23 @@ export const siteFeature = defineFeature({
 							env,
 							stdout: 'pipe',
 							stderr: 'pipe',
-							// stdout: 'ignore',
-							// stderr: ''
-							// stdout: 'inherit',
-							// stderr: 'inherit',
 						})
 
-						await instance.exited
+						// Read stdout & stderr while the build runs, otherwise
+						// the build hangs once its output fills the pipe buffer.
+						const [output, errors] = await Promise.all([
+							new Response(instance.stdout).text(),
+							new Response(instance.stderr).text(),
+							instance.exited,
+						])
 
-						if (instance.exitCode !== null && instance.exitCode > 0) {
-							// const error = instance.stderr
-							// throw new ExpectedError(await instance.stderr?.text() ?? '')
+						// A killed build reports a null exit code.
+						if (instance.exitCode !== 0) {
+							const reason = instance.signalCode ? ` (${instance.signalCode})` : ''
 
-							// console.log('')
-							// console.log(await instance.stderr.text())
-							// // console.log('')
-							// // console.log(await instance.stdout.text())
-							// console.log('')
-							throw new Error('Site build failed')
+							throw new ExpectedError(
+								`Site build failed${reason}:\n${(errors.trim() || output.trim()).slice(-2000)}`
+							)
 						}
 
 						// await execCommand({
@@ -110,181 +129,149 @@ export const siteFeature = defineFeature({
 			}
 
 			// ------------------------------------------------------------
-
-			const versions: Array<Input<string> | Input<string | undefined>> = []
-
-			// ------------------------------------------------------------
 			// Server Side Rendering
 
-			// let functionUrl: aws.lambda.FunctionUrl | undefined
+			if (props.ssr && ctx.dev && props.dev) {
+				// The site dev server renders ssr itself locally, so the ssr
+				// handler stays out of the local dev bundle - often the
+				// biggest part of the bundle build.
+			} else if (props.ssr && isStandaloneFunction(props.ssr) && !ctx.dev) {
+				// A custom lambda config deploys the ssr as its own stand-alone
+				// lambda & the router hits its function url directly, with the
+				// same cloudfront signing as the shared bundle url.
+				const fn = createLambdaFunction(ctx, `${id}-ssr`, props.ssr)
 
-			if (props.ssr) {
-				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
+				// Sandboxed lambdas are cut off from the app wide binds, so
+				// pass the site's own router endpoint explicitly. Routers
+				// without a domain don't have an endpoint.
+				if (ctx.shared.has('router', 'endpoint', props.router)) {
+					fn.setEnvironment(
+						`ROUTER_${constantCase(props.router)}_ENDPOINT`,
+						ctx.shared.entry('router', 'endpoint', props.router)
+					)
+				}
 
-				versions.push(result.code.sourceHash)
+				// Every deployment gets its own immutable alias & url,
+				// so a staged deployment only goes live at promotion and old
+				// route tables keep working for rollbacks.
+				const deployment = new FunctionDeployment(
+					group,
+					'ssr-deployment',
+					{
+						functionName: fn.lambda.functionName,
+						id: ctx.deploymentId ?? 'local-0',
+						sourceArns: [
+							ctx.shared
+								.entry('router', 'id', props.router)
+								.pipe(
+									distributionId =>
+										`arn:aws:cloudfront::${ctx.accountId}:distribution/${distributionId}`
+								),
+						],
+					},
+					{
+						dependsOn: [fn.deployment],
+					}
+				)
 
-				ctx.onBind((name, value) => {
-					result.setEnvironment(name, value)
-				})
-
-				new aws.lambda.Permission(group, 'ssr-permission', {
-					principal: 'cloudfront.amazonaws.com',
-					action: 'lambda:InvokeFunctionUrl',
-					functionName: result.lambda.functionName,
-					functionUrlAuthType: 'AWS_IAM',
-					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
-				})
-
-				const functionUrl = new aws.lambda.FunctionUrl(group, 'url', {
-					functionName: result.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				})
-
-				addRoutes(group, 'ssr', {
+				addRoutes({
 					[routeKey]: {
 						type: 'lambda',
-						domainName: functionUrl.functionUrl.pipe(url => url.split('/')[2]!),
 						forwardHost: true,
 						urlEncodedQueryString: true,
+						domainName: deployment.url.pipe(url => url.split('/')[2]!),
 					},
 				})
+			} else if (props.ssr) {
+				const ssr = props.ssr
+				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
-				// routes[routeKey] = {
-				// 	type: 'lambda',
-				// 	domainName: functionUrl.functionUrl.pipe(url => url.split('/')[2]!),
-				// 	forwardHost: true,
-				// 	urlEncodedQueryString: true,
-				// }
+				registerBundleFunction(ctx, bundleRouteKey, ssr)
+
+				addRoutes({
+					[routeKey]: {
+						type: 'lambda',
+						forwardHost: true,
+						urlEncodedQueryString: true,
+
+						// The custom route header tells the bundle which site to render.
+						requestHeaders: {
+							[ROUTE_HEADER]: bundleRouteKey,
+						},
+					},
+				})
 			}
 
 			// ------------------------------------------------------------
 			// Static Assets
 
 			if (props.static) {
-				const bucket = new aws.s3.Bucket(group, 'bucket', {
-					bucket: formatLocalResourceName({
-						appName: ctx.app.name,
-						stackName: ctx.stack.name,
-						resourceType: 'site',
-						resourceName: id,
-						postfix: ctx.appId,
-					}),
-					forceDestroy: true,
-					website: {
-						indexDocument: 'index.html',
-						errorDocument: props.ssr ? undefined : 'error.html',
-					},
-					corsRule: [
-						{
-							allowedOrigins: ['*'],
-							allowedHeaders: ['*'],
-							allowedMethods: ['GET', 'HEAD'],
-							exposeHeaders: ['content-type', 'cache-control'],
-						},
-					],
-				})
-
-				new aws.s3.BucketPolicy(
-					group,
-					`policy`,
-					{
-						bucket: bucket.bucket,
-						policy: $resolve([bucket.arn, routerId], (arn, id) => {
-							return JSON.stringify({
-								Version: '2012-10-17',
-								Statement: [
-									{
-										Effect: 'Allow',
-										Action: 's3:GetObject',
-										Resource: `${arn}/*`,
-										Principal: {
-											Service: 'cloudfront.amazonaws.com',
-										},
-										Condition: {
-											StringEquals: {
-												'AWS:SourceArn': `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`,
-											},
-										},
-									},
-								],
-							})
-						}),
-					},
-					{
-						dependsOn: [bucket],
-					}
-				)
-
-				ctx.addStackPermission({
-					actions: [
-						's3:ListBucket',
-						's3:ListBucketV2',
-						's3:HeadObject',
-						's3:GetObject',
-						's3:PutObject',
-						's3:DeleteObject',
-						's3:CopyObject',
-						's3:GetObjectAttributes',
-					],
-					resources: [
-						//
-						bucket.arn,
-						bucket.arn.pipe(arn => `${arn}/*`),
-					],
-				})
+				const bucket = ctx.shared.get('asset', 'bucket')
+				const folder = getFeatureFolder('site', ctx.stack.name, id)
 
 				// ------------------------------------------------------------
 				// Get all static files
 
 				ctx.onReady(() => {
-					if (typeof props.static === 'string' && bucket) {
-						const files = glob.sync('**', {
-							cwd: props.static,
-							nodir: true,
+					if (typeof props.static === 'string') {
+						const staticDir = props.static
+						const files = glob
+							.sync('**', {
+								cwd: staticDir,
+								nodir: true,
+							})
+							.sort()
+						const hashes = files.map(file => $hash(join(staticDir, file)))
+						const version = $combine(...hashes).pipe(hashes => {
+							const hash = createHash('sha1')
+
+							for (const [index, file] of files.entries()) {
+								hash.update(file)
+								hash.update(hashes[index]!)
+							}
+
+							return hash.digest('hex')
+						})
+						const deployment = new SiteDeployment(group, 'deployment', {
+							bucket: bucket.name,
+							prefix: folder,
+							source: staticDir,
+							version,
 						})
 
 						const staticRoutes: Record<string, Route> = {}
+						const plan = planStaticRoutes(files, props.path)
 
-						for (const file of files) {
-							const prefixedFile = join('/', file)
-							const object = new aws.s3.BucketObject(group, prefixedFile, {
-								bucket: bucket.bucket,
-								key: prefixedFile,
-								cacheControl: getCacheControl(file),
-								contentType: getContentType(file),
-								source: join(props.static, file),
-								sourceHash: $hash(join(props.static, file)),
-							})
-
-							versions.push(object.key)
-							versions.push(object.sourceHash)
-
-							const strippedHtmlFile = file.endsWith('index.html')
-								? file.slice(0, -11)
-								: file.endsWith('.html')
-									? file.slice(0, -5)
-									: file
-
-							const urlFriendlyFile = strippedHtmlFile.endsWith('/')
-								? strippedHtmlFile.slice(0, -1)
-								: strippedHtmlFile
-
-							const routeFileKey = join(props.path, urlFriendlyFile)
-
+						for (const [routeFileKey, file] of Object.entries(plan.files)) {
 							staticRoutes[routeFileKey] = {
 								type: 's3',
-								domainName: bucket.bucketRegionalDomainName,
-								rewrite: prefixedFile !== routeFileKey ? { to: prefixedFile } : undefined,
+								domainName: bucket.regionalDomainName,
+								rewrite: { to: $interpolate`/${folder}v-${deployment.version}/${file}` },
 							}
 						}
 
-						addRoutes(group, 'static', staticRoutes)
+						const pathPattern = props.path === '/' ? '' : props.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+						const assetRoute: Route = {
+							type: 's3',
+							domainName: bucket.regionalDomainName,
+							rewrite: {
+								regex: `^${pathPattern}/?(.*)$`,
+								to: $interpolate`/${folder}v-${deployment.version}/$1`,
+							},
+						}
+
+						for (const routeDirKey of plan.dirs) {
+							staticRoutes[routeDirKey] = assetRoute
+						}
+
+						if (plan.catchAll) {
+							staticRoutes[plan.catchAll] = assetRoute
+						}
+
+						addRoutes(staticRoutes, { dependsOn: [deployment, bucket.policy] })
 					}
 				})
 			}
-
-			addInvalidation(group, 'invalidate', [routeKey], versions)
-			// addRoutes(group, routes)
 		}
 	},
 })

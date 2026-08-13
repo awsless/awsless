@@ -1,7 +1,9 @@
-import { ExpectedError, invoke, ViewableError } from '@awsless/lambda'
+import { ExpectedError, ViewableError } from '@awsless/lambda'
 import { APIGatewayProxyEventV2 } from 'aws-lambda'
+import { internalInvoke } from 'awsless'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
+import { getFunctionDetails } from './details.js'
 import {
 	EXPECTED_ERROR,
 	INTERNAL_FUNCTION_ERROR,
@@ -18,7 +20,6 @@ import {
 import { invokeInternalFunction } from './internal/index.js'
 import { lock, unlock } from './lock.js'
 import { FunctionResult, Response, response } from './response.js'
-import { getFunctionDetails } from './schema.js'
 import { parseRequest } from './validate.js'
 import { buildViewerPayload } from './viewer.js'
 
@@ -50,13 +51,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Log Request in cloudwatch for user monitoring purposes.
 
-		console.log({
-			requestId,
-			lockKey: auth.lockKey,
-			authContext: auth.context,
-			request: request.output.body,
-			ip: request.output.requestContext.http.sourceIp,
-		})
+		// console.log({
+		// 	requestId,
+		// 	lockKey: auth.lockKey,
+		// 	authContext: auth.context,
+		// 	request: request.output.body,
+		// 	ip: request.output.requestContext.http.sourceIp,
+		// })
 
 		// // ----------------------------------------
 		// // Lock the request if needed
@@ -77,23 +78,12 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Get function details
 
-		const calls = await Promise.all(
-			request.output.body.map(async fn => {
-				if (fn.name.startsWith('$')) {
-					return {
-						...fn,
-						details: undefined,
-					}
-				}
-
-				const details = await getFunctionDetails(fn.name)
-
-				return {
-					...fn,
-					details,
-				}
-			})
-		)
+		const calls = request.output.body.map(fn => {
+			return {
+				...fn,
+				details: fn.name.startsWith('$') ? undefined : getFunctionDetails(fn.name),
+			}
+		})
 
 		// ----------------------------------------
 		// Lock the request if needed
@@ -154,14 +144,11 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 
 				let data: unknown
 				try {
-					data = await invoke({
-						name: fn.details.name,
-						payload: {
-							...(fn.payload ?? {}),
-							...(auth.context ?? {}),
-							// headers: request.output.headers,
-							viewer: buildViewerPayload(request.output),
-						},
+					data = await internalInvoke(fn.details.name, {
+						...(fn.payload ?? {}),
+						...(auth.context ?? {}),
+						// headers: request.output.headers,
+						viewer: buildViewerPayload(request.output),
 					})
 				} catch (error) {
 					if (error instanceof ViewableError || error instanceof ExpectedError) {

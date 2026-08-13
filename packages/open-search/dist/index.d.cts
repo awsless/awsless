@@ -1,7 +1,5 @@
-import * as types from '@opensearch-project/opensearch/api/types';
-export { types as Types };
 import { ClientOptions, Client } from '@opensearch-project/opensearch';
-import { Client as Client$1 } from '@opensearch-project/opensearch/.';
+export { Types } from '@opensearch-project/opensearch';
 import { Numeric, BigFloat } from '@awsless/big-float';
 
 type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
@@ -30,6 +28,14 @@ declare class Schema<Encoded, Input, Output> {
 declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") => Client;
 
 type Settings = Record<string, string | number | boolean>;
+type Options$5 = {
+    path: string;
+    host: string;
+    port: number;
+    debug?: boolean;
+    version: VersionArgs;
+};
+declare const launch: ({ path, host, port, version, debug }: Options$5) => Promise<() => Promise<void>>;
 
 type Version = `${string}.${string}.${string}`;
 type VersionArgs = {
@@ -41,6 +47,7 @@ type VersionArgs = {
     }) => Settings;
     started: (line: string) => boolean;
 };
+declare const VERSION_3_5_0_MIN: VersionArgs;
 
 type Options$4 = {
     version?: VersionArgs;
@@ -48,13 +55,15 @@ type Options$4 = {
 };
 declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
 
+declare const download: ({ version }: Pick<VersionArgs, "version">) => Promise<string>;
+
 type Table<I extends string, S extends AnySchema> = {
     index: I;
     schema: S;
-    client: () => Client$1;
+    client: () => Client;
 };
 type AnyTable = Table<string, AnySchema>;
-declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
+declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client) => Table<I, S>;
 
 declare const bulkDeleteItem: <T extends AnyTable>(table: T, id: string) => {
     readonly action: "delete";
@@ -173,4 +182,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

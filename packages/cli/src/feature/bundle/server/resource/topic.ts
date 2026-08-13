@@ -1,0 +1,56 @@
+import type { SNSEvent } from 'aws-lambda'
+import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
+import type { RouteMatcher } from './types.js'
+import { asyncRoute, routeType } from './util.js'
+
+export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
+	const route = event?.[ROUTE_PROPERTY]
+
+	if (typeof route === 'string') {
+		if (routeType(route) === 'topic') {
+			return asyncRoute(route, event.event)
+		}
+
+		return
+	}
+
+	if (typeof event?.headers?.[ROUTE_HEADER] === 'string') {
+		return
+	}
+
+	// SNS events can't tell us the route, so we dispatch to every handler subscribed to the topic.
+	const record = event?.Records?.[0]
+
+	if (record?.EventSource !== 'aws:sns' || typeof record?.Sns?.TopicArn !== 'string') {
+		return
+	}
+
+	const topicName = record.Sns.TopicArn.split(':').at(-1)!
+	const [, resourceType, topicId] = topicName.split('--')
+
+	// Other features publish to their own topics, like the pubsub events topic,
+	// so we only claim the events of a topic resource.
+	if (resourceType !== 'topic') {
+		return
+	}
+
+	const subscribers = routes.filter(route => {
+		const [, type, id] = route.split(':')
+
+		return type === 'topic' && id === topicId
+	})
+
+	if (!subscribers.length) {
+		// Publishing to a topic without subscribers is a silent no-op on
+		// aws - sns simply has nothing to deliver to - so the bundle
+		// matches that instead of erroring.
+		return []
+	}
+
+	if (subscribers.length === 1) {
+		return asyncRoute(subscribers[0]!, event)
+	}
+
+	// Isolate subscribers in separate invocations so a hard failure in one can't block or retry the others.
+	return subscribers.map(key => ({ key, payload: event }))
+}

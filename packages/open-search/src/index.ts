@@ -1,11 +1,16 @@
-import type * as Types from '@opensearch-project/opensearch/api/types'
-export type { Types }
+export type { Types } from '@opensearch-project/opensearch'
 export type { AnySchema, Schema, SchemaProps, Mapping } from './schema/schema'
 
 export { searchClient } from './client'
 
 // mock
 export { mockOpenSearch } from './mock'
+export { VERSION_3_5_0_MIN } from './server/version'
+export type { VersionArgs } from './server/version'
+
+// local server, used by the awsless local dev environment
+export { download } from './server/download'
+export { launch } from './server/launch'
 
 // table
 export { define, Table, AnyTable } from './table'

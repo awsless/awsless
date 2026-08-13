@@ -1,3 +1,4 @@
+import { getRouteEnv } from 'awsless'
 import { Session } from '../auth'
 import { FunctionResult } from '../response'
 
@@ -9,7 +10,7 @@ export const allowedFunctions = (_: unknown, auth: Session): FunctionResult => {
 }
 
 const getAllowedFunctions = (auth: Session) => {
-	if (!process.env.AUTH) {
+	if (!getRouteEnv('AUTH')) {
 		return ['*']
 	}
 
