@@ -84,6 +84,11 @@ export const createDnsValidatedCertificate = (
 			...(props.dependsOn ? { dependsOn: props.dependsOn } : {}),
 			...(props.provider ? { provider: props.provider } : {}),
 			replaceOnChanges: ['certificateArn', 'validationRecordFqdns'],
+			// The delete-first path would detach the certificate consumers
+			// (apigw domain names, distribution tenants) by stripping their
+			// certificate field, which the AWS api rejects. The validation
+			// is only a waiter, so replacing it create-first costs nothing.
+			createBeforeReplace: true,
 		}
 	)
 
