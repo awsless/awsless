@@ -7,6 +7,16 @@
 			"/sitemap.xml": "./src/sitemap.ts"
 		}
 	},
+	"icons": {
+		"icons": {
+			"router": "main",
+			"path": "/icons",
+			"origin": {
+				"static": "./icon"
+			}
+		}
+	},
+
 	"images": {
 		"images": {
 			"router": "main",

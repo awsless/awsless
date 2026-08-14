@@ -6,7 +6,6 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { FileError } from '../../error.js'
-import { createSnsServer } from '../../dev/servers/sns.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -68,23 +67,9 @@ export const topicFeature = defineFeature({
 			}
 		}
 
-		// The shim survives restarts, so long lived children (like the
-		// vite dev server) keep a valid endpoint.
-		const { server, port } = await ctx.keep('shim:sns', null, async () => {
-			const server = createSnsServer()
-			const port = await server.listen()
-
-			return { value: { server, port }, stop: () => server.stop() }
-		})
-
-		ctx.addEnv('AWS_ENDPOINT_URL_SNS', `http://127.0.0.1:${port}`)
-
-		ctx.registerServer({
-			name: 'sns',
-			start({ dispatch, reportFailure }) {
-				server.connect(dispatch, reportFailure)
-			},
-		})
+		// The shared sns shim survives restarts, so long lived children
+		// (like the vite dev server) keep a valid endpoint.
+		await ctx.useSns()
 	},
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')

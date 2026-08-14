@@ -9,13 +9,14 @@ import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { createAuthAdmin } from '../feature/auth/dev.js'
 import { features } from '../feature/index.js'
+import { ROUTE_HEADER } from '../feature/bundle/util.js'
 import { getBundleFunctionName } from '../util/name.js'
 import { directories, useDevBuildDir } from '../util/path.js'
 import { createDevContext } from './context.js'
 import { ServerPool } from './pool.js'
 import { createDataReset } from './reset.js'
 import { createSeedRunner } from './seed.js'
-import { debug } from '../cli/debug.js'
+import { debug, setDebugSink } from '../cli/debug.js'
 import { createDashboardServer } from './dashboard/index.js'
 import { createFailureReporter } from './failure.js'
 import { startDevRouter } from './router.js'
@@ -49,7 +50,6 @@ const breakdown = (timings: [string, number][]) => {
 		.join(', ')
 }
 
-
 export const startDev = async (props: {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
@@ -61,6 +61,7 @@ export const startDev = async (props: {
 	const log = props.onLog ?? (() => {})
 	const phase: DevPhase = props.phase ?? (async ({ start }, fn) => (log(start), fn(() => {})))
 	const { appConfig, stackConfigs } = props
+	const startedAt = Date.now()
 
 	// Isolate the dev builds from deploy/build/test runs in the same
 	// repo - see useDevBuildDir. Must happen before any builder runs.
@@ -102,6 +103,13 @@ export const startDev = async (props: {
 	await props.pool.keep('session', null, async () => ({ value: true, stop: () => {} }))
 
 	const dev = createDevContext({ appConfig, stackConfigs, appId, routerPorts, log, pool: props.pool })
+
+	// The dev server's own debug stream (build timings, sdk links, seed
+	// output) feeds the dashboard's Logs page alongside the worker
+	// output - set per run, so restarts never stack listeners.
+	setDebugSink((type, message) => {
+		dev.events.emit('debug', { date: Date.now(), line: message, error: type === 'error' })
+	})
 
 	const bundleName = getBundleFunctionName(appConfig.name)
 	const buildDir = getBuildPath('bundle', bundleName, '.')
@@ -297,6 +305,7 @@ export const startDev = async (props: {
 					restartNeeded = true
 					await worker.restart()
 					restartNeeded = false
+					dev.context.reportHealth('workers', 'up', String(worker.size()))
 
 					log(
 						`Reloaded the bundle in ${Date.now() - started}ms (build ${built - started}ms, worker ${Date.now() - built}ms)`
@@ -307,6 +316,7 @@ export const startDev = async (props: {
 			} catch (error) {
 				// Retry on the next invoke.
 				dirty = true
+				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
 				throw error
 			} finally {
 				fresh = undefined
@@ -316,18 +326,96 @@ export const startDev = async (props: {
 		await fresh
 	}
 
+	// A readable label for the homepage activity feed, derived from the
+	// dispatched event's shape.
+	const describeDispatch = (event: unknown): string => {
+		const payload = event as Record<string, any>
+		const route = payload?.['$awsless-route']
+
+		if (typeof route === 'string') {
+			return route
+		}
+
+		const record = payload?.Records?.[0]
+
+		if (record?.eventSource === 'aws:sqs') {
+			return (
+				'queue ' +
+				String(record.eventSourceARN ?? '')
+					.split(':')
+					.at(-1)
+			)
+		}
+
+		if (record?.EventSource === 'aws:sns') {
+			return (
+				'topic ' +
+				String(record.Sns?.TopicArn ?? '')
+					.split(':')
+					.at(-1)
+			)
+		}
+
+		if (record?.eventSource === 'aws:s3') {
+			return 'store ' + String(record.s3?.bucket?.name ?? '')
+		}
+
+		if (String(record?.eventSourceARN ?? '').includes(':dynamodb:')) {
+			return 'stream ' + (String(record.eventSourceARN).split('table/')[1]?.split('/')[0] ?? 'table')
+		}
+
+		const header = payload?.headers?.[ROUTE_HEADER]
+
+		if (typeof header === 'string') {
+			return header
+		}
+
+		return 'invoke'
+	}
+
+	// Every bundle dispatch lands on the homepage activity feed: what
+	// ran, how long it took & whether it failed. The events bus keeps a
+	// replay, so a freshly opened page still shows the recent history.
 	const dispatch = async (event: unknown) => {
 		await ensureFresh()
 
-		return worker.dispatch(event)
+		const started = Date.now()
+		const route = describeDispatch(event)
+
+		try {
+			const result = await worker.dispatch(event)
+
+			dev.events.emit('activity', { date: started, route, ms: Date.now() - started, ok: true })
+
+			return result
+		} catch (error) {
+			dev.events.emit('activity', {
+				date: started,
+				route,
+				ms: Date.now() - started,
+				ok: false,
+				error: error instanceof Error ? error.message : String(error),
+			})
+
+			throw error
+		}
 	}
 
 	// Failed async consumers route to the on-failure consumer when the
-	// app has one, instead of retry & dlq machinery.
+	// app has one, instead of retry & dlq machinery. Every failure also
+	// lands on the homepage problems feed.
 	const reportFailure = createFailureReporter({
 		enabled: Boolean(appConfig.onFailure),
 		dispatch,
 		log,
+		onReport(report) {
+			dev.events.emit('problems', {
+				date: Date.now(),
+				kind: report.kind,
+				title: report.routeKey ?? report.queue?.name ?? 'async invoke',
+				detail: report.error instanceof Error ? report.error.message : String(report.error),
+			})
+		},
 	})
 
 	// Local resource servers already listen since their onDev hook ran,
@@ -354,12 +442,14 @@ export const startDev = async (props: {
 	await phase({ start: 'Starting the bundle worker...', done: 'Started the bundle worker' }, async detail => {
 		try {
 			await worker.start()
+			dev.context.reportHealth('workers', 'up', String(worker.size()))
 		} catch (error) {
 			// The failure marks the phase line instead of a false
 			// "started" - the dev server stays up & the next invoke
 			// rebuilds & retries.
 			detail('FAILED - the next invoke retries')
 			log(`The bundle worker failed to start: ${error instanceof Error ? error.message : String(error)}`)
+			dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
 			dirty = true
 			restartNeeded = true
 		}
@@ -407,6 +497,13 @@ export const startDev = async (props: {
 					process.stderr.write(`Route ${routeKey} failed: ${detail}\n`)
 
 					emitWorkerLine(`Route ${routeKey} failed: ${detail}`, true, routeKey)
+
+					dev.events.emit('problems', {
+						date: Date.now(),
+						kind: 'route',
+						title: routeKey,
+						detail: error instanceof Error ? error.message : String(error),
+					})
 				},
 			})
 		)
@@ -416,13 +513,12 @@ export const startDev = async (props: {
 	const dashboard = createDashboardServer({
 		// The dashboard reseed resets every data store first, so the
 		// seed lands on a known state.
-		runSeeds:
-			seeder.enabled
-				? async () => {
-						await resetData()
-						await runSeed()
-					}
-				: undefined,
+		runSeeds: seeder.enabled
+			? async () => {
+					await resetData()
+					await runSeed()
+				}
+			: undefined,
 		app: appConfig.name,
 		region: appConfig.region,
 		routerPorts,
@@ -432,6 +528,9 @@ export const startDev = async (props: {
 		storeRoot: join(directories.output, 'local', 'store'),
 		configFile: join(directories.output, 'local', 'config.json'),
 		getEmails: () => props.pool.peek<{ server: { list: () => unknown[] } }>('shim:ses-email')?.server.list() ?? [],
+		getAlerts: () => props.pool.peek<{ alerts: unknown[] }>('shim:sns')?.alerts ?? [],
+		getSession: () => ({ startedAt, workers: worker.size() }),
+		getHealth: () => [...dev.health.values()],
 		configPulled: Object.keys(props.pool.peek<Record<string, string>>('config:pull') ?? {}),
 		auth: createAuthAdmin({
 			appConfig,
@@ -479,11 +578,15 @@ export const startDev = async (props: {
 
 		void worker
 			.restart()
-			.then(() => log('Restarted the bundle worker.'))
+			.then(() => {
+				dev.context.reportHealth('workers', 'up', String(worker.size()))
+				log('Restarted the bundle worker.')
+			})
 			.catch(error => {
 				// The next invoke retries through ensureFresh.
 				restartNeeded = true
 				dirty = true
+				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
 				log(`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`)
 			})
 	})

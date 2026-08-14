@@ -31,9 +31,24 @@ type Options = {
 	port: number
 	debug?: boolean
 	version: VersionArgs
+	// Fires when the server dies after a successful start without the
+	// returned kill being asked - the local dev environment surfaces it
+	// on the health strip.
+	onExit?: (code: number | null, signal: string | null) => void
+	// Streams the server output after a successful start, for the local
+	// dev dashboard's log view.
+	onOutput?: (line: string) => void
 }
 
-export const launch = ({ path, host, port, version, debug }: Options): Promise<() => Promise<void>> => {
+export const launch = ({
+	path,
+	host,
+	port,
+	version,
+	debug,
+	onExit: onDied,
+	onOutput,
+}: Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
 		const cache = join(path, 'cache', String(port))
 
@@ -89,7 +104,11 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 			}
 		}
 
+		let stopping = false
+
 		const kill = async (): Promise<void> => {
+			stopping = true
+
 			// The process may already be gone when a failed boot lands here,
 			// and a dead child never emits another exit event.
 			if (child.exitCode === null && !child.killed) {
@@ -126,6 +145,28 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 
 		const done = async () => {
 			off()
+
+			// The startup listeners are gone - from here an exit is a
+			// crash, unless the returned kill asked for it.
+			child.once('exit', (code, signal) => {
+				if (!stopping) {
+					onDied?.(code, signal)
+				}
+			})
+
+			if (onOutput) {
+				const capture = (chunk: Buffer) => {
+					for (const line of chunk.toString().split('\n')) {
+						if (line.trim() !== '') {
+							onOutput(line)
+						}
+					}
+				}
+
+				child.stdout.on('data', capture)
+				child.stderr.on('data', capture)
+			}
+
 			resolve(kill)
 		}
 

@@ -34,8 +34,10 @@ type Options$5 = {
     port: number;
     debug?: boolean;
     version: VersionArgs;
+    onExit?: (code: number | null, signal: string | null) => void;
+    onOutput?: (line: string) => void;
 };
-declare const launch: ({ path, host, port, version, debug }: Options$5) => Promise<() => Promise<void>>;
+declare const launch: ({ path, host, port, version, debug, onExit: onDied, onOutput, }: Options$5) => Promise<() => Promise<void>>;
 
 type Version = `${string}.${string}.${string}`;
 type VersionArgs = {

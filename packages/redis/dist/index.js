@@ -111,6 +111,7 @@ import { RedisMemoryServer } from "redis-memory-server";
 var RedisServer = class {
   client;
   process;
+  stopping = false;
   async start(port, version = "7.2.4", args = []) {
     if (this.process) {
       throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
@@ -118,6 +119,7 @@ var RedisServer = class {
     if (port && (port < 0 || port >= 65536)) {
       throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
     }
+    this.stopping = false;
     this.process = await RedisMemoryServer.create({
       instance: {
         port,
@@ -130,8 +132,32 @@ var RedisServer = class {
       // binary: { systemBinary: '/usr/local/bin/redis-server' },
     });
   }
+  // Fires when the redis child dies without kill() asking for it -
+  // the local dev environment surfaces it on the health strip.
+  onExit(handler) {
+    const child = this.process?.instanceInfoSync?.childProcess;
+    child?.once("exit", (code, signal) => {
+      if (!this.stopping) {
+        handler(code, signal);
+      }
+    });
+  }
+  // Streams the redis output, for the local dev dashboard's log view.
+  onOutput(handler) {
+    const child = this.process?.instanceInfoSync?.childProcess;
+    const capture = (chunk3) => {
+      for (const line of chunk3.toString().split("\n")) {
+        if (line.trim() !== "") {
+          handler(line);
+        }
+      }
+    };
+    child?.stdout?.on("data", capture);
+    child?.stderr?.on("data", capture);
+  }
   async kill() {
     if (this.process) {
+      this.stopping = true;
       await this.client?.disconnect();
       await this.process.stop();
       this.process = void 0;

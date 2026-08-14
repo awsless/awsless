@@ -13,7 +13,7 @@ export const dashboardHtml = `<!doctype html>
 		--border: #262b36;
 		--text: #d7dae0;
 		--muted: #7d8590;
-		--accent: #f5a623;
+		--accent: #ff9000;
 		--good: #3fb950;
 		--bad: #f85149;
 		font-size: 14px;
@@ -75,18 +75,34 @@ export const dashboardHtml = `<!doctype html>
 	.logs .entry { padding: 4px 0; }
 	.logs .entry + .entry, .logs .line + .entry, .logs .entry + .line { border-top: 1px solid var(--border); }
 	.logs .entry .meta { display: flex; gap: 8px; margin-bottom: 2px; }
-	.config-form { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
-	.config-form .field { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: center; }
-	.config-form .name { color: var(--muted); overflow-wrap: anywhere; }
-	.config-form input {
+	/* Every group is its own card, with a shared grid inside: the name
+	   column grows to the longest name (capped), so nothing truncates &
+	   the inputs line up. */
+	.config-form { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin-top: 14px; }
+	.config-group {
 		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 14px 16px;
+	}
+	.config-group h3 { margin: 0 0 12px; }
+	.config-fields {
+		display: grid;
+		grid-template-columns: fit-content(340px) 1fr;
+		gap: 10px 16px;
+		align-items: center;
+	}
+	.config-fields .field { display: contents; }
+	.config-fields .name { color: var(--muted); overflow-wrap: anywhere; }
+	.config-fields input {
+		background: var(--bg);
 		color: var(--text);
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		padding: 6px 10px;
 		font: inherit;
 	}
-	.config-form input::placeholder { color: var(--muted); }
+	.config-fields input::placeholder { color: var(--muted); }
 	.groups { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 	.groups .group { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 	nav {
@@ -97,10 +113,13 @@ export const dashboardHtml = `<!doctype html>
 	nav h1 {
 		font-size: 15px;
 		margin: 4px 8px 16px;
-		color: var(--accent);
 		cursor: pointer;
 	}
-	nav h1 span { color: var(--muted); font-weight: normal; }
+	/* The same two-tone logo as the cli: bold AWS in the brand orange,
+	   LESS dimmed, the command muted. */
+	nav h1 .logo { color: var(--accent); font-weight: bold; }
+	nav h1 .logo .dim { color: #a35d00; }
+	nav h1 .cmd { color: var(--muted); font-weight: normal; }
 	nav h3 {
 		font-size: 10px;
 		text-transform: uppercase;
@@ -193,6 +212,24 @@ export const dashboardHtml = `<!doctype html>
 		cursor: pointer;
 	}
 	.row:hover { background: var(--panel); }
+	a.row { text-decoration: none; }
+	.health { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+	.health .chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		padding: 4px 12px;
+		font-size: 12px;
+	}
+	.health .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex-shrink: 0; }
+	.health .chip.down { border-color: var(--bad); }
+	.health .chip.down .dot { background: var(--bad); }
+	.health .chip .detail-text { color: var(--muted); }
+	.row.problem .id { color: var(--bad); }
+	.empty.good { color: var(--good); }
 	.row .stack {
 		color: var(--muted);
 		min-width: 90px;
@@ -324,9 +361,10 @@ const GROUPS = [
 	['store', 'Stores'],
 	['config', 'Config'],
 	['auth', 'Auth'],
+	['alert', 'Alerts'],
 	['email', 'Emails'],
 	['worker', 'Logs'],
-	['route', 'Routes'],
+	['route', 'Routers'],
 ]
 
 // The nav renders the features in scannable sections - a section only
@@ -336,7 +374,7 @@ const SECTIONS = [
 	['Compute', ['function', 'cron', 'task', 'instance']],
 	['Messaging', ['queue', 'topic', 'subscriber', 'pubsub']],
 	['Storage', ['table', 'cache', 'search', 'store']],
-	['App', ['config', 'auth', 'email', 'worker']],
+	['App', ['config', 'auth', 'alert', 'email', 'worker']],
 ]
 
 const svg = inner =>
@@ -359,6 +397,7 @@ const ICONS = {
 	cache: svg('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>'),
 	search: svg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
 	store: svg('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
+	alert: svg('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
 	email: svg('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
 	config: svg('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
 	route: svg('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'),
@@ -377,7 +416,7 @@ const icon = kind => {
 let state
 let cleanupPanel
 const view = { kind: null, resource: null }
-const filter = { query: '', stack: '' }
+const filter = { query: '', stack: '', router: '' }
 
 const label = r => (r.stack ? r.stack + ' / ' + r.id : r.id)
 const groupTitle = kind => GROUPS.find(([k]) => k === kind)?.[1] ?? kind
@@ -393,6 +432,7 @@ const filterParams = () => {
 	const params = new URLSearchParams()
 	if (filter.query) params.set('q', filter.query)
 	if (filter.stack) params.set('stack', filter.stack)
+	if (filter.router) params.set('router', filter.router)
 	return params.toString()
 }
 
@@ -413,6 +453,7 @@ const selectKind = kind => {
 	view.resource = null
 	filter.query = ''
 	filter.stack = ''
+	filter.router = ''
 	history.pushState(null, '', listUrl(kind))
 	render()
 }
@@ -438,6 +479,7 @@ const applyLocation = () => {
 	view.resource = null
 	filter.query = params.get('q') ?? ''
 	filter.stack = params.get('stack') ?? ''
+	filter.router = params.get('router') ?? ''
 
 	if (view.kind && segments.length >= 3) {
 		const router = params.get('router')
@@ -824,6 +866,11 @@ const cachePanel = async (main, r) => {
 	const holder = $('div', {}, $('p', { className: 'empty' }, 'Scanning...'))
 	main.append(holder)
 
+	// The redis server's own output, streamed live.
+	if (r.channel) {
+		cleanupPanel = attachLogFeed(main, r.channel, undefined, 'Server logs')
+	}
+
 	try {
 		const data = await api('/api/cache?target=' + encodeURIComponent(r.detail))
 		holder.innerHTML = ''
@@ -904,6 +951,11 @@ const searchPanel = async (main, r) => {
 		result,
 	)
 
+	// The opensearch server's own output, streamed live.
+	if (r.channel) {
+		cleanupPanel = attachLogFeed(main, r.channel, undefined, 'Server logs')
+	}
+
 	try {
 		const { data } = await proxy('/_cat/indices?format=json&h=index,health,docs.count,store.size&s=index')
 		const rows = data.filter(entry => !entry.index.startsWith('.'))
@@ -958,6 +1010,59 @@ const storePanel = async (main, r) => {
 
 // Every email sent through Email.send during this session - captured
 // by the local ses shim instead of being delivered.
+const alertPanel = async (main) => {
+	const holder = $('div', {})
+	main.append(holder)
+
+	const render = async () => {
+		const data = await api('/api/alerts')
+		const alerts = data.alerts ?? []
+		holder.innerHTML = ''
+
+		const refresh = $('button', { className: 'primary', textContent: 'Refresh' })
+		refresh.onclick = render
+		holder.append($('div', { className: 'actions' }, [refresh]))
+
+		if (alerts.length === 0) {
+			holder.append($('p', { className: 'empty' }, 'No alerts sent yet.'))
+			return
+		}
+
+		const rows = $('div', { className: 'rows' })
+
+		for (const alert of alerts) {
+			const row = $('button', { className: 'row' }, [
+				$('span', { className: 'stack' }, new Date(alert.date).toLocaleTimeString()),
+				$('span', { className: 'id' }, alert.subject ?? '(no subject)'),
+				$('span', { className: 'info' }, alert.alert),
+			])
+			row.onclick = () => {
+				holder.innerHTML = ''
+
+				const back = $('button', { className: 'back', textContent: '\u2190 Alerts' })
+				back.onclick = render
+
+				let message = alert.message ?? '(no payload)'
+				try {
+					message = JSON.stringify(JSON.parse(alert.message), null, 2)
+				} catch (_) {}
+
+				holder.append(
+					back,
+					$('h2', {}, alert.subject ?? '(no subject)'),
+					$('p', { className: 'detail' }, alert.alert + ' \u00b7 ' + new Date(alert.date).toLocaleString()),
+					$('pre', { className: 'result' }, message),
+				)
+			}
+			rows.append(row)
+		}
+
+		holder.append(rows)
+	}
+
+	render()
+}
+
 const emailPanel = async (main) => {
 	const holder = $('div', {})
 	main.append(holder)
@@ -1020,7 +1125,34 @@ const configPanel = async (main) => {
 	const inputs = new Map()
 	const form = $('div', { className: 'config-form' })
 
+	// Configs group by the first segment of their name: alphapo-api-key
+	// & alphapo-host read as one "alphapo" block with the prefix
+	// stripped from the rows. A prefix needs at least two members to
+	// form a group - the loners keep their full name under "other".
+	const byPrefix = new Map()
+
 	for (const name of names) {
+		const prefix = name.split('-')[0]
+		if (!byPrefix.has(prefix)) byPrefix.set(prefix, [])
+		byPrefix.get(prefix).push(name)
+	}
+
+	const sections = []
+	const other = []
+
+	for (const [prefix, members] of byPrefix) {
+		if (members.length > 1) {
+			sections.push([prefix, members])
+		} else {
+			other.push(members[0])
+		}
+	}
+
+	if (other.length > 0) {
+		sections.push(['other', other])
+	}
+
+	const addField = (grid, name) => {
 		// An empty input falls through to the value pulled from ssm on
 		// boot - the placeholder shows whether the pull provided one.
 		const input = $('input', {
@@ -1029,7 +1161,21 @@ const configPanel = async (main) => {
 			spellcheck: false,
 		})
 		inputs.set(name, input)
-		form.append($('label', { className: 'field' }, [$('span', { className: 'name' }, name), input]))
+		grid.append($('label', { className: 'field' }, [$('span', { className: 'name' }, name), input]))
+	}
+
+	for (const [prefix, members] of sections) {
+		const grid = $('div', { className: 'config-fields' })
+
+		for (const name of members) {
+			addField(grid, name)
+		}
+
+		// A lone unlabeled group skips its header - the card alone
+		// carries the grouping.
+		const header = sections.length > 1 || other.length === 0 ? [$('h3', {}, prefix)] : []
+
+		form.append($('div', { className: 'config-group' }, [...header, grid]))
 	}
 
 	if (names.length === 0) {
@@ -1198,7 +1344,9 @@ const authPanel = async (main, r) => {
 
 const renderResource = main => {
 	const r = view.resource
-	const back = $('button', { className: 'back' }, '← ' + groupTitle(r.kind))
+	// A route's back button lands on its router's route list, one level
+	// below the Routers tab itself.
+	const back = $('button', { className: 'back' }, '← ' + (r.kind === 'route' ? 'Routes' : groupTitle(r.kind)))
 
 	back.onclick = () => {
 		view.resource = null
@@ -1245,7 +1393,49 @@ const renderList = main => {
 	const items = state.resources.filter(r => r.kind === view.kind)
 	const stacks = [...new Set(items.map(r => r.stack).filter(Boolean))].sort()
 
-	main.append($('h2', {}, groupTitle(view.kind)))
+	// The routes view drills down per router: every router runs as its
+	// own local server (like its own domain in production), so a flat
+	// list mixing every router's routes would only confuse.
+	if (view.kind === 'route' && !filter.router) {
+		main.append($('h2', {}, 'Routers'))
+
+		const rows = $('div', { className: 'rows' })
+
+		for (const [id, port] of Object.entries(state.routerPorts)) {
+			const count = items.filter(r => r.router === id).length
+			const row = $('button', { className: 'row' }, [
+				$('span', { className: 'stack' }, id),
+				$('span', { className: 'id' }, 'http://localhost:' + port),
+				$('span', { className: 'info' }, count + (count === 1 ? ' route' : ' routes')),
+			])
+			row.onclick = () => {
+				filter.router = id
+				history.pushState(null, '', listUrl('route'))
+				render()
+			}
+			rows.append(row)
+		}
+
+		main.append(rows)
+		return
+	}
+
+	if (view.kind === 'route') {
+		const back = $('button', { className: 'back' }, '← Routers')
+		back.onclick = () => {
+			filter.router = ''
+			history.pushState(null, '', listUrl('route'))
+			render()
+		}
+
+		main.append(
+			back,
+			$('h2', {}, 'Routes'),
+			$('p', { className: 'detail' }, filter.router + ' · http://localhost:' + state.routerPorts[filter.router]),
+		)
+	} else {
+		main.append($('h2', {}, groupTitle(view.kind)))
+	}
 
 	// The config page is a single form over every defined value,
 	// instead of a resource list.
@@ -1258,15 +1448,27 @@ const renderList = main => {
 		return emailPanel(main)
 	}
 
+	// The alert page lists every captured alert of the session.
+	if (view.kind === 'alert') {
+		return alertPanel(main)
+	}
+
 	// The worker page streams the bundle worker output directly,
 	// instead of listing its single resource.
 	if (view.kind === 'worker') {
-		cleanupPanel = attachLogFeed(main, 'worker', undefined, null)
+		const workerFeed = attachLogFeed(main, 'worker', undefined, 'Worker output')
+		const debugFeed = attachLogFeed(main, 'debug', undefined, 'Dev server')
+
+		cleanupPanel = () => {
+			workerFeed?.()
+			debugFeed?.()
+		}
 		return
 	}
 
 	const matches = r => {
 		if (filter.stack && r.stack !== filter.stack) return false
+		if (filter.router && r.router !== filter.router) return false
 		if (!filter.query) return true
 
 		return (r.stack + ' ' + r.id + ' ' + (r.detail ?? ''))
@@ -1340,11 +1542,14 @@ const render = () => {
 	cleanupPanel = undefined
 
 	const nav = document.getElementById('nav')
-	nav.innerHTML = '<h1>awsless <span>dev</span></h1>'
+	nav.innerHTML = '<h1><span class="logo">AWS<span class="dim">LESS</span></span> <span class="cmd">dev</span></h1>'
 	nav.querySelector('h1').onclick = showHome
 
 	const navButton = kind => {
-		const count = state.resources.filter(r => r.kind === kind).length
+		// The Routers tab lists routers, so its count follows suit.
+		const count = kind === 'route'
+			? Object.keys(state.routerPorts).length
+			: state.resources.filter(r => r.kind === kind).length
 		if (count === 0) return null
 
 		// The email outbox is a single feed, so a count of registered
@@ -1352,7 +1557,7 @@ const render = () => {
 		const button = $('button', { className: view.kind === kind ? 'active' : '' }, [
 			icon(kind),
 			groupTitle(kind),
-			kind === 'email' || kind === 'worker' ? '' : $('span', { className: 'count' }, String(count)),
+			kind === 'email' || kind === 'worker' || kind === 'alert' ? '' : $('span', { className: 'count' }, String(count)),
 		])
 		button.onclick = () => selectKind(kind)
 		return button
@@ -1424,7 +1629,192 @@ const render = () => {
 	} else if (view.kind) {
 		renderList(main)
 	} else {
-		main.append($('p', { className: 'empty' }, 'Select a feature to browse its resources.'))
+		renderHome(main)
+	}
+}
+
+// ------------------------------------------------------------------
+// Homepage: the session at a glance - endpoints, problems & the live
+// activity feed of everything running through the bundle.
+
+const timeAgo = ms => {
+	const s = Math.max(0, Math.round(ms / 1000))
+	if (s < 60) return s + 's'
+	if (s < 3600) return Math.round(s / 60) + 'm'
+	return Math.floor(s / 3600) + 'h ' + (Math.round(s / 60) % 60) + 'm'
+}
+
+const renderHome = main => {
+	const session = state.session ?? {}
+
+	const uptime = $('span', {}, '')
+	const updateUptime = () => {
+		uptime.textContent = session.startedAt ? 'up ' + timeAgo(Date.now() - session.startedAt) : ''
+	}
+	updateUptime()
+	const uptimeTimer = setInterval(updateUptime, 1000)
+
+	main.append(
+		$('h2', {}, state.app),
+		$('p', { className: 'detail' }, [
+			uptime,
+			session.workers ? ' \\u00b7 ' + session.workers + ' workers' : '',
+		]),
+	)
+
+	// ----------------------------------------------------------------
+	// Health: one chip per moving part, live.
+
+	const chips = $('div', { className: 'health' })
+	const chipEls = new Map()
+
+	const renderChip = entry => {
+		let chip = chipEls.get(entry.id)
+
+		if (!chip) {
+			chip = $('span', { className: 'chip' })
+			chipEls.set(entry.id, chip)
+			chips.append(chip)
+		}
+
+		chip.className = 'chip' + (entry.status === 'down' ? ' down' : '')
+		chip.innerHTML = ''
+		chip.append(
+			$('span', { className: 'dot' }),
+			entry.id,
+			entry.detail ? $('span', { className: 'detail-text' }, '\u00b7 ' + entry.detail) : '',
+		)
+	}
+
+	for (const entry of state.health ?? []) renderChip(entry)
+
+	const healthSource = new EventSource('/api/events?channel=health')
+	healthSource.onmessage = message => {
+		try {
+			renderChip(JSON.parse(message.data))
+		} catch (_) {}
+	}
+
+	if ((state.health ?? []).length > 0) {
+		main.append(chips)
+	}
+
+	// ----------------------------------------------------------------
+	// Endpoints
+
+	main.append($('h3', {}, 'Endpoints'))
+
+	const endpoints = $('div', { className: 'rows' })
+
+	for (const [id, port] of Object.entries(state.routerPorts ?? {})) {
+		const url = 'http://localhost:' + port
+		const row = $('a', { className: 'row', href: url, target: '_blank' }, [
+			$('span', { className: 'stack' }, 'router ' + id),
+			$('span', { className: 'id' }, url),
+			$('span', { className: 'info' }, ''),
+		])
+		endpoints.append(row)
+	}
+
+	main.append(endpoints)
+
+	// ----------------------------------------------------------------
+	// Problems: failures, route errors & fired alerts, newest first.
+
+	main.append($('h3', {}, 'Problems'))
+
+	const problems = $('div', { className: 'rows' })
+	const calm = $('p', { className: 'empty good' }, 'No problems - everything runs clean.')
+	main.append(calm, problems)
+
+	const problemRows = []
+
+	const problemRow = data => {
+		calm.hidden = true
+
+		const row = $('button', { className: 'row problem' }, [
+			$('span', { className: 'stack' }, new Date(data.date).toLocaleTimeString() + ' \\u00b7 ' + data.kind),
+			$('span', { className: 'id' }, data.title ?? ''),
+			$('span', { className: 'info' }, (data.detail ?? '').slice(0, 120)),
+		])
+
+		row.onclick = () => {
+			if (data.kind === 'alert') {
+				selectKind('alert')
+				return
+			}
+
+			const resource = state.resources.find(r => r.routeKey === data.title)
+			if (resource) selectResource(resource)
+		}
+
+		problems.prepend(row)
+		problemRows.push(row)
+
+		while (problemRows.length > 20) {
+			problemRows.shift().remove()
+		}
+	}
+
+	const problemSource = new EventSource('/api/events?channel=problems')
+	problemSource.onmessage = message => {
+		try {
+			problemRow(JSON.parse(message.data))
+		} catch (_) {}
+	}
+
+	// ----------------------------------------------------------------
+	// Activity: every dispatch through the bundle, newest first.
+
+	main.append($('h3', {}, 'Activity'))
+
+	const activity = $('div', { className: 'rows' })
+	const idle = $('p', { className: 'empty' }, 'Nothing ran yet.')
+	main.append(idle, activity)
+
+	const activityRows = []
+
+	const activityRow = data => {
+		idle.hidden = true
+
+		const resource = state.resources.find(r => r.routeKey === data.route)
+		const row = $('button', { className: 'row' + (data.ok ? '' : ' problem') }, [
+			$('span', { className: 'stack' }, new Date(data.date).toLocaleTimeString()),
+			$('span', { className: 'id' }, (data.ok ? '' : '\\u2717 ') + data.route),
+			$('span', { className: 'info' }, data.ok ? data.ms + 'ms' : (data.error ?? 'failed').slice(0, 80)),
+		])
+
+		if (resource) {
+			row.onclick = () => selectResource(resource)
+		}
+
+		activity.prepend(row)
+		activityRows.push(row)
+
+		while (activityRows.length > 50) {
+			activityRows.shift().remove()
+		}
+	}
+
+	const activitySource = new EventSource('/api/events?channel=activity')
+	activitySource.onmessage = message => {
+		try {
+			activityRow(JSON.parse(message.data))
+		} catch (_) {}
+	}
+
+	// ----------------------------------------------------------------
+	// Logs: the handlers' own console output, live - the full feed
+	// (incl. the dev server stream) lives on the Logs tab.
+
+	const logsFeed = attachLogFeed(main, 'worker', undefined, 'Logs')
+
+	cleanupPanel = () => {
+		clearInterval(uptimeTimer)
+		healthSource.close()
+		problemSource.close()
+		activitySource.close()
+		logsFeed?.()
 	}
 }
 
@@ -1445,14 +1835,15 @@ try {
 	document.title = state.app + ' · awsless dev'
 	state.resources = [
 		...state.resources,
-		// Proxy routes carry no route key & are already listed by
-		// the feature that owns them.
-		...state.routes.filter(route => route.routeKey).map(route => ({
+		// The full route table per router, like the deployed router: both
+		// bundle routes & proxy mounts (site dev servers, the pubsub
+		// websocket). Only the raw per-file static asset routes stay out.
+		...state.routes.filter(route => !route.rawKey).map(route => ({
 			kind: 'route',
 			id: route.pattern,
-			stack: route.routeKey.split(':')[0],
+			stack: route.routeKey ? route.routeKey.split(':')[0] : undefined,
 			router: route.routerId,
-			detail: route.routeKey,
+			detail: route.routeKey ?? ('proxy → ' + route.proxy),
 			url: 'http://localhost:' + state.routerPorts[route.routerId] + route.pattern.split('{')[0].replace(/\\*$/, ''),
 		})),
 	]
