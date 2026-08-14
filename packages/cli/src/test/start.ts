@@ -174,11 +174,23 @@ export const startTest = async (props: {
 
 		for (const error of module.errors()) {
 			const stack = error.stacks?.[0]
+			// Vitest serializes own enumerable props, so system error
+			// details survive when present.
+			const { code, syscall, address, port } = error as {
+				code?: string
+				syscall?: string
+				address?: string
+				port?: number
+			}
 			errors.push({
 				type: error.name,
 				message: error.message,
 				location: stack ? { line: stack.line, column: stack.column } : undefined,
 				stack: error.stack,
+				code,
+				syscall,
+				address,
+				port,
 			})
 		}
 	}
@@ -203,6 +215,12 @@ export type ModuleError = {
 	type?: string
 	message: string
 	stack?: string
+	// System error details, when the module error wraps one - a bare
+	// "ECONNREFUSED" is undiagnosable without the refused address.
+	code?: string
+	syscall?: string
+	address?: string
+	port?: number
 }
 
 export type TestError = {

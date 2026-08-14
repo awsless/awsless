@@ -12,7 +12,7 @@ import type { TestManifest } from 'awsless'
 import { createHash } from 'crypto'
 import { debug } from '../../debug.js'
 import { ExpectedError } from '../../../error.js'
-import { startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
+import { ModuleError, startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { color, icon } from '../style.js'
 // import { task, wrap } from '../util.js'
@@ -153,6 +153,17 @@ const logTestErrors = (event: TestResponse) => {
 	}
 }
 
+// The terminal only shows the message, so the syscall details & the
+// full stack go to the debug log - that's the only place a bare
+// system error like "ECONNREFUSED" gets an address to chase.
+const formatModuleError = (error: ModuleError) => {
+	const syscall = [error.syscall, error.address, error.port && `port ${error.port}`].filter(Boolean).join(' ')
+
+	return [error.message, syscall && `(${syscall})`, '\n', error.stack ?? '(no stack captured)']
+		.filter(Boolean)
+		.join(' ')
+}
+
 export const runTest = async (
 	stack: string,
 	dir: string,
@@ -202,11 +213,34 @@ export const runTest = async (
 		initialMessage: `Run tests for the ${color.info(stack)} stack`,
 		errorMessage: `Running tests for the ${color.info(stack)} stack failed`,
 		async task(ctx) {
-			const result = await startTest({
+			// A loaded machine can refuse or time out a local resource
+			// server connection for a moment, killing an arbitrary stack
+			// mid-run with a bare system error. Those clear within a tick,
+			// so a run that failed on nothing but system errors gets one
+			// retry instead of failing the whole run.
+			const transient = (error: ModuleError) =>
+				['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].includes(error.code ?? '') ||
+				['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].some(code => error.message.includes(code))
+
+			let result = await startTest({
 				dir,
 				filters,
 				env: opts.env,
 			})
+
+			if (result.errors.length > 0 && result.errors.every(transient)) {
+				for (const error of result.errors) {
+					debug(`Transient module error in ${stack} tests, retrying once: ${formatModuleError(error)}`)
+				}
+
+				await new Promise(resolve => setTimeout(resolve, 1000))
+
+				result = await startTest({
+					dir,
+					filters,
+					env: opts.env,
+				})
+			}
 
 			if (result.errors.length > 0) {
 				// Module errors carry no test file context, so keep the
@@ -215,7 +249,7 @@ export const runTest = async (
 				// only shows the message, so the full stack goes to the
 				// debug log.
 				for (const error of result.errors) {
-					debug(`Module error in ${stack} tests: ${error.message}\n${error.stack ?? '(no stack captured)'}`)
+					debug(`Module error in ${stack} tests: ${formatModuleError(error)}`)
 				}
 
 				throw result.errors.map(
