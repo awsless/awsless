@@ -158,8 +158,25 @@ const logTestErrors = (event: TestResponse) => {
 // system error like "ECONNREFUSED" gets an address to chase.
 const formatModuleError = (error: ModuleError) => {
 	const syscall = [error.syscall, error.address, error.port && `port ${error.port}`].filter(Boolean).join(' ')
+	const extra: string[] = []
 
-	return [error.message, syscall && `(${syscall})`, '\n', error.stack ?? '(no stack captured)']
+	// Bun's system errors hide their details in non-standard spots, so
+	// the raw leftover props & the cause chain go along verbatim.
+	if (error.props) {
+		try {
+			extra.push(`props: ${JSON.stringify(error.props)}`)
+		} catch (_) {}
+	}
+
+	if (error.cause) {
+		try {
+			extra.push(`cause: ${JSON.stringify(error.cause, Object.getOwnPropertyNames(error.cause as object))}`)
+		} catch (_) {
+			extra.push(`cause: ${String(error.cause)}`)
+		}
+	}
+
+	return [error.message, syscall && `(${syscall})`, ...extra, '\n', error.stack ?? '(no stack captured)']
 		.filter(Boolean)
 		.join(' ')
 }

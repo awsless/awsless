@@ -182,6 +182,10 @@ export const startTest = async (props: {
 				address?: string
 				port?: number
 			}
+			// Bun's system errors hide their details in non-standard spots,
+			// so keep every leftover own prop & the cause chain verbatim.
+			const { name: _n, message: _m, stack: _s, stacks: _ss, diff: _d, cause, ...rest } = error as Record<string, unknown>
+
 			errors.push({
 				type: error.name,
 				message: error.message,
@@ -191,6 +195,8 @@ export const startTest = async (props: {
 				syscall,
 				address,
 				port,
+				cause,
+				props: Object.keys(rest).length > 0 ? rest : undefined,
 			})
 		}
 	}
@@ -221,6 +227,8 @@ export type ModuleError = {
 	syscall?: string
 	address?: string
 	port?: number
+	cause?: unknown
+	props?: Record<string, unknown>
 }
 
 export type TestError = {
