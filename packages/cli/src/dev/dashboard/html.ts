@@ -101,6 +101,13 @@ export const dashboardHtml = `<!doctype html>
 		cursor: pointer;
 	}
 	nav h1 span { color: var(--muted); font-weight: normal; }
+	nav h3 {
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		color: var(--muted);
+		margin: 14px 8px 4px;
+	}
 	nav button {
 		display: flex;
 		align-items: center;
@@ -322,6 +329,16 @@ const GROUPS = [
 	['route', 'Routes'],
 ]
 
+// The nav renders the features in scannable sections - a section only
+// shows when the app declares at least one of its resources.
+const SECTIONS = [
+	['Web', ['site', 'rpc', 'rest', 'route', 'image', 'icon']],
+	['Compute', ['function', 'cron', 'task', 'instance']],
+	['Messaging', ['queue', 'topic', 'subscriber', 'pubsub']],
+	['Storage', ['table', 'cache', 'search', 'store']],
+	['App', ['config', 'auth', 'email', 'worker']],
+]
+
 const svg = inner =>
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>'
 
@@ -347,6 +364,8 @@ const ICONS = {
 	route: svg('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'),
 	site: svg('<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
 	seed: svg('<path d="M12 22V8"/><path d="M12 8C12 5 9 2 5 2c0 4 3 6 7 6z"/><path d="M12 12c0-3 3-6 7-6 0 4-3 6-7 6z"/>'),
+	auth: svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+	worker: svg('<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>'),
 }
 
 const icon = kind => {
@@ -1324,19 +1343,37 @@ const render = () => {
 	nav.innerHTML = '<h1>awsless <span>dev</span></h1>'
 	nav.querySelector('h1').onclick = showHome
 
-	for (const [kind, title] of GROUPS) {
+	const navButton = kind => {
 		const count = state.resources.filter(r => r.kind === kind).length
-		if (count === 0) continue
+		if (count === 0) return null
 
 		// The email outbox is a single feed, so a count of registered
 		// resources would only confuse.
 		const button = $('button', { className: view.kind === kind ? 'active' : '' }, [
 			icon(kind),
-			title,
+			groupTitle(kind),
 			kind === 'email' || kind === 'worker' ? '' : $('span', { className: 'count' }, String(count)),
 		])
 		button.onclick = () => selectKind(kind)
-		nav.append(button)
+		return button
+	}
+
+	const sectioned = new Set(SECTIONS.flatMap(([, kinds]) => kinds))
+
+	for (const [label, kinds] of SECTIONS) {
+		const buttons = kinds.map(navButton).filter(Boolean)
+		if (buttons.length === 0) continue
+
+		nav.append($('h3', {}, label), ...buttons)
+	}
+
+	// A kind without a section still shows, so new features never
+	// silently vanish from the nav.
+	for (const [kind] of GROUPS) {
+		if (sectioned.has(kind)) continue
+
+		const button = navButton(kind)
+		if (button) nav.append(button)
 	}
 
 	if (state.seeds) {
