@@ -347,6 +347,8 @@ const ICONS = {
 	route: svg('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'),
 	site: svg('<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
 	seed: svg('<path d="M12 22V8"/><path d="M12 8C12 5 9 2 5 2c0 4 3 6 7 6z"/><path d="M12 12c0-3 3-6 7-6 0 4-3 6-7 6z"/>'),
+	auth: svg('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+	worker: svg('<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>'),
 }
 
 const icon = kind => {
