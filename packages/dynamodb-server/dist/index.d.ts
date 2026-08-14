@@ -120,7 +120,7 @@ interface StreamRecord {
         StreamViewType: StreamViewType;
     };
 }
-type StreamCallback = (record: StreamRecord) => void;
+type StreamCallback = (record: StreamRecord, context?: string) => void;
 interface ConsumedCapacity {
     TableName: string;
     CapacityUnits: number;

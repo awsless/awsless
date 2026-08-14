@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { createServer, Server } from 'http'
-import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { readBody, trackConnections } from '../util.js'
+import { DevDispatch, DevReportFailure, DevTrace } from '../../feature.js'
+import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 
 type MessageAttributes = Record<string, { DataType?: string; StringValue?: string; BinaryValue?: string }>
 
@@ -121,7 +121,7 @@ export const createSqsServer = (props: {
 		return stores.get(queue)!
 	}
 
-	const deliver = (queue: string, input: SendMessageInput, messageId: string) => {
+	const deliver = (queue: string, input: SendMessageInput, messageId: string, trace?: DevTrace) => {
 		const now = Date.now()
 
 		// A pull queue stores the message until a consumer receives it,
@@ -161,7 +161,7 @@ export const createSqsServer = (props: {
 		}
 
 		const send = () => {
-			dispatch?.(event).catch(error => {
+			dispatch?.(event, trace).catch(error => {
 				let body: unknown = input.MessageBody
 
 				try {
@@ -212,7 +212,7 @@ export const createSqsServer = (props: {
 		return storeOf(queue).find(message => message.receipt === receipt)
 	}
 
-	const actions: Record<string, (input: any, signal: AbortSignal) => unknown> = {
+	const actions: Record<string, (input: any, signal: AbortSignal, trace?: DevTrace) => unknown> = {
 		GetQueueUrl(input: { QueueName?: string }) {
 			if (!input.QueueName || !props.queues.has(input.QueueName)) {
 				throw new Error(`Unknown local queue: ${input.QueueName}`)
@@ -222,7 +222,7 @@ export const createSqsServer = (props: {
 				QueueUrl: queueUrl(input.QueueName),
 			}
 		},
-		SendMessage(input: SendMessageInput) {
+		SendMessage(input: SendMessageInput, _signal: AbortSignal, trace?: DevTrace) {
 			const queue = queueFromUrl(input.QueueUrl)
 
 			if (!queue) {
@@ -231,11 +231,15 @@ export const createSqsServer = (props: {
 
 			const messageId = randomUUID()
 
-			deliver(queue, input, messageId)
+			deliver(queue, input, messageId, trace)
 
 			return sendResult(input, messageId)
 		},
-		SendMessageBatch(input: { QueueUrl?: string; Entries?: Array<SendMessageInput & { Id?: string }> }) {
+		SendMessageBatch(
+			input: { QueueUrl?: string; Entries?: Array<SendMessageInput & { Id?: string }> },
+			_signal: AbortSignal,
+			trace?: DevTrace
+		) {
 			const queue = queueFromUrl(input.QueueUrl)
 
 			if (!queue) {
@@ -246,7 +250,7 @@ export const createSqsServer = (props: {
 				Successful: (input.Entries ?? []).map(entry => {
 					const messageId = randomUUID()
 
-					deliver(queue, entry, messageId)
+					deliver(queue, entry, messageId, trace)
 
 					return {
 						Id: entry.Id,
@@ -427,7 +431,11 @@ export const createSqsServer = (props: {
 								throw new Error(`The local dev sqs emulator does not support: ${target}`)
 							}
 
-							const result = await action(JSON.parse(body.toString() || '{}'), abort.signal)
+							const result = await action(
+								JSON.parse(body.toString() || '{}'),
+								abort.signal,
+								parseTraceHeader(req.headers[TRACE_HEADER])
+							)
 
 							if (res.writableEnded || res.destroyed) {
 								return

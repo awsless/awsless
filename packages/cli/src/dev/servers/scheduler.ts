@@ -1,6 +1,6 @@
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { readBody, trackConnections } from '../util.js'
+import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 
 // A minimal eventbridge scheduler emulator for delayed tasks: a
 // CreateSchedule call dispatches the schedule's input into the bundle
@@ -52,9 +52,10 @@ export const createSchedulerServer = () => {
 						}
 
 						const payload = input.Target?.Input ? JSON.parse(input.Target.Input) : {}
+						const trace = parseTraceHeader(req.headers[TRACE_HEADER])
 
 						setImmediate(() => {
-							dispatch?.(payload).catch(error => {
+							dispatch?.(payload, trace).catch(error => {
 								const routeKey = (payload as { '$awsless-route'?: string })?.['$awsless-route']
 
 								reportFailure?.({

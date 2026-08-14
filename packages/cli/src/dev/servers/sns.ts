@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { createServer, Server } from 'http'
-import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { readBody, trackConnections } from '../util.js'
+import { DevDispatch, DevReportFailure, DevTrace } from '../../feature.js'
+import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 
 type PublishInput = {
 	TopicArn?: string
@@ -42,15 +42,13 @@ const parseQueryPublish = (body: string): PublishInput => {
 // matcher already fans out to every subscriber route. A publish
 // matching a capture is recorded by the owning feature instead (like
 // the alert topics) & never reaches the bundle.
-export const createSnsServer = (props?: {
-	captures?: ((input: PublishInput) => boolean)[]
-}) => {
+export const createSnsServer = (props?: { captures?: ((input: PublishInput) => boolean)[] }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined
 	let dispatch: DevDispatch | undefined
 	let reportFailure: DevReportFailure | undefined
 
-	const publish = (input: PublishInput) => {
+	const publish = (input: PublishInput, trace?: DevTrace) => {
 		const messageId = randomUUID()
 
 		for (const capture of props?.captures ?? []) {
@@ -87,7 +85,7 @@ export const createSnsServer = (props?: {
 		}
 
 		setImmediate(() => {
-			dispatch?.(event).catch(error => {
+			dispatch?.(event, trace).catch(error => {
 				reportFailure?.({ kind: 'async', event, error })
 			})
 		})
@@ -130,7 +128,7 @@ export const createSnsServer = (props?: {
 							return
 						}
 
-						const messageId = publish(input)
+						const messageId = publish(input, parseTraceHeader(req.headers[TRACE_HEADER]))
 
 						if (isJson) {
 							res.writeHead(200, { 'content-type': 'application/x-amz-json-1.0' })

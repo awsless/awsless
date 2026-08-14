@@ -5,6 +5,7 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { StackConfig } from '../../config/stack.js'
 import { isWiping } from '../../dev/reset.js'
+import { parseTraceHeader } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
@@ -164,7 +165,7 @@ export const tableOnDev = async (ctx: DevContext) => {
 					const routeKey = formatRouteKey(stackName, 'table', id)
 					const eventSourceARN = `arn:aws:dynamodb:${ctx.appConfig.region}:000000000000:table/${name}/stream/local`
 
-					const unsubscribe = server.onStreamRecord(name, record => {
+					const unsubscribe = server.onStreamRecord(name, (record, context) => {
 						// Reset wipes are bookkeeping, not app activity.
 						if (isWiping()) {
 							return
@@ -172,7 +173,10 @@ export const tableOnDev = async (ctx: DevContext) => {
 
 						const event = { Records: [{ ...record, eventSourceARN }] }
 
-						dispatch(event).catch(error => {
+						// The write that caused this record carried its trace
+						// as the request context, so the stream consumer joins
+						// the writer's trace.
+						dispatch(event, parseTraceHeader(context)).catch(error => {
 							reportFailure({
 								kind: 'stream',
 								routeKey,

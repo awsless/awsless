@@ -53,8 +53,16 @@ export const dashboardHtml = `<!doctype html>
 	aside .event .body {
 		color: var(--muted);
 		margin-top: 4px;
-		word-break: break-word;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	/* Hovering an event unfolds its payload in place, fully wrapped -
+	   the same behavior as the activity feed. */
+	aside .event:hover .body {
 		white-space: pre-wrap;
+		overflow: visible;
+		word-break: break-word;
 	}
 	aside .empty { padding: 8px; }
 	.logs {
@@ -234,20 +242,63 @@ export const dashboardHtml = `<!doctype html>
 		gap: 0 20px;
 		align-items: start;
 	}
-	/* The activity feed reads like the log cards. */
-	.activity-card {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 8px;
-		margin-top: 8px;
-		max-height: 420px;
-		overflow-y: auto;
-		font-size: 12px;
+	.logs .route.link { cursor: pointer; }
+	.logs .route.link:hover { text-decoration: underline; }
+	.logs .took { color: var(--muted); margin-left: auto; flex-shrink: 0; }
+	.logs .payload {
+		color: var(--muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
-	.activity-card .rows { grid-template-columns: fit-content(110px) 1fr auto; }
-	.activity-card .row { padding: 3px 4px; gap: 8px; }
-	.activity-card .empty { padding: 4px; }
+	/* Hovering an entry unfolds its payload in place, fully wrapped. */
+	.logs .entry:hover .payload {
+		white-space: pre-wrap;
+		overflow: visible;
+		word-break: break-word;
+	}
+	/* The trace chip appears once a dispatch has trace siblings & opens
+	   the trace tree of the whole request chain. */
+	.logs .trace-link {
+		color: var(--accent);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+	.logs .trace-link:hover { text-decoration: underline; }
+	.overlay {
+		position: fixed;
+		inset: 0;
+		background: rgb(0 0 0 / 55%);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 50;
+	}
+	.overlay .modal {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		width: min(760px, 92vw);
+		max-height: 82vh;
+		overflow-y: auto;
+		padding: 16px 20px;
+	}
+	.overlay .modal-head { display: flex; align-items: baseline; gap: 10px; }
+	.overlay .modal-head h3 { margin: 0; }
+	.overlay .modal-head .detail { color: var(--muted); font-size: 12px; }
+	.overlay .modal-head button {
+		margin-left: auto;
+		background: none;
+		border: none;
+		color: var(--muted);
+		font-size: 16px;
+		cursor: pointer;
+	}
+	.overlay .modal-head button:hover { color: var(--text); }
+	/* The tree rows reuse the log entry format, the guide marks the
+	   parent-child steps of the chain. */
+	.trace-tree { max-height: none; }
+	.trace-tree .entry .guide { color: var(--muted); flex-shrink: 0; }
 	.row.problem .id { color: var(--bad); }
 	.empty.good { color: var(--good); }
 	.row .stack {
@@ -759,6 +810,50 @@ const rpcPanel = (main, r) => {
 // A terminal-style view streaming a resource's live event channel,
 // like the dev server output of a site. The bus replays the recent
 // lines, so the boot output shows even when the panel opens later.
+// Resolve a feed label back to its resource: route keys match
+// directly, while queue/stream/topic labels carry the physical name
+// their resource lists as its detail.
+const findRouteResource = route => {
+	const direct = state.resources.find(r => r.routeKey === route)
+
+	if (direct) {
+		return direct
+	}
+
+	const [kind, name] = route.split(' ')
+
+	if (!name) {
+		return undefined
+	}
+
+	if (kind === 'queue') {
+		return state.resources.find(r => r.kind === 'queue' && r.detail === name)
+	}
+
+	if (kind === 'stream') {
+		return state.resources.find(r => r.kind === 'table' && r.detail === name)
+	}
+
+	if (kind === 'topic') {
+		return state.resources.find(r => r.kind === 'topic' && r.detail === name)
+	}
+
+	return undefined
+}
+
+// A route tag that links through to its resource, shared by the log
+// feeds & the activity feed.
+const routeTag = route => {
+	const resource = findRouteResource(route)
+	const tag = $('span', { className: 'route' + (resource ? ' link' : ''), title: route }, route)
+
+	if (resource) {
+		tag.onclick = () => selectResource(resource)
+	}
+
+	return tag
+}
+
 const attachLogFeed = (main, channel, route, title = 'Logs') => {
 	if (title) {
 		main.append($('h3', {}, title))
@@ -790,7 +885,7 @@ const attachLogFeed = (main, channel, route, title = 'Logs') => {
 			feed.append($('div', { className: 'entry' + error }, [
 				$('div', { className: 'meta' }, [
 					$('span', { className: 'time' }, new Date(data.date).toLocaleTimeString()),
-					showRoute ? $('span', { className: 'route' }, data.route) : '',
+					showRoute ? routeTag(data.route) : '',
 				]),
 				$('div', { className: 'text' }, data.line),
 			]))
@@ -1796,35 +1891,139 @@ const renderHome = main => {
 
 	activityCol.append($('h3', {}, 'Activity'))
 
-	const card = $('div', { className: 'activity-card' })
-	const activity = $('div', { className: 'rows' })
-	const idle = $('p', { className: 'empty' }, 'Nothing ran yet.')
+	const activityFeed = $('div', { className: 'logs' }, $('p', { className: 'empty' }, 'Nothing ran yet.'))
+	activityCol.append(activityFeed)
 
-	card.append(idle, activity)
-	activityCol.append(card)
+	// The recent dispatches kept as data, not just DOM - the trace tree
+	// renders straight from this buffer. It outlives the visible feed,
+	// so a chain's early spans stay renderable after the feed pruned them.
+	const activityData = []
+	const traceCounts = new Map()
 
-	const activityRows = []
+	const closeTrace = () => {
+		document.querySelector('.overlay')?.remove()
+	}
+
+	// The trace tree: the whole request chain of one trace as nested
+	// spans - what ran, what caused it, how long each step took & where
+	// it failed. Children hang under their caller in dispatch order.
+	const openTrace = traceId => {
+		closeTrace()
+
+		const entries = activityData.filter(entry => entry.trace === traceId)
+
+		if (entries.length === 0) {
+			return
+		}
+
+		const started = Math.min(...entries.map(entry => entry.date))
+		const ended = Math.max(...entries.map(entry => entry.date + entry.ms))
+		const failed = entries.some(entry => !entry.ok)
+
+		const tree = $('div', { className: 'logs trace-tree' })
+		const spans = new Set(entries.map(entry => entry.span))
+
+		// A span whose parent already fell out of the buffer renders as
+		// its own root instead of vanishing.
+		const roots = entries.filter(entry => !entry.parent || !spans.has(entry.parent))
+
+		const renderSpan = (entry, depth) => {
+			const guide = $('span', { className: 'guide' }, '\\u2514')
+			guide.style.paddingLeft = ((depth - 1) * 18) + 'px'
+
+			tree.append($('div', { className: 'entry' + (entry.ok ? '' : ' error') }, [
+				$('div', { className: 'meta' }, [
+					depth > 0 ? guide : '',
+					$('span', { className: 'time' }, new Date(entry.date).toLocaleTimeString()),
+					routeTag(entry.route),
+					$('span', { className: 'took' }, (entry.ok ? '' : '\\u2717 ') + entry.ms + 'ms'),
+				]),
+				entry.ok ? '' : $('div', { className: 'text', title: entry.error ?? '' }, entry.error ?? 'failed'),
+				entry.payload ? $('div', { className: 'payload' }, entry.payload) : '',
+			]))
+
+			for (const child of entries.filter(other => other.parent === entry.span)) {
+				renderSpan(child, depth + 1)
+			}
+		}
+
+		for (const root of roots) {
+			renderSpan(root, 0)
+		}
+
+		const close = $('button', { title: 'Close' }, '\\u2715')
+		const overlay = $('div', { className: 'overlay' }, $('div', { className: 'modal' }, [
+			$('div', { className: 'modal-head' }, [
+				$('h3', {}, 'Trace ' + traceId),
+				$('span', { className: 'detail' },
+					entries.length + ' spans \\u00b7 ' + (ended - started) + 'ms' + (failed ? ' \\u00b7 failed' : '')),
+				close,
+			]),
+			tree,
+		]))
+
+		close.onclick = closeTrace
+		overlay.onclick = event => {
+			if (event.target === overlay) closeTrace()
+		}
+
+		document.body.append(overlay)
+	}
+
+	const traceChip = traceId => {
+		const chip = $('span', { className: 'trace-link', title: 'View the whole request chain' }, 'trace')
+		chip.onclick = () => openTrace(traceId)
+		return chip
+	}
+
+	// A lone dispatch shows no chip - once a second span of its trace
+	// arrives, every entry of the chain gets one, retroactively.
+	const markTraced = traceId => {
+		for (const entry of activityFeed.querySelectorAll('[data-trace="' + traceId + '"]')) {
+			if (!entry.querySelector('.trace-link')) {
+				entry.querySelector('.meta')?.append(traceChip(traceId))
+			}
+		}
+	}
 
 	const activityRow = data => {
-		idle.hidden = true
+		activityFeed.querySelector('.empty')?.remove()
 
-		const resource = state.resources.find(r => r.routeKey === data.route)
-		const row = $('button', { className: 'row' + (data.ok ? '' : ' problem') }, [
-			$('span', { className: 'stack' }, new Date(data.date).toLocaleTimeString()),
-			$('span', { className: 'id', title: data.route }, (data.ok ? '' : '\\u2717 ') + data.route),
-			$('span', { className: 'info', title: data.ok ? '' : (data.error ?? '') }, data.ok ? data.ms + 'ms' : (data.error ?? 'failed').slice(0, 80)),
+		activityData.push(data)
+
+		while (activityData.length > 200) {
+			activityData.shift()
+		}
+
+		// The same entry format as the log feeds: meta header with the
+		// linked route tag & the duration, the payload truncated on its
+		// own line with the full value on hover.
+		const row = $('div', { className: 'entry' + (data.ok ? '' : ' error') }, [
+			$('div', { className: 'meta' }, [
+				$('span', { className: 'time' }, new Date(data.date).toLocaleTimeString()),
+				routeTag(data.route),
+				$('span', { className: 'took' }, (data.ok ? '' : '\\u2717 ') + data.ms + 'ms'),
+			]),
+			data.ok ? '' : $('div', { className: 'text', title: data.error ?? '' }, data.error ?? 'failed'),
+			data.payload ? $('div', { className: 'payload' }, data.payload) : '',
 		])
 
-		if (resource) {
-			row.onclick = () => selectResource(resource)
+		if (data.trace) {
+			row.setAttribute('data-trace', data.trace)
+			traceCounts.set(data.trace, (traceCounts.get(data.trace) ?? 0) + 1)
 		}
 
-		activity.prepend(row)
-		activityRows.push(row)
+		activityFeed.append(row)
 
-		while (activityRows.length > 50) {
-			activityRows.shift().remove()
+		if (data.trace && traceCounts.get(data.trace) > 1) {
+			markTraced(data.trace)
 		}
+
+		while (activityFeed.children.length > 50) {
+			activityFeed.firstChild.remove()
+		}
+
+		activityFeed.scrollTop = activityFeed.scrollHeight
 	}
 
 	const activitySource = new EventSource('/api/events?channel=activity')
@@ -1842,6 +2041,7 @@ const renderHome = main => {
 
 	cleanupPanel = () => {
 		clearInterval(uptimeTimer)
+		closeTrace()
 		healthSource.close()
 		problemSource.close()
 		activitySource.close()
@@ -1874,6 +2074,7 @@ try {
 			id: route.pattern,
 			stack: route.routeKey ? route.routeKey.split(':')[0] : undefined,
 			router: route.routerId,
+			routeKey: route.routeKey,
 			detail: route.routeKey ?? ('proxy → ' + route.proxy),
 			url: 'http://localhost:' + state.routerPorts[route.routerId] + route.pattern.split('{')[0].replace(/\\*$/, ''),
 		})),

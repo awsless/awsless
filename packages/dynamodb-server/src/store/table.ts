@@ -1,4 +1,5 @@
 import { cmp, parse } from '@awsless/big-float'
+import { getRequestContext } from '../request-context.js'
 import type {
 	AttributeDefinition,
 	AttributeMap,
@@ -662,9 +663,14 @@ export class Table {
 			}
 		}
 
+		// The context of the request that caused the write rides along, so
+		// a consumer can attribute the record to its originating request.
+		// TTL expiries emit outside any request & carry none.
+		const context = getRequestContext()
+
 		for (const callback of this.streamCallbacks) {
 			try {
-				callback(record)
+				callback(record, context)
 			} catch {
 				// Ignore callback errors
 			}

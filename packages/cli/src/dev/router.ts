@@ -3,6 +3,7 @@ import { ServerResponse } from 'http'
 import { DevDispatch, DevRoute } from '../feature.js'
 import { ROUTE_HEADER } from '../feature/bundle/util.js'
 import { compileRoutePattern } from '../feature/router/pattern.js'
+import { parseTraceHeader, TRACE_HEADER } from './util.js'
 
 type CompiledRoute = {
 	match?: RegExp
@@ -338,7 +339,13 @@ export const startDevRouter = async (props: {
 			let result: unknown
 
 			try {
-				result = await props.dispatch(formatWebEvent(request, route, body, url, sourceIp))
+				// A browser request starts a fresh trace - but a handler
+				// fetching its own router (like an ssr page calling an rpc)
+				// carries the trace header & stays inside its caller's trace.
+				result = await props.dispatch(
+					formatWebEvent(request, route, body, url, sourceIp),
+					parseTraceHeader(request.headers.get(TRACE_HEADER))
+				)
 			} catch (error) {
 				props.onError?.(error, route.routeKey)
 

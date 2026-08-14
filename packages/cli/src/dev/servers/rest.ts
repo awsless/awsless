@@ -3,7 +3,7 @@ import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import { DevDispatch } from '../../feature.js'
 import { ROUTE_HEADER } from '../../feature/bundle/util.js'
 import { writeWebResponse } from '../router.js'
-import { readBody, trackConnections } from '../util.js'
+import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 
 export type RestRoute = {
 	// The api gateway route key, like "GET /users/{id}" or "$default".
@@ -140,36 +140,39 @@ export const createRestServer = (props: { id: string; routes: RestRoute[] }) => 
 
 		const now = new Date()
 
-		const result = await dispatch?.({
-			version: '2.0',
-			routeKey: found.route.routeKey,
-			rawPath: url.pathname,
-			rawQueryString: url.search.slice(1),
-			cookies: req.headers.cookie ? req.headers.cookie.split(';').map(v => v.trim()) : undefined,
-			headers,
-			queryStringParameters,
-			pathParameters: Object.keys(found.params).length > 0 ? found.params : undefined,
-			requestContext: {
-				accountId: '000000000000',
-				apiId: props.id,
-				domainName: url.hostname,
-				domainPrefix: url.hostname.split('.')[0],
-				http: {
-					method: req.method ?? 'GET',
-					path: url.pathname,
-					protocol: 'HTTP/1.1',
-					sourceIp: req.socket.remoteAddress ?? '127.0.0.1',
-					userAgent: headers['user-agent'] ?? '',
-				},
-				requestId: randomUUID(),
+		const result = await dispatch?.(
+			{
+				version: '2.0',
 				routeKey: found.route.routeKey,
-				stage: '$default',
-				time: now.toISOString(),
-				timeEpoch: now.getTime(),
+				rawPath: url.pathname,
+				rawQueryString: url.search.slice(1),
+				cookies: req.headers.cookie ? req.headers.cookie.split(';').map(v => v.trim()) : undefined,
+				headers,
+				queryStringParameters,
+				pathParameters: Object.keys(found.params).length > 0 ? found.params : undefined,
+				requestContext: {
+					accountId: '000000000000',
+					apiId: props.id,
+					domainName: url.hostname,
+					domainPrefix: url.hostname.split('.')[0],
+					http: {
+						method: req.method ?? 'GET',
+						path: url.pathname,
+						protocol: 'HTTP/1.1',
+						sourceIp: req.socket.remoteAddress ?? '127.0.0.1',
+						userAgent: headers['user-agent'] ?? '',
+					},
+					requestId: randomUUID(),
+					routeKey: found.route.routeKey,
+					stage: '$default',
+					time: now.toISOString(),
+					timeEpoch: now.getTime(),
+				},
+				body: body.length > 0 ? body.toString('base64') : undefined,
+				isBase64Encoded: body.length > 0,
 			},
-			body: body.length > 0 ? body.toString('base64') : undefined,
-			isBase64Encoded: body.length > 0,
-		})
+			parseTraceHeader(req.headers[TRACE_HEADER])
+		)
 
 		writeWebResponse(res, result)
 	}

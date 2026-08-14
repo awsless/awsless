@@ -148,9 +148,19 @@ export type TypeGenContext = {
 	write: (file: string, data?: TypeFile | Buffer | string, include?: boolean) => Promise<void>
 }
 
+// The trace context of a dev dispatch: every dispatch is one span, and
+// a dispatch caused by a handler (a queue send, a task invoke, a topic
+// publish) carries its caller's span as the parent - so the dashboard
+// can render a whole request chain as one trace tree.
+export type DevTrace = {
+	traceId: string
+	spanId: string
+}
+
 // The local dev server (`awsless dev`) dispatches an event into the
-// running bundle worker & resolves with the handler result.
-export type DevDispatch = (event: unknown) => Promise<unknown>
+// running bundle worker & resolves with the handler result. The parent
+// trace links the dispatch into the trace of the caller that caused it.
+export type DevDispatch = (event: unknown, parent?: DevTrace) => Promise<unknown>
 
 // A failed async consumer dispatch. There are no retries locally: the
 // failure routes to the app's on-failure consumer when one is set.

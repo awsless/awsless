@@ -1,10 +1,32 @@
 import { ChildProcess } from 'child_process'
+import { randomBytes } from 'crypto'
 import { IncomingMessage, Server } from 'http'
 import { createServer, Socket } from 'net'
+import { DevTrace } from '../feature.js'
 
 // The fake account every fully-local environment synthesizes with -
 // the dev environment & the test runner share it.
 export const LOCAL_ACCOUNT_ID = '000000000000'
+
+// The request header carrying the active trace out of the bundle
+// worker into the local emulators, as "traceId:spanId". The worker
+// injects it into every outgoing loopback request, so a queue send or
+// task invoke links the dispatch it causes back to its caller.
+export const TRACE_HEADER = 'x-awsless-trace'
+
+export const traceId = () => randomBytes(4).toString('hex')
+
+export const formatTraceHeader = (trace: DevTrace) => `${trace.traceId}:${trace.spanId}`
+
+export const parseTraceHeader = (value: unknown): DevTrace | undefined => {
+	if (typeof value !== 'string') {
+		return undefined
+	}
+
+	const [traceId, spanId] = value.split(':')
+
+	return traceId && spanId ? { traceId, spanId } : undefined
+}
 
 // Reads a request body with an error listener attached: a request
 // stream failing without one (like a reset connection) throws out of

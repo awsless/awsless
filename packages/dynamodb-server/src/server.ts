@@ -21,6 +21,7 @@ import {
 	transactWriteItems,
 	updateItem,
 } from './operations/index.js'
+import { setRequestContext } from './request-context.js'
 import type { TableStore } from './store/index.js'
 
 type OperationHandler = (store: TableStore, input: unknown) => unknown
@@ -80,7 +81,8 @@ export async function handleRequest(
 	store: TableStore,
 	method: string,
 	target: string | null | undefined,
-	getBody: () => Promise<string>
+	getBody: () => Promise<string>,
+	context?: string
 ): Promise<{ body: string; status: number; requestId: string }> {
 	const requestId = generateUUID()
 
@@ -127,6 +129,11 @@ export async function handleRequest(
 	}
 
 	try {
+		// Operations run synchronously, so the context set here is live
+		// for exactly the stream records this operation emits - even
+		// under concurrent requests.
+		setRequestContext(context)
+
 		const result = handler(store, body)
 		return {
 			body: JSON.stringify(result),
@@ -136,6 +143,8 @@ export async function handleRequest(
 	} catch (error) {
 		const err = formatError(error)
 		return { ...err, requestId }
+	} finally {
+		setRequestContext(undefined)
 	}
 }
 
@@ -151,7 +160,13 @@ function createBunServer(store: TableStore, port: number, hostname: string): Ser
 		port,
 		hostname,
 		async fetch(req) {
-			const result = await handleRequest(store, req.method, req.headers.get('X-Amz-Target'), () => req.text())
+			const result = await handleRequest(
+				store,
+				req.method,
+				req.headers.get('X-Amz-Target'),
+				() => req.text(),
+				req.headers.get('x-awsless-trace') ?? undefined
+			)
 
 			return new Response(result.body, {
 				status: result.status,
@@ -187,7 +202,8 @@ function createNodeServer(store: TableStore, port: number, hostname: string): Pr
 				store,
 				req.method ?? 'GET',
 				req.headers['x-amz-target'] as string | undefined,
-				getBody
+				getBody,
+				typeof req.headers['x-awsless-trace'] === 'string' ? req.headers['x-awsless-trace'] : undefined
 			)
 
 			res.writeHead(result.status, {

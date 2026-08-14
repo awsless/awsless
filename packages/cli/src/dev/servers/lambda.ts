@@ -1,6 +1,6 @@
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { readBody, trackConnections } from '../util.js'
+import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 import { WorkerError } from '../worker.js'
 
 // A minimal lambda emulator that routes Invoke calls into the bundle
@@ -57,12 +57,13 @@ export const createLambdaServer = (props: { functionName: string }) => {
 
 						const type = String(req.headers['x-amz-invocation-type'] ?? 'RequestResponse')
 						const event = JSON.parse(body.toString() || '{}')
+						const trace = parseTraceHeader(req.headers[TRACE_HEADER])
 
 						if (type === 'Event') {
 							res.writeHead(202, { 'content-type': 'application/json' })
 							res.end()
 
-							dispatch?.(event).catch(error => {
+							dispatch?.(event, trace).catch(error => {
 								const routeKey = (event as { '$awsless-route'?: string })?.['$awsless-route']
 
 								reportFailure?.({
@@ -76,7 +77,7 @@ export const createLambdaServer = (props: { functionName: string }) => {
 						}
 
 						try {
-							const result = await dispatch?.(event)
+							const result = await dispatch?.(event, trace)
 
 							res.writeHead(200, { 'content-type': 'application/json' })
 							res.end(typeof result === 'undefined' || result === null ? '' : JSON.stringify(result))

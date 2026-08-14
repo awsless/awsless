@@ -22,8 +22,9 @@ import { createFailureReporter } from './failure.js'
 import { startDevRouter } from './router.js'
 import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
+import { DevTrace } from '../feature.js'
 import { linkSdkPackages } from './sdk.js'
-import { LOCAL_ACCOUNT_ID } from './util.js'
+import { formatTraceHeader, LOCAL_ACCOUNT_ID, traceId } from './util.js'
 import { createBundleWorker } from './worker.js'
 
 export type DevInstance = {
@@ -376,25 +377,65 @@ export const startDev = async (props: {
 	// Every bundle dispatch lands on the homepage activity feed: what
 	// ran, how long it took & whether it failed. The events bus keeps a
 	// replay, so a freshly opened page still shows the recent history.
-	const dispatch = async (event: unknown) => {
+	// The app-level payload of a dispatch, compact enough for the feed:
+	// route payloads unwrap their envelope, everything else shows as is.
+	const describePayload = (event: unknown): string => {
+		let payload = ''
+
+		try {
+			const envelope = event as Record<string, unknown>
+			const inner = typeof envelope?.['$awsless-route'] === 'string' ? envelope.event : event
+
+			payload = JSON.stringify(inner) ?? ''
+		} catch (_) {}
+
+		return payload.length > 1000 ? payload.slice(0, 1000) + '\u2026' : payload
+	}
+
+	const dispatch = async (event: unknown, parent?: DevTrace) => {
 		await ensureFresh()
 
 		const started = Date.now()
 		const route = describeDispatch(event)
+		const payload = describePayload(event)
+
+		// Every dispatch is one span of a trace. A dispatch caused by a
+		// running handler (a queue send, a task invoke) joins its caller's
+		// trace as a child span - everything else starts a new trace.
+		const trace: DevTrace = { traceId: parent?.traceId ?? traceId(), spanId: traceId() }
 
 		try {
-			const result = await worker.dispatch(event)
+			const result = await worker.dispatch(event, formatTraceHeader(trace))
 
-			dev.events.emit('activity', { date: started, route, ms: Date.now() - started, ok: true })
-
-			return result
-		} catch (error) {
 			dev.events.emit('activity', {
 				date: started,
 				route,
+				payload,
+				ms: Date.now() - started,
+				ok: true,
+				trace: trace.traceId,
+				span: trace.spanId,
+				parent: parent?.spanId,
+			})
+
+			return result
+		} catch (error) {
+			// The failure reporter picks the span off the error, so the
+			// on-failure consumer dispatch lands in the same trace.
+			if (error instanceof Error) {
+				;(error as Error & { trace?: DevTrace }).trace = trace
+			}
+
+			dev.events.emit('activity', {
+				date: started,
+				route,
+				payload,
 				ms: Date.now() - started,
 				ok: false,
 				error: error instanceof Error ? error.message : String(error),
+				trace: trace.traceId,
+				span: trace.spanId,
+				parent: parent?.spanId,
 			})
 
 			throw error

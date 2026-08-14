@@ -9,7 +9,10 @@ export type BundleWorker = {
 	start: () => Promise<void>
 	restart: () => Promise<void>
 	stop: () => Promise<void>
-	dispatch: (event: unknown) => Promise<unknown>
+	// The trace is the formatted trace header value of the dispatch's
+	// span - the worker carries it through the handler's async context
+	// into every outgoing loopback request.
+	dispatch: (event: unknown, trace?: string) => Promise<unknown>
 	// The number of live worker processes, for the dashboard's session
 	// header.
 	size: () => number
@@ -34,11 +37,89 @@ export class WorkerError extends Error {
 // take down the dev server. The dev server talks to it over local HTTP
 // instead of IPC, so the worker runtime never needs to match the CLI
 // runtime.
-const WORKER_ENTRY = `import { createServer } from 'node:http'
+const WORKER_ENTRY = `import { AsyncLocalStorage } from 'node:async_hooks'
+import http from 'node:http'
+import https from 'node:https'
+import { createServer } from 'node:http'
+import { syncBuiltinESMExports } from 'node:module'
 import { format } from 'node:util'
 
 let handler
 let getCurrentRoute = () => undefined
+
+// The trace of the running invocation, set per dispatch by the dev
+// server. The async context keeps it accurate under concurrent
+// requests, exactly like the route context.
+const traceContext = new AsyncLocalStorage()
+
+const isLoopback = host => host === '127.0.0.1' || host === 'localhost' || host === '::1'
+
+// Outgoing requests to the local emulators carry the active trace as a
+// header, so a queue send or task invoke made by a handler links the
+// dispatch it causes back to this invocation. Only loopback targets:
+// a request to a real external api must never see the header.
+const injectTrace = module => {
+	const original = module.request
+
+	module.request = function (...args) {
+		const trace = traceContext.getStore()
+
+		if (trace) {
+			// request(url[, options][, callback]) or request(options[, callback])
+			const index = typeof args[0] === 'string' || args[0] instanceof URL ? 1 : 0
+			let url
+
+			try {
+				url = index === 1 ? new URL(String(args[0])) : undefined
+			} catch (_) {}
+
+			let options = args[index]
+
+			if (typeof options === 'function' || options === undefined) {
+				args.splice(index, 0, {})
+				options = args[index]
+			}
+
+			const host = String(url?.hostname ?? options.hostname ?? options.host ?? '').split(':')[0]
+
+			if (isLoopback(host)) {
+				args[index] = { ...options, headers: { ...options.headers, 'x-awsless-trace': trace } }
+			}
+		}
+
+		return original.apply(this, args)
+	}
+}
+
+injectTrace(http)
+injectTrace(https)
+
+// The aws sdk grabs request via ESM named imports (like
+// "const { request } = await import('node:http')"), and ESM named
+// exports of builtins are snapshots - the sync pushes the patched
+// functions into those bindings too.
+syncBuiltinESMExports()
+
+const originalFetch = globalThis.fetch
+
+globalThis.fetch = (input, init) => {
+	const trace = traceContext.getStore()
+
+	if (trace) {
+		try {
+			const url = new URL(input instanceof Request ? input.url : String(input))
+
+			if (isLoopback(url.hostname)) {
+				const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+
+				headers.set('x-awsless-trace', trace)
+				init = { ...init, headers }
+			}
+		} catch (_) {}
+	}
+
+	return originalFetch(input, init)
+}
 
 // Every console call writes ONE framed record: an invisible \\x1f
 // marker with the active bundle route & the json-encoded text, so
@@ -85,12 +166,12 @@ const server = createServer((req, res) => {
 		let response
 
 		try {
-			const { event, context } = JSON.parse(Buffer.concat(chunks).toString())
+			const { event, context, trace } = JSON.parse(Buffer.concat(chunks).toString())
 
 			// Fabricate the parts of the lambda context that only exist
 			// at runtime, like the remaining time counter.
 			const started = Date.now()
-			const result = await handler(event, {
+			const run = () => handler(event, {
 				functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
 				functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
 				memoryLimitInMB: '512',
@@ -98,6 +179,8 @@ const server = createServer((req, res) => {
 				getRemainingTimeInMillis: () => 15 * 60 * 1000 - (Date.now() - started),
 				...context,
 			})
+
+			const result = await (trace ? traceContext.run(trace, run) : run())
 
 			response = { result: typeof result === 'undefined' ? null : result }
 		} catch (error) {
@@ -308,7 +391,7 @@ export const createBundleWorker = (props: {
 				await doStop()
 				await doStart()
 			}),
-		async dispatch(event) {
+		async dispatch(event, trace) {
 			if (workers.length === 0) {
 				throw new Error('The bundle worker is not running.')
 			}
@@ -322,7 +405,7 @@ export const createBundleWorker = (props: {
 			try {
 				const res = await fetch(`http://127.0.0.1:${worker.port}`, {
 					method: 'POST',
-					body: JSON.stringify({ event, context }),
+					body: JSON.stringify({ event, context, trace }),
 				})
 
 				const body = (await res.json()) as {

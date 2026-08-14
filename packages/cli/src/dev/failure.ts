@@ -1,7 +1,7 @@
 import { stringify } from '@awsless/json'
 import { formatRouteKey, formatRoutePayload } from 'awsless'
 import { randomUUID } from 'crypto'
-import { DevDispatch, DevFailureReport, DevReportFailure } from '../feature.js'
+import { DevDispatch, DevFailureReport, DevReportFailure, DevTrace } from '../feature.js'
 
 // The bundle route of the global on-failure consumer.
 const CONSUMER_ROUTE = formatRouteKey('base', 'on-failure', 'consumer')
@@ -79,7 +79,11 @@ export const createFailureReporter = (props: {
 		// them.
 		const event = JSON.parse(stringify(format(report)))
 
-		props.dispatch(formatRoutePayload(CONSUMER_ROUTE, event)).catch(error => {
+		// The dev dispatch stamps its span onto the error it throws, so
+		// the on-failure consumer joins the trace of the failed dispatch.
+		const parent = (report.error as Error & { trace?: DevTrace })?.trace
+
+		props.dispatch(formatRoutePayload(CONSUMER_ROUTE, event), parent).catch(error => {
 			props.log(
 				`The on-failure consumer itself failed: ${error instanceof Error ? error.message : String(error)}`
 			)

@@ -122,7 +122,10 @@ export interface StreamRecord {
 	}
 }
 
-export type StreamCallback = (record: StreamRecord) => void
+// The context is the x-awsless-trace header of the request that caused
+// the write, when one was sent - the awsless local dev environment uses
+// it to link the stream dispatch into the caller's trace.
+export type StreamCallback = (record: StreamRecord, context?: string) => void
 
 export interface ConsumedCapacity {
 	TableName: string

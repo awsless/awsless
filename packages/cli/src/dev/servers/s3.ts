@@ -2,8 +2,8 @@ import { createHash } from 'crypto'
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises'
 import { createServer, IncomingMessage, Server } from 'http'
 import { dirname, isAbsolute, join, relative, sep } from 'path'
-import { DevDispatch, DevReportFailure } from '../../feature.js'
-import { decodeAwsChunked, readBody, trackConnections } from '../util.js'
+import { DevDispatch, DevReportFailure, DevTrace } from '../../feature.js'
+import { decodeAwsChunked, parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 
 export type StoreNotificationRule = {
 	id: string
@@ -41,7 +41,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 	let dispatch: DevDispatch | undefined
 	let reportFailure: DevReportFailure | undefined
 
-	const notify = (eventName: string, bucket: string, key: string, size: number, eTag: string) => {
+	const notify = (eventName: string, bucket: string, key: string, size: number, eTag: string, trace?: DevTrace) => {
 		for (const rule of props.rules) {
 			const matches = rule.events.some(event => {
 				const type = event.replace(/^s3:/, '')
@@ -80,7 +80,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 				],
 			}
 
-			dispatch?.(event).catch(error => {
+			dispatch?.(event, trace).catch(error => {
 				reportFailure?.({ kind: 'async', routeKey: rule.id, event, error })
 			})
 		}
@@ -178,7 +178,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 			res.writeHead(200, { etag: `"${eTag}"` })
 			res.end()
 
-			notify('ObjectCreated:Put', bucket, key, body.length, eTag)
+			notify('ObjectCreated:Put', bucket, key, body.length, eTag, parseTraceHeader(req.headers[TRACE_HEADER]))
 			return
 		}
 
@@ -207,7 +207,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 			res.writeHead(204)
 			res.end()
 
-			notify('ObjectRemoved:Delete', bucket, key, 0, '')
+			notify('ObjectRemoved:Delete', bucket, key, 0, '', parseTraceHeader(req.headers[TRACE_HEADER]))
 			return
 		}
 

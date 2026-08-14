@@ -300,20 +300,20 @@ import { cmp, parse } from "@awsless/big-float";
 // src/expressions/path.ts
 function parsePath(path, attributeNames) {
   const segments = [];
-  let current = "";
+  let current2 = "";
   let i = 0;
   while (i < path.length) {
     const char = path[i];
     if (char === ".") {
-      if (current) {
-        segments.push({ type: "attribute", value: resolveAttributeName(current, attributeNames) });
-        current = "";
+      if (current2) {
+        segments.push({ type: "attribute", value: resolveAttributeName(current2, attributeNames) });
+        current2 = "";
       }
       i++;
     } else if (char === "[") {
-      if (current) {
-        segments.push({ type: "attribute", value: resolveAttributeName(current, attributeNames) });
-        current = "";
+      if (current2) {
+        segments.push({ type: "attribute", value: resolveAttributeName(current2, attributeNames) });
+        current2 = "";
       }
       i++;
       let indexStr = "";
@@ -324,12 +324,12 @@ function parsePath(path, attributeNames) {
       i++;
       segments.push({ type: "index", value: parseInt(indexStr, 10) });
     } else {
-      current += char;
+      current2 += char;
       i++;
     }
   }
-  if (current) {
-    segments.push({ type: "attribute", value: resolveAttributeName(current, attributeNames) });
+  if (current2) {
+    segments.push({ type: "attribute", value: resolveAttributeName(current2, attributeNames) });
   }
   return segments;
 }
@@ -343,42 +343,42 @@ function resolveAttributeName(name, attributeNames) {
   return name;
 }
 function getValueAtPath(item, segments) {
-  let current = { M: item };
+  let current2 = { M: item };
   for (const segment of segments) {
-    if (current === void 0) {
+    if (current2 === void 0) {
       return void 0;
     }
     if (segment.type === "attribute") {
-      if ("M" in current) {
-        const map = current.M;
-        current = map[segment.value];
+      if ("M" in current2) {
+        const map = current2.M;
+        current2 = map[segment.value];
       } else {
         return void 0;
       }
     } else if (segment.type === "index") {
-      if ("L" in current) {
-        const list = current.L;
-        current = list[segment.value];
+      if ("L" in current2) {
+        const list = current2.L;
+        current2 = list[segment.value];
       } else {
         return void 0;
       }
     }
   }
-  return current;
+  return current2;
 }
 function setValueAtPath(item, segments, value) {
   if (segments.length === 0) {
     return;
   }
-  let current = { M: item };
+  let current2 = { M: item };
   for (let i = 0; i < segments.length - 1; i++) {
     const segment = segments[i];
     const nextSegment = segments[i + 1];
     if (segment.type === "attribute") {
-      if (!("M" in current)) {
+      if (!("M" in current2)) {
         return;
       }
-      const map = current.M;
+      const map = current2.M;
       const attrName = segment.value;
       if (!map[attrName]) {
         if (nextSegment.type === "attribute") {
@@ -387,12 +387,12 @@ function setValueAtPath(item, segments, value) {
           map[attrName] = { L: [] };
         }
       }
-      current = map[attrName];
+      current2 = map[attrName];
     } else if (segment.type === "index") {
-      if (!("L" in current)) {
+      if (!("L" in current2)) {
         return;
       }
-      const list = current.L;
+      const list = current2.L;
       const idx = segment.value;
       if (!list[idx]) {
         if (nextSegment.type === "attribute") {
@@ -401,18 +401,18 @@ function setValueAtPath(item, segments, value) {
           list[idx] = { L: [] };
         }
       }
-      current = list[idx];
+      current2 = list[idx];
     }
   }
   const lastSegment = segments[segments.length - 1];
   if (lastSegment.type === "attribute") {
-    if ("M" in current) {
-      const map = current.M;
+    if ("M" in current2) {
+      const map = current2.M;
       map[lastSegment.value] = value;
     }
   } else if (lastSegment.type === "index") {
-    if ("L" in current) {
-      const list = current.L;
+    if ("L" in current2) {
+      const list = current2.L;
       list[lastSegment.value] = value;
     }
   }
@@ -421,39 +421,39 @@ function deleteValueAtPath(item, segments) {
   if (segments.length === 0) {
     return false;
   }
-  let current = { M: item };
+  let current2 = { M: item };
   for (let i = 0; i < segments.length - 1; i++) {
     const segment = segments[i];
     if (segment.type === "attribute") {
-      if (!("M" in current)) {
+      if (!("M" in current2)) {
         return false;
       }
-      const map = current.M;
+      const map = current2.M;
       if (!map[segment.value]) {
         return false;
       }
-      current = map[segment.value];
+      current2 = map[segment.value];
     } else if (segment.type === "index") {
-      if (!("L" in current)) {
+      if (!("L" in current2)) {
         return false;
       }
-      const list = current.L;
+      const list = current2.L;
       if (list[segment.value] === void 0) {
         return false;
       }
-      current = list[segment.value];
+      current2 = list[segment.value];
     }
   }
   const lastSegment = segments[segments.length - 1];
   if (lastSegment.type === "attribute") {
-    if ("M" in current) {
-      const map = current.M;
+    if ("M" in current2) {
+      const map = current2.M;
       delete map[lastSegment.value];
       return true;
     }
   } else if (lastSegment.type === "index") {
-    if ("L" in current) {
-      const list = current.L;
+    if ("L" in current2) {
+      const list = current2.L;
       list.splice(lastSegment.value, 1);
       return true;
     }
@@ -580,7 +580,7 @@ function evaluateCondition(expression, item, context) {
   }
   const tokens = tokenize(expression);
   let pos = 0;
-  function current() {
+  function current2() {
     return tokens[pos];
   }
   function consume(type) {
@@ -599,7 +599,7 @@ function evaluateCondition(expression, item, context) {
   }
   function parseOr() {
     let left = parseAnd();
-    while (current()?.type === "OR") {
+    while (current2()?.type === "OR") {
       consume("OR");
       const right = parseAnd();
       left = left || right;
@@ -608,7 +608,7 @@ function evaluateCondition(expression, item, context) {
   }
   function parseAnd() {
     let left = parseNot();
-    while (current()?.type === "AND") {
+    while (current2()?.type === "AND") {
       consume("AND");
       const right = parseNot();
       left = left && right;
@@ -616,14 +616,14 @@ function evaluateCondition(expression, item, context) {
     return left;
   }
   function parseNot() {
-    if (current()?.type === "NOT") {
+    if (current2()?.type === "NOT") {
       consume("NOT");
       return !parseNot();
     }
     return parsePrimary();
   }
   function parsePrimary() {
-    const token = current();
+    const token = current2();
     if (!token) {
       return true;
     }
@@ -766,11 +766,11 @@ function evaluateCondition(expression, item, context) {
         else if ("L" in value) size = value.L.length;
         else if ("M" in value) size = Object.keys(value.M).length;
       }
-      const nextToken = current();
+      const nextToken = current2();
       if (nextToken?.type === "COMPARATOR") {
         consume("COMPARATOR");
         let rightNum;
-        if (current()?.type === "FUNCTION" && current()?.value === "size") {
+        if (current2()?.type === "FUNCTION" && current2()?.value === "size") {
           rightNum = parseSizeValue();
         } else {
           const rightToken = consume();
@@ -789,7 +789,7 @@ function evaluateCondition(expression, item, context) {
   function parseComparison() {
     const leftToken = consume();
     const leftValue = resolveOperand2(leftToken);
-    const nextToken = current();
+    const nextToken = current2();
     if (nextToken?.type === "COMPARATOR") {
       const op = consume("COMPARATOR").value;
       const rightToken = consume();
@@ -813,7 +813,7 @@ function evaluateCondition(expression, item, context) {
       consume("LPAREN");
       const values = [];
       values.push(resolveOperand2(consume()));
-      while (current()?.type === "COMMA") {
+      while (current2()?.type === "COMMA") {
         consume("COMMA");
         values.push(resolveOperand2(consume()));
       }
@@ -1361,36 +1361,36 @@ function parseUpdateExpression(expression) {
 }
 function parseActionList(expression) {
   const items = [];
-  let current = "";
+  let current2 = "";
   let depth = 0;
   let i = 0;
   const stopKeywords = ["SET", "REMOVE", "ADD", "DELETE"];
   while (i < expression.length) {
     const char = expression[i];
     for (const keyword of stopKeywords) {
-      if (expression.slice(i).toUpperCase().startsWith(keyword + " ") && depth === 0 && current.trim()) {
-        items.push(current.trim());
+      if (expression.slice(i).toUpperCase().startsWith(keyword + " ") && depth === 0 && current2.trim()) {
+        items.push(current2.trim());
         return { items, rest: expression.slice(i) };
       }
     }
     if (char === "(") {
       depth++;
-      current += char;
+      current2 += char;
     } else if (char === ")") {
       depth--;
-      current += char;
+      current2 += char;
     } else if (char === "," && depth === 0) {
-      if (current.trim()) {
-        items.push(current.trim());
+      if (current2.trim()) {
+        items.push(current2.trim());
       }
-      current = "";
+      current2 = "";
     } else {
-      current += char;
+      current2 += char;
     }
     i++;
   }
-  if (current.trim()) {
-    items.push(current.trim());
+  if (current2.trim()) {
+    items.push(current2.trim());
   }
   return { items, rest: "" };
 }
@@ -2089,8 +2089,8 @@ function transactGetItems(store, input) {
       item = applyProjection(item, getRequest.ProjectionExpression, getRequest.ExpressionAttributeNames);
     }
     responses.push({ Item: item });
-    const current = consumedCapacity.get(getRequest.TableName) || 0;
-    consumedCapacity.set(getRequest.TableName, current + 2);
+    const current2 = consumedCapacity.get(getRequest.TableName) || 0;
+    consumedCapacity.set(getRequest.TableName, current2 + 2);
   }
   const output = {
     Responses: responses
@@ -2272,24 +2272,24 @@ function validateTransactionItem(store, transactItem) {
 function executeTransactionItem(store, transactItem, consumedCapacity) {
   if ("ConditionCheck" in transactItem) {
     const tableName = transactItem.ConditionCheck.TableName;
-    const current = consumedCapacity.get(tableName) || 0;
-    consumedCapacity.set(tableName, current + 2);
+    const current2 = consumedCapacity.get(tableName) || 0;
+    consumedCapacity.set(tableName, current2 + 2);
     return;
   }
   if ("Put" in transactItem) {
     const { Put: put } = transactItem;
     const table = store.getTable(put.TableName);
     table.putItem(put.Item);
-    const current = consumedCapacity.get(put.TableName) || 0;
-    consumedCapacity.set(put.TableName, current + 2);
+    const current2 = consumedCapacity.get(put.TableName) || 0;
+    consumedCapacity.set(put.TableName, current2 + 2);
     return;
   }
   if ("Delete" in transactItem) {
     const { Delete: del } = transactItem;
     const table = store.getTable(del.TableName);
     table.deleteItem(del.Key);
-    const current = consumedCapacity.get(del.TableName) || 0;
-    consumedCapacity.set(del.TableName, current + 2);
+    const current2 = consumedCapacity.get(del.TableName) || 0;
+    consumedCapacity.set(del.TableName, current2 + 2);
     return;
   }
   if ("Update" in transactItem) {
@@ -2305,10 +2305,17 @@ function executeTransactionItem(store, transactItem, consumedCapacity) {
       item[key] = value;
     }
     table.updateItem(update.Key, item);
-    const current = consumedCapacity.get(update.TableName) || 0;
-    consumedCapacity.set(update.TableName, current + 2);
+    const current2 = consumedCapacity.get(update.TableName) || 0;
+    consumedCapacity.set(update.TableName, current2 + 2);
   }
 }
+
+// src/request-context.ts
+var current;
+var setRequestContext = (context) => {
+  current = context;
+};
+var getRequestContext = () => current;
 
 // src/server.ts
 var operations = {
@@ -2357,7 +2364,7 @@ function formatError(error) {
     status: 500
   };
 }
-async function handleRequest(store, method, target, getBody) {
+async function handleRequest(store, method, target, getBody, context) {
   const requestId = generateUUID();
   if (method !== "POST") {
     return {
@@ -2397,6 +2404,7 @@ async function handleRequest(store, method, target, getBody) {
     return { ...err, requestId };
   }
   try {
+    setRequestContext(context);
     const result = handler(store, body);
     return {
       body: JSON.stringify(result),
@@ -2406,6 +2414,8 @@ async function handleRequest(store, method, target, getBody) {
   } catch (error) {
     const err = formatError(error);
     return { ...err, requestId };
+  } finally {
+    setRequestContext(void 0);
   }
 }
 var isBun = typeof globalThis.Bun !== "undefined";
@@ -2414,7 +2424,13 @@ function createBunServer(store, port, hostname) {
     port,
     hostname,
     async fetch(req) {
-      const result = await handleRequest(store, req.method, req.headers.get("X-Amz-Target"), () => req.text());
+      const result = await handleRequest(
+        store,
+        req.method,
+        req.headers.get("X-Amz-Target"),
+        () => req.text(),
+        req.headers.get("x-awsless-trace") ?? void 0
+      );
       return new Response(result.body, {
         status: result.status,
         headers: {
@@ -2446,7 +2462,8 @@ function createNodeServer(store, port, hostname) {
         store,
         req.method ?? "GET",
         req.headers["x-amz-target"],
-        getBody
+        getBody,
+        typeof req.headers["x-awsless-trace"] === "string" ? req.headers["x-awsless-trace"] : void 0
       );
       res.writeHead(result.status, {
         "Content-Type": "application/x-amz-json-1.0",
@@ -2959,9 +2976,10 @@ var Table = class {
         record.dynamodb.OldImage = deepClone(oldImage);
       }
     }
+    const context = getRequestContext();
     for (const callback of this.streamCallbacks) {
       try {
-        callback(record);
+        callback(record, context);
       } catch {
       }
     }
