@@ -5,7 +5,7 @@ import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 const VersionSchema = z
 	.union([
 		//
-		z.enum(['2.13', '2.11', '2.9', '2.7', '2.5', '2.3', '1.3']),
+		z.enum(['3.7', '3.5', '3.3', '3.1', '2.19', '2.17', '2.15', '2.13', '2.11', '2.9', '2.7', '2.5', '2.3', '1.3']),
 		z.string(),
 	])
 	.describe('Specify the OpenSearch engine version.')
@@ -59,7 +59,7 @@ export const SearchDefaultSchema = z
 	.object({
 		type: TypeSchema.default('t3.small'),
 		count: CountSchema.default(1),
-		version: VersionSchema.default('2.13'),
+		version: VersionSchema.default('3.7'),
 		storage: StorageSizeSchema.default('10 GB'),
 	})
 	.strict()
