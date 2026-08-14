@@ -127,6 +127,9 @@ export const createBundleWorker = (props: {
 	buildDir: string
 	env: Record<string, string>
 	functionName: string
+	// While true, worker output skips the terminal echo & only reaches
+	// onOutput - like during a noisy seed run.
+	quiet?: () => boolean
 	// Receives every output line of the workers, for the dashboard's
 	// live log view. The raw output keeps streaming to the terminal.
 	onOutput?: (line: string, stream: 'stdout' | 'stderr', route?: string) => void
@@ -223,7 +226,9 @@ export const createBundleWorker = (props: {
 
 				// The terminal shows the route as a readable prefix on the
 				// first line of the record.
-				process[stream].write((route ? `[${route}] ` : '') + text + '\n')
+				if (!props.quiet?.()) {
+					process[stream].write((route ? `[${route}] ` : '') + text + '\n')
+				}
 
 				const clean = stripAnsi(text)
 

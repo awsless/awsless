@@ -233,10 +233,16 @@ export const startDev = async (props: {
 		dev.events.emit('worker', { date: Date.now(), line, error, route })
 	}
 
+	// While a seed runs, the handler logs its invokes trigger stay off
+	// the terminal - a big seed would otherwise bury the boot output.
+	// The dashboard Logs feed still captures everything.
+	let seeding = false
+
 	const worker = createBundleWorker({
 		buildDir,
 		env,
 		functionName: bundleName,
+		quiet: () => seeding,
 		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
 	})
 
@@ -365,10 +371,20 @@ export const startDev = async (props: {
 	const seeder = createSeedRunner({ seed: appConfig.seed, env })
 	const resetData = createDataReset({ pool: props.pool, stackConfigs })
 
+	const runSeed = async () => {
+		seeding = true
+
+		try {
+			await seeder.run()
+		} finally {
+			seeding = false
+		}
+	}
+
 	if (firstBoot && seeder.enabled && !dirty) {
 		try {
 			await phase({ start: 'Seeding the local data...', done: 'Seeded the local data' }, async () => {
-				await seeder.run()
+				await runSeed()
 			})
 		} catch (error) {
 			log(`Seeding failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -404,7 +420,7 @@ export const startDev = async (props: {
 			seeder.enabled
 				? async () => {
 						await resetData()
-						await seeder.run()
+						await runSeed()
 					}
 				: undefined,
 		app: appConfig.name,
