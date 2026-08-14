@@ -10,6 +10,7 @@ import { parse, stringify } from '@awsless/json'
 import { generateFileHash, generateFolderHash, loadWorkspace, Workspace } from '@awsless/ts-file-cache'
 import type { TestManifest } from 'awsless'
 import { createHash } from 'crypto'
+import { debug } from '../../debug.js'
 import { ExpectedError } from '../../../error.js'
 import { startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
@@ -115,6 +116,10 @@ const formatFileName = (test: TestEntry, error?: TestError) => {
 }
 
 const logTestError = (index: number, event: TestResponse, test: TestEntry, error: TestError) => {
+	if (error.stack) {
+		debug(`Test error in ${test.file} › ${test.name}: ${error.message}\n${error.stack}`)
+	}
+
 	const [message, ...comment] = error.message.split('//')
 	const errorMessage = [
 		color.error.bold(error.type + ':'),
@@ -206,7 +211,13 @@ export const runTest = async (
 			if (result.errors.length > 0) {
 				// Module errors carry no test file context, so keep the
 				// error type - a bare system error message like
-				// "ECONNREFUSED" is unfindable on its own.
+				// "ECONNREFUSED" is unfindable on its own. The terminal
+				// only shows the message, so the full stack goes to the
+				// debug log.
+				for (const error of result.errors) {
+					debug(`Module error in ${stack} tests: ${error.message}\n${error.stack ?? '(no stack captured)'}`)
+				}
+
 				throw result.errors.map(
 					error =>
 						new ExpectedError(

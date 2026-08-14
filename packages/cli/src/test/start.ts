@@ -167,6 +167,7 @@ export const startTest = async (props: {
 					message: error.message,
 					diff: error.diff,
 					type: error.name,
+					stack: error.stack,
 				})
 			}
 		}
@@ -177,6 +178,7 @@ export const startTest = async (props: {
 				type: error.name,
 				message: error.message,
 				location: stack ? { line: stack.line, column: stack.column } : undefined,
+				stack: error.stack,
 			})
 		}
 	}
@@ -200,6 +202,7 @@ export type ModuleError = {
 	}
 	type?: string
 	message: string
+	stack?: string
 }
 
 export type TestError = {
@@ -210,6 +213,7 @@ export type TestError = {
 	diff?: string
 	type?: string
 	message: string
+	stack?: string
 }
 
 export type TestLog = {
