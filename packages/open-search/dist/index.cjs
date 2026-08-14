@@ -242,7 +242,15 @@ var parseSettings = (settings) => {
     return ["-E", `${key}=${value}`];
   }).flat();
 };
-var launch = ({ path, host, port, version, debug }) => {
+var launch = ({
+  path,
+  host,
+  port,
+  version,
+  debug,
+  onExit: onDied,
+  onOutput
+}) => {
   return new Promise(async (resolve2, reject) => {
     const cache = (0, import_path3.join)(path, "cache", String(port));
     const cleanUp = async () => {
@@ -280,7 +288,9 @@ ${output.join("")}`);
         done();
       }
     };
+    let stopping = false;
     const kill = async () => {
+      stopping = true;
       if (child.exitCode === null && !child.killed) {
         await new Promise((resolve3) => {
           child.once(`exit`, () => {
@@ -309,6 +319,22 @@ ${output.join("")}`);
     };
     const done = async () => {
       off();
+      child.once("exit", (code, signal) => {
+        if (!stopping) {
+          onDied?.(code, signal);
+        }
+      });
+      if (onOutput) {
+        const capture = (chunk) => {
+          for (const line of chunk.toString().split("\n")) {
+            if (line.trim() !== "") {
+              onOutput(line);
+            }
+          }
+        };
+        child.stdout.on("data", capture);
+        child.stderr.on("data", capture);
+      }
       resolve2(kill);
     };
     const fail = async (error) => {

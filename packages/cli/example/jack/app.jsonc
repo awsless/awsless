@@ -6,7 +6,7 @@
 	// "protect": true,
 	//
 
-	"configs": ["admin-secret", "max-tasks"],
+	"configs": ["admin-secret", "max-tasks", "max-profit", "google-long-secret-key-for-testing", "google-another"],
 	"seed": "./todo/seed.ts",
 	"test": {
 		"configs": {
@@ -37,11 +37,19 @@
 		"hooks": {}
 	},
 
-	// "auth": {
-	// 	"users": {
-	// 		"groups": ["admin", "support", "marketing"]
-	// 	}
-	// },
+	// Local dev binds against the REAL deployed user pools - an
+	// undeployed app lists the pool as "not deployed".
+	"auth": {
+		"users": {
+			"groups": ["admin", "support", "marketing"]
+		}
+	},
+
+	// Alerts notify the team through email/sms in production - locally
+	// they land on the dashboard's Alerts tab.
+	"alerts": {
+		"critical": "info@jacksclub.io"
+	},
 	"pubsub": {
 		"main": {
 			"router": "main",

@@ -10,6 +10,9 @@ export type BundleWorker = {
 	restart: () => Promise<void>
 	stop: () => Promise<void>
 	dispatch: (event: unknown) => Promise<unknown>
+	// The number of live worker processes, for the dashboard's session
+	// header.
+	size: () => number
 }
 
 export class WorkerError extends Error {
@@ -297,6 +300,7 @@ export const createBundleWorker = (props: {
 	}
 
 	return {
+		size: () => workers.length,
 		start: () => serialize(doStart),
 		stop: () => serialize(doStop),
 		restart: () =>

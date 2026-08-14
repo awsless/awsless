@@ -4,6 +4,7 @@ import { RedisMemoryServer } from 'redis-memory-server'
 export class RedisServer {
 	private client?: Redis | Cluster
 	private process?: RedisMemoryServer
+	private stopping = false
 
 	async start(port?: number, version = '7.2.4', args: string[] = []) {
 		if (this.process) {
@@ -14,6 +15,7 @@ export class RedisServer {
 			throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
 		}
 
+		this.stopping = false
 		this.process = await RedisMemoryServer.create({
 			instance: {
 				port,
@@ -27,8 +29,37 @@ export class RedisServer {
 		})
 	}
 
+	// Fires when the redis child dies without kill() asking for it -
+	// the local dev environment surfaces it on the health strip.
+	onExit(handler: (code: number | null, signal: string | null) => void) {
+		const child = this.process?.instanceInfoSync?.childProcess
+
+		child?.once('exit', (code, signal) => {
+			if (!this.stopping) {
+				handler(code, signal)
+			}
+		})
+	}
+
+	// Streams the redis output, for the local dev dashboard's log view.
+	onOutput(handler: (line: string) => void) {
+		const child = this.process?.instanceInfoSync?.childProcess
+
+		const capture = (chunk: Buffer) => {
+			for (const line of chunk.toString().split('\n')) {
+				if (line.trim() !== '') {
+					handler(line)
+				}
+			}
+		}
+
+		child?.stdout?.on('data', capture)
+		child?.stderr?.on('data', capture)
+	}
+
 	async kill() {
 		if (this.process) {
+			this.stopping = true
 			await this.client?.disconnect()
 			await this.process.stop()
 			this.process = undefined

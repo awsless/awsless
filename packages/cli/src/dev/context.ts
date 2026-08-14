@@ -4,9 +4,17 @@ import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { DevContext, DevResource, DevRoute, DevServer } from '../feature.js'
 import { createS3Server, StoreNotificationRule } from './servers/s3.js'
+import { createSnsServer } from './servers/sns.js'
 import { createSqsServer } from './servers/sqs.js'
 import { ServerPool } from './pool.js'
 import { directories } from '../util/path.js'
+
+export type HealthEntry = {
+	id: string
+	status: 'up' | 'down'
+	detail?: string
+	date: number
+}
 
 export type DevRegistry = {
 	context: DevContext
@@ -15,6 +23,7 @@ export type DevRegistry = {
 	servers: DevServer[]
 	restartPaths: string[]
 	resources: DevResource[]
+	health: Map<string, HealthEntry>
 	events: {
 		emit: (channel: string, data: unknown) => void
 		subscribe: (channel: string, listener: (data: unknown) => void) => () => void
@@ -34,6 +43,17 @@ export const createDevContext = (props: {
 	const servers: DevServer[] = []
 	const restartPaths: string[] = []
 	const resources: DevResource[] = []
+
+	// The up/down state of every moving part, for the homepage health
+	// strip - the map is the snapshot, changes stream over the bus.
+	const health = new Map<string, HealthEntry>()
+
+	const reportHealth = (id: string, status: 'up' | 'down', detail?: string) => {
+		const entry: HealthEntry = { id, status, detail, date: Date.now() }
+
+		health.set(id, entry)
+		events.emit('health', entry)
+	}
 
 	// A tiny event bus streaming live resource events to the dashboard.
 	// Every channel keeps a short replay buffer, so a panel opened
@@ -200,12 +220,58 @@ export const createDevContext = (props: {
 		return sqs
 	}
 
+	// Topics & alerts share one sns server, since the sdk resolves every
+	// publish through the single sns endpoint. The captures reset every
+	// run while the captured alert feed survives restarts, like the
+	// email outbox.
+	type SnsPoolValue = {
+		server: ReturnType<typeof createSnsServer>
+		port: number
+		captures: ((input: { TopicArn?: string; Subject?: string; Message?: string }) => boolean)[]
+		alerts: unknown[]
+	}
+
+	let sns: Promise<Pick<SnsPoolValue, 'port' | 'captures' | 'alerts'>> | undefined
+
+	const useSns = () => {
+		sns ??= (async () => {
+			const value = await props.pool.keep<SnsPoolValue>('shim:sns', null, async () => {
+				const captures: SnsPoolValue['captures'] = []
+				const server = createSnsServer({ captures })
+				const port = await server.listen()
+
+				return {
+					value: { server, port, captures, alerts: [] },
+					stop: () => server.stop(),
+				}
+			})
+
+			// The captures of the previous run reset, so removed features
+			// stop capturing.
+			value.captures.splice(0, value.captures.length)
+
+			env['AWS_ENDPOINT_URL_SNS'] = `http://127.0.0.1:${value.port}`
+
+			servers.push({
+				name: 'sns',
+				start({ dispatch, reportFailure }) {
+					value.server.connect(dispatch, reportFailure)
+				},
+			})
+
+			return { port: value.port, captures: value.captures, alerts: value.alerts }
+		})()
+
+		return sns
+	}
+
 	return {
 		env,
 		routes,
 		servers,
 		restartPaths,
 		resources,
+		health,
 		events,
 		context: {
 			appConfig: props.appConfig,
@@ -226,6 +292,7 @@ export const createDevContext = (props: {
 			useDynamo,
 			useStore,
 			useSqs,
+			useSns,
 			addEnv(name, value) {
 				if (name in env && env[name] !== value) {
 					throw new Error(
@@ -249,6 +316,7 @@ export const createDevContext = (props: {
 			},
 			log: props.log,
 			emitEvent: events.emit,
+			reportHealth,
 		},
 	}
 }

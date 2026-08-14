@@ -16,6 +16,7 @@ type SiteDevServer = {
 	child: ChildProcess
 	sink: {
 		emit: (data: { date: number; line: string }) => void
+		health?: (status: 'up' | 'down', detail?: string) => void
 		stopping: boolean
 	}
 }
@@ -124,16 +125,22 @@ export const siteOnDev = async (ctx: DevContext) => {
 							child.stdout?.on('data', capture)
 							child.stderr?.on('data', capture)
 
-							child.on('exit', code => {
-								// A signal exit (code null) is a shutdown, like
-								// the terminal group SIGINT of a ctrl-c - only a
-								// real non-zero exit is a crash. The boot log
-								// prop only updates the transient spinner
-								// message, so the crash logs directly.
-								if (!sink.stopping && code !== null && code !== 0) {
+							child.on('exit', (code, signal) => {
+								if (sink.stopping) {
+									return
+								}
+
+								// A signal exit (code null) is usually the
+								// terminal group SIGINT of a ctrl-c - only a
+								// real non-zero exit logs as a crash. The
+								// health chip goes down either way: the
+								// server is gone.
+								if (code !== null && code !== 0) {
 									log.error(`The site "${id}" dev server exited with code ${code}:\n${tail.join('\n')}`)
 									sink.emit({ date: Date.now(), line: `Exited with code ${code}` })
 								}
+
+								sink.health?.('down', code !== null ? `exited with code ${code}` : `killed by ${signal}`)
 							})
 
 							return {
@@ -148,7 +155,12 @@ export const siteOnDev = async (ctx: DevContext) => {
 						// Rebind the dashboard feed & replay the recent
 						// output into the fresh event bus.
 						value.sink.emit = data => ctx.emitEvent(channel, data)
+						value.sink.health = (status, detail) => ctx.reportHealth(`site ${id}`, status, detail)
 						value.sink.stopping = false
+
+						// The pooled child may have crashed while no run was
+						// listening - report its real state, not just changes.
+						value.sink.health(value.child.exitCode === null ? 'up' : 'down')
 
 						for (const line of value.tail) {
 							ctx.emitEvent(channel, { date: Date.now(), line })

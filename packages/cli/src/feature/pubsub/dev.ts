@@ -53,11 +53,18 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 		// The redis fan out, the sns emulator & the websocket port all
 		// survive dev restarts, so the long lived websocket server child
 		// keeps talking to live endpoints.
-		const { redisPort, sns, snsPort, wsPort } = await ctx.keep(`pubsub-core:${id}`, null, async () => {
+		const { redisPort, sns, snsPort, wsPort, redisSink } = await ctx.keep(`pubsub-core:${id}`, null, async () => {
 			const redis = new RedisServer()
 
 			await redis.start()
 			await redis.ping()
+
+			const redisSink: { health?: (status: 'up' | 'down', detail?: string) => void; crashed?: string } = {}
+
+			redis.onExit((code, signal) => {
+				redisSink.crashed = code !== null ? `exited with code ${code}` : `killed by ${signal}`
+				redisSink.health?.('down', redisSink.crashed)
+			})
 
 			const redisPort = await redis.getPort()
 			const sns = createSnsServer()
@@ -65,13 +72,18 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 			const wsPort = await findFreePort()
 
 			return {
-				value: { redisPort, sns, snsPort, wsPort },
+				value: { redisPort, sns, snsPort, wsPort, redisSink },
 				stop: async () => {
 					await sns.stop()
 					await redis.kill()
 				},
 			}
 		})
+
+		// The health sink swaps every run - a crash while no run listened
+		// still reports through the crashed marker.
+		redisSink.health = (status, detail) => ctx.reportHealth(`pubsub ${id} redis`, status, detail)
+		redisSink.health(redisSink.crashed ? 'down' : 'up', redisSink.crashed)
 
 		ctx.retain(`pubsub-ws:${id}`)
 
@@ -189,8 +201,13 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 				// The websocket server child survives restarts, since all
 				// its endpoints (redis, sns, the lambda emulator) come
-				// from the pool with stable ports.
-				await ctx.keep(`pubsub-ws:${id}`, { wsPort, redisPort, snsPort }, async () => {
+				// from the pool with stable ports. The health sink swaps
+				// every run, since each run builds a fresh registry.
+				const ws = await ctx.keep(`pubsub-ws:${id}`, { wsPort, redisPort, snsPort }, async () => {
+					const sink: { health?: (status: 'up' | 'down', detail?: string) => void; stopping: boolean } = {
+						stopping: false,
+					}
+
 					const runtime = join(dirname(fileURLToPath(import.meta.url)), 'handlers', 'pubsub-server.js')
 
 					// Silence the server's boot log & keep its errors. The
@@ -223,10 +240,31 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 					child.stderr?.on('data', chunk => process.stderr.write(chunk))
 
+					child.on('exit', (code, signal) => {
+						// A signal exit (code null) is usually the terminal
+						// group SIGINT of a ctrl-c - the health chip goes
+						// down on any exit we didn't ask for.
+						if (!sink.stopping) {
+							sink.health?.('down', code !== null ? `exited with code ${code}` : `killed by ${signal}`)
+						}
+					})
+
 					await waitForHealth(wsPort, 30_000)
 
-					return { value: child, stop: () => stopChild(child) }
+					return {
+						value: { child, sink },
+						stop: async () => {
+							sink.stopping = true
+							await stopChild(child)
+						},
+					}
 				})
+
+				// The pooled child may have died while no run was
+				// listening - report its real state, not just changes.
+				ws.sink.health = (status, detail) => ctx.reportHealth(`pubsub ${id}`, status, detail)
+				ws.sink.stopping = false
+				ws.sink.health(ws.child.exitCode === null ? 'up' : 'down')
 			},
 			async stop() {
 				// The child, sns & redis live in the pool - only the per

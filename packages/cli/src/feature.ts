@@ -216,6 +216,7 @@ export type DevResource = {
 		| 'auth'
 		| 'worker'
 		| 'instance'
+		| 'alert'
 	id: string
 	stack?: string
 	routeKey?: string
@@ -299,6 +300,17 @@ export type DevContext = {
 	// undefined marks a pull queue that stores messages for polling.
 	useSqs: () => Promise<{ port: number; queues: Map<string, string | undefined> }>
 
+	// The shared local sns server, booted on first use - topics & alerts
+	// share one endpoint. A publish matching a registered capture is
+	// recorded by the owning feature instead of dispatching into the
+	// bundle; the alerts list holds the captured alert feed of the
+	// session, for the dashboard.
+	useSns: () => Promise<{
+		port: number
+		captures: ((input: { TopicArn?: string; Subject?: string; Message?: string }) => boolean)[]
+		alerts: unknown[]
+	}>
+
 	// Inject an env var into the local bundle environment.
 	addEnv: (name: string, value: string) => void
 
@@ -324,6 +336,10 @@ export type DevContext = {
 
 	// Emit a live event on a channel, streamed to the dev dashboard.
 	emitEvent: (channel: string, data: unknown) => void
+
+	// Report the up/down state of a moving part (a worker pool, a site
+	// dev server, an instance child) for the homepage health strip.
+	reportHealth: (id: string, status: 'up' | 'down', detail?: string) => void
 }
 
 export type Feature = {

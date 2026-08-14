@@ -36,9 +36,16 @@ export const searchOnDev = async (ctx: DevContext) => {
 	// run against - it needs a local JDK 21+, which launch resolves.
 	// The server is slow to boot, so it survives dev restarts & the
 	// declared indexes reapply on every run.
-	const { port } = await ctx.keep('opensearch', null, async () => {
+	const { port, sink } = await ctx.keep('opensearch', null, async () => {
 		const port = await findFreePort()
 		const path = await download(VERSION_3_5_0_MIN)
+
+		const sink: {
+			health?: (status: 'up' | 'down', detail?: string) => void
+			log?: (line: string) => void
+			tail: string[]
+			crashed?: string
+		} = { tail: [] }
 
 		const kill = await launch({
 			path,
@@ -46,12 +53,37 @@ export const searchOnDev = async (ctx: DevContext) => {
 			host: 'localhost',
 			version: VERSION_3_5_0_MIN,
 			debug: false,
+			onExit(code, signal) {
+				sink.crashed = code !== null ? `exited with code ${code}` : `killed by ${signal}`
+				sink.health?.('down', sink.crashed)
+			},
+			// The output streams to the dashboard's search panels, with a
+			// short tail replayed into every fresh run's event bus.
+			onOutput(line) {
+				sink.tail.push(line)
+
+				while (sink.tail.length > 20) {
+					sink.tail.shift()
+				}
+
+				sink.log?.(line)
+			},
 		})
 
 		await waitForSearch(port, 60_000)
 
-		return { value: { port }, stop: kill }
+		return { value: { port, sink }, stop: kill }
 	})
+
+	// The health & log sinks swap every run - a crash while no run
+	// listened still reports through the crashed marker.
+	sink.health = (status, detail) => ctx.reportHealth('search', status, detail)
+	sink.health(sink.crashed ? 'down' : 'up', sink.crashed)
+	sink.log = line => ctx.emitEvent('search', { date: Date.now(), line })
+
+	for (const line of sink.tail) {
+		ctx.emitEvent('search', { date: Date.now(), line })
+	}
 
 	// One local domain backs every index, exactly like the one shared
 	// domain in production.
@@ -73,6 +105,7 @@ export const searchOnDev = async (ctx: DevContext) => {
 			stack: stackName,
 			id,
 			detail: `localhost:${port}`,
+			channel: 'search',
 		})
 	}
 

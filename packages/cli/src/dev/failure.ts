@@ -13,6 +13,9 @@ export const createFailureReporter = (props: {
 	enabled: boolean
 	dispatch: DevDispatch
 	log: (message: string) => void
+	// Every reported failure also lands here, for the dashboard's
+	// problems feed on the homepage.
+	onReport?: (report: DevFailureReport) => void
 }): DevReportFailure => {
 	const format = (report: DevFailureReport) => {
 		const error = report.error
@@ -65,6 +68,7 @@ export const createFailureReporter = (props: {
 		const message = report.error instanceof Error ? report.error.message : String(report.error)
 
 		props.log(`${report.routeKey ?? report.queue?.name ?? 'async invoke'} failed: ${message}`)
+		props.onReport?.(report)
 
 		if (!props.enabled) {
 			return
@@ -75,14 +79,10 @@ export const createFailureReporter = (props: {
 		// them.
 		const event = JSON.parse(stringify(format(report)))
 
-		props
-			.dispatch(formatRoutePayload(CONSUMER_ROUTE, event))
-			.catch(error => {
-				props.log(
-					`The on-failure consumer itself failed: ${
-						error instanceof Error ? error.message : String(error)
-					}`
-				)
-			})
+		props.dispatch(formatRoutePayload(CONSUMER_ROUTE, event)).catch(error => {
+			props.log(
+				`The on-failure consumer itself failed: ${error instanceof Error ? error.message : String(error)}`
+			)
+		})
 	}
 }

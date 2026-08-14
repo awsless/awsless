@@ -21,6 +21,14 @@ export const clearDebugLog = () => {
 	}
 }
 
+// The dev dashboard taps the debug stream through this sink - set,
+// not added, so a config restart never stacks stale listeners.
+let sink: ((type: string, message: string) => void) | undefined
+
+export const setDebugSink = (listener?: (type: string, message: string) => void) => {
+	sink = listener
+}
+
 const write = (type: string, message: string) => {
 	try {
 		if (!ready) {
@@ -28,6 +36,7 @@ const write = (type: string, message: string) => {
 		}
 
 		appendFileSync(debugLogFile, `${new Date().toISOString()} [${type}] ${message}\n`)
+		sink?.(type, message)
 	} catch (_) {
 		// Debug logging must never take down the cli.
 	}

@@ -25,6 +25,12 @@ export const createDashboardServer = (props: {
 	configFile: string
 	// The emails captured by the local ses shim this session.
 	getEmails?: () => unknown[]
+	// The alerts captured by the local sns shim this session.
+	getAlerts?: () => unknown[]
+	// The session header of the homepage: boot time & worker count.
+	getSession?: () => { startedAt: number; workers: number }
+	// The health snapshot of every moving part, for the homepage strip.
+	getHealth?: () => unknown[]
 	// The config names that resolved from the boot-time ssm pull.
 	configPulled?: string[]
 	// User management against the real deployed auth pools.
@@ -106,6 +112,8 @@ export const createDashboardServer = (props: {
 				resources: props.resources,
 				routes: props.routes,
 				seeds: Boolean(props.runSeeds),
+				session: props.getSession?.() ?? null,
+				health: props.getHealth?.() ?? [],
 			}).replaceAll('<', '\\u003c')
 
 			// The replacement is a function, so $-patterns inside the
@@ -342,6 +350,10 @@ export const createDashboardServer = (props: {
 
 		if (url.pathname === '/api/emails') {
 			return { status: 200, body: JSON.stringify({ emails: props.getEmails?.() ?? [] }) }
+		}
+
+		if (url.pathname === '/api/alerts') {
+			return { status: 200, body: JSON.stringify({ alerts: props.getAlerts?.() ?? [] }) }
 		}
 
 		// The auth panel manages the users of the real deployed pools,

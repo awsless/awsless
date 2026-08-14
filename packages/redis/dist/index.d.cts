@@ -7,7 +7,10 @@ declare const mockRedis: () => void;
 declare class RedisServer {
     private client?;
     private process?;
+    private stopping;
     start(port?: number, version?: string, args?: string[]): Promise<void>;
+    onExit(handler: (code: number | null, signal: string | null) => void): void;
+    onOutput(handler: (line: string) => void): void;
     kill(): Promise<void>;
     getPort(): Promise<number>;
     ping(): Promise<boolean>;

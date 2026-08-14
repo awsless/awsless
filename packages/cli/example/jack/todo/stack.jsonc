@@ -44,6 +44,10 @@
 		"reminders": "./src/queue/reminder.ts"
 	},
 
+	"instances": {
+		"worker": "./src/instance/server.ts"
+	},
+
 	"stores": {
 		"exports": {
 			"events": {

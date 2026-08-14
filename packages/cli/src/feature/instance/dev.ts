@@ -84,6 +84,8 @@ export const instanceOnDev = async (ctx: DevContext) => {
 				const tail: string[] = []
 
 				boot = () => {
+					ctx.reportHealth(`instance ${id}`, 'up')
+
 					// The program runs on bun straight from source, like the
 					// deployed executable that bun compiled. It sees the full
 					// local environment plus its production only vars.
@@ -123,13 +125,21 @@ export const instanceOnDev = async (ctx: DevContext) => {
 					child.stdout?.on('data', capture)
 					child.stderr?.on('data', capture)
 
-					child.on('exit', code => {
-						// A signal exit (code null) is a shutdown - only a real
-						// non-zero exit is a crash.
-						if (!stopping && code !== null && code !== 0) {
+					child.on('exit', (code, signal) => {
+						if (stopping) {
+							return
+						}
+
+						// A signal exit (code null) is usually the terminal
+						// group SIGINT of a ctrl-c - only a real non-zero
+						// exit logs as a crash. The health chip goes down
+						// either way: the program is gone.
+						if (code !== null && code !== 0) {
 							log.error(`The instance "${id}" exited with code ${code}:\n${tail.join('\n')}`)
 							ctx.emitEvent(channel, { date: Date.now(), line: `Exited with code ${code}`, error: true })
 						}
+
+						ctx.reportHealth(`instance ${id}`, 'down', code !== null ? `exited with code ${code}` : `killed by ${signal}`)
 					})
 				}
 
