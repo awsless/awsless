@@ -81,9 +81,18 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(configOrServer: S
 
 		if (typeof beforeAll !== 'undefined') {
 			beforeAll(async () => {
-				const [port, releasePort] = await requestPort()
+				// The memory engine needs no server at all - its client
+				// dispatches straight into the in process store. Only the
+				// java engine spawns an external process that needs a real
+				// port picked up front.
+				let releasePort: (() => Promise<void>) | undefined
 
-				await server.listen(port)
+				if (server.engine === 'java') {
+					const [port, release] = await requestPort()
+					releasePort = release
+
+					await server.listen(port)
+				}
 
 				const dbMock = mockClient(DynamoDBClient)
 				dbMock
@@ -187,7 +196,7 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(configOrServer: S
 
 				return async () => {
 					await server.stop()
-					await releasePort()
+					await releasePort?.()
 				}
 			}, configOrServer.timeout)
 		}

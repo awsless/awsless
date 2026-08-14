@@ -2409,9 +2409,10 @@ async function handleRequest(store, method, target, getBody) {
   }
 }
 var isBun = typeof globalThis.Bun !== "undefined";
-function createBunServer(store, port) {
+function createBunServer(store, port, hostname) {
   const server = Bun.serve({
     port,
+    hostname,
     async fetch(req) {
       const result = await handleRequest(store, req.method, req.headers.get("X-Amz-Target"), () => req.text());
       return new Response(result.body, {
@@ -2428,7 +2429,7 @@ function createBunServer(store, port) {
     stop: () => server.stop()
   };
 }
-function createNodeServer(store, port) {
+function createNodeServer(store, port, hostname) {
   return new Promise((resolve, reject) => {
     const server = createHttpServer(async (req, res) => {
       const getBody = () => {
@@ -2454,7 +2455,7 @@ function createNodeServer(store, port) {
       res.end(result.body);
     });
     server.on("error", reject);
-    server.listen(port, () => {
+    server.listen(port, hostname, () => {
       const address = server.address();
       const actualPort = typeof address === "object" && address ? address.port : port;
       resolve({
@@ -2464,11 +2465,11 @@ function createNodeServer(store, port) {
     });
   });
 }
-function createServer(store, port) {
+function createServer(store, port, hostname = "127.0.0.1") {
   if (isBun) {
-    return createBunServer(store, port);
+    return createBunServer(store, port, hostname);
   }
-  return createNodeServer(store, port);
+  return createNodeServer(store, port, hostname);
 }
 
 // src/store/table.ts
@@ -3075,7 +3076,7 @@ var DynamoDBServer = class {
     this.config = {
       port: config.port ?? 0,
       region: config.region ?? "us-east-1",
-      hostname: config.hostname ?? "localhost",
+      hostname: config.hostname ?? "127.0.0.1",
       engine: config.engine ?? "memory"
     };
     this.endpoint = {
@@ -3096,7 +3097,7 @@ var DynamoDBServer = class {
       await this.javaServer.wait();
       this.config.port = this.javaServer.port;
     } else {
-      const serverOrPromise = createServer(this.store, listenPort);
+      const serverOrPromise = createServer(this.store, listenPort, this.config.hostname);
       if (serverOrPromise instanceof Promise) {
         this.server = await serverOrPromise;
       } else {
@@ -3127,6 +3128,34 @@ var DynamoDBServer = class {
   getEndpoint() {
     return this.endpoint;
   }
+  createMemoryRequestHandler() {
+    const store = this.store;
+    return {
+      async handle(request) {
+        const target = request.headers?.["x-amz-target"] ?? request.headers?.["X-Amz-Target"];
+        const body = typeof request.body === "string" ? request.body : new TextDecoder().decode(request.body);
+        const result = await handleRequest(store, request.method, target, async () => body);
+        return {
+          response: {
+            statusCode: result.status,
+            reason: "",
+            headers: {
+              "content-type": "application/x-amz-json-1.0",
+              "x-amzn-requestid": result.requestId
+            },
+            // A Uint8Array body short circuits smithy's collectBody,
+            // so no stream adapter is needed.
+            body: new TextEncoder().encode(result.body)
+          }
+        };
+      },
+      updateHttpClientConfig() {
+      },
+      httpHandlerConfigs() {
+        return {};
+      }
+    };
+  }
   getClient() {
     if (!this.client) {
       this.client = new DynamoDBClient2({
@@ -3135,7 +3164,12 @@ var DynamoDBServer = class {
         credentials: {
           accessKeyId: "fake",
           secretAccessKey: "fake"
-        }
+        },
+        // The memory engine dispatches straight into the in process
+        // store, so the client works without listen() & can't hit
+        // socket level failures. External processes still reach the
+        // store over http through listen().
+        requestHandler: this.config.engine === "memory" ? this.createMemoryRequestHandler() : void 0
       });
     }
     return this.client;

@@ -1135,8 +1135,12 @@ var mockDynamoDB = (configOrServer) => {
     });
     if (typeof beforeAll !== "undefined") {
       beforeAll(async () => {
-        const [port, releasePort] = await requestPort();
-        await server.listen(port);
+        let releasePort;
+        if (server.engine === "java") {
+          const [port, release] = await requestPort();
+          releasePort = release;
+          await server.listen(port);
+        }
         const dbMock = mockClient(DynamoDBClient3);
         dbMock.on(CreateTableCommand2).callsFake((input) => clientSend(new CreateTableCommand2(input)));
         dbMock.on(ListTablesCommand).callsFake(
@@ -1187,7 +1191,7 @@ var mockDynamoDB = (configOrServer) => {
         }
         return async () => {
           await server.stop();
-          await releasePort();
+          await releasePort?.();
         };
       }, configOrServer.timeout);
     }

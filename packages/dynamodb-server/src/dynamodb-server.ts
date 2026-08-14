@@ -2,7 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import { VirtualClock } from './clock.js'
 import { createJavaServer, type JavaServerInstance } from './java-server.js'
-import { createServer, type ServerInstance } from './server.js'
+import { createServer, handleRequest, type ServerInstance } from './server.js'
 import { TableStore } from './store/index.js'
 import type { StreamCallback } from './types.js'
 
@@ -49,7 +49,8 @@ export class DynamoDBServer {
 		this.config = {
 			port: config.port ?? 0,
 			region: config.region ?? 'us-east-1',
-			hostname: config.hostname ?? 'localhost',
+
+			hostname: config.hostname ?? '127.0.0.1',
 			engine: config.engine ?? 'memory',
 		}
 		this.endpoint = {
@@ -73,7 +74,7 @@ export class DynamoDBServer {
 			await this.javaServer.wait()
 			this.config.port = this.javaServer.port
 		} else {
-			const serverOrPromise = createServer(this.store, listenPort)
+			const serverOrPromise = createServer(this.store, listenPort, this.config.hostname)
 
 			if (serverOrPromise instanceof Promise) {
 				this.server = await serverOrPromise
@@ -114,6 +115,40 @@ export class DynamoDBServer {
 		return this.endpoint
 	}
 
+	private createMemoryRequestHandler() {
+		const store = this.store
+
+		return {
+			async handle(request: { method: string; headers?: Record<string, string>; body?: unknown }) {
+				const target = request.headers?.['x-amz-target'] ?? request.headers?.['X-Amz-Target']
+				const body =
+					typeof request.body === 'string'
+						? request.body
+						: new TextDecoder().decode(request.body as Uint8Array)
+
+				const result = await handleRequest(store, request.method, target, async () => body)
+
+				return {
+					response: {
+						statusCode: result.status,
+						reason: '',
+						headers: {
+							'content-type': 'application/x-amz-json-1.0',
+							'x-amzn-requestid': result.requestId,
+						},
+						// A Uint8Array body short circuits smithy's collectBody,
+						// so no stream adapter is needed.
+						body: new TextEncoder().encode(result.body),
+					},
+				}
+			},
+			updateHttpClientConfig() {},
+			httpHandlerConfigs() {
+				return {}
+			},
+		}
+	}
+
 	getClient(): DynamoDBClient {
 		if (!this.client) {
 			this.client = new DynamoDBClient({
@@ -123,6 +158,11 @@ export class DynamoDBServer {
 					accessKeyId: 'fake',
 					secretAccessKey: 'fake',
 				},
+				// The memory engine dispatches straight into the in process
+				// store, so the client works without listen() & can't hit
+				// socket level failures. External processes still reach the
+				// store over http through listen().
+				requestHandler: this.config.engine === 'memory' ? (this.createMemoryRequestHandler() as any) : undefined,
 			})
 		}
 		return this.client

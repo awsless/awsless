@@ -1190,8 +1190,12 @@ var mockDynamoDB = (configOrServer) => {
     });
     if (typeof beforeAll !== "undefined") {
       beforeAll(async () => {
-        const [port, releasePort] = await (0, import_request_port.requestPort)();
-        await server.listen(port);
+        let releasePort;
+        if (server.engine === "java") {
+          const [port, release] = await (0, import_request_port.requestPort)();
+          releasePort = release;
+          await server.listen(port);
+        }
         const dbMock = (0, import_aws_sdk_vitest_mock.mockClient)(import_client_dynamodb7.DynamoDBClient);
         dbMock.on(import_client_dynamodb7.CreateTableCommand).callsFake((input) => clientSend(new import_client_dynamodb7.CreateTableCommand(input)));
         dbMock.on(import_client_dynamodb7.ListTablesCommand).callsFake(
@@ -1242,7 +1246,7 @@ var mockDynamoDB = (configOrServer) => {
         }
         return async () => {
           await server.stop();
-          await releasePort();
+          await releasePort?.();
         };
       }, configOrServer.timeout);
     }

@@ -288,6 +288,7 @@ declare class DynamoDBServer {
     get port(): number;
     get engine(): Engine;
     getEndpoint(): MutableEndpoint;
+    private createMemoryRequestHandler;
     getClient(): DynamoDBClient;
     getDocumentClient(): DynamoDBDocumentClient;
     /**

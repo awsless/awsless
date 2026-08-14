@@ -76,7 +76,7 @@ function formatError(error: unknown): { body: string; status: number } {
 	}
 }
 
-async function handleRequest(
+export async function handleRequest(
 	store: TableStore,
 	method: string,
 	target: string | null | undefined,
@@ -146,9 +146,10 @@ export interface ServerInstance {
 
 const isBun = typeof globalThis.Bun !== 'undefined'
 
-function createBunServer(store: TableStore, port: number): ServerInstance {
+function createBunServer(store: TableStore, port: number, hostname: string): ServerInstance {
 	const server = Bun.serve({
 		port,
+		hostname,
 		async fetch(req) {
 			const result = await handleRequest(store, req.method, req.headers.get('X-Amz-Target'), () => req.text())
 
@@ -168,7 +169,7 @@ function createBunServer(store: TableStore, port: number): ServerInstance {
 	}
 }
 
-function createNodeServer(store: TableStore, port: number): Promise<ServerInstance> {
+function createNodeServer(store: TableStore, port: number, hostname: string): Promise<ServerInstance> {
 	return new Promise((resolve, reject) => {
 		const server: NodeServer = createHttpServer(async (req: IncomingMessage, res: ServerResponse) => {
 			const getBody = (): Promise<string> => {
@@ -198,7 +199,7 @@ function createNodeServer(store: TableStore, port: number): Promise<ServerInstan
 
 		server.on('error', reject)
 
-		server.listen(port, () => {
+		server.listen(port, hostname, () => {
 			const address = server.address()
 			const actualPort = typeof address === 'object' && address ? address.port : port
 
@@ -210,9 +211,13 @@ function createNodeServer(store: TableStore, port: number): Promise<ServerInstan
 	})
 }
 
-export function createServer(store: TableStore, port: number): ServerInstance | Promise<ServerInstance> {
+export function createServer(
+	store: TableStore,
+	port: number,
+	hostname = '127.0.0.1'
+): ServerInstance | Promise<ServerInstance> {
 	if (isBun) {
-		return createBunServer(store, port)
+		return createBunServer(store, port, hostname)
 	}
-	return createNodeServer(store, port)
+	return createNodeServer(store, port, hostname)
 }
