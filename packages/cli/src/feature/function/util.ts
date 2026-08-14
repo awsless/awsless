@@ -522,16 +522,40 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	}
 
 	// The app wide env is baked into the code zip, since the lambda env
-	// is limited to 4KB. Sandboxed functions never receive it, since it
-	// describes every resource in the app & they run untrusted code that
-	// should only see its allowlisted routes.
-	if (!sandboxed) {
-		ctx.onEnv(build.addEnv)
-		ctx.onBind(build.addEnv)
-	}
+	// is limited to 4KB. Sandboxed functions receive it too: the env only
+	// names resources, while IAM keeps everything outside the allowlisted
+	// routes unreachable.
+	ctx.onEnv(build.addEnv)
+	ctx.onBind(build.addEnv)
 
 	// ------------------------------------------------------------
 	// Sandbox
+
+	if (sandboxed) {
+		// The real lambda env wins over the baked app env, so the config
+		// prefetch only sees the sandbox's allowlisted configs instead of
+		// the app wide config list.
+		const configs = (typeof local.sandbox === 'object' && local.sandbox.configs) || []
+
+		variables.CONFIGS = configs.join(',')
+
+		if (configs.length > 0) {
+			addPermission({
+				actions: [
+					//
+					'ssm:GetParameter',
+					'ssm:GetParameters',
+					'ssm:GetParametersByPath',
+					'ssm:GetParameterHistory',
+				],
+				resources: configs.map(configName => {
+					return `arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
+						ctx.app.name
+					)}/${configName}`
+				}),
+			})
+		}
+	}
 
 	if (typeof local.sandbox === 'object') {
 		// The bundle route keys are kebab-cased, so the allowlist entries
@@ -596,27 +620,6 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			addPermission({
 				actions: ['lambda:InvokeFunction'],
 				resources: [proxy.lambda.arn.pipe(arn => `${arn}:*`)],
-			})
-		}
-
-		const configs = local.sandbox.configs ?? []
-
-		if (configs.length > 0) {
-			variables.CONFIGS = configs.join(',')
-
-			addPermission({
-				actions: [
-					//
-					'ssm:GetParameter',
-					'ssm:GetParameters',
-					'ssm:GetParametersByPath',
-					'ssm:GetParameterHistory',
-				],
-				resources: configs.map(configName => {
-					return `arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
-						ctx.app.name
-					)}/${configName}`
-				}),
 			})
 		}
 	}

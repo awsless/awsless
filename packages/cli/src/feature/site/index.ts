@@ -1,5 +1,4 @@
 import { Group } from '@terraforge/core'
-import { constantCase } from 'change-case'
 import { createHash } from 'crypto'
 import { glob } from 'glob'
 import { dirname, join } from 'path'
@@ -140,16 +139,6 @@ export const siteFeature = defineFeature({
 				// lambda & the router hits its function url directly, with the
 				// same cloudfront signing as the shared bundle url.
 				const fn = createLambdaFunction(ctx, `${id}-ssr`, props.ssr)
-
-				// Sandboxed lambdas are cut off from the app wide binds, so
-				// pass the site's own router endpoint explicitly. Routers
-				// without a domain don't have an endpoint.
-				if (ctx.shared.has('router', 'endpoint', props.router)) {
-					fn.setEnvironment(
-						`ROUTER_${constantCase(props.router)}_ENDPOINT`,
-						ctx.shared.entry('router', 'endpoint', props.router)
-					)
-				}
 
 				// Every deployment gets its own immutable alias & url,
 				// so a staged deployment only goes live at promotion and old
