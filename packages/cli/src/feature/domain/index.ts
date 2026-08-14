@@ -35,14 +35,32 @@ export const domainFeature = defineFeature({
 		for (const [id, props] of domains) {
 			const group = new Group(ctx.base, 'domain', id)
 
-			const zone = new aws.route53.Zone(ctx.zones, 'zone', {
-				name: props.domain,
-				forceDestroy: true,
-			})
+			const zone = new aws.route53.Zone(
+				ctx.zones,
+				'zone',
+				{
+					name: props.domain,
+					forceDestroy: true,
+				},
+				{
+					replaceOnChanges: ['name'],
+					// Keep the old zone serving until the end of the deployment.
+					createBeforeReplace: true,
+				}
+			)
 
-			const nsCheck = new NsCheck(group, 'check', {
-				zoneId: zone.id,
-			})
+			// Custom provider updates are a no-op, so replace on zone change
+			// to make the nameserver delegation check re-run for the new zone.
+			const nsCheck = new NsCheck(
+				group,
+				'check',
+				{
+					zoneId: zone.id,
+				},
+				{
+					replaceOnChanges: ['zoneId'],
+				}
+			)
 
 			ctx.registerDomainZone(zone)
 
@@ -86,16 +104,28 @@ export const domainFeature = defineFeature({
 				},
 				{
 					import: ctx.import ? props.domain : undefined,
+					replaceOnChanges: ['domain'],
+					// Delete-first replacement detaches dependents by updating them
+					// with their dependency fields stripped, which produces invalid
+					// Route53 record updates - create-before-delete avoids that path.
+					createBeforeReplace: true,
 				}
 			)
 
-			const verificationRecord = new aws.route53.Record(group, `verification`, {
-				zoneId: zone.id,
-				name: `_amazonses.${props.domain}`,
-				type: 'TXT',
-				ttl: toSeconds(minutes(5)),
-				records: [identity.verificationToken],
-			})
+			const verificationRecord = new aws.route53.Record(
+				group,
+				`verification`,
+				{
+					zoneId: zone.id,
+					name: `_amazonses.${props.domain}`,
+					type: 'TXT',
+					ttl: toSeconds(minutes(5)),
+					records: [identity.verificationToken],
+				},
+				{
+					replaceOnChanges: ['name', 'type', 'zoneId', 'records'],
+				}
+			)
 
 			// ------------------------------------------------------------
 			// DKIM
@@ -108,17 +138,26 @@ export const domainFeature = defineFeature({
 				},
 				{
 					import: ctx.import ? props.domain : undefined,
+					replaceOnChanges: ['domain'],
+					createBeforeReplace: true,
 				}
 			)
 
 			for (let i = 0; i < 3; i++) {
-				new aws.route53.Record(group, `dkim-${i}`, {
-					zoneId: zone.id,
-					type: 'CNAME',
-					name: dkim.dkimTokens.pipe(t => `${t.at(i)}._domainkey`),
-					ttl: toSeconds(minutes(5)),
-					records: [dkim.dkimTokens.pipe(t => `${t.at(i)}.dkim.amazonses.com`)],
-				})
+				new aws.route53.Record(
+					group,
+					`dkim-${i}`,
+					{
+						zoneId: zone.id,
+						type: 'CNAME',
+						name: dkim.dkimTokens.pipe(t => `${t.at(i)}._domainkey`),
+						ttl: toSeconds(minutes(5)),
+						records: [dkim.dkimTokens.pipe(t => `${t.at(i)}.dkim.amazonses.com`)],
+					},
+					{
+						replaceOnChanges: ['name', 'type', 'zoneId', 'records'],
+					}
+				)
 			}
 
 			// ------------------------------------------------------------
@@ -134,35 +173,58 @@ export const domainFeature = defineFeature({
 				},
 				{
 					import: ctx.import ? props.domain : undefined,
+					replaceOnChanges: ['domain'],
+					createBeforeReplace: true,
 				}
 			)
 
-			new aws.route53.Record(group, `MX`, {
-				zoneId: zone.id,
-				name: mailFrom.mailFromDomain,
-				type: 'MX',
-				ttl: toSeconds(minutes(5)),
-				records: [`10 feedback-smtp.${ctx.appConfig.region}.amazonses.com`],
-			})
+			new aws.route53.Record(
+				group,
+				`MX`,
+				{
+					zoneId: zone.id,
+					name: mailFrom.mailFromDomain,
+					type: 'MX',
+					ttl: toSeconds(minutes(5)),
+					records: [`10 feedback-smtp.${ctx.appConfig.region}.amazonses.com`],
+				},
+				{
+					replaceOnChanges: ['name', 'type', 'zoneId'],
+				}
+			)
 
-			new aws.route53.Record(group, `SPF`, {
-				zoneId: zone.id,
-				name: mailFrom.mailFromDomain,
-				type: 'TXT',
-				ttl: toSeconds(minutes(5)),
-				records: ['v=spf1 include:amazonses.com -all'],
-			})
+			new aws.route53.Record(
+				group,
+				`SPF`,
+				{
+					zoneId: zone.id,
+					name: mailFrom.mailFromDomain,
+					type: 'TXT',
+					ttl: toSeconds(minutes(5)),
+					records: ['v=spf1 include:amazonses.com -all'],
+				},
+				{
+					replaceOnChanges: ['name', 'type', 'zoneId'],
+				}
+			)
 
 			// ------------------------------------------------------------
 			// DMARC
 
-			new aws.route53.Record(group, `DMARC`, {
-				zoneId: zone.id,
-				name: `_dmarc.${props.domain}`,
-				type: 'TXT',
-				ttl: toSeconds(minutes(5)),
-				records: ['v=DMARC1; p=none;'],
-			})
+			new aws.route53.Record(
+				group,
+				`DMARC`,
+				{
+					zoneId: zone.id,
+					name: `_dmarc.${props.domain}`,
+					type: 'TXT',
+					ttl: toSeconds(minutes(5)),
+					records: ['v=DMARC1; p=none;'],
+				},
+				{
+					replaceOnChanges: ['name', 'type', 'zoneId'],
+				}
+			)
 
 			// ------------------------------------------------------------
 			// Listen for "bounce", "complaint", "reject", "renderingFailure" messages
@@ -208,18 +270,28 @@ export const domainFeature = defineFeature({
 				group,
 				'mail',
 				{ domain: props.domain },
-				{ dependsOn: [identity, verificationRecord, nsCheck] }
+				{
+					dependsOn: [identity, verificationRecord, nsCheck],
+					replaceOnChanges: ['domain'],
+				}
 			)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
-				new aws.route53.Record(group, `${name}-${record.type}`, {
-					zoneId: zone.id,
-					name,
-					ttl: toSeconds(record.ttl),
-					type: record.type,
-					records: record.records,
-				})
+				new aws.route53.Record(
+					group,
+					`${name}-${record.type}`,
+					{
+						zoneId: zone.id,
+						name,
+						ttl: toSeconds(record.ttl),
+						type: record.type,
+						records: record.records,
+					},
+					{
+						replaceOnChanges: ['name', 'type', 'zoneId'],
+					}
+				)
 			}
 		}
 

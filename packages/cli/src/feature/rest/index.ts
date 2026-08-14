@@ -51,20 +51,37 @@ export const restFeature = defineFeature({
 				const zoneId = ctx.shared.entry('domain', `zone-id`, props.domain)
 				const certificateArn = ctx.shared.entry('domain', `certificate-arn`, props.domain)
 
-				const domain = new aws.apigatewayv2.DomainName(group, 'domain', {
-					domainName,
-					domainNameConfiguration: {
-						certificateArn,
-						endpointType: 'REGIONAL',
-						securityPolicy: 'TLS_1_2',
+				const domain = new aws.apigatewayv2.DomainName(
+					group,
+					'domain',
+					{
+						domainName,
+						domainNameConfiguration: {
+							certificateArn,
+							endpointType: 'REGIONAL',
+							securityPolicy: 'TLS_1_2',
+						},
 					},
-				})
+					{
+						replaceOnChanges: ['domainName', 'domainNameConfiguration'],
+						// Avoid the delete-first dependent-detach path, which would
+						// strip the alias from the Route53 record mid-replacement.
+						createBeforeReplace: true,
+					}
+				)
 
-				const mapping = new aws.apigatewayv2.ApiMapping(group, 'mapping', {
-					apiId: api.id,
-					domainName: domain.domainName,
-					stage: stage.name,
-				})
+				const mapping = new aws.apigatewayv2.ApiMapping(
+					group,
+					'mapping',
+					{
+						apiId: api.id,
+						domainName: domain.domainName,
+						stage: stage.name,
+					},
+					{
+						replaceOnChanges: ['domainName'],
+					}
+				)
 
 				new aws.route53.Record(
 					group,
@@ -81,6 +98,7 @@ export const restFeature = defineFeature({
 					},
 					{
 						dependsOn: [mapping],
+						replaceOnChanges: ['name', 'type', 'zoneId', 'alias'],
 					}
 				)
 

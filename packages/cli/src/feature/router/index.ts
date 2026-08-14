@@ -569,27 +569,41 @@ export const routerFeature = defineFeature({
 					['record', domainName],
 					...(wwwDomainName ? [['www-record', wwwDomainName]] : []),
 				] as const) {
-					new aws.route53.Record(group, recordId, {
-						zoneId,
-						type: 'A',
-						name: recordName,
-						alias: {
-							name: connectionGroup.routingEndpoint,
-							zoneId: 'Z2FDTNDATAQYW2',
-							evaluateTargetHealth: false,
+					new aws.route53.Record(
+						group,
+						recordId,
+						{
+							zoneId,
+							type: 'A',
+							name: recordName,
+							alias: {
+								name: connectionGroup.routingEndpoint,
+								zoneId: 'Z2FDTNDATAQYW2',
+								evaluateTargetHealth: false,
+							},
 						},
-					})
+						{
+							replaceOnChanges: ['name', 'type', 'zoneId', 'alias'],
+						}
+					)
 
-					new aws.route53.Record(group, `${recordId}-ipv6`, {
-						zoneId,
-						type: 'AAAA',
-						name: recordName,
-						alias: {
-							name: connectionGroup.routingEndpoint,
-							zoneId: 'Z2FDTNDATAQYW2',
-							evaluateTargetHealth: false,
+					new aws.route53.Record(
+						group,
+						`${recordId}-ipv6`,
+						{
+							zoneId,
+							type: 'AAAA',
+							name: recordName,
+							alias: {
+								name: connectionGroup.routingEndpoint,
+								zoneId: 'Z2FDTNDATAQYW2',
+								evaluateTargetHealth: false,
+							},
 						},
-					})
+						{
+							replaceOnChanges: ['name', 'type', 'zoneId', 'alias'],
+						}
+					)
 				}
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
