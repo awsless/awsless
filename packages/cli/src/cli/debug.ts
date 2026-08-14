@@ -33,7 +33,7 @@ const write = (type: string, message: string) => {
 	}
 }
 
-const format = (parts: unknown[]) => {
+const format = (parts: unknown[]): string => {
 	return parts
 		.map(part => {
 			if (typeof part === 'string') {
@@ -42,6 +42,12 @@ const format = (parts: unknown[]) => {
 
 			if (part instanceof Error) {
 				return part.stack ?? part.message
+			}
+
+			// Thrown arrays of errors unwrap per entry - stringifying
+			// them hides every message behind "[{}]".
+			if (Array.isArray(part)) {
+				return part.map(entry => format([entry])).join('\n')
 			}
 
 			return JSON.stringify(part)

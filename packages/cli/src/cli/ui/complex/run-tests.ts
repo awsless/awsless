@@ -204,7 +204,15 @@ export const runTest = async (
 			})
 
 			if (result.errors.length > 0) {
-				throw result.errors.map(error => new ExpectedError(error.message))
+				// Module errors carry no test file context, so keep the
+				// error type - a bare system error message like
+				// "ECONNREFUSED" is unfindable on its own.
+				throw result.errors.map(
+					error =>
+						new ExpectedError(
+							error.type && error.type !== 'Error' ? `${error.type}: ${error.message}` : error.message
+						)
+				)
 			}
 
 			ctx.updateSuccessMessage(

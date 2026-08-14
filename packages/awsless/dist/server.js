@@ -1186,11 +1186,33 @@ var setupTestEnv = async (manifest, options) => {
         port: shared.port,
         db,
         cluster: false,
-        tls: void 0
+        tls: void 0,
+        // A full-suite run can transiently overload the local server's
+        // accept queue, and the client default gives up after ~300ms of
+        // refused connects. Local refusals clear within a scheduler
+        // tick, so ride them out instead of failing the run.
+        maxRetriesPerRequest: 20,
+        connectTimeout: 1e4,
+        retryStrategy: (times) => times > 20 ? null : Math.min(times * 250, 2e3)
       });
-      const client = createIoRedisClient2({ host: shared.host, port: shared.port, db });
-      await client.send("FLUSHDB", []);
-      await client.destroy();
+      const flush = async () => {
+        const client = createIoRedisClient2({ host: shared.host, port: shared.port, db });
+        try {
+          await client.send("FLUSHDB", []);
+        } finally {
+          await client.destroy();
+        }
+      };
+      try {
+        await flush();
+      } catch (error2) {
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        try {
+          await flush();
+        } catch (_) {
+          throw new Error(`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${error2}`);
+        }
+      }
     } else {
       const { mockRedis } = await import("@awsless/redis");
       mockRedis();

@@ -14,6 +14,7 @@ import {
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
+import { withTestEnvironment } from '../../test/environment.js'
 import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
@@ -97,14 +98,18 @@ export const deploy = (program: Command) => {
 				// Building stack assets & run tests
 
 				if (!options.skipTests) {
-					const passed = await runTests(tests, [], [], {
-						showLogs: false,
-						env: {
-							APP: appConfig.name,
-							APP_ID: appId,
-							AWS_REGION: appConfig.region,
-							AWS_ACCOUNT_ID: accountId,
-						},
+					const passed = await withTestEnvironment(appConfig, stackConfigs, ({ manifest, manifestFile }) => {
+						return runTests(tests, [], [], {
+							showLogs: false,
+							manifest,
+							env: {
+								APP: appConfig.name,
+								APP_ID: appId,
+								AWS_REGION: appConfig.region,
+								AWS_ACCOUNT_ID: accountId,
+								AWSLESS_TEST_MANIFEST: manifestFile,
+							},
+						})
 					})
 
 					if (!passed) {
