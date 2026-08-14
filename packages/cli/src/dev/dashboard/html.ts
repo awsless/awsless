@@ -228,6 +228,26 @@ export const dashboardHtml = `<!doctype html>
 	.health .chip.down { border-color: var(--bad); }
 	.health .chip.down .dot { background: var(--bad); }
 	.health .chip .detail-text { color: var(--muted); }
+	.home-cols {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+		gap: 0 20px;
+		align-items: start;
+	}
+	/* The activity feed reads like the log cards. */
+	.activity-card {
+		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 8px;
+		margin-top: 8px;
+		max-height: 420px;
+		overflow-y: auto;
+		font-size: 12px;
+	}
+	.activity-card .rows { grid-template-columns: fit-content(110px) 1fr auto; }
+	.activity-card .row { padding: 3px 4px; gap: 8px; }
+	.activity-card .empty { padding: 4px; }
 	.row.problem .id { color: var(--bad); }
 	.empty.good { color: var(--good); }
 	.row .stack {
@@ -1766,11 +1786,22 @@ const renderHome = main => {
 	// ----------------------------------------------------------------
 	// Activity: every dispatch through the bundle, newest first.
 
-	main.append($('h3', {}, 'Activity'))
+	// Activity & the handler logs sit side by side, both as cards.
+	const cols = $('div', { className: 'home-cols' })
+	const activityCol = $('div', {})
+	const logsCol = $('div', {})
 
+	cols.append(activityCol, logsCol)
+	main.append(cols)
+
+	activityCol.append($('h3', {}, 'Activity'))
+
+	const card = $('div', { className: 'activity-card' })
 	const activity = $('div', { className: 'rows' })
 	const idle = $('p', { className: 'empty' }, 'Nothing ran yet.')
-	main.append(idle, activity)
+
+	card.append(idle, activity)
+	activityCol.append(card)
 
 	const activityRows = []
 
@@ -1780,8 +1811,8 @@ const renderHome = main => {
 		const resource = state.resources.find(r => r.routeKey === data.route)
 		const row = $('button', { className: 'row' + (data.ok ? '' : ' problem') }, [
 			$('span', { className: 'stack' }, new Date(data.date).toLocaleTimeString()),
-			$('span', { className: 'id' }, (data.ok ? '' : '\\u2717 ') + data.route),
-			$('span', { className: 'info' }, data.ok ? data.ms + 'ms' : (data.error ?? 'failed').slice(0, 80)),
+			$('span', { className: 'id', title: data.route }, (data.ok ? '' : '\\u2717 ') + data.route),
+			$('span', { className: 'info', title: data.ok ? '' : (data.error ?? '') }, data.ok ? data.ms + 'ms' : (data.error ?? 'failed').slice(0, 80)),
 		])
 
 		if (resource) {
@@ -1807,7 +1838,7 @@ const renderHome = main => {
 	// Logs: the handlers' own console output, live - the full feed
 	// (incl. the dev server stream) lives on the Logs tab.
 
-	const logsFeed = attachLogFeed(main, 'worker', undefined, 'Logs')
+	const logsFeed = attachLogFeed(logsCol, 'worker', undefined, 'Logs')
 
 	cleanupPanel = () => {
 		clearInterval(uptimeTimer)
