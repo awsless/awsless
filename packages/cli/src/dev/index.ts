@@ -10,7 +10,7 @@ import { StackConfig } from '../config/stack.js'
 import { createAuthAdmin } from '../feature/auth/dev.js'
 import { features } from '../feature/index.js'
 import { getBundleFunctionName } from '../util/name.js'
-import { directories } from '../util/path.js'
+import { directories, useDevBuildDir } from '../util/path.js'
 import { createDevContext } from './context.js'
 import { ServerPool } from './pool.js'
 import { createDataReset } from './reset.js'
@@ -61,6 +61,10 @@ export const startDev = async (props: {
 	const log = props.onLog ?? (() => {})
 	const phase: DevPhase = props.phase ?? (async ({ start }, fn) => (log(start), fn(() => {})))
 	const { appConfig, stackConfigs } = props
+
+	// Isolate the dev builds from deploy/build/test runs in the same
+	// repo - see useDevBuildDir. Must happen before any builder runs.
+	useDevBuildDir()
 
 	// The synth is pure, so we can run it with a fake account to collect
 	// the builders, including the bundle build with every handler route.

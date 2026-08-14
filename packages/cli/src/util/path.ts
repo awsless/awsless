@@ -5,6 +5,7 @@ const root = process.cwd()
 
 export const directories = {
 	root,
+	buildFolder: 'build',
 	get output() {
 		return join(this.root, '.awsless')
 	},
@@ -15,7 +16,7 @@ export const directories = {
 		return join(this.output, 'state')
 	},
 	get build() {
-		return join(this.output, 'build')
+		return join(this.output, this.buildFolder)
 	},
 	get types() {
 		return join(this.output, 'types')
@@ -33,6 +34,14 @@ export const directories = {
 
 export const setRoot = (path: string = root) => {
 	directories.root = path
+}
+
+// The dev environment builds into its own folder, so a deploy, build or
+// test running next to it can't clobber the chunk graph the live dev
+// workers import from. Sharing the folder mixes chunk generations whose
+// minified export names don't line up, silently miswiring imports.
+export const useDevBuildDir = () => {
+	directories.buildFolder = 'build-dev'
 }
 
 export const findRootDir = async (path: string, configFiles: string[], level = 5): Promise<[string, string]> => {
