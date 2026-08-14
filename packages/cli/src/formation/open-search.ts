@@ -99,6 +99,19 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 			async updateResource(props) {
 				return apply(props.proposedState)
 			},
+			// An index can't move to another domain in place, so an endpoint
+			// or name change replaces it - drop on the old domain, recreate
+			// on the new one. Mapping & settings changes stay updates.
+			async planResourceChange(props) {
+				const prior = props.priorState as { endpoint?: string; index?: string } | null
+				const proposed = props.proposedState as { endpoint?: string; index?: string } | null
+
+				return {
+					state: props.proposedState,
+					requiresReplacement:
+						!!prior && (prior.endpoint !== proposed?.endpoint || prior.index !== proposed?.index),
+				}
+			},
 			// Removing the resource drops the index & its data. The app's
 			// retain removal policy skips this through the resource's
 			// retainOnDelete flag, like the domain itself.

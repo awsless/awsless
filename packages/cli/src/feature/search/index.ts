@@ -109,6 +109,7 @@ export const searchFeature = defineFeature({
 			{
 				retainOnDelete: ctx.appConfig.removal === 'retain',
 				import: ctx.import ? name : undefined,
+				replaceOnChanges: ['engineVersion', 'domainName'],
 			}
 		)
 
@@ -134,6 +135,7 @@ export const searchFeature = defineFeature({
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
+					replaceOnChanges: ['endpoint', 'index'],
 				}
 			)
 		}
