@@ -8,36 +8,51 @@ export const dashboardHtml = `<!doctype html>
 <title>awsless dev</title>
 <style>
 	:root {
-		--bg: #0f1115;
-		--panel: #171a21;
-		--border: #262b36;
-		--text: #d7dae0;
-		--muted: #7d8590;
+		--bg: hsl(220 20% 5% / 1);
+		--panel: hsl(220 20% 8%);
+		--hover: hsl(220 20% 12%);
+		--border: hsl(220 18% 15%);
+		--border-strong: hsl(220 16% 22%);
+		--text: #ecedf2;
+		--muted: #8b90a1;
 		--accent: #ff9000;
-		--good: #3fb950;
-		--bad: #f85149;
+		--good: #3dd68c;
+		--bad: #ff6166;
+		--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Helvetica, Arial, sans-serif;
+		--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 		font-size: 14px;
+		color-scheme: dark;
 	}
 	* { box-sizing: border-box; }
+	::selection { background: rgb(255 144 0 / 25%); }
+	::-webkit-scrollbar { width: 8px; height: 8px; }
+	::-webkit-scrollbar-track { background: transparent; }
+	::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 10%); border-radius: 999px; }
+	::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 18%); }
+	:focus-visible { outline: 2px solid rgb(255 144 0 / 55%); outline-offset: 1px; }
 	body {
 		margin: 0;
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
 		background: var(--bg);
 		color: var(--text);
 		display: grid;
-		grid-template-columns: 220px 1fr;
+		grid-template-columns: 232px 1fr;
 		height: 100vh;
 	}
-	body.with-events { grid-template-columns: 220px 1fr 320px; }
+	body.with-events { grid-template-columns: 232px 1fr 320px; }
+	button { transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
+	input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
 	aside {
 		border-left: 1px solid var(--border);
 		overflow-y: auto;
 		padding: 12px;
 	}
 	aside h3 {
-		font-size: 11px;
+		font-size: 10px;
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 1px;
+		letter-spacing: 0.08em;
 		color: var(--muted);
 		margin: 8px 8px 12px;
 	}
@@ -45,10 +60,12 @@ export const dashboardHtml = `<!doctype html>
 		border-bottom: 1px solid var(--border);
 		padding: 8px;
 		font-size: 12px;
+		font-family: var(--font-mono);
 	}
+	aside .event:last-child { border-bottom: none; }
 	aside .event .head { display: flex; gap: 8px; align-items: baseline; }
 	aside .event .time { color: var(--muted); }
-	aside .event .topic { font-weight: bold; }
+	aside .event .topic { font-weight: 600; }
 	aside .event .type { color: var(--muted); }
 	aside .event .body {
 		color: var(--muted);
@@ -68,19 +85,20 @@ export const dashboardHtml = `<!doctype html>
 	.logs {
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 8px;
+		border-radius: 10px;
+		padding: 10px 12px;
 		margin-top: 8px;
 		max-height: 420px;
 		overflow-y: auto;
 		font-size: 12px;
+		font-family: var(--font-mono);
 	}
 	.logs .line { display: flex; gap: 8px; padding: 1px 0; }
 	.logs .time { color: var(--muted); flex-shrink: 0; }
 	.logs .route { color: var(--accent); word-break: break-all; }
 	.logs .text { white-space: pre-wrap; word-break: break-word; }
 	.logs .line.error .text, .logs .entry.error .text { color: var(--bad); }
-	.logs .entry { padding: 4px 0; }
+	.logs .entry { padding: 6px 0; }
 	.logs .entry + .entry, .logs .line + .entry, .logs .entry + .line { border-top: 1px solid var(--border); }
 	.logs .entry .meta { display: flex; gap: 8px; margin-bottom: 2px; }
 	/* Every group is its own card, with a shared grid inside: the name
@@ -90,8 +108,8 @@ export const dashboardHtml = `<!doctype html>
 	.config-group {
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 14px 16px;
+		border-radius: 10px;
+		padding: 16px 18px;
 	}
 	.config-group h3 { margin: 0 0 12px; }
 	.config-fields {
@@ -101,7 +119,7 @@ export const dashboardHtml = `<!doctype html>
 		align-items: center;
 	}
 	.config-fields .field { display: contents; }
-	.config-fields .name { color: var(--muted); overflow-wrap: anywhere; }
+	.config-fields .name { color: var(--muted); overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12.5px; }
 	.config-fields input {
 		background: var(--bg);
 		color: var(--text);
@@ -110,17 +128,23 @@ export const dashboardHtml = `<!doctype html>
 		padding: 6px 10px;
 		font: inherit;
 	}
+	.config-fields input:hover { border-color: var(--border-strong); }
+	.config-fields input:focus { border-color: #5b6272; box-shadow: 0 0 0 3px rgb(255 255 255 / 14%); outline: none; }
 	.config-fields input::placeholder { color: var(--muted); }
 	.groups { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 	.groups .group { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 	nav {
 		border-right: 1px solid var(--border);
 		overflow-y: auto;
-		padding: 12px;
+		padding: 14px 12px;
+		/* The menu scrolls, but never shows a permanent scrollbar. */
+		scrollbar-width: none;
 	}
+	nav::-webkit-scrollbar { display: none; }
 	nav h1 {
 		font-size: 15px;
-		margin: 4px 8px 16px;
+		font-family: var(--font-mono);
+		margin: 4px 8px 18px;
 		cursor: pointer;
 	}
 	/* The same two-tone logo as the cli: bold AWS in the brand orange,
@@ -130,25 +154,27 @@ export const dashboardHtml = `<!doctype html>
 	nav h1 .cmd { color: var(--muted); font-weight: normal; }
 	nav h3 {
 		font-size: 10px;
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 1px;
+		letter-spacing: 0.08em;
 		color: var(--muted);
-		margin: 14px 8px 4px;
+		margin: 18px 8px 6px;
 	}
 	nav button {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: 9px;
 		width: 100%;
 		background: none;
 		border: none;
-		color: var(--text);
+		color: var(--muted);
 		font: inherit;
+		font-size: 13.5px;
 		padding: 6px 8px;
 		border-radius: 6px;
 		cursor: pointer;
 	}
-	nav button .count { margin-left: auto; }
+	nav button .count { margin-left: auto; font-size: 12px; }
 	nav button.reseed { margin-top: auto; color: var(--muted); }
 	nav button.reseed:disabled { cursor: default; }
 	.icon {
@@ -157,34 +183,37 @@ export const dashboardHtml = `<!doctype html>
 		flex-shrink: 0;
 		display: inline-flex;
 		color: var(--muted);
+		transition: color 0.15s ease;
 	}
 	.icon svg { width: 100%; height: 100%; }
 	nav button.active .icon, .row:hover .icon { color: var(--accent); }
-	main h2 { display: flex; align-items: center; gap: 8px; }
-	main h2 .icon { width: 17px; height: 17px; }
-	nav button:hover { background: var(--panel); }
-	nav button.active { background: var(--panel); color: var(--accent); }
+	main h2 { display: flex; align-items: center; gap: 9px; }
+	main h2 .icon { width: 18px; height: 18px; }
+	nav button:hover { background: var(--hover); color: var(--text); }
+	nav button.active { background: var(--hover); color: var(--text); }
 	nav button .count { color: var(--muted); }
-	main { padding: 20px 24px; overflow-y: auto; }
-	main h2 { margin: 0 0 4px; font-size: 16px; }
-	main .detail { color: var(--muted); margin-bottom: 16px; word-break: break-all; }
+	main { padding: 24px 28px; overflow-y: auto; }
+	main h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+	main .detail { color: var(--muted); margin-bottom: 16px; word-break: break-all; font-size: 13px; }
 	main .back {
 		display: inline-block;
 		background: none;
 		border: none;
 		color: var(--muted);
 		font: inherit;
+		font-size: 13px;
 		padding: 0;
 		margin-bottom: 12px;
 		cursor: pointer;
 	}
-	main .back:hover { color: var(--accent); }
+	main .back:hover { color: var(--text); }
 	main h3 {
 		font-size: 11px;
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 1px;
+		letter-spacing: 0.08em;
 		color: var(--muted);
-		margin: 24px 0 8px;
+		margin: 26px 0 8px;
 	}
 	.feed .row { cursor: default; }
 	.feed .empty { padding: 8px; }
@@ -197,9 +226,15 @@ export const dashboardHtml = `<!doctype html>
 		padding: 6px 10px;
 		font: inherit;
 	}
+	.filters input:hover, .filters select:hover { border-color: var(--border-strong); }
+	.filters input:focus, .filters select:focus {
+		border-color: #5b6272;
+		box-shadow: 0 0 0 3px rgb(255 255 255 / 14%);
+		outline: none;
+	}
 	.filters input { flex: 1; }
 	.filters input::placeholder { color: var(--muted); }
-	.filters .count { color: var(--muted); align-self: center; white-space: nowrap; }
+	.filters .count { color: var(--muted); align-self: center; white-space: nowrap; font-size: 13px; }
 	/* The stack & name columns share one grid across every row, so the
 	   names line up no matter how long each stack name is. */
 	.rows { display: grid; grid-template-columns: fit-content(280px) 1fr auto; }
@@ -213,15 +248,29 @@ export const dashboardHtml = `<!doctype html>
 		text-align: left;
 		background: none;
 		border: none;
-		border-bottom: 1px solid var(--border);
 		color: var(--text);
 		font: inherit;
-		padding: 8px;
+		padding: 9px 10px;
 		cursor: pointer;
+		border-radius: 8px;
+		position: relative;
+		transition: background 0.15s ease;
 	}
-	.row:hover { background: var(--panel); }
+	/* The separator is its own straight hairline instead of a border,
+	   so the rounded hover highlight never bends the line at the ends. */
+	.row::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 1px;
+		background: var(--border);
+	}
+	.row:last-child::after { display: none; }
+	.row:hover { background: var(--hover); }
 	a.row { text-decoration: none; }
-	.health { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+	.health { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
 	.health .chip {
 		display: inline-flex;
 		align-items: center;
@@ -231,9 +280,16 @@ export const dashboardHtml = `<!doctype html>
 		border-radius: 999px;
 		padding: 4px 12px;
 		font-size: 12px;
+		font-family: var(--font-mono);
 	}
-	.health .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex-shrink: 0; }
-	.health .chip.down { border-color: var(--bad); }
+	.health .dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--good);
+		flex-shrink: 0;
+	}
+	.health .chip.down { border-color: rgb(255 97 102 / 45%); background: rgb(255 97 102 / 8%); }
 	.health .chip.down .dot { background: var(--bad); }
 	.health .chip .detail-text { color: var(--muted); }
 	.home-cols {
@@ -268,23 +324,26 @@ export const dashboardHtml = `<!doctype html>
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgb(0 0 0 / 55%);
+		background: rgb(0 0 0 / 60%);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 50;
 	}
 	.overlay .modal {
-		background: var(--bg);
-		border: 1px solid var(--border);
-		border-radius: 8px;
+		background: var(--panel);
+		border: 1px solid var(--border-strong);
+		border-radius: 12px;
+		box-shadow: 0 12px 48px rgb(0 0 0 / 60%);
 		width: min(760px, 92vw);
 		max-height: 82vh;
 		overflow-y: auto;
-		padding: 16px 20px;
+		padding: 18px 22px;
 	}
 	.overlay .modal-head { display: flex; align-items: baseline; gap: 10px; }
-	.overlay .modal-head h3 { margin: 0; }
+	.overlay .modal-head h3 { margin: 0; font-family: var(--font-mono); }
 	.overlay .modal-head .detail { color: var(--muted); font-size: 12px; }
 	.overlay .modal-head button {
 		margin-left: auto;
@@ -293,8 +352,10 @@ export const dashboardHtml = `<!doctype html>
 		color: var(--muted);
 		font-size: 16px;
 		cursor: pointer;
+		border-radius: 6px;
+		padding: 2px 8px;
 	}
-	.overlay .modal-head button:hover { color: var(--text); }
+	.overlay .modal-head button:hover { color: var(--text); background: var(--hover); }
 	/* The tree rows reuse the log entry format, the guide marks the
 	   parent-child steps of the chain. */
 	.trace-tree { max-height: none; }
@@ -307,13 +368,17 @@ export const dashboardHtml = `<!doctype html>
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		font-family: var(--font-mono);
+		font-size: 12.5px;
 	}
 	.row .id {
-		font-weight: bold;
+		font-weight: 500;
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		font-family: var(--font-mono);
+		font-size: 12.5px;
 	}
 	.row .info {
 		color: var(--muted);
@@ -322,13 +387,14 @@ export const dashboardHtml = `<!doctype html>
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		max-width: 100%;
+		font-size: 12.5px;
 	}
 	.email-body {
 		width: 100%;
 		min-height: 480px;
 		background: #fff;
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: 10px;
 		margin-top: 12px;
 	}
 	textarea {
@@ -337,47 +403,58 @@ export const dashboardHtml = `<!doctype html>
 		background: var(--panel);
 		color: var(--text);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 10px;
-		font: inherit;
+		border-radius: 10px;
+		padding: 12px;
+		font-family: var(--font-mono);
+		font-size: 12.5px;
 		resize: vertical;
 	}
+	textarea:hover { border-color: var(--border-strong); }
+	textarea:focus { border-color: #5b6272; box-shadow: 0 0 0 3px rgb(255 255 255 / 14%); outline: none; }
 	.actions { margin: 12px 0; display: flex; gap: 8px; align-items: center; }
-	.actions .status { color: var(--muted); }
+	.actions .status { color: var(--muted); font-size: 13px; }
+	/* Action buttons in the x.ai style: white pill primary, outlined
+	   ghost secondary. */
 	button.primary {
-		background: var(--accent);
-		color: #14100a;
+		background: #fff;
+		color: #0a0a0a;
 		border: none;
-		border-radius: 6px;
-		padding: 7px 16px;
+		border-radius: 999px;
+		padding: 7px 18px;
 		font: inherit;
-		font-weight: bold;
+		font-weight: 500;
 		cursor: pointer;
 	}
+	button.primary:hover { background: #d9d9de; }
 	button.primary:disabled { opacity: 0.5; cursor: wait; }
 	button.secondary {
-		background: var(--panel);
+		background: transparent;
 		color: var(--text);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 6px 16px;
+		border: 1px solid var(--border-strong);
+		border-radius: 999px;
+		padding: 6px 18px;
 		font: inherit;
 		cursor: pointer;
 	}
+	button.secondary:hover { background: var(--hover); border-color: #3d3d44; }
 	pre.result {
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 12px;
+		border-radius: 10px;
+		padding: 12px 14px;
 		overflow-x: auto;
 		white-space: pre-wrap;
 		word-break: break-word;
+		font-family: var(--font-mono);
+		font-size: 12.5px;
 	}
-	pre.result.error { border-color: var(--bad); color: var(--bad); }
-	table { border-collapse: collapse; width: 100%; }
+	pre.result.error { border-color: rgb(255 97 102 / 45%); color: var(--bad); }
+	/* Tables in the vercel style: horizontal hairlines only, quiet
+	   uppercase headers. */
+	table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: 12.5px; }
 	th, td {
-		border: 1px solid var(--border);
-		padding: 6px 10px;
+		border-bottom: 1px solid var(--border);
+		padding: 8px 12px;
 		text-align: left;
 		vertical-align: top;
 		max-width: 360px;
@@ -385,7 +462,16 @@ export const dashboardHtml = `<!doctype html>
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	th { color: var(--muted); font-weight: normal; }
+	th {
+		color: var(--muted);
+		font-weight: 500;
+		font-family: var(--font-sans);
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+	tbody tr { transition: background 0.15s ease; }
+	tbody tr:hover { background: var(--hover); }
 	td:hover { white-space: normal; word-break: break-all; }
 	.empty { color: var(--muted); }
 </style>
@@ -1736,15 +1822,21 @@ const render = () => {
 		nav.append(reseed)
 	}
 
+	// Every view renders into its own container: navigating detaches
+	// the old one, so a slow async panel (like a table scan) finishing
+	// after the switch appends into a dead node instead of the screen.
 	const main = document.getElementById('main')
 	main.innerHTML = ''
 
+	const page = $('div')
+	main.append(page)
+
 	if (view.resource) {
-		renderResource(main)
+		renderResource(page)
 	} else if (view.kind) {
-		renderList(main)
+		renderList(page)
 	} else {
-		renderHome(main)
+		renderHome(page)
 	}
 }
 
