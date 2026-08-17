@@ -1,4 +1,5 @@
 import { Input } from '@terraforge/core'
+import { ExpectedError } from '../../error.js'
 
 type RouteProps = {
 	// A regex that the request path needs to match for routes
@@ -45,3 +46,47 @@ export type Route =
 			type: 'url'
 			domainName: Input<string>
 	  })
+
+// Routes without a destination target the shared bundle url.
+export const hasBundleRoutes = (routes: Record<string, Route | Route[]>) => {
+	return Object.values(routes)
+		.flat()
+		.some(route => route.type === 'lambda' && !route.domainName)
+}
+
+// The route store caps a value at 1KB.
+const MAX_VALUE_SIZE = 1000
+
+// Serialized lambda routes gain a function url host, which tops out under 64 chars.
+const ORIGIN_PLACEHOLDER = 'x'.repeat(64)
+
+export const assertRouteValueSize = (key: string, route: Route | Route[]) => {
+	const withOrigin = (entry: Route) => {
+		return entry.type === 'lambda' && !entry.domainName ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
+	}
+
+	// Route lists shard over multiple entries, so only a single route can outgrow one.
+	for (const entry of Array.isArray(route) ? route : [route]) {
+		if (Buffer.byteLength(JSON.stringify(withOrigin(entry)), 'utf8') > MAX_VALUE_SIZE) {
+			throw new ExpectedError(`The route value of the "${key}" route key is too large.`)
+		}
+	}
+}
+
+// Route lists that are too big for a single key value pair are
+// sharded over multiple entries behind a route index.
+export const createRouteStoreEntries = (key: string, route: object | object[]) => {
+	const value = JSON.stringify(route)
+
+	if (!Array.isArray(route) || Buffer.byteLength(value, 'utf8') <= MAX_VALUE_SIZE) {
+		return [{ key, value }]
+	}
+
+	return [
+		{ key, value: JSON.stringify({ list: route.length }) },
+		...route.map((entry, index) => ({
+			key: `${key}#${index}`,
+			value: JSON.stringify(entry),
+		})),
+	]
+}

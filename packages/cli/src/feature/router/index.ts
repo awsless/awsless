@@ -9,47 +9,10 @@ import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
 import { FunctionDeployment } from '../../formation/lambda.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
 import { ExpectedError, FileError } from '../../error.js'
-import { Route } from './route.js'
+import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
 import { compileRoutePattern } from './pattern.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { shortId } from '../../util/id.js'
-
-// The route store caps a value at 1KB.
-const MAX_VALUE_SIZE = 1000
-
-// Serialized lambda routes gain a function url host, which tops out under 64 chars.
-const ORIGIN_PLACEHOLDER = 'x'.repeat(64)
-
-const assertRouteValueSize = (key: string, route: Route | Route[]) => {
-	const withOrigin = (entry: Route) => {
-		return entry.type === 'lambda' && !entry.domainName ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
-	}
-
-	// Route lists shard over multiple entries, so only a single route can outgrow one.
-	for (const entry of Array.isArray(route) ? route : [route]) {
-		if (Buffer.byteLength(JSON.stringify(withOrigin(entry)), 'utf8') > MAX_VALUE_SIZE) {
-			throw new ExpectedError(`The route value of the "${key}" route key is too large.`)
-		}
-	}
-}
-
-// Route lists that are too big for a single key value pair are
-// sharded over multiple entries behind a route index.
-const createRouteStoreEntries = (key: string, route: object | object[]) => {
-	const value = JSON.stringify(route)
-
-	if (!Array.isArray(route) || Buffer.byteLength(value, 'utf8') <= MAX_VALUE_SIZE) {
-		return [{ key, value }]
-	}
-
-	return [
-		{ key, value: JSON.stringify({ list: route.length }) },
-		...route.map((entry, index) => ({
-			key: `${key}#${index}`,
-			value: JSON.stringify(entry),
-		})),
-	]
-}
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -57,15 +20,12 @@ export const routerFeature = defineFeature({
 		const routers = Object.entries(ctx.appConfig.router ?? {})
 
 		// Every router keeps its routes in its own store, so one router
-		// can never crowd another out of the 5MB store cap. The app-level
-		// function deployment lives in its own group, so renaming or
-		// reordering routers never moves its urn.
+		// can never crowd another out of the 5MB store cap.
 		const routes: Record<string, Record<string, Route | Route[]>> = {}
 		const routeDependencies: Record<string, Set<Resource | DataSource>> = {}
 		const routeStores: Record<string, aws.cloudfront.KeyValueStore> = {}
 		const routerGroups: Record<string, Group> = {}
 		const distributionIds: Output<string>[] = []
-		let hasLambdaRoutes = false
 
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
@@ -135,14 +95,6 @@ export const routerFeature = defineFeature({
 
 				for (const dependency of options?.dependsOn ?? []) {
 					routeDependencies[id]!.add(dependency)
-				}
-
-				if (
-					Object.values(newRoutes)
-						.flat()
-						.some(route => route.type === 'lambda' && !route.domainName)
-				) {
-					hasLambdaRoutes = true
 				}
 			})
 
@@ -534,12 +486,13 @@ export const routerFeature = defineFeature({
 		if (routers.length > 0) {
 			ctx.onReadyLast(() => {
 				const bundle = ctx.shared.get('bundle', 'main')
-				const sharedDependencies: (Resource | DataSource)[] = []
+				const bundleDependencies: (Resource | DataSource)[] = []
 				let lambdaUrlHost: Input<string> | undefined
 
-				if (hasLambdaRoutes) {
-					// The bundle url & permissions are per app, so they live in
-					// their own group where router renames can't move their urn.
+				if (routers.some(([id]) => hasBundleRoutes(routes[id]!))) {
+					// The bundle url & permissions belong to the whole app, not to
+					// any one router, so they get a neutral place in the state
+					// where renaming a router can't delete & recreate them.
 					const sharedGroup = new Group(ctx.base, 'router', 'shared')
 					const deployment = new FunctionDeployment(
 						sharedGroup,
@@ -557,14 +510,17 @@ export const routerFeature = defineFeature({
 					)
 
 					lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
-					sharedDependencies.push(bundle.policy, bundle.alias, deployment)
+					bundleDependencies.push(bundle.policy, bundle.alias, deployment)
 				}
 
 				for (const [id] of routers) {
 					const dependencies = routeDependencies[id]!
 
-					for (const dependency of sharedDependencies) {
-						dependencies.add(dependency)
+					// Only routers that route into the bundle wait for its policy, alias & url.
+					if (hasBundleRoutes(routes[id]!)) {
+						for (const dependency of bundleDependencies) {
+							dependencies.add(dependency)
+						}
 					}
 
 					new RouteDeployment(
