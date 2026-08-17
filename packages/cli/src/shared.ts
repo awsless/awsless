@@ -68,6 +68,10 @@ type SharedState = {
 		'security-group-id': Output<string>
 		'persistent-storage-file-system-id': Output<string>
 	}
+
+	search: {
+		endpoint: Output<string>
+	}
 }
 
 type SharedEntries = {

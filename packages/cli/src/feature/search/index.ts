@@ -45,15 +45,11 @@ export const searchFeature = defineFeature({
 		// Every search index in the app shares one OpenSearch domain,
 		// like every table shares dynamodb. The domain only exists when
 		// at least one stack declares an index.
-		const indexes = ctx.stackConfigs.flatMap(stack => {
-			return Object.entries(stack.searchs ?? {}).map(([id, props]) => ({
-				stackName: stack.name,
-				id,
-				props,
-			}))
+		const hasIndexes = ctx.stackConfigs.some(stack => {
+			return Object.keys(stack.searchs ?? {}).length > 0
 		})
 
-		if (indexes.length === 0) {
+		if (!hasIndexes) {
 			return
 		}
 
@@ -120,18 +116,31 @@ export const searchFeature = defineFeature({
 			resources: [openSearch.arn.pipe(arn => `${arn}/*`)],
 		})
 
+		ctx.shared.set('search', 'endpoint', openSearch.endpointV2)
+	},
+	onStack(ctx) {
+		const indexes = Object.entries(ctx.stackConfig.searchs ?? {})
+
+		if (indexes.length === 0) {
+			return
+		}
+
+		const endpoint = ctx.shared.get('search', 'endpoint')
+
 		// The indexes are managed like tables: the deploy creates missing
 		// indexes & applies the mappings, with the physical name prefixed
 		// by the stack name.
-		for (const { stackName, id, props: indexProps } of indexes) {
+		for (const [id, props] of indexes) {
+			const group = new Group(ctx.stack, 'search', id)
+
 			new SearchIndex(
 				group,
-				`index-${stackName}--${id}`,
+				'index',
 				{
-					endpoint: openSearch.endpointV2,
-					index: formatSearchIndexName(stackName, id),
-					mappings: JSON.stringify(resolveSearchMappings(indexProps) ?? {}),
-					settings: JSON.stringify(indexProps.settings ?? {}),
+					endpoint,
+					index: formatSearchIndexName(ctx.stackConfig.name, id),
+					mappings: JSON.stringify(resolveSearchMappings(props) ?? {}),
+					settings: JSON.stringify(props.settings ?? {}),
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
