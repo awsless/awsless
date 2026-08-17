@@ -101,7 +101,7 @@ describe('router routes', () => {
 		)
 	})
 
-	it('should provision the routers on one shared active-pointer store', async () => {
+	it('should provision a router with its own active-pointer store', async () => {
 		const result = createRouterApp({ main: {} })
 		result.ready()
 
@@ -129,14 +129,14 @@ describe('router routes', () => {
 		expect(origin.customOriginConfig[0].originProtocolPolicy).toBe('http-only')
 	})
 
-	it('should stage every router into one deployment', () => {
+	it('should stage every router into its own store', () => {
 		const result = createRouterApp({ main: {}, admin: {} })
 		result.ready()
 
 		const resources = result.app.resources.map(getMeta)
 
-		expect(resources.filter(resource => resource.type === 'route-deployment')).toHaveLength(1)
-		expect(resources.filter(resource => resource.type === 'aws_cloudfront_key_value_store')).toHaveLength(1)
+		expect(resources.filter(resource => resource.type === 'route-deployment')).toHaveLength(2)
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_key_value_store')).toHaveLength(2)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(0)
 		expect(resources.filter(resource => resource.type === 'aws_cloudfront_multitenant_distribution')).toHaveLength(
 			2

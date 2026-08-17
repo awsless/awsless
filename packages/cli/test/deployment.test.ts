@@ -499,7 +499,7 @@ describe('deployment promotion', () => {
 		await promoteDeployment({
 			...clients(),
 			id: 'main-2',
-			store,
+			stores: [store],
 			rejectStale: true,
 		})
 
@@ -521,7 +521,7 @@ describe('deployment promotion', () => {
 			promoteDeployment({
 				...clients(),
 				id: 'main-2',
-				store,
+				stores: [store],
 			})
 		).rejects.toThrow('KVS update failed')
 
@@ -539,7 +539,7 @@ describe('deployment promotion', () => {
 			promoteDeployment({
 				...clients(),
 				id: 'main-2',
-				store,
+				stores: [store],
 			})
 		).rejects.toThrow('function version "2"')
 
@@ -556,7 +556,7 @@ describe('deployment promotion', () => {
 			promoteDeployment({
 				...clients(),
 				id: 'main-2',
-				store,
+				stores: [store],
 			})
 		).rejects.toThrow('Alias update failed')
 
@@ -577,7 +577,7 @@ describe('deployment promotion', () => {
 			promoteDeployment({
 				...clients(),
 				id: 'main-2',
-				store,
+				stores: [store],
 			})
 		).rejects.toThrow('Manifest update failed')
 

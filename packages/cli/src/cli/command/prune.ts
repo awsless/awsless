@@ -191,23 +191,36 @@ export const prune = (program: Command) => {
 								}
 							}
 
-							// the route store entries & orphaned route tables
-							const storeArn = await getRouteStoreArn(
-								cloudfront,
-								formatGlobalResourceName({
-									appName: appConfig.name,
-									resourceType: 'router',
-									resourceName: 'store',
-								})
-							)
+							// the route store entries & orphaned route tables,
+							// swept per router store
+							const survivingRoutes: string[] = []
+							let sweptStores = false
 
-							if (storeArn) {
-								const survivingRoutes = await pruneStoreDeployments(
-									kvs,
-									storeArn,
-									prune.map(item => item.id)
+							for (const routerId of Object.keys(appConfig.router ?? {})) {
+								const storeArn = await getRouteStoreArn(
+									cloudfront,
+									formatGlobalResourceName({
+										appName: appConfig.name,
+										resourceType: 'router',
+										resourceName: routerId,
+									})
 								)
 
+								if (!storeArn) {
+									continue
+								}
+
+								sweptStores = true
+								survivingRoutes.push(
+									...(await pruneStoreDeployments(
+										kvs,
+										storeArn,
+										prune.map(item => item.id)
+									))
+								)
+							}
+
+							if (sweptStores) {
 								// the site versions that no surviving route table references
 								await pruneSiteVersions({
 									s3,

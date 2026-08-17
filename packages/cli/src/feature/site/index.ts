@@ -53,12 +53,10 @@ export const siteFeature = defineFeature({
 						const env: Record<string, string | undefined> = {
 							...process.env,
 
-							// Resolve bins from every ancestor node_modules/.bin,
-							// like npm scripts do.
+							// Resolve bins from every ancestor node_modules/.bin, like npm scripts do.
 							PATH: binPath(cwd),
 
-							// Never inherit NODE_ENV=test from an in-process test run,
-							// it would flip the Config proxy into mock mode mid-build.
+							// Never inherit NODE_ENV=test from an in-process test run, it would flip the Config proxy into mock mode mid-build.
 							NODE_ENV: 'production',
 
 							// Pass the app config name

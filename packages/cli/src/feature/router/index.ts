@@ -56,42 +56,23 @@ export const routerFeature = defineFeature({
 	onApp(ctx) {
 		const routers = Object.entries(ctx.appConfig.router ?? {})
 
-		// All routers share one route store and one deployment; the shared
-		// resources live in their own group, so renaming or reordering
-		// routers never moves their urn.
-		const defaultRouter = routers[0]?.[0]
-		const routes: Record<string, Route | Route[]> = {}
-		const routeDependencies = new Set<Resource | DataSource>()
+		// Every router keeps its routes in its own store, so one router
+		// can never crowd another out of the 5MB store cap. The app-level
+		// function deployment lives in its own group, so renaming or
+		// reordering routers never moves its urn.
+		const routes: Record<string, Record<string, Route | Route[]>> = {}
+		const routeDependencies: Record<string, Set<Resource | DataSource>> = {}
+		const routeStores: Record<string, aws.cloudfront.KeyValueStore> = {}
+		const routerGroups: Record<string, Group> = {}
 		const distributionIds: Output<string>[] = []
 		let hasLambdaRoutes = false
-		let routeStore: aws.cloudfront.KeyValueStore | undefined
-		let sharedGroup: Group | undefined
-
-		if (routers.length > 0) {
-			const storeName = formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'router',
-				resourceName: 'store',
-			})
-
-			sharedGroup = new Group(ctx.base, 'router', 'shared')
-			routeStore = new aws.cloudfront.KeyValueStore(
-				sharedGroup,
-				'routes',
-				{
-					name: storeName,
-					comment: 'Store for routes',
-				},
-				{
-					replaceOnChanges: ['name'],
-					createBeforeReplace: true,
-					import: ctx.import ? storeName : undefined,
-				}
-			)
-		}
 
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
+
+			routerGroups[id] = group
+			routes[id] = {}
+			routeDependencies[id] = new Set()
 
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -99,13 +80,28 @@ export const routerFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// the function names are capped at 64 characters
-			const productionFunctionName = `${name.slice(0, 52)}--production`
-			const productionFunction = new aws.cloudfront.Function(
+			// ------------------------------------------------------------
+			// Route Store
+
+			const routeStore = new aws.cloudfront.KeyValueStore(
 				group,
-				'production-function',
+				'routes',
+				{ name },
 				{
-					name: productionFunctionName,
+					replaceOnChanges: ['name'],
+					createBeforeReplace: true,
+					import: ctx.import ? name : undefined,
+				}
+			)
+
+			routeStores[id] = routeStore
+
+			// the function names are capped at 64 characters
+			const cfFunction = new aws.cloudfront.Function(
+				group,
+				'function',
+				{
+					name,
 					runtime: 'cloudfront-js-2.0',
 					code: getViewerRequestFunctionCode({
 						router: id,
@@ -115,10 +111,10 @@ export const routerFeature = defineFeature({
 						passwordAuth: props.passwordAuth,
 					}),
 					publish: true,
-					keyValueStoreAssociations: [routeStore!.arn],
+					keyValueStoreAssociations: [routeStore.arn],
 				},
 				{
-					import: ctx.import ? productionFunctionName : undefined,
+					import: ctx.import ? name : undefined,
 				}
 			)
 
@@ -126,17 +122,19 @@ export const routerFeature = defineFeature({
 			// Add routes API
 
 			ctx.shared.add('router', 'addRoutes', id, (newRoutes, options) => {
+				const routerRoutes = routes[id]!
+
 				for (const [key, route] of Object.entries(newRoutes)) {
-					if (Object.hasOwn(routes, `${id}:${key}`)) {
+					if (Object.hasOwn(routerRoutes, `${id}:${key}`)) {
 						throw new ExpectedError(`Duplicate route key: ${key} in the "${id}" router`)
 					}
 
 					assertRouteValueSize(`${id}:${key}`, route)
-					routes[`${id}:${key}`] = route
+					routerRoutes[`${id}:${key}`] = route
 				}
 
 				for (const dependency of options?.dependsOn ?? []) {
-					routeDependencies.add(dependency)
+					routeDependencies[id]!.add(dependency)
 				}
 
 				if (
@@ -382,10 +380,6 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// CDN Distribution
 
-			// const certificateArn = props.domain
-			// 	? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
-			// 	: undefined
-
 			const distribution = new aws.cloudfront.MultitenantDistribution(group, 'distribution', {
 				tags: {
 					name,
@@ -393,21 +387,6 @@ export const routerFeature = defineFeature({
 				comment: name,
 				enabled: true,
 				viewerCertificate: [{ cloudfrontDefaultCertificate: true }],
-
-				// viewerCertificate: certificateArn
-				// 	? [
-				// 			{
-				// 				sslSupportMethod: 'sni-only',
-				// 				minimumProtocolVersion: 'TLSv1.2_2021',
-				// 				acmCertificateArn: certificateArn,
-				// 			},
-				// 		]
-				// 	: [
-				// 			{
-				// 				cloudfrontDefaultCertificate: true,
-				// 			},
-				// 		],
-
 				origin: [
 					{
 						id: 'default',
@@ -458,7 +437,7 @@ export const routerFeature = defineFeature({
 						functionAssociation: [
 							{
 								eventType: 'viewer-request',
-								functionArn: productionFunction.arn,
+								functionArn: cfFunction.arn,
 							},
 						],
 						originRequestPolicyId: originRequest.id,
@@ -475,65 +454,6 @@ export const routerFeature = defineFeature({
 				],
 				webAclId: waf?.arn,
 			})
-
-			if (id === defaultRouter) {
-				ctx.onReadyLast(() => {
-					const bundle = ctx.shared.get('bundle', 'main')
-					let lambdaUrlHost: Input<string> | undefined
-
-					if (hasLambdaRoutes) {
-						const deployment = new FunctionDeployment(
-							sharedGroup!,
-							'function-deployment',
-							{
-								functionName: bundle.lambda.functionName,
-								id: ctx.deploymentId ?? 'local-0',
-								sourceArns: distributionIds.map(distributionId =>
-									distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
-								),
-							},
-							{
-								dependsOn: [bundle.deployment],
-							}
-						)
-
-						lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
-						routeDependencies.add(bundle.policy)
-						routeDependencies.add(bundle.alias)
-						routeDependencies.add(deployment)
-					}
-
-					new RouteDeployment(
-						sharedGroup!,
-						'deployment',
-						{
-							// non-deploy commands build the graph but never apply it
-							deploymentId: ctx.deploymentId ?? 'local-0',
-							storeArn: routeStore!.arn,
-							functionVersion: bundle.lambda.version,
-							routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
-								const withOrigin = (route: Route) => {
-									return route.type === 'lambda' && !route.domainName
-										? { ...route, domainName: lambdaUrlHost }
-										: route
-								}
-
-								return Object.entries(routes).flatMap(([key, route]) =>
-									createRouteStoreEntries(
-										key,
-										Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
-									)
-								)
-							}),
-						},
-						{
-							dependsOn: Array.from(routeDependencies),
-						}
-					)
-
-
-				})
-			}
 
 			ctx.shared.add('router', 'id', id, distribution.id)
 			distributionIds.push(distribution.id)
@@ -609,6 +529,73 @@ export const routerFeature = defineFeature({
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
+		}
+
+		if (routers.length > 0) {
+			ctx.onReadyLast(() => {
+				const bundle = ctx.shared.get('bundle', 'main')
+				const sharedDependencies: (Resource | DataSource)[] = []
+				let lambdaUrlHost: Input<string> | undefined
+
+				if (hasLambdaRoutes) {
+					// The bundle url & permissions are per app, so they live in
+					// their own group where router renames can't move their urn.
+					const sharedGroup = new Group(ctx.base, 'router', 'shared')
+					const deployment = new FunctionDeployment(
+						sharedGroup,
+						'function-deployment',
+						{
+							functionName: bundle.lambda.functionName,
+							id: ctx.deploymentId ?? 'local-0',
+							sourceArns: distributionIds.map(distributionId =>
+								distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
+							),
+						},
+						{
+							dependsOn: [bundle.deployment],
+						}
+					)
+
+					lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
+					sharedDependencies.push(bundle.policy, bundle.alias, deployment)
+				}
+
+				for (const [id] of routers) {
+					const dependencies = routeDependencies[id]!
+
+					for (const dependency of sharedDependencies) {
+						dependencies.add(dependency)
+					}
+
+					new RouteDeployment(
+						routerGroups[id]!,
+						'deployment',
+						{
+							// non-deploy commands build the graph but never apply it
+							deploymentId: ctx.deploymentId ?? 'local-0',
+							storeArn: routeStores[id]!.arn,
+							functionVersion: bundle.lambda.version,
+							routes: $resolve([routes[id]!, lambdaUrlHost], (routes, lambdaUrlHost) => {
+								const withOrigin = (route: Route) => {
+									return route.type === 'lambda' && !route.domainName
+										? { ...route, domainName: lambdaUrlHost }
+										: route
+								}
+
+								return Object.entries(routes).flatMap(([key, route]) =>
+									createRouteStoreEntries(
+										key,
+										Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
+									)
+								)
+							}),
+						},
+						{
+							dependsOn: Array.from(dependencies),
+						}
+					)
+				}
+			})
 		}
 	},
 	onStack(ctx) {

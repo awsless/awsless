@@ -413,9 +413,10 @@ export const promoteDeployment = async (props: {
 	appName: string
 	functionName: string
 	id: string
-	store?: RouteStoreTarget
+	stores?: RouteStoreTarget[]
 	rejectStale?: boolean
 }) => {
+	const stores = props.stores ?? []
 	const deployment = await getDeployment(props.dynamo, props.appId, props.id)
 	const functionVersion = deployment?.functionVersion
 
@@ -427,17 +428,26 @@ export const promoteDeployment = async (props: {
 		throw new ExpectedError(`Deployment "${props.id}" hasn't finished deploying.`)
 	}
 
-	if (props.store && props.store.deployment.functionVersion !== functionVersion) {
-		throw new ExpectedError(`The routes don't share the deployed function version.`)
+	for (const store of stores) {
+		if (store.deployment.functionVersion !== functionVersion) {
+			throw new ExpectedError(`The routes don't share the deployed function version.`)
+		}
 	}
 
 	const alias = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
 	const liveId = alias?.Description || undefined
-	const activeId = props.store ? await readActiveDeploymentId(props.kvs, props.store.arn) : undefined
-	const active =
-		props.store && activeId !== undefined
-			? await readRouteDeployment(props.kvs, props.store.arn, activeId)
-			: undefined
+
+	// The active routes of every store are read up front, so a failed
+	// promotion can restore each store to what it served before.
+	const activeRoutes = new Map<string, StagedRouteDeployment | undefined>()
+
+	for (const store of stores) {
+		const activeId = await readActiveDeploymentId(props.kvs, store.arn)
+		const active =
+			activeId !== undefined ? await readRouteDeployment(props.kvs, store.arn, activeId) : undefined
+
+		activeRoutes.set(store.arn, active)
+	}
 
 	// The release lock is a TTL lease, so a stalled deploy can lose it mid-apply.
 	if (props.rejectStale && liveId && liveId !== props.id) {
@@ -463,9 +473,9 @@ export const promoteDeployment = async (props: {
 		throw error
 	}
 
-	let routesUpdateStarted = false
 	let aliasUpdateStarted = false
 
+	const flippedStores: RouteStoreTarget[] = []
 	const flipped: { functionName: string; liveVersion?: string; liveDescription?: string }[] = []
 
 	try {
@@ -502,9 +512,11 @@ export const promoteDeployment = async (props: {
 			})
 		}
 
-		if (props.store && active?.id !== props.store.deployment.id) {
-			routesUpdateStarted = true
-			await setActiveRouteDeployment(props.kvs, props.store.arn, props.store.deployment)
+		for (const store of stores) {
+			if (activeRoutes.get(store.arn)?.id !== store.deployment.id) {
+				flippedStores.push(store)
+				await setActiveRouteDeployment(props.kvs, store.arn, store.deployment)
+			}
 		}
 
 		if (alias?.FunctionVersion !== functionVersion || alias?.Description !== props.id) {
@@ -522,9 +534,7 @@ export const promoteDeployment = async (props: {
 		await markPromoted(props.dynamo, props.appId, props.id)
 	} catch (error) {
 		const rollback = [
-			...(routesUpdateStarted && props.store
-				? [setActiveRouteDeployment(props.kvs, props.store.arn, active)]
-				: []),
+			...flippedStores.map(store => setActiveRouteDeployment(props.kvs, store.arn, activeRoutes.get(store.arn))),
 			...(aliasUpdateStarted && alias?.FunctionVersion
 				? [
 						upsertLambdaAlias(props.lambda, {
@@ -573,29 +583,29 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 	const functionName = getBundleFunctionName(props.appConfig.name)
 
 	const id = props.id ?? (await previousDeploymentId({ lambda, dynamo, appId, functionName }))
-	let store: RouteStoreTarget | undefined
+	const stores: RouteStoreTarget[] = []
 
-	if (Object.keys(props.appConfig.router ?? {}).length > 0) {
+	for (const routerId of Object.keys(props.appConfig.router ?? {})) {
 		const storeArn = await getRouteStoreArn(
 			cloudfront,
 			formatGlobalResourceName({
 				appName: props.appConfig.name,
 				resourceType: 'router',
-				resourceName: 'store',
+				resourceName: routerId,
 			})
 		)
 
 		if (!storeArn) {
-			throw new ExpectedError(`The router hasn't been deployed yet. Run "awsless deploy" first.`)
+			throw new ExpectedError(`The "${routerId}" router hasn't been deployed yet. Run "awsless deploy" first.`)
 		}
 
 		const routes = await readRouteDeployment(kvs, storeArn, id)
 
 		if (!routes) {
-			throw new ExpectedError(`Deployment "${id}" doesn't exist.`)
+			throw new ExpectedError(`Deployment "${id}" doesn't exist for the "${routerId}" router.`)
 		}
 
-		store = { arn: storeArn, deployment: routes }
+		stores.push({ arn: storeArn, deployment: routes })
 	}
 
 	await promoteDeployment({
@@ -606,7 +616,7 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 		appName: props.appConfig.name,
 		functionName,
 		id,
-		store,
+		stores,
 		rejectStale: props.rejectStale,
 	})
 
