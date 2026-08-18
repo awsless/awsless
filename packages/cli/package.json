@@ -18,11 +18,13 @@
 		"awsless": "./dist/bin.js"
 	},
 	"scripts": {
-		"test": "bun cli/build-handlers.ts && pnpm vitest",
+		"test": "pnpm typecheck && bun cli/build-handlers.ts && pnpm vitest",
 		"build": "bun cli/build.ts",
 		"jack": "pnpm build && bun dist/bin.js --config-file=./example/jack/app.jsonc",
 		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi",
+		"typecheck": "tsc --noEmit",
+		"types": "bun dist/bin.js types --config-file=./example/jack/app.jsonc && bun dist/bin.js types --config-file=./example/kennedy/app.jsonc"
 	},
 	"dependencies": {
 		"@aws-sdk/signature-v4-crt": "^3.1112.0",
