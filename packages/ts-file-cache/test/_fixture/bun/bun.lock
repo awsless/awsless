@@ -1,0 +1,28 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "fixture",
+      "devDependencies": {
+        "typescript": "^5.0.0",
+      },
+    },
+    "packages/app": {
+      "name": "@fixture/app",
+      "dependencies": {
+        "@fixture/lib": "workspace:*",
+        "yaml": "^2.9.0",
+      },
+    },
+    "packages/lib": {
+      "name": "@fixture/lib",
+    },
+  },
+  "packages": {
+    "@fixture/lib": ["@fixture/lib@workspace:packages/lib"],
+
+    "typescript": ["typescript@5.9.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-fake"],
+
+    "yaml": ["yaml@2.9.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-fake"],
+  }
+}

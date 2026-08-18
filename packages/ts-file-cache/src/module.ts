@@ -1,20 +1,5 @@
 import { stat } from 'fs/promises'
-import { basename, isAbsolute, join } from 'path'
-
-// const readFiles = async (files: string[]) => {
-// 	for (const file of files) {
-// 		try {
-// 			const s = await stat(file)
-// 			if (s.isFile()) {
-// 				return readFile(file, 'utf8')
-// 			}
-// 		} catch (_) {
-// 			continue
-// 		}
-// 	}
-
-// 	throw new Error(`No such file: ${files.join(', ')}`)
-// }
+import { basename, extname, isAbsolute, join } from 'path'
 
 const findFile = async (files: string[]) => {
 	for (const file of files) {
@@ -31,16 +16,36 @@ const findFile = async (files: string[]) => {
 	throw new Error(`No such file: ${files.join(', ')}`)
 }
 
+// TypeScript sources import their compiled javascript file names,
+// so each javascript extension maps to its typescript counterparts.
+const alternateExtensions: Record<string, string[]> = {
+	'.js': ['.ts', '.tsx'],
+	'.mjs': ['.mts'],
+	'.cjs': ['.cts'],
+	'.jsx': ['.tsx'],
+}
+
 export const resolveModuleImportFile = (file: string, allowedExtensions: string[]) => {
-	if (file.endsWith('.js') && allowedExtensions.includes('js') && allowedExtensions.includes('ts')) {
-		return findFile([file, file.substring(0, file.length - 3) + '.ts'])
+	const extension = extname(file)
+	const alternates = alternateExtensions[extension]
+
+	if (alternates) {
+		const candidates = [file]
+
+		for (const alternate of alternates) {
+			if (allowedExtensions.includes(alternate.substring(1))) {
+				candidates.push(file.substring(0, file.length - extension.length) + alternate)
+			}
+		}
+
+		return findFile(candidates)
 	}
 
 	if (!basename(file).includes('.')) {
 		return findFile([
 			file,
-			...allowedExtensions.map(exp => `${file}.${exp}`),
-			...allowedExtensions.map(exp => join(file, `/index.${exp}`)),
+			...allowedExtensions.map(ext => `${file}.${ext}`),
+			...allowedExtensions.map(ext => join(file, `index.${ext}`)),
 		])
 	}
 
@@ -58,19 +63,3 @@ export const toAbsolute = (file: string) => {
 
 	return join(process.cwd(), file)
 }
-
-// export const readModuleFile = (file: string, allowedExtensions: string[]) => {
-// 	if (file.endsWith('.js')) {
-// 		return readFiles([file, file.substring(0, file.length - 3) + '.ts'])
-// 	}
-
-// 	if (!basename(file).includes('.')) {
-// 		return readFiles([
-// 			file,
-// 			...allowedExtensions.map(exp => `${file}.${exp}`),
-// 			...allowedExtensions.map(exp => join(file, `/index.${exp}`)),
-// 		])
-// 	}
-
-// 	return readFile(file, 'utf8')
-// }

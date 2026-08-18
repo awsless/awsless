@@ -1,4 +1,8 @@
 {
 	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		// The swc-walk subpath exports need exports-map aware resolution.
+		"moduleResolution": "Bundler"
+	},
 	"include": ["src", "test"]
 }

@@ -38,6 +38,7 @@ var Cache = class {
   constructor(data = {}) {
     this.data = data;
   }
+  data;
   set(source, locale, translation) {
     if (!this.data[source]) {
       this.data[source] = {};
@@ -146,22 +147,34 @@ var findSvelteTranslatable = (code) => {
 // src/find/typescript.ts
 import { parse } from "@swc/core";
 import { simple } from "swc-walk";
+import { BaseVisitor } from "swc-walk/baseVisitor";
+var PatchedBaseVisitor = class extends BaseVisitor {
+  FunctionBody(node, state, callback) {
+    for (const statement of node.stmts) {
+      callback(statement, state);
+    }
+  }
+};
+var baseVisitor = new PatchedBaseVisitor();
 var findTypescriptTranslatable = async (code) => {
   const found = [];
-  const ast = await parse(code, {
-    syntax: "typescript"
-  });
-  simple(ast, {
-    TaggedTemplateExpression(node) {
-      if (node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.value === "lang" && node.tag.property.type === "Identifier" && node.tag.property.value === "t") {
-        const content = code.substring(
-          node.template.span.start - ast.span.start + 1,
-          node.template.span.end - ast.span.start - 1
-        );
-        found.push(content);
+  const ast = await parse(code, { syntax: "typescript" });
+  const bytes = Buffer.from(code, "utf8");
+  simple(
+    ast,
+    {
+      TaggedTemplateExpression(node) {
+        if (node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.value === "lang" && node.tag.property.type === "Identifier" && node.tag.property.value === "t") {
+          const content = bytes.subarray(
+            node.template.span.start - ast.span.start + 1,
+            node.template.span.end - ast.span.start - 1
+          ).toString("utf8");
+          found.push(content);
+        }
       }
-    }
-  });
+    },
+    baseVisitor
+  );
   return found;
 };
 

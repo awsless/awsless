@@ -1,19 +1,14 @@
 import { readdir } from 'fs/promises'
-import { generateRecursiveFileHashes, mergeHashes } from './hash'
 import { extname, resolve } from 'path'
-import { pnpm } from './package-manager/pnpm'
-import { Workspace } from './types'
+import { generateRecursiveFileHashes, mergeHashes } from './hash'
 import { toAbsolute } from './module'
+import { loadPackageManager } from './package-manager'
+import { Workspace } from './types'
 
 export * from './types'
 
 export const loadWorkspace = async (search: string): Promise<Workspace> => {
-	const { cwd, packages } = await pnpm(toAbsolute(search))
-
-	return {
-		cwd,
-		packages,
-	}
+	return loadPackageManager(toAbsolute(search))
 }
 
 type Options = {
@@ -37,7 +32,8 @@ export const generateFileHash = async (workspace: Workspace, file: string, opts:
 export const generateFolderHash = async (workspace: Workspace, folder: string, opts: Options = {}) => {
 	const options = { ...defaultOptions, ...opts }
 	const hashes = new Map<string, Buffer>()
-	const files = await readdir(folder, { recursive: true, withFileTypes: true })
+	const absoluteFolder = toAbsolute(folder)
+	const files = await readdir(absoluteFolder, { recursive: true, withFileTypes: true })
 
 	for (const file of files) {
 		if (file.isFile() && options.extensions.includes(extname(file.name).substring(1))) {
@@ -45,8 +41,6 @@ export const generateFolderHash = async (workspace: Workspace, folder: string, o
 			await generateRecursiveFileHashes(workspace, f, f, options.extensions, hashes)
 		}
 	}
-
-	// console.log(hashes)
 
 	return mergeHashes(hashes)
 }

@@ -1,0 +1,8 @@
+{
+	"name": "@fixture/app",
+	"main": "_index.ts",
+	"dependencies": {
+		"@fixture/lib": "workspace:*",
+		"yaml": "^2.9.0"
+	}
+}

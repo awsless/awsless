@@ -25,7 +25,8 @@ __export(index_exports, {
   loadWorkspace: () => loadWorkspace
 });
 module.exports = __toCommonJS(index_exports);
-var import_promises4 = require("fs/promises");
+var import_promises5 = require("fs/promises");
+var import_path8 = require("path");
 
 // src/hash.ts
 var import_crypto = require("crypto");
@@ -37,10 +38,31 @@ var import_path3 = require("path");
 var import_core = require("@swc/core");
 var import_path = require("path");
 var import_swc_walk = require("swc-walk");
+var import_baseVisitor = require("swc-walk/baseVisitor");
+var PatchedBaseVisitor = class extends import_baseVisitor.BaseVisitor {
+  FunctionBody(node, state, callback) {
+    for (const statement of node.stmts) {
+      callback(statement, state);
+    }
+  }
+};
+var baseVisitor = new PatchedBaseVisitor();
+var parseOptions = (file) => {
+  if (file.endsWith(".tsx")) {
+    return { syntax: "typescript", tsx: true, decorators: true };
+  }
+  if (file.endsWith(".ts") || file.endsWith(".mts") || file.endsWith(".cts")) {
+    return { syntax: "typescript", decorators: true };
+  }
+  return { syntax: "ecmascript", jsx: true, decorators: true };
+};
 var findImports = async (file, code) => {
-  const ast = await (0, import_core.parse)(code, {
-    syntax: "typescript"
-  });
+  let ast;
+  try {
+    ast = await (0, import_core.parse)(code, parseOptions(file));
+  } catch (error) {
+    throw new Error(`Failed to parse: ${file}`, { cause: error });
+  }
   const importing = /* @__PURE__ */ new Set();
   try {
     (0, import_swc_walk.simple)(ast, {
@@ -62,10 +84,15 @@ var findImports = async (file, code) => {
             importing.add(first.expression.value);
           }
         }
+      },
+      TsImportEqualsDeclaration(node) {
+        if (node.moduleRef.type === "TsExternalModuleReference") {
+          importing.add(node.moduleRef.expression.value);
+        }
       }
-    });
-  } catch (_) {
-    return [];
+    }, baseVisitor);
+  } catch (error) {
+    throw new Error(`Failed to walk the AST of: ${file}`, { cause: error });
   }
   return [...importing].map((importee) => {
     if (importee.startsWith(".")) {
@@ -95,15 +122,29 @@ var findFile = async (files) => {
   }
   throw new Error(`No such file: ${files.join(", ")}`);
 };
+var alternateExtensions = {
+  ".js": [".ts", ".tsx"],
+  ".mjs": [".mts"],
+  ".cjs": [".cts"],
+  ".jsx": [".tsx"]
+};
 var resolveModuleImportFile = (file, allowedExtensions) => {
-  if (file.endsWith(".js") && allowedExtensions.includes("js") && allowedExtensions.includes("ts")) {
-    return findFile([file, file.substring(0, file.length - 3) + ".ts"]);
+  const extension = (0, import_path2.extname)(file);
+  const alternates = alternateExtensions[extension];
+  if (alternates) {
+    const candidates = [file];
+    for (const alternate of alternates) {
+      if (allowedExtensions.includes(alternate.substring(1))) {
+        candidates.push(file.substring(0, file.length - extension.length) + alternate);
+      }
+    }
+    return findFile(candidates);
   }
   if (!(0, import_path2.basename)(file).includes(".")) {
     return findFile([
       file,
-      ...allowedExtensions.map((exp) => `${file}.${exp}`),
-      ...allowedExtensions.map((exp) => (0, import_path2.join)(file, `/index.${exp}`))
+      ...allowedExtensions.map((ext) => `${file}.${ext}`),
+      ...allowedExtensions.map((ext) => (0, import_path2.join)(file, `index.${ext}`))
     ]);
   }
   return file;
@@ -126,7 +167,7 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
     } catch (error) {
       throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`);
     }
-    const relFile = (0, import_path3.relative)(workspace.cwd, file);
+    const relFile = (0, import_path3.relative)(workspace.cwd, file).split(import_path3.sep).join("/");
     if (hashes.has(relFile)) {
       return;
     }
@@ -175,8 +216,13 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
   throw new Error(`Can't find the dependency version for: ${file} inside the source: ${sourceFile}`);
 };
 var mergeHashes = (hashes) => {
-  const merge = Buffer.concat(Array.from(hashes.values()).sort());
-  return (0, import_crypto.createHash)("sha1").update(merge).digest("hex");
+  const names = Array.from(hashes.keys()).sort();
+  const merged = (0, import_crypto.createHash)("sha1");
+  for (const name of names) {
+    merged.update(name);
+    merged.update(hashes.get(name));
+  }
+  return merged.digest("hex");
 };
 var getPackageName = (importee) => {
   const parts = importee.split("/");
@@ -197,36 +243,22 @@ var findDependency = (workspace, module2, source) => {
   return pkg.dependencies[module2];
 };
 
-// src/index.ts
+// src/package-manager/index.ts
+var import_promises4 = require("fs/promises");
+var import_path7 = require("path");
+
+// src/package-manager/bun.ts
 var import_path5 = require("path");
 
-// src/package-manager/pnpm.ts
+// src/package-manager/importer.ts
 var import_promises3 = require("fs/promises");
 var import_path4 = require("path");
-var import_yaml = require("yaml");
-var pnpm = async (search) => {
-  const [cwd, lockFile] = await findLockFile(search);
-  const data = (0, import_yaml.parse)(lockFile);
+var buildPackages = async (cwd, importers) => {
   const packages = {};
   await Promise.all(
-    Object.entries(data.importers).map(async ([path, importee]) => {
-      const deps = { ...importee.devDependencies, ...importee.dependencies };
-      const dependencies = {};
+    Object.entries(importers).map(async ([path, dependencies]) => {
       const packageJson = await (0, import_promises3.readFile)((0, import_path4.join)(cwd, path, "package.json"), "utf8");
       const packageData = JSON.parse(packageJson);
-      for (const [name, entry2] of Object.entries(deps)) {
-        if (entry2.version.startsWith("link:")) {
-          dependencies[name] = {
-            type: "workspace",
-            link: (0, import_path4.join)(cwd, path, entry2.version.substring(5))
-          };
-        } else {
-          dependencies[name] = {
-            type: "package",
-            version: entry2.version
-          };
-        }
-      }
       const entry = packageData.module ?? packageData.main;
       packages[(0, import_path4.join)(cwd, path)] = {
         name: packageData.name,
@@ -236,25 +268,180 @@ var pnpm = async (search) => {
       };
     })
   );
+  return packages;
+};
+
+// src/package-manager/bun.ts
+var bun = async (cwd, lockFile) => {
+  const data = parseJsonc(lockFile);
+  const resolvedVersions = {};
+  for (const [key, entry] of Object.entries(data.packages ?? {})) {
+    const resolution = entry[0];
+    const at = resolution.lastIndexOf("@");
+    const version = resolution.substring(at + 1);
+    if (!version.startsWith("workspace:")) {
+      resolvedVersions[key] = version;
+    }
+  }
+  const workspacePaths = {};
+  for (const [path, workspace] of Object.entries(data.workspaces)) {
+    if (workspace.name) {
+      workspacePaths[workspace.name] = path;
+    }
+  }
+  const importers = {};
+  for (const [path, workspace] of Object.entries(data.workspaces)) {
+    const deps = { ...workspace.devDependencies, ...workspace.optionalDependencies, ...workspace.dependencies };
+    const dependencies = {};
+    for (const [name, specifier] of Object.entries(deps)) {
+      if (specifier.startsWith("workspace:")) {
+        const target = specifier.substring(10);
+        const workspacePath = workspacePaths[name];
+        if (workspacePath !== void 0) {
+          dependencies[name] = {
+            type: "workspace",
+            link: (0, import_path5.join)(cwd, workspacePath)
+          };
+        } else {
+          dependencies[name] = {
+            type: "workspace",
+            link: (0, import_path5.join)(cwd, path, target)
+          };
+        }
+        continue;
+      }
+      const version = resolvedVersions[name] ?? resolvedVersions[`${workspace.name}/${name}`];
+      if (version) {
+        dependencies[name] = {
+          type: "package",
+          version
+        };
+      } else {
+        dependencies[name] = {
+          type: "package",
+          version: specifier
+        };
+      }
+    }
+    importers[path] = dependencies;
+  }
+  const packages = await buildPackages(cwd, importers);
   return {
     cwd,
     packages
   };
 };
-var findLockFile = async (path, level = 5) => {
+var parseJsonc = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    return JSON.parse(stripJsoncSyntax(text));
+  }
+};
+var stripJsoncSyntax = (text) => {
+  let result = "";
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '"') {
+      result += char;
+      index++;
+      while (index < text.length) {
+        const stringChar = text[index];
+        result += stringChar;
+        index++;
+        if (stringChar === "\\") {
+          result += text[index] ?? "";
+          index++;
+          continue;
+        }
+        if (stringChar === '"') {
+          break;
+        }
+      }
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "/") {
+      while (index < text.length && text[index] !== "\n") {
+        index++;
+      }
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "*") {
+      index += 2;
+      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) {
+        index++;
+      }
+      index += 2;
+      continue;
+    }
+    if (char === ",") {
+      let ahead = index + 1;
+      while (ahead < text.length && /\s/.test(text[ahead])) {
+        ahead++;
+      }
+      if (text[ahead] === "}" || text[ahead] === "]") {
+        index++;
+        continue;
+      }
+    }
+    result += char;
+    index++;
+  }
+  return result;
+};
+
+// src/package-manager/pnpm.ts
+var import_path6 = require("path");
+var import_yaml = require("yaml");
+var pnpm = async (cwd, lockFile) => {
+  const data = (0, import_yaml.parse)(lockFile);
+  const importers = {};
+  for (const [path, importee] of Object.entries(data.importers)) {
+    const deps = { ...importee.devDependencies, ...importee.optionalDependencies, ...importee.dependencies };
+    const dependencies = {};
+    for (const [name, entry] of Object.entries(deps)) {
+      if (entry.version.startsWith("link:")) {
+        dependencies[name] = {
+          type: "workspace",
+          link: (0, import_path6.join)(cwd, path, entry.version.substring(5))
+        };
+      } else {
+        dependencies[name] = {
+          type: "package",
+          version: entry.version
+        };
+      }
+    }
+    importers[path] = dependencies;
+  }
+  const packages = await buildPackages(cwd, importers);
+  return {
+    cwd,
+    packages
+  };
+};
+
+// src/package-manager/index.ts
+var parsers = {
+  "pnpm-lock.yaml": pnpm,
+  "bun.lock": bun
+};
+var loadPackageManager = async (search, level = 5) => {
   if (!level) {
-    throw new TypeError("No pnpm lock file found");
+    throw new TypeError("No pnpm or bun lock file found");
   }
-  const file = (0, import_path4.join)(path, "pnpm-lock.yaml");
-  const exists = await fileExist(file);
-  if (exists) {
-    return [path, await (0, import_promises3.readFile)(file, "utf8")];
+  for (const [lockFileName, parser] of Object.entries(parsers)) {
+    const file = (0, import_path7.join)(search, lockFileName);
+    if (await fileExist(file)) {
+      return parser(search, await (0, import_promises4.readFile)(file, "utf8"));
+    }
   }
-  return findLockFile((0, import_path4.normalize)((0, import_path4.join)(path, "..")), level - 1);
+  return loadPackageManager((0, import_path7.normalize)((0, import_path7.join)(search, "..")), level - 1);
 };
 var fileExist = async (file) => {
   try {
-    const stat2 = await (0, import_promises3.lstat)(file);
+    const stat2 = await (0, import_promises4.lstat)(file);
     if (stat2.isFile()) {
       return true;
     }
@@ -265,11 +452,7 @@ var fileExist = async (file) => {
 
 // src/index.ts
 var loadWorkspace = async (search) => {
-  const { cwd, packages } = await pnpm(toAbsolute(search));
-  return {
-    cwd,
-    packages
-  };
+  return loadPackageManager(toAbsolute(search));
 };
 var defaultOptions = {
   extensions: ["js", "mjs", "jsx", "ts", "mts", "tsx"]
@@ -284,10 +467,11 @@ var generateFileHash = async (workspace, file, opts = {}) => {
 var generateFolderHash = async (workspace, folder, opts = {}) => {
   const options = { ...defaultOptions, ...opts };
   const hashes = /* @__PURE__ */ new Map();
-  const files = await (0, import_promises4.readdir)(folder, { recursive: true, withFileTypes: true });
+  const absoluteFolder = toAbsolute(folder);
+  const files = await (0, import_promises5.readdir)(absoluteFolder, { recursive: true, withFileTypes: true });
   for (const file of files) {
-    if (file.isFile() && options.extensions.includes((0, import_path5.extname)(file.name).substring(1))) {
-      const f = (0, import_path5.resolve)(file.parentPath, file.name);
+    if (file.isFile() && options.extensions.includes((0, import_path8.extname)(file.name).substring(1))) {
+      const f = (0, import_path8.resolve)(file.parentPath, file.name);
       await generateRecursiveFileHashes(workspace, f, f, options.extensions, hashes);
     }
   }

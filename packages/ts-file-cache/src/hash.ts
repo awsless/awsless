@@ -20,7 +20,8 @@ export const generateRecursiveFileHashes = async (
 			throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`)
 		}
 
-		const relFile = relative(workspace.cwd, file)
+		// Posix separators keep the hash identical across platforms.
+		const relFile = relative(workspace.cwd, file).split(sep).join('/')
 
 		if (hashes.has(relFile)) {
 			return
@@ -89,9 +90,18 @@ export const generateRecursiveFileHashes = async (
 }
 
 export const mergeHashes = (hashes: Map<string, Buffer>) => {
-	const merge = Buffer.concat(Array.from(hashes.values()).sort())
+	// Sorting by entry name keeps the result independent of the file
+	// traversal order, and including the name in the digest makes two
+	// files swapping their contents produce a different hash.
+	const names = Array.from(hashes.keys()).sort()
+	const merged = createHash('sha1')
 
-	return createHash('sha1').update(merge).digest('hex')
+	for (const name of names) {
+		merged.update(name)
+		merged.update(hashes.get(name)!)
+	}
+
+	return merged.digest('hex')
 }
 
 const getPackageName = (importee: string) => {
@@ -109,7 +119,6 @@ const getPackageName = (importee: string) => {
 }
 
 const findDependency = (workspace: Workspace, module: string, source: string) => {
-	// const module = getPackageName(importee)
 	const pkg = Object.values(workspace.packages)
 		// The separator suffix stops prefix packages from matching their
 		// sibling's sources, like "cli" matching "cli-next" files.

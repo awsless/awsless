@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/ts-file-cache",
-	"version": "0.0.16",
+	"version": "0.0.17",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -29,8 +29,8 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@swc/core": "^1.10.18",
-		"swc-walk": "1.0.0-rc.2",
-		"yaml": "^2.5.0"
+		"@swc/core": "^1.16.0",
+		"swc-walk": "3.0.0-rc.0",
+		"yaml": "^2.9.0"
 	}
 }

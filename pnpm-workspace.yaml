@@ -1,14 +1,4 @@
-minimumReleaseAge: 8640
-minimumReleaseAgeExclude:
-    - '@types/bun'
-    - '@awsless/*'
-    - '@terraforge/*'
-    - typescript
-    - rolldown
-    - '@oxc-project/*'
-    - '@rolldown/*'
-    - '@napi-rs/*'
-    - '@emnapi/*'
+minimumReleaseAge: 0
 
 # Every v4 vitest resolves to one exact version, so the chai plugin
 # registration never mixes vitest subpackage versions.
