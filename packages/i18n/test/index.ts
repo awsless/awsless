@@ -80,14 +80,14 @@ describe('i18n', () => {
 
 		expect(file).toBe(
 			'{\n' +
-				'  "alpha": {\n' +
-				'    "fr": "alpha-fr",\n' +
-				'    "jp": "alpha-jp"\n' +
-				'  },\n' +
-				'  "zulu": {\n' +
-				'    "fr": "zulu-fr",\n' +
-				'    "jp": "zulu-jp"\n' +
-				'  }\n' +
+				'\t"alpha": {\n' +
+				'\t\t"fr": "alpha-fr",\n' +
+				'\t\t"jp": "alpha-jp"\n' +
+				'\t},\n' +
+				'\t"zulu": {\n' +
+				'\t\t"fr": "zulu-fr",\n' +
+				'\t\t"jp": "zulu-jp"\n' +
+				'\t}\n' +
 				'}\n'
 		)
 	})

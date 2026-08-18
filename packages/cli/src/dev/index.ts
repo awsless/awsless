@@ -1,8 +1,8 @@
 import { loadWorkspace } from '@awsless/ts-file-cache'
 import { constantCase } from 'change-case'
-import { watch } from 'chokidar'
+import { watch } from 'fs'
 import { mkdir, rm, writeFile } from 'fs/promises'
-import { basename, join, sep } from 'path'
+import { basename, dirname, join, sep } from 'path'
 import { createApp } from '../app.js'
 import { build, getBuildPath } from '../build/index.js'
 import { AppConfig } from '../config/app.js'
@@ -587,28 +587,28 @@ export const startDev = async (props: {
 	// the background right away, so the rebuild overlaps with the time
 	// between saving & the next request instead of blocking it. Build
 	// errors stay quiet here - the next invoke retries & surfaces them.
-	// Chokidar 5 dropped glob support, so the ignores are a function.
-	// Pruning the ignored directories also keeps the watcher away from
-	// unwatchable files like the git fsmonitor daemon socket.
+	// One native recursive watcher instead of chokidar: chokidar arms a
+	// watcher per directory, which takes minutes on big projects &
+	// starves the dev servers before it ever gets ready.
 	const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
-
-	const watcher = watch(directories.root, {
-		ignored: path => {
-			if (path.split(sep).some(segment => ignoredDirectories.has(segment))) {
-				return true
-			}
-
-			const base = basename(path)
-
-			return base.includes('.stack.') || base.startsWith('app.json')
-		},
-		ignoreInitial: true,
-		awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
-	})
 
 	let rebuildTimer: ReturnType<typeof setTimeout> | undefined
 
-	watcher.on('all', () => {
+	const watcher = watch(directories.root, { recursive: true }, (_event, filename) => {
+		if (!filename) {
+			return
+		}
+
+		if (filename.split(sep).some(segment => ignoredDirectories.has(segment))) {
+			return
+		}
+
+		const base = basename(filename)
+
+		if (base.includes('.stack.') || base.startsWith('app.json')) {
+			return
+		}
+
 		dirty = true
 
 		// Debounced, so a burst of saves triggers one rebuild - and a
@@ -623,9 +623,7 @@ export const startDev = async (props: {
 
 	// Files like the local config are only read during worker module
 	// init, so a change just needs a worker restart, not a rebuild.
-	const restartWatcher = dev.restartPaths.length > 0 ? watch(dev.restartPaths, { ignoreInitial: true }) : undefined
-
-	restartWatcher?.on('all', () => {
+	const restartWorker = () => {
 		if (stopping) {
 			return
 		}
@@ -643,7 +641,23 @@ export const startDev = async (props: {
 				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
 				log(`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`)
 			})
-	})
+	}
+
+	// The restart paths may not exist yet & the native watch throws on
+	// missing paths, so each parent directory is watched instead.
+	const restartWatchers: ReturnType<typeof watch>[] = []
+
+	for (const path of dev.restartPaths) {
+		await mkdir(dirname(path), { recursive: true })
+
+		restartWatchers.push(
+			watch(dirname(path), (_event, filename) => {
+				if (filename === basename(path)) {
+					restartWorker()
+				}
+			})
+		)
+	}
 
 	return {
 		dashboardPort,
@@ -653,8 +667,11 @@ export const startDev = async (props: {
 
 			await rm(join(directories.output, 'local', 'env.json'), { force: true })
 			clearTimeout(rebuildTimer)
-			await watcher.close()
-			await restartWatcher?.close()
+			watcher.close()
+
+			for (const restartWatcher of restartWatchers) {
+				restartWatcher.close()
+			}
 
 			// An in-flight background rebuild finishes (or bails on the
 			// stopping flag) before the teardown, so it can never respawn

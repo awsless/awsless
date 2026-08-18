@@ -31,7 +31,7 @@ const loadOverrideCache = async (cwd) => {
 	return loadFile(cwd, OVERRIDE_CACHE_FILE);
 };
 const saveCache = async (cwd, cache) => {
-	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), void 0, 2) + "\n");
+	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), void 0, "	") + "\n");
 };
 const mergeCaches = (...caches) => {
 	const merged = new Cache();

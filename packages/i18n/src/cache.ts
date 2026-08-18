@@ -30,7 +30,7 @@ export const loadCache = async (cwd: string): Promise<Cache> => {
 }
 
 export const saveCache = async (cwd: string, cache: Cache) => {
-	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), undefined, 2) + '\n')
+	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), undefined, '\t') + '\n')
 }
 
 export const mergeCaches = (...caches: Cache[]) => {

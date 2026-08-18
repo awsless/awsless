@@ -1,4 +1,4 @@
-import { watch } from 'chokidar'
+import { watch } from 'fs'
 import { basename, sep } from 'path'
 import { debug } from '../../cli/debug.js'
 import { ProgramOptions } from '../../cli/program.js'
@@ -7,6 +7,8 @@ import { directories } from '../../util/path.js'
 import { AppConfig } from '../app.js'
 import { StackConfig } from '../stack.js'
 import { loadAppConfig, loadStackConfigs } from './load.js'
+
+const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
 
 const isConfigFile = (path: string) => {
 	const base = basename(path)
@@ -23,40 +25,37 @@ export const watchConfig = async (
 
 	debug('Start watching...')
 
-	// Chokidar 5 dropped glob support, so the whole project is watched
-	// with a filter that prunes the ignored directories & only lets the
-	// app & stack config files through.
-	const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
+	// One native recursive watcher instead of chokidar: chokidar arms a
+	// watcher per directory, which takes minutes on big projects &
+	// starves the dev servers before it ever gets ready.
+	let reloadTimer: ReturnType<typeof setTimeout> | undefined
 
-	const watcher = watch(directories.root, {
-		ignored: (path, stats) => {
-			if (path.split(sep).some(segment => ignoredDirectories.has(segment))) {
-				return true
-			}
-
-			if (stats?.isFile()) {
-				return !isConfigFile(path)
-			}
-
-			return false
-		},
-		awaitWriteFinish: true,
-	})
-
-	watcher.on('change', async path => {
-		if (!isConfigFile(path)) {
+	const watcher = watch(directories.root, { recursive: true }, (_event, filename) => {
+		if (!filename) {
 			return
 		}
 
-		try {
-			const appConfig = await loadAppConfig(options)
-			const stackConfigs = await loadStackConfigs(options)
-
-			validateFeatures({ appConfig, stackConfigs })
-			resolve({ appConfig, stackConfigs })
-		} catch (error) {
-			reject(error)
+		if (filename.split(sep).some(segment => ignoredDirectories.has(segment))) {
+			return
 		}
+
+		if (!isConfigFile(filename)) {
+			return
+		}
+
+		// Debounced, so a burst of saves triggers one reload.
+		clearTimeout(reloadTimer)
+		reloadTimer = setTimeout(async () => {
+			try {
+				const appConfig = await loadAppConfig(options)
+				const stackConfigs = await loadStackConfigs(options)
+
+				validateFeatures({ appConfig, stackConfigs })
+				resolve({ appConfig, stackConfigs })
+			} catch (error) {
+				reject(error)
+			}
+		}, 150)
 	})
 
 	return watcher
