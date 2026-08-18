@@ -13,7 +13,7 @@ export { download } from './server/download'
 export { launch } from './server/launch'
 
 // table
-export { define, Table, AnyTable } from './table'
+export { define, type Table, type AnyTable } from './table'
 
 // ops
 export {

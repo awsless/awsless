@@ -25,7 +25,7 @@
   },
   "scripts": {
     "test": "pnpm code test",
-    "build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+    "build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
     "prepublish": "if pnpm test; then pnpm build; else exit; fi"
   }
 }

@@ -1,5 +1,5 @@
 export { Arg, $ } from './argument'
 export { createQuery } from './query'
-export { createClient, Client, GraphQLSchema, RootSchema } from './client'
-export { createFetcher, Fetcher } from './fetcher'
+export { createClient, type Client, type GraphQLSchema, type RootSchema } from './client'
+export { createFetcher, type Fetcher } from './fetcher'
 export { GraphQLError } from './error'

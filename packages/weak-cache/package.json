@@ -33,7 +33,7 @@
   },
   "scripts": {
     "test": "pnpm exec code test",
-    "build": "pnpm exec tsup src/index.ts --format cjs,esm --dts --clean",
+    "build": "pnpm exec tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
     "prepublish": "if pnpm test; then pnpm build; else exit; fi"
   },
   "devDependencies": {

@@ -7,7 +7,7 @@ import {
 import { mockClient } from 'aws-sdk-vitest-mock'
 import { nextTick, mockFn } from '@awsless/utils'
 // @ts-ignore
-import { Mock } from 'vitest'
+import type { Mock } from 'vitest'
 
 export const mockSSM = (values: Record<string, string>) => {
 	const mock = mockFn(() => {})

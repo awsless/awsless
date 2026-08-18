@@ -1,52 +1,40 @@
-// src/mock.ts
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { mockClient } from "aws-sdk-client-mock";
-var mockSES = (handler) => {
-  const fn = vi.fn(handler ?? (() => {
-  }));
-  mockClient(SESv2Client).on(SendEmailCommand).callsFake((input) => {
-    fn(input);
-  });
-  beforeEach(() => {
-    fn.mockClear();
-  });
-  return fn;
-};
-
-// src/client.ts
-import { SESv2Client as SESv2Client2 } from "@aws-sdk/client-sesv2";
 import { globalClient } from "@awsless/utils";
-var sesClient = globalClient(() => {
-  return new SESv2Client2({});
+//#region src/mock.ts
+const mockSES = (handler) => {
+	const fn = vi.fn(handler ?? (() => {}));
+	mockClient(SESv2Client).on(SendEmailCommand).callsFake((input) => {
+		fn(input);
+	});
+	beforeEach(() => {
+		fn.mockClear();
+	});
+	return fn;
+};
+//#endregion
+//#region src/client.ts
+const sesClient = globalClient(() => {
+	return new SESv2Client({});
 });
-
-// src/commands.ts
-import { SendEmailCommand as SendEmailCommand2 } from "@aws-sdk/client-sesv2";
-var sendEmail = async ({ client = sesClient(), subject, from, to, html }) => {
-  const command = new SendEmailCommand2({
-    FromEmailAddress: from,
-    Destination: {
-      ToAddresses: to
-    },
-    Content: {
-      Simple: {
-        Subject: {
-          Data: subject,
-          Charset: "UTF-8"
-        },
-        Body: {
-          Html: {
-            Data: html,
-            Charset: "UTF-8"
-          }
-        }
-      }
-    }
-  });
-  return client.send(command);
+//#endregion
+//#region src/commands.ts
+const sendEmail = async ({ client = sesClient(), subject, from, to, html }) => {
+	const command = new SendEmailCommand({
+		FromEmailAddress: from,
+		Destination: { ToAddresses: to },
+		Content: { Simple: {
+			Subject: {
+				Data: subject,
+				Charset: "UTF-8"
+			},
+			Body: { Html: {
+				Data: html,
+				Charset: "UTF-8"
+			} }
+		} }
+	});
+	return client.send(command);
 };
-export {
-  mockSES,
-  sendEmail,
-  sesClient
-};
+//#endregion
+export { mockSES, sendEmail, sesClient };

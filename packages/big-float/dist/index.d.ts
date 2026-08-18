@@ -1,10 +1,12 @@
+//#region src/type.d.ts
 type IBigFloat = {
-    readonly exponent: number;
-    readonly coefficient: bigint;
+  readonly exponent: number;
+  readonly coefficient: bigint;
 };
 type StringNumericLiteral = `${number}`;
 type Numeric = IBigFloat | number | bigint | StringNumericLiteral;
-
+//#endregion
+//#region src/bigfloat.d.ts
 /**
  * Represents an arbitrary-precision floating point number.
  *
@@ -12,35 +14,36 @@ type Numeric = IBigFloat | number | bigint | StringNumericLiteral;
  * similar to scientific notation: `coefficient × 10^exponent`.
  */
 declare class BigFloat implements IBigFloat {
-    /**
-     * The power of 10 applied to the coefficient.
-     * @type {number}
-     */
-    readonly exponent: number;
-    /**
-     * The integer coefficient of the floating-point number.
-     * @type {bigint}
-     */
-    readonly coefficient: bigint;
-    /**
-     * Creates a new BigFloat instance from a numeric value.
-     * @param {Numeric} n - The number to parse into a BigFloat.
-     */
-    constructor(n: Numeric);
-    /**
-     * Converts the BigFloat to a JSON-compatible string representation.
-     * Equivalent to calling {@link BigFloat.toString}.
-     * @returns {StringNumericLiteral} A string representation of the BigFloat.
-     */
-    toJSON(): StringNumericLiteral;
-    /**
-     * Converts the BigFloat to its string representation.
-     * @param {number} [radix] - The base/radix for string conversion (e.g. 10 for decimal, 16 for hex).
-     * @returns {StringNumericLiteral} A string representation of the BigFloat.
-     */
-    toString(radix?: number): StringNumericLiteral;
+  /**
+   * The power of 10 applied to the coefficient.
+   * @type {number}
+   */
+  readonly exponent: number;
+  /**
+   * The integer coefficient of the floating-point number.
+   * @type {bigint}
+   */
+  readonly coefficient: bigint;
+  /**
+   * Creates a new BigFloat instance from a numeric value.
+   * @param {Numeric} n - The number to parse into a BigFloat.
+   */
+  constructor(n: Numeric);
+  /**
+   * Converts the BigFloat to a JSON-compatible string representation.
+   * Equivalent to calling {@link BigFloat.toString}.
+   * @returns {StringNumericLiteral} A string representation of the BigFloat.
+   */
+  toJSON(): StringNumericLiteral;
+  /**
+   * Converts the BigFloat to its string representation.
+   * @param {number} [radix] - The base/radix for string conversion (e.g. 10 for decimal, 16 for hex).
+   * @returns {StringNumericLiteral} A string representation of the BigFloat.
+   */
+  toString(radix?: number): StringNumericLiteral;
 }
-
+//#endregion
+//#region src/arithmetic.d.ts
 /**
  * Returns the negation of a number.
  * @param {Numeric} n - The number to negate.
@@ -127,7 +130,8 @@ declare const pow: (base: Numeric, exp: Numeric) => BigFloat;
  * @returns {BigFloat} The factorial of `n`.
  */
 declare const fact: (n: Numeric) => BigFloat;
-
+//#endregion
+//#region src/constants.d.ts
 declare const ZERO: BigFloat;
 declare const ONE: BigFloat;
 declare const TWO: BigFloat;
@@ -148,7 +152,8 @@ declare const QUADRILLION: BigFloat;
 declare const QUINTILLION: BigFloat;
 declare const SEXTILLION: BigFloat;
 declare const SEPTILLION: BigFloat;
-
+//#endregion
+//#region src/constructors.d.ts
 declare const make: (n: IBigFloat) => BigFloat;
 /**
  * Parses a string or numeric value into a BigFloat instance.
@@ -182,7 +187,8 @@ declare const fixed: (n: Numeric, decimals: number) => StringNumericLiteral;
  * @returns {StringNumericLiteral} The scientific notation of `n`.
  */
 declare const scientific: (n: Numeric) => StringNumericLiteral;
-
+//#endregion
+//#region src/percision.d.ts
 declare let PRECISION: number;
 /**
  * Sets the global precision for BigFloat operations.
@@ -196,7 +202,8 @@ declare let PRECISION: number;
  * @returns {void}
  */
 declare const setPrecision: (n: number) => void;
-
+//#endregion
+//#region src/predicates.d.ts
 /**
  * Checks whether a value is an instance of BigFloat.
  * @param {unknown} n - The value to check.
@@ -227,7 +234,8 @@ declare const isPositive: (n: Numeric) => boolean;
  * @returns {boolean} True if `n` is zero, otherwise false.
  */
 declare const isZero: (n: Numeric) => boolean;
-
+//#endregion
+//#region src/relational.d.ts
 /**
  * Checks whether two numbers are equal.
  * @param {Numeric} a - The first number.
@@ -290,5 +298,5 @@ declare const max: (...numbers: Numeric[]) => BigFloat;
  * @returns {BigFloat} `number` constrained to the range `[min, max]`.
  */
 declare const clamp: (number: Numeric, min: Numeric, max: Numeric) => BigFloat;
-
-export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, type IBigFloat, MILLION, NINE, type Numeric, ONE, PRECISION, QUADRILLION, QUINTILLION, SEPTILLION, SEVEN, SEXTILLION, SIX, type StringNumericLiteral, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, clamp, cmp, div, eq, fact, fixed, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, make, max, min, mul, neg, parse, pow, round, scientific, setPrecision, sqrt, string, sub };
+//#endregion
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, IBigFloat, MILLION, NINE, Numeric, ONE, PRECISION, QUADRILLION, QUINTILLION, SEPTILLION, SEVEN, SEXTILLION, SIX, StringNumericLiteral, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, clamp, cmp, div, eq, fact, fixed, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, make, max, min, mul, neg, parse, pow, round, scientific, setPrecision, sqrt, string, sub };

@@ -1,81 +1,82 @@
-import * as _aws_sdk_client_sqs from '@aws-sdk/client-sqs';
-import { SQSClient } from '@aws-sdk/client-sqs';
-export { SQSClient } from '@aws-sdk/client-sqs';
-import { Duration } from '@awsless/duration';
-
+import { SQSClient, SQSClient as SQSClient$1 } from "@aws-sdk/client-sqs";
+import { Duration } from "@awsless/duration";
+//#region src/client.d.ts
 declare const sqsClient: {
-    (): SQSClient;
-    set(client: SQSClient): void;
+  (): SQSClient$1;
+  set(client: SQSClient$1): void;
 };
-
+//#endregion
+//#region src/types.d.ts
 type Attributes = {
-    [key: string]: string;
+  [key: string]: string;
 };
 interface SendMessageOptions<Payload = unknown> {
-    client?: SQSClient;
-    queue: string;
-    payload: Payload;
-    delay?: number;
-    groupId?: string;
-    deduplicationId?: string;
-    attributes?: Attributes;
+  client?: SQSClient$1;
+  queue: string;
+  payload: Payload;
+  delay?: number;
+  groupId?: string;
+  deduplicationId?: string;
+  attributes?: Attributes;
 }
 interface SendMessageBatchOptions<Payload = unknown> {
-    client?: SQSClient;
-    queue: string;
-    items: BatchItem<Payload>[];
+  client?: SQSClient$1;
+  queue: string;
+  items: BatchItem<Payload>[];
 }
 interface BatchItem<Payload = unknown> {
-    payload: Payload;
-    delay?: number;
-    groupId?: string;
-    deduplicationId?: string;
-    attributes?: Attributes;
+  payload: Payload;
+  delay?: number;
+  groupId?: string;
+  deduplicationId?: string;
+  attributes?: Attributes;
 }
-
-declare const getQueueUrl: (queue: string, client?: SQSClient) => Promise<string>;
-declare const getCachedQueueUrl: (queue: string, client?: SQSClient) => Promise<string>;
-declare const sendMessage: ({ client, queue, payload, delay, groupId, deduplicationId, attributes, }: SendMessageOptions) => Promise<void>;
+//#endregion
+//#region src/commands.d.ts
+declare const getQueueUrl: (queue: string, client?: SQSClient$1) => Promise<string>;
+declare const getCachedQueueUrl: (queue: string, client?: SQSClient$1) => Promise<string>;
+declare const sendMessage: ({ client, queue, payload, delay, groupId, deduplicationId, attributes }: SendMessageOptions) => Promise<void>;
 declare const sendMessageBatch: ({ client, queue, items }: SendMessageBatchOptions) => Promise<void>;
-declare const receiveMessages: ({ client, queue, maxMessages, waitTime, visibilityTimeout, abortSignal, }: {
-    client?: SQSClient;
-    queue: string;
-    maxMessages?: number;
-    waitTime?: Duration;
-    visibilityTimeout: Duration;
-    abortSignal?: AbortSignal;
-}) => Promise<_aws_sdk_client_sqs.Message[]>;
-declare const deleteMessage: ({ client, queue, receiptHandle, }: {
-    client?: SQSClient;
-    queue: string;
-    receiptHandle: string;
+declare const receiveMessages: ({ client, queue, maxMessages, waitTime, visibilityTimeout, abortSignal }: {
+  client?: SQSClient$1;
+  queue: string;
+  maxMessages?: number;
+  waitTime?: Duration;
+  visibilityTimeout: Duration;
+  abortSignal?: AbortSignal;
+}) => Promise<import("@aws-sdk/client-sqs").Message[]>;
+declare const deleteMessage: ({ client, queue, receiptHandle }: {
+  client?: SQSClient$1;
+  queue: string;
+  receiptHandle: string;
 }) => Promise<void>;
-declare const deleteMessageBatch: ({ client, queue, receiptHandles, }: {
-    client?: SQSClient;
-    queue: string;
-    receiptHandles: string[];
+declare const deleteMessageBatch: ({ client, queue, receiptHandles }: {
+  client?: SQSClient$1;
+  queue: string;
+  receiptHandles: string[];
 }) => Promise<void>;
-declare const changeMessageVisibility: ({ client, queue, receiptHandle, visibilityTimeout, }: {
-    client?: SQSClient;
-    queue: string;
-    receiptHandle: string;
-    visibilityTimeout: Duration;
+declare const changeMessageVisibility: ({ client, queue, receiptHandle, visibilityTimeout }: {
+  client?: SQSClient$1;
+  queue: string;
+  receiptHandle: string;
+  visibilityTimeout: Duration;
 }) => Promise<void>;
-declare function subscribe({ client, queue, maxMessages, waitTime, visibilityTimeout, signal, }: {
-    client?: SQSClient;
-    queue: string;
-    maxMessages?: number;
-    visibilityTimeout: Duration;
-    waitTime?: Duration;
-    signal?: AbortSignal;
+declare function subscribe({ client, queue, maxMessages, waitTime, visibilityTimeout, signal }: {
+  client?: SQSClient$1;
+  queue: string;
+  maxMessages?: number;
+  visibilityTimeout: Duration;
+  waitTime?: Duration;
+  signal?: AbortSignal;
 }): AsyncGenerator<{
-    payload: unknown;
-    attributes: Record<string, string>;
+  payload: unknown;
+  attributes: Record<string, string>;
 }[], void, unknown>;
-
+//#endregion
+//#region src/mock.d.ts
 type Queues = {
-    [key: string]: (payload: unknown) => unknown;
+  [key: string]: (payload: unknown) => unknown;
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: any; };
-
-export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, deleteMessageBatch, getCachedQueueUrl, getQueueUrl, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };
+//#endregion
+export { type BatchItem, SQSClient, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, deleteMessageBatch, getCachedQueueUrl, getQueueUrl, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };

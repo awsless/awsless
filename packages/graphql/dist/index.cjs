@@ -1,529 +1,424 @@
-"use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/index.ts
-var src_exports = {};
-__export(src_exports, {
-  $: () => $,
-  Arg: () => Arg,
-  GraphQLError: () => GraphQLError,
-  createClient: () => createClient,
-  createFetcher: () => createFetcher,
-  createQuery: () => createQuery,
-  generate: () => generate
-});
-module.exports = __toCommonJS(src_exports);
-
-// src/client/argument.ts
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+let graphql = require("graphql");
+//#region src/client/argument.ts
 var Arg = class {
-  constructor(type, value) {
-    this.type = type;
-    this.value = value;
-  }
+	type;
+	value;
+	constructor(type, value) {
+		this.type = type;
+		this.value = value;
+	}
 };
-var $ = (type, value) => {
-  return new Arg(type, value);
+const $ = (type, value) => {
+	return new Arg(type, value);
 };
-
-// src/client/query.ts
-var parseArgs = (args, ctx) => {
-  const argEntries = Object.entries(args).filter(([_, value]) => typeof value !== "undefined");
-  if (argEntries.length === 0) {
-    return "";
-  }
-  return argEntries.map(([name, value]) => {
-    if (value instanceof Arg) {
-      const varName = `v${++ctx.count}`;
-      ctx.vars.push({
-        name: varName,
-        type: value.type,
-        value: value.value
-      });
-      return `${name}:$${varName}`;
-    }
-    if (typeof value === "object" && !Array.isArray(value) && value !== null) {
-      return `${name}:{${parseArgs(value, ctx)}}`;
-    }
-    return `${name}:${JSON.stringify(value)}`;
-  }).join(",");
+//#endregion
+//#region src/client/query.ts
+const parseArgs = (args, ctx) => {
+	const argEntries = Object.entries(args).filter(([_, value]) => typeof value !== "undefined");
+	if (argEntries.length === 0) return "";
+	return argEntries.map(([name, value]) => {
+		if (value instanceof Arg) {
+			const varName = `v${++ctx.count}`;
+			ctx.vars.push({
+				name: varName,
+				type: value.type,
+				value: value.value
+			});
+			return `${name}:$${varName}`;
+		}
+		if (typeof value === "object" && !Array.isArray(value) && value !== null) return `${name}:{${parseArgs(value, ctx)}}`;
+		return `${name}:${JSON.stringify(value)}`;
+	}).join(",");
 };
-var excludedFields = ["__name", "__args"];
-var parseRequest = (request, ctx) => {
-  if (typeof request === "object") {
-    let args = "";
-    if (typeof request.__args === "object") {
-      const argsString = parseArgs(request.__args, ctx);
-      args = argsString ? `(${argsString})` : "";
-    }
-    const fieldNames = Object.keys(request).filter((f) => !excludedFields.includes(f)).filter((f) => Boolean(request[f]));
-    if (fieldNames.length === 0) {
-      return args;
-    }
-    const fieldsSelection = fieldNames.map((f) => `${f}${parseRequest(request[f], ctx)}`).join(",");
-    return `${args}{${fieldsSelection}}`;
-  }
-  return "";
+const excludedFields = ["__name", "__args"];
+const parseRequest = (request, ctx) => {
+	if (typeof request === "object") {
+		let args = "";
+		if (typeof request.__args === "object") {
+			const argsString = parseArgs(request.__args, ctx);
+			args = argsString ? `(${argsString})` : "";
+		}
+		const fieldNames = Object.keys(request).filter((f) => !excludedFields.includes(f)).filter((f) => Boolean(request[f]));
+		if (fieldNames.length === 0) return args;
+		const fieldsSelection = fieldNames.map((f) => `${f}${parseRequest(request[f], ctx)}`).join(",");
+		return `${args}{${fieldsSelection}}`;
+	}
+	return "";
 };
 function createQuery(operation, request) {
-  const context = { count: 0, vars: [] };
-  const result = parseRequest(request, context);
-  const operationName = request.__name || "";
-  const variables = {};
-  const varsString = context.count > 0 ? `(${context.vars.map((arg) => {
-    variables[arg.name] = arg.value;
-    return `$${arg.name}:${arg.type}`;
-  })})` : "";
-  return {
-    query: `${operation} ${operationName}${varsString}${result}`,
-    variables
-  };
+	const context = {
+		count: 0,
+		vars: []
+	};
+	const result = parseRequest(request, context);
+	const operationName = request.__name || "";
+	const variables = {};
+	return {
+		query: `${operation} ${operationName}${context.count > 0 ? `(${context.vars.map((arg) => {
+			variables[arg.name] = arg.value;
+			return `$${arg.name}:${arg.type}`;
+		})})` : ""}${result}`,
+		variables
+	};
 }
-
-// src/client/client.ts
-var createClient = (fetcher) => {
-  return {
-    query(request, props) {
-      return fetcher(createQuery("query", request), props);
-    },
-    mutate(request, props) {
-      return fetcher(createQuery("mutation", request), props);
-    }
-  };
+//#endregion
+//#region src/client/client.ts
+const createClient = (fetcher) => {
+	return {
+		query(request, props) {
+			return fetcher(createQuery("query", request), props);
+		},
+		mutate(request, props) {
+			return fetcher(createQuery("mutation", request), props);
+		}
+	};
 };
-
-// src/client/error.ts
+//#endregion
+//#region src/client/error.ts
 var GraphQLError = class extends Error {
-  constructor(errors) {
-    super(errors[0].message);
-    this.errors = errors;
-  }
+	errors;
+	constructor(errors) {
+		super(errors[0].message);
+		this.errors = errors;
+	}
 };
-
-// src/client/fetcher.ts
-var createFetcher = (optionsOrFunc) => {
-  return async (operation, props = {}) => {
-    const options = typeof optionsOrFunc === "function" ? await optionsOrFunc() : optionsOrFunc;
-    const mime = "application/json";
-    const response = await (props?.fetch ?? fetch)(options.url, {
-      method: "POST",
-      headers: {
-        accept: mime,
-        "content-type": mime,
-        ...options.headers ?? {},
-        ...props.headers ?? {}
-      },
-      body: JSON.stringify(operation),
-      signal: props.signal
-    });
-    const result = await response.json();
-    if (result.errors && result.errors.length > 0) {
-      throw new GraphQLError(result.errors);
-    }
-    return result.data;
-  };
+//#endregion
+//#region src/client/fetcher.ts
+const createFetcher = (optionsOrFunc) => {
+	return async (operation, props = {}) => {
+		const options = typeof optionsOrFunc === "function" ? await optionsOrFunc() : optionsOrFunc;
+		const mime = "application/json";
+		const result = await (await (props?.fetch ?? fetch)(options.url, {
+			method: "POST",
+			headers: {
+				accept: mime,
+				"content-type": mime,
+				...options.headers ?? {},
+				...props.headers ?? {}
+			},
+			body: JSON.stringify(operation),
+			signal: props.signal
+		})).json();
+		if (result.errors && result.errors.length > 0) throw new GraphQLError(result.errors);
+		return result.data;
+	};
 };
-
-// src/generate/request/index.ts
-var import_graphql4 = require("graphql");
-
-// src/generate/common/exclude.ts
-var excludedTypes = [
-  "__Schema",
-  "__Type",
-  "__TypeKind",
-  "__Field",
-  "__InputValue",
-  "__EnumValue",
-  "__Directive",
-  "__DirectiveLocation"
+//#endregion
+//#region src/generate/common/exclude.ts
+const excludedTypes = [
+	"__Schema",
+	"__Type",
+	"__TypeKind",
+	"__Field",
+	"__InputValue",
+	"__EnumValue",
+	"__Directive",
+	"__DirectiveLocation"
 ];
-
-// src/generate/request/type/object.ts
-var import_graphql3 = require("graphql");
-
-// src/generate/request/name.ts
+//#endregion
+//#region src/generate/request/name.ts
 function requestTypeName(type) {
-  return `${type.name}Request`;
+	return `${type.name}Request`;
 }
-
-// src/generate/common/comment.ts
-function comment(comment2) {
-  const lines = [];
-  if (comment2.deprecated) {
-    lines.push(`@deprecated ${comment2.deprecated.replace(/\s/g, " ")}`);
-  }
-  if (comment2.text) {
-    lines.push(...comment2.text.split("\n"));
-  }
-  return lines.length > 0 ? lines.length === 1 ? `
-/** ${lines[0]} */
-` : `
-/**
-${lines.map((l) => ` * ${l}`).join("\n")}
- */
-` : "";
+//#endregion
+//#region src/generate/common/comment.ts
+function comment(comment) {
+	const lines = [];
+	if (comment.deprecated) lines.push(`@deprecated ${comment.deprecated.replace(/\s/g, " ")}`);
+	if (comment.text) lines.push(...comment.text.split("\n"));
+	return lines.length > 0 ? lines.length === 1 ? `\n/** ${lines[0]} */\n` : `\n/**\n${lines.map((l) => ` * ${l}`).join("\n")}\n */\n` : "";
 }
 function typeComment(type) {
-  return comment({
-    text: type.description
-  });
+	return comment({ text: type.description });
 }
 function fieldComment(field) {
-  return comment({
-    deprecated: field.deprecationReason,
-    text: field.description
-  });
+	return comment({
+		deprecated: field.deprecationReason,
+		text: field.description
+	});
 }
 function argumentComment(arg) {
-  return comment({
-    text: arg.description
-  });
+	return comment({ text: arg.description });
 }
-
-// src/generate/request/type/argument.ts
-var import_graphql2 = require("graphql");
-
-// src/generate/common/type.ts
-var import_graphql = require("graphql");
-var renderSep = (type) => {
-  return (0, import_graphql.isNonNullType)(type) ? ":" : "?:";
+//#endregion
+//#region src/generate/common/type.ts
+const renderSep = (type) => {
+	return (0, graphql.isNonNullType)(type) ? ":" : "?:";
 };
-var renderType = (type, required = false) => {
-  if ((0, import_graphql.isNamedType)(type)) {
-    let typeName = type.name;
-    if ((0, import_graphql.isScalarType)(type)) {
-      typeName = `Scalars['${typeName}']`;
-    }
-    return required ? typeName : `(${typeName} | undefined)`;
-  }
-  if ((0, import_graphql.isListType)(type)) {
-    const typing = `${renderType(type.ofType, required)}[]`;
-    return required ? typing : `(${typing} | undefined)`;
-  }
-  return renderType(type.ofType, (0, import_graphql.isNonNullType)(type));
+const renderType = (type, required = false) => {
+	if ((0, graphql.isNamedType)(type)) {
+		let typeName = type.name;
+		if ((0, graphql.isScalarType)(type)) typeName = `Scalars['${typeName}']`;
+		return required ? typeName : `(${typeName} | undefined)`;
+	}
+	if ((0, graphql.isListType)(type)) {
+		const typing = `${renderType(type.ofType, required)}[]`;
+		return required ? typing : `(${typing} | undefined)`;
+	}
+	return renderType(type.ofType, (0, graphql.isNonNullType)(type));
 };
-
-// src/generate/request/type/argument.ts
-var toArgsString = (field) => {
-  return `{${field.args.map((a) => {
-    const type = renderArgumentType(a.type);
-    const arg = `Arg<'${renderVariableArgument(a.type)}', ${type}>`;
-    return `${argumentComment(a)}${a.name}${renderSep(a.type)}${arg} | ${type}`;
-  }).join(",")}}`;
+//#endregion
+//#region src/generate/request/type/argument.ts
+const toArgsString = (field) => {
+	return `{${field.args.map((a) => {
+		const type = renderArgumentType(a.type);
+		const arg = `Arg<'${renderVariableArgument(a.type)}', ${type}>`;
+		return `${argumentComment(a)}${a.name}${renderSep(a.type)}${arg} | ${type}`;
+	}).join(",")}}`;
 };
-var renderArgumentType = (type, required = false) => {
-  if ((0, import_graphql2.isNamedType)(type)) {
-    let typing = type.name;
-    if ((0, import_graphql2.isScalarType)(type)) {
-      typing = `Scalars['${type.name}']`;
-    }
-    return required ? typing : `(${typing} | undefined)`;
-  }
-  if ((0, import_graphql2.isListType)(type)) {
-    const typing = `${renderArgumentType(type.ofType, false)}[]`;
-    return required ? typing : `(${typing} | undefined)`;
-  }
-  return renderArgumentType(type.ofType, (0, import_graphql2.isNonNullType)(type));
+const renderArgumentType = (type, required = false) => {
+	if ((0, graphql.isNamedType)(type)) {
+		let typing = type.name;
+		if ((0, graphql.isScalarType)(type)) typing = `Scalars['${type.name}']`;
+		return required ? typing : `(${typing} | undefined)`;
+	}
+	if ((0, graphql.isListType)(type)) {
+		const typing = `${renderArgumentType(type.ofType, false)}[]`;
+		return required ? typing : `(${typing} | undefined)`;
+	}
+	return renderArgumentType(type.ofType, (0, graphql.isNonNullType)(type));
 };
-var renderVariableArgument = (type, required = false) => {
-  const end = required ? "!" : "";
-  if ((0, import_graphql2.isNamedType)(type)) {
-    return `${type.name}${end}`;
-  }
-  if ((0, import_graphql2.isListType)(type)) {
-    return `[${renderVariableArgument(type.ofType, false)}]${end}`;
-  }
-  return renderVariableArgument(type.ofType, (0, import_graphql2.isNonNullType)(type));
+const renderVariableArgument = (type, required = false) => {
+	const end = required ? "!" : "";
+	if ((0, graphql.isNamedType)(type)) return `${type.name}${end}`;
+	if ((0, graphql.isListType)(type)) return `[${renderVariableArgument(type.ofType, false)}]${end}`;
+	return renderVariableArgument(type.ofType, (0, graphql.isNonNullType)(type));
 };
-
-// src/generate/common/indent.ts
-var INDENT = "	";
-
-// src/generate/request/type/object.ts
-function renderObject(type, ctx) {
-  const fields = type.getFields();
-  const fieldStrings = Object.keys(fields).map((fieldName) => {
-    const field = fields[fieldName];
-    const types2 = [];
-    const resolvedType = (0, import_graphql3.getNamedType)(field.type);
-    const resolvable = !((0, import_graphql3.isEnumType)(resolvedType) || (0, import_graphql3.isScalarType)(resolvedType));
-    const argsPresent = field.args.length > 0;
-    const argsString = toArgsString(field);
-    const argsOptional = !argsString.match(/[^?]:/);
-    if (argsPresent) {
-      types2.push(`{ __args${argsOptional ? "?" : ""}: ${argsString} }`);
-    }
-    if (resolvable) {
-      types2.push(requestTypeName(resolvedType));
-    } else if (!argsPresent) {
-      types2.push("boolean | number");
-    }
-    return [
-      `${fieldComment(field)}${field.name}?: ${types2.join(" & ")}`,
-      `${fieldComment(field)}[key: \`\${string}:${field.name}\`]: ${types2.join(" & ")}`,
-      ""
-    ];
-  }).flat(1);
-  if ((0, import_graphql3.isInterfaceType)(type) && ctx.schema) {
-    const interfaceProperties = ctx.schema.getPossibleTypes(type).map((t) => `['...on ${t.name}']?: ${requestTypeName(t)}`);
-    fieldStrings.push(...interfaceProperties);
-  }
-  fieldStrings.push("__typename?: boolean | number");
-  fieldStrings.push("[key: `${string}:__typename`]: boolean | number");
-  const types = fieldStrings.map(
-    (x) => x.split("\n").filter(Boolean).map((l) => INDENT + l).join("\n")
-  );
-  ctx.add(`${typeComment(type)}export type ${requestTypeName(type)} = {
-${types.join("\n")}
-}`);
+//#endregion
+//#region src/generate/request/type/object.ts
+function renderObject$1(type, ctx) {
+	const fields = type.getFields();
+	const fieldStrings = Object.keys(fields).map((fieldName) => {
+		const field = fields[fieldName];
+		const types = [];
+		const resolvedType = (0, graphql.getNamedType)(field.type);
+		const resolvable = !((0, graphql.isEnumType)(resolvedType) || (0, graphql.isScalarType)(resolvedType));
+		const argsPresent = field.args.length > 0;
+		const argsString = toArgsString(field);
+		const argsOptional = !argsString.match(/[^?]:/);
+		if (argsPresent) types.push(`{ __args${argsOptional ? "?" : ""}: ${argsString} }`);
+		if (resolvable) types.push(requestTypeName(resolvedType));
+		else if (!argsPresent) types.push("boolean | number");
+		return [
+			`${fieldComment(field)}${field.name}?: ${types.join(" & ")}`,
+			`${fieldComment(field)}[key: \`\${string}:${field.name}\`]: ${types.join(" & ")}`,
+			""
+		];
+	}).flat(1);
+	if ((0, graphql.isInterfaceType)(type) && ctx.schema) {
+		const interfaceProperties = ctx.schema.getPossibleTypes(type).map((t) => `['...on ${t.name}']?: ${requestTypeName(t)}`);
+		fieldStrings.push(...interfaceProperties);
+	}
+	fieldStrings.push("__typename?: boolean | number");
+	fieldStrings.push("[key: `${string}:__typename`]: boolean | number");
+	const types = fieldStrings.map((x) => x.split("\n").filter(Boolean).map((l) => "	" + l).join("\n"));
+	ctx.add(`${typeComment(type)}export type ${requestTypeName(type)} = {\n${types.join("\n")}\n}`);
 }
-
-// src/generate/request/type/input.ts
+//#endregion
+//#region src/generate/request/type/input.ts
 function renderInput(type, ctx) {
-  const fields = type.getFields();
-  const fieldStrings = Object.keys(fields).map((fieldName) => {
-    const field = fields[fieldName];
-    return `${argumentComment(field)}${INDENT}${field.name}${renderSep(field.type)} ${renderType(
-      field.type
-    )}
-`;
-  });
-  ctx.add(`${typeComment(type)}export type ${type.name} = {
-${fieldStrings.join("")}}`);
+	const fields = type.getFields();
+	const fieldStrings = Object.keys(fields).map((fieldName) => {
+		const field = fields[fieldName];
+		return `${argumentComment(field)}	${field.name}${renderSep(field.type)} ${renderType(field.type)}\n`;
+	});
+	ctx.add(`${typeComment(type)}export type ${type.name} = {\n${fieldStrings.join("")}}`);
 }
-
-// src/generate/request/type/union.ts
-function renderUnion(type, ctx) {
-  const types = type.getTypes();
-  const fieldStrings = types.map((t) => `['...on ${t.name}']?: ${requestTypeName(t)}`);
-  const commonInterfaces = new Set(
-    types.map((x) => x.getInterfaces?.()).flat(10).filter(Boolean)
-  );
-  fieldStrings.push(
-    ...Array.from(commonInterfaces).map((type2) => {
-      return `['...on ${type2.name}']?: ${requestTypeName(type2)}`;
-    })
-  );
-  fieldStrings.push("__typename?: boolean | number");
-  ctx.add(
-    `${typeComment(type)}export type ${requestTypeName(type)} = {
-${fieldStrings.map((x) => INDENT + x).join("\n")}
-}`
-  );
+//#endregion
+//#region src/generate/request/type/union.ts
+function renderUnion$1(type, ctx) {
+	const types = type.getTypes();
+	const fieldStrings = types.map((t) => `['...on ${t.name}']?: ${requestTypeName(t)}`);
+	const commonInterfaces = new Set(types.map((x) => x.getInterfaces?.()).flat(10).filter(Boolean));
+	fieldStrings.push(...Array.from(commonInterfaces).map((type) => {
+		return `['...on ${type.name}']?: ${requestTypeName(type)}`;
+	}));
+	fieldStrings.push("__typename?: boolean | number");
+	ctx.add(`${typeComment(type)}export type ${requestTypeName(type)} = {\n${fieldStrings.map((x) => "	" + x).join("\n")}\n}`);
 }
-
-// src/generate/request/index.ts
+//#endregion
+//#region src/generate/request/index.ts
 function renderRequest(schema, ctx) {
-  const typeMap = schema.getTypeMap();
-  for (const name in typeMap) {
-    if (excludedTypes.includes(name))
-      continue;
-    const type = typeMap[name];
-    if ((0, import_graphql4.isObjectType)(type) || (0, import_graphql4.isInterfaceType)(type))
-      renderObject(type, ctx);
-    if ((0, import_graphql4.isInputObjectType)(type))
-      renderInput(type, ctx);
-    if ((0, import_graphql4.isUnionType)(type))
-      renderUnion(type, ctx);
-  }
-  const aliases = [
-    { type: schema.getQueryType(), name: "QueryRequest" },
-    { type: schema.getMutationType(), name: "MutationRequest" },
-    { type: schema.getSubscriptionType(), name: "SubscriptionRequest" }
-  ].map(renderAlias).filter(Boolean).join("\n");
-  ctx.add(aliases);
+	const typeMap = schema.getTypeMap();
+	for (const name in typeMap) {
+		if (excludedTypes.includes(name)) continue;
+		const type = typeMap[name];
+		if ((0, graphql.isObjectType)(type) || (0, graphql.isInterfaceType)(type)) renderObject$1(type, ctx);
+		if ((0, graphql.isInputObjectType)(type)) renderInput(type, ctx);
+		if ((0, graphql.isUnionType)(type)) renderUnion$1(type, ctx);
+	}
+	const aliases = [
+		{
+			type: schema.getQueryType(),
+			name: "QueryRequest"
+		},
+		{
+			type: schema.getMutationType(),
+			name: "MutationRequest"
+		},
+		{
+			type: schema.getSubscriptionType(),
+			name: "SubscriptionRequest"
+		}
+	].map(renderAlias$1).filter(Boolean).join("\n");
+	ctx.add(aliases);
+}
+function renderAlias$1({ type, name }) {
+	if (type && requestTypeName(type) !== name) return `export type ${name} = ${requestTypeName(type)}`;
+	return "";
+}
+//#endregion
+//#region src/generate/response/type/enum.ts
+function renderEnum(type, ctx) {
+	const values = type.getValues().map((v) => `'${v.name}'`);
+	ctx.add(`${typeComment(type)}export type ${type.name} = ${values.join(" | ")}`);
+}
+//#endregion
+//#region src/generate/response/type/union.ts
+function renderUnion(type, ctx) {
+	const typeNames = type.getTypes().map((t) => t.name);
+	ctx.add(unionLike(type, typeNames));
+}
+const unionLike = (type, typeNames) => {
+	const prop = `	__union: {\n${typeNames.map((name) => {
+		return `${"	".repeat(2)}['...on ${name}']: ${name}\n`;
+	}).join("")}	}`;
+	return `${typeComment(type)}export type ${type.name} = {\n${prop}\n}`;
+};
+//#endregion
+//#region src/generate/response/type/object.ts
+function renderObject(type, ctx) {
+	const fieldsMap = type.getFields();
+	const fields = Object.keys(fieldsMap).map((fieldName) => fieldsMap[fieldName]);
+	if (!ctx.schema) throw new Error("no schema provided");
+	const typeNames = (0, graphql.isObjectType)(type) ? [type.name] : ctx.schema.getPossibleTypes(type).map((t) => t.name);
+	const fieldStrings = fields.map((f) => {
+		return [
+			`${fieldComment(f)}${f.name}${renderSep(f.type)} ${renderType(f.type)}`,
+			`${fieldComment(f)}[key: \`\${string}:${f.name}\`]: ${renderType(f.type)}`,
+			""
+		];
+	}).flat(1);
+	fieldStrings.push(`__typename: ${typeNames.length > 0 ? typeNames.map((t) => `'${t}'`).join("|") : "string"}`);
+	fieldStrings.push(`[key: \`\${string}:__typename\`]: ${typeNames.length > 0 ? typeNames.map((t) => `'${t}'`).join("|") : "string"}`);
+	const types = fieldStrings.map((x) => x.split("\n").filter(Boolean).map((l) => "	" + l).join("\n"));
+	ctx.add(`${typeComment(type)}export type ${type.name} = {\n${types.join("\n")}\n}`);
+}
+//#endregion
+//#region src/generate/response/type/interface.ts
+function renderInterface(type, ctx) {
+	if (!ctx.schema) throw new Error("schema is required to render unionType");
+	const typeNames = ctx.schema.getPossibleTypes(type).map((t) => t.name);
+	if (!typeNames.length) renderObject(type, ctx);
+	else ctx.add(unionLike(type, typeNames));
+}
+//#endregion
+//#region src/generate/response/index.ts
+function renderResponse(schema, ctx) {
+	const typeMap = schema.getTypeMap();
+	for (const name in typeMap) {
+		if (excludedTypes.includes(name)) continue;
+		const type = typeMap[name];
+		if ((0, graphql.isEnumType)(type)) renderEnum(type, ctx);
+		if ((0, graphql.isUnionType)(type)) renderUnion(type, ctx);
+		if ((0, graphql.isObjectType)(type)) renderObject(type, ctx);
+		if ((0, graphql.isInterfaceType)(type)) renderInterface(type, ctx);
+	}
+	const aliases = [
+		{
+			type: schema.getQueryType(),
+			name: "Query"
+		},
+		{
+			type: schema.getMutationType(),
+			name: "Mutation"
+		},
+		{
+			type: schema.getSubscriptionType(),
+			name: "Subscription"
+		}
+	].map(renderAlias).filter(Boolean).join("\n");
+	ctx.add(aliases);
 }
 function renderAlias({ type, name }) {
-  if (type && requestTypeName(type) !== name) {
-    return `export type ${name} = ${requestTypeName(type)}`;
-  }
-  return "";
+	if (type && type.name !== name) return `export type ${name} = ${type.name}`;
+	return "";
 }
-
-// src/generate/response/index.ts
-var import_graphql6 = require("graphql");
-
-// src/generate/response/type/enum.ts
-function renderEnum(type, ctx) {
-  const values = type.getValues().map((v) => `'${v.name}'`);
-  ctx.add(`${typeComment(type)}export type ${type.name} = ${values.join(" | ")}`);
-}
-
-// src/generate/response/type/union.ts
-function renderUnion2(type, ctx) {
-  const typeNames = type.getTypes().map((t) => t.name);
-  ctx.add(unionLike(type, typeNames));
-}
-var unionLike = (type, typeNames) => {
-  const prop = `${INDENT}__union: {
-${typeNames.map((name) => {
-    return `${INDENT.repeat(2)}['...on ${name}']: ${name}
-`;
-  }).join("")}${INDENT}}`;
-  return `${typeComment(type)}export type ${type.name} = {
-${prop}
-}`;
+//#endregion
+//#region src/generate/schema/index.ts
+const renderSchema = (schema, ctx) => {
+	const types = [
+		{
+			type: schema.getQueryType(),
+			name: "Query",
+			handle: "query"
+		},
+		{
+			type: schema.getMutationType(),
+			name: "Mutation",
+			handle: "mutate"
+		},
+		{
+			type: schema.getSubscriptionType(),
+			name: "Subscription",
+			handle: "subscribe"
+		}
+	].filter((type) => type.type);
+	ctx.add(types.map((type) => {
+		return type.type ? `export type ${type.name}Schema = {\n	request: ${type.name}Request\n	response: ${type.name}\n}` : "";
+	}).join("\n"));
+	ctx.add(`export type Schema = {${types.map((type) => `\n	${type.handle}: ${type.name}Schema`).join("")}\n}`);
 };
-
-// src/generate/response/type/object.ts
-var import_graphql5 = require("graphql");
-function renderObject2(type, ctx) {
-  const fieldsMap = type.getFields();
-  const fields = Object.keys(fieldsMap).map((fieldName) => fieldsMap[fieldName]);
-  if (!ctx.schema)
-    throw new Error("no schema provided");
-  const typeNames = (0, import_graphql5.isObjectType)(type) ? [type.name] : ctx.schema.getPossibleTypes(type).map((t) => t.name);
-  const fieldStrings = fields.map((f) => {
-    return [
-      `${fieldComment(f)}${f.name}${renderSep(f.type)} ${renderType(f.type)}`,
-      `${fieldComment(f)}[key: \`\${string}:${f.name}\`]: ${renderType(f.type)}`,
-      ""
-    ];
-  }).flat(1);
-  fieldStrings.push(`__typename: ${typeNames.length > 0 ? typeNames.map((t) => `'${t}'`).join("|") : "string"}`);
-  fieldStrings.push(
-    `[key: \`\${string}:__typename\`]: ${typeNames.length > 0 ? typeNames.map((t) => `'${t}'`).join("|") : "string"}`
-  );
-  const types = fieldStrings.map(
-    (x) => x.split("\n").filter(Boolean).map((l) => INDENT + l).join("\n")
-  );
-  ctx.add(`${typeComment(type)}export type ${type.name} = {
-${types.join("\n")}
-}`);
-}
-
-// src/generate/response/type/interface.ts
-function renderInterface(type, ctx) {
-  if (!ctx.schema) {
-    throw new Error("schema is required to render unionType");
-  }
-  const typeNames = ctx.schema.getPossibleTypes(type).map((t) => t.name);
-  if (!typeNames.length) {
-    renderObject2(type, ctx);
-  } else {
-    ctx.add(unionLike(type, typeNames));
-  }
-}
-
-// src/generate/response/index.ts
-function renderResponse(schema, ctx) {
-  const typeMap = schema.getTypeMap();
-  for (const name in typeMap) {
-    if (excludedTypes.includes(name))
-      continue;
-    const type = typeMap[name];
-    if ((0, import_graphql6.isEnumType)(type))
-      renderEnum(type, ctx);
-    if ((0, import_graphql6.isUnionType)(type))
-      renderUnion2(type, ctx);
-    if ((0, import_graphql6.isObjectType)(type))
-      renderObject2(type, ctx);
-    if ((0, import_graphql6.isInterfaceType)(type))
-      renderInterface(type, ctx);
-  }
-  const aliases = [
-    { type: schema.getQueryType(), name: "Query" },
-    { type: schema.getMutationType(), name: "Mutation" },
-    { type: schema.getSubscriptionType(), name: "Subscription" }
-  ].map(renderAlias2).filter(Boolean).join("\n");
-  ctx.add(aliases);
-}
-function renderAlias2({ type, name }) {
-  if (type && type.name !== name) {
-    return `export type ${name} = ${type.name}`;
-  }
-  return "";
-}
-
-// src/generate/schema/index.ts
-var renderSchema = (schema, ctx) => {
-  const types = [
-    { type: schema.getQueryType(), name: "Query", handle: "query" },
-    { type: schema.getMutationType(), name: "Mutation", handle: "mutate" },
-    { type: schema.getSubscriptionType(), name: "Subscription", handle: "subscribe" }
-  ].filter((type) => type.type);
-  ctx.add(
-    types.map((type) => {
-      return type.type ? `export type ${type.name}Schema = {
-${INDENT}request: ${type.name}Request
-${INDENT}response: ${type.name}
-}` : "";
-    }).join("\n")
-  );
-  ctx.add(
-    `export type Schema = {${types.map((type) => `
-${INDENT}${type.handle}: ${type.name}Schema`).join("")}
-}`
-  );
-};
-
-// src/generate/scalar/index.ts
-var import_graphql7 = require("graphql");
-var knownTypes = {
-  Int: "number",
-  Float: "number",
-  String: "string",
-  Boolean: "boolean",
-  ID: "string"
+//#endregion
+//#region src/generate/scalar/index.ts
+const knownTypes = {
+	Int: "number",
+	Float: "number",
+	String: "string",
+	Boolean: "boolean",
+	ID: "string"
 };
 function renderScalar(schema, ctx) {
-  const scalarTypes = Object.values(schema.getTypeMap()).filter((type) => (0, import_graphql7.isScalarType)(type)).map((type) => {
-    return `${INDENT}${type.name}: ${getTypeMappedAlias(type, ctx)}
-`;
-  }).join("");
-  ctx.add(`export type Scalars = {
-${scalarTypes}}`);
+	const scalarTypes = Object.values(schema.getTypeMap()).filter((type) => (0, graphql.isScalarType)(type)).map((type) => {
+		return `	${type.name}: ${getTypeMappedAlias(type, ctx)}\n`;
+	}).join("");
+	ctx.add(`export type Scalars = {\n${scalarTypes}}`);
 }
-var getTypeMappedAlias = (type, ctx) => {
-  const map = { ...knownTypes, ...ctx?.config?.scalarTypes ?? {} };
-  return map?.[type.name] || "unknown";
+const getTypeMappedAlias = (type, ctx) => {
+	return {
+		...knownTypes,
+		...ctx?.config?.scalarTypes ?? {}
+	}[type.name] || "unknown";
 };
-
-// src/generate/index.ts
-var generate = (schema, config = {}) => {
-  const lines = [];
-  const ctx = {
-    schema,
-    config,
-    add(code) {
-      lines.push(code);
-    }
-  };
-  const packageName = config.package ?? "@awsless/graphql";
-  ctx.add(`import type { Arg } from '${packageName}'`);
-  ctx.add("// Scalar Types");
-  renderScalar(schema, ctx);
-  ctx.add("// Request Types");
-  renderRequest(schema, ctx);
-  ctx.add("// Response Types");
-  renderResponse(schema, ctx);
-  ctx.add("// Schema Types");
-  renderSchema(schema, ctx);
-  return lines.join("\n\n");
+//#endregion
+//#region src/generate/index.ts
+const generate = (schema, config = {}) => {
+	const lines = [];
+	const ctx = {
+		schema,
+		config,
+		add(code) {
+			lines.push(code);
+		}
+	};
+	const packageName = config.package ?? "@awsless/graphql";
+	ctx.add(`import type { Arg } from '${packageName}'`);
+	ctx.add("// Scalar Types");
+	renderScalar(schema, ctx);
+	ctx.add("// Request Types");
+	renderRequest(schema, ctx);
+	ctx.add("// Response Types");
+	renderResponse(schema, ctx);
+	ctx.add("// Schema Types");
+	renderSchema(schema, ctx);
+	return lines.join("\n\n");
 };
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  $,
-  Arg,
-  GraphQLError,
-  createClient,
-  createFetcher,
-  createQuery,
-  generate
-});
+//#endregion
+exports.$ = $;
+exports.Arg = Arg;
+exports.GraphQLError = GraphQLError;
+exports.createClient = createClient;
+exports.createFetcher = createFetcher;
+exports.createQuery = createQuery;
+exports.generate = generate;

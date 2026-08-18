@@ -1,39 +1,33 @@
-// src/client.ts
-var globalClient = (factory) => {
-  let singleton;
-  const getter = () => {
-    if (!singleton) {
-      singleton = factory();
-    }
-    return singleton;
-  };
-  getter.set = (client) => {
-    singleton = client;
-  };
-  return getter;
+//#region src/client.ts
+const globalClient = (factory) => {
+	let singleton;
+	const getter = () => {
+		if (!singleton) singleton = factory();
+		return singleton;
+	};
+	getter.set = (client) => {
+		singleton = client;
+	};
+	return getter;
 };
-
-// src/mock.ts
-var mockObjectValues = (object) => {
-  const list = {};
-  Object.entries(object).forEach(([key, value]) => {
-    list[key] = mockFn(value);
-  });
-  return Object.freeze(list);
+//#endregion
+//#region src/mock.ts
+const mockObjectValues = (object) => {
+	const list = {};
+	Object.entries(object).forEach(([key, value]) => {
+		list[key] = mockFn(value);
+	});
+	return Object.freeze(list);
 };
-var mockFn = (fn) => {
-  return vi ? vi.fn(fn) : fn;
+const mockFn = (fn) => {
+	return vi ? vi.fn(fn) : fn;
 };
-var nextTick = (fn, ...args) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(fn(...args));
-    }, 0);
-  });
+const nextTick = (fn, ...args) => {
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			resolve(fn(...args));
+		}, 0);
+	});
 };
-export {
-  globalClient,
-  mockFn,
-  mockObjectValues,
-  nextTick
-};
+//#endregion
+export { globalClient, mockFn, mockObjectValues, nextTick };

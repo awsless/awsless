@@ -27,7 +27,7 @@
 	"dependencies": {
 		"@aws-sdk/signature-v4-crt": "^3.1112.0",
 		"rolldown": "1.2.4",
-		"vitest": "4.1.10"
+		"vitest": "4.1.11"
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-cloudfront-keyvaluestore": "^3.1112.0",
@@ -71,6 +71,7 @@
 		"@aws-sdk/client-sts": "^3.1112.0",
 		"@aws-sdk/credential-providers": "^3.1112.0",
 		"@aws-sdk/lib-dynamodb": "^3.1112.0",
+		"@aws-sdk/types": "^3.974.4",
 		"@awsless/big-float": "workspace:^",
 		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/clui": "workspace:^",
@@ -102,7 +103,7 @@
 		"@types/pretty-hrtime": "^1.0.3",
 		"@types/wildstring": "^1.0.3",
 		"@vitest/runner": "^4.1.10",
-		"@vitest/utils": "4.1.10",
+		"@vitest/utils": "4.1.11",
 		"aws-cron-expression-validator": "^1.0.5",
 		"awsless": "workspace:^",
 		"change-case": "^5.4.4",

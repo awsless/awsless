@@ -2,8 +2,6 @@
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
 		"noEmit": true,
-		"module": "Preserve",
-		"moduleResolution": "Bundler",
 		"resolveJsonModule": true,
 		"allowImportingTsExtensions": true,
 		"isolatedModules": true,

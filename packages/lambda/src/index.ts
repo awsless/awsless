@@ -5,7 +5,7 @@ export type { RoutedLambdaContext } from './errors/enhanced'
 // commands
 export { invoke } from './commands/invoke'
 export { listFunctions } from './commands/list-functions'
-export { Invoke, InvokeOptions, InvokeResponse } from './commands/type'
+export { type Invoke, type InvokeOptions, type InvokeResponse } from './commands/type'
 export { TimeoutError } from './errors/timeout'
 export { ValidationError } from './errors/validation'
 // context
@@ -22,11 +22,11 @@ export {
 	ViewableError,
 } from './errors/viewable'
 export { ExpectedError } from './errors/expected'
-export { isErrorResponse, toErrorResponse, ErrorResponse } from './errors/response'
+export { isErrorResponse, toErrorResponse, type ErrorResponse } from './errors/response'
 // client
 export { lambdaClient } from './helpers/client'
 // mock
 export { mockLambda } from './helpers/mock'
-export { lambda, LambdaFunction, LambdaFactory } from './lambda'
+export { lambda, type LambdaFunction, type LambdaFactory } from './lambda'
 // types
-export { Context, ExtraMetaData, Handler, Input, Logger, Loggers } from './type'
+export { type Context, type ExtraMetaData, type Handler, type Input, type Logger, type Loggers } from './type'

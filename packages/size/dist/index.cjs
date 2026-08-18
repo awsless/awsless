@@ -1,178 +1,131 @@
-"use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/index.ts
-var index_exports = {};
-__export(index_exports, {
-  Size: () => Size,
-  bytes: () => bytes,
-  format: () => format,
-  gibibytes: () => gibibytes,
-  kibibytes: () => kibibytes,
-  mebibytes: () => mebibytes,
-  parse: () => parse,
-  pebibytes: () => pebibytes,
-  tebibytes: () => tebibytes,
-  toBytes: () => toBytes,
-  toGibibytes: () => toGibibytes,
-  toKibibytes: () => toKibibytes,
-  toMebibytes: () => toMebibytes,
-  toPebibytes: () => toPebibytes,
-  toSafeBytes: () => toSafeBytes,
-  toSafeGibibytes: () => toSafeGibibytes,
-  toSafeKibibytes: () => toSafeKibibytes,
-  toSafeMebibytes: () => toSafeMebibytes,
-  toSafePebibytes: () => toSafePebibytes,
-  toSafeTebibytes: () => toSafeTebibytes,
-  toTebibytes: () => toTebibytes
-});
-module.exports = __toCommonJS(index_exports);
-
-// src/size.ts
-var BI = 1024n;
-var KIBI = BI;
-var MEBI = KIBI * BI;
-var GIBI = MEBI * BI;
-var TEBI = GIBI * BI;
-var PEBI = TEBI * BI;
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+//#region src/size.ts
+const BI = 1024n;
+const KIBI = BI;
+const MEBI = KIBI * BI;
+const GIBI = MEBI * BI;
+const TEBI = GIBI * BI;
+const PEBI = TEBI * BI;
 var Size = class {
-  constructor(value) {
-    this.value = value;
-  }
-  value;
+	value;
+	constructor(value) {
+		this.value = value;
+	}
 };
-var bytes = (value) => {
-  return new Size(BigInt(value));
+const bytes = (value) => {
+	return new Size(BigInt(value));
 };
-var kibibytes = (value) => {
-  return new Size(BigInt(value) * KIBI);
+const kibibytes = (value) => {
+	return new Size(BigInt(value) * KIBI);
 };
-var mebibytes = (value) => {
-  return new Size(BigInt(value) * MEBI);
+const mebibytes = (value) => {
+	return new Size(BigInt(value) * MEBI);
 };
-var gibibytes = (value) => {
-  return new Size(BigInt(value) * GIBI);
+const gibibytes = (value) => {
+	return new Size(BigInt(value) * GIBI);
 };
-var tebibytes = (value) => {
-  return new Size(BigInt(value) * TEBI);
+const tebibytes = (value) => {
+	return new Size(BigInt(value) * TEBI);
 };
-var pebibytes = (value) => {
-  return new Size(BigInt(value) * PEBI);
+const pebibytes = (value) => {
+	return new Size(BigInt(value) * PEBI);
 };
-var toBytes = (size) => {
-  return Number(toSafeBytes(size));
+const toBytes = (size) => {
+	return Number(toSafeBytes(size));
 };
-var toKibibytes = (size) => {
-  return Number(toSafeKibibytes(size));
+const toKibibytes = (size) => {
+	return Number(toSafeKibibytes(size));
 };
-var toMebibytes = (size) => {
-  return Number(toSafeMebibytes(size));
+const toMebibytes = (size) => {
+	return Number(toSafeMebibytes(size));
 };
-var toGibibytes = (size) => {
-  return Number(toSafeGibibytes(size));
+const toGibibytes = (size) => {
+	return Number(toSafeGibibytes(size));
 };
-var toTebibytes = (size) => {
-  return Number(toSafeTebibytes(size));
+const toTebibytes = (size) => {
+	return Number(toSafeTebibytes(size));
 };
-var toPebibytes = (size) => {
-  return Number(toSafePebibytes(size));
+const toPebibytes = (size) => {
+	return Number(toSafePebibytes(size));
 };
-var toSafeBytes = (size) => {
-  return size.value;
+const toSafeBytes = (size) => {
+	return size.value;
 };
-var toSafeKibibytes = (size) => {
-  return size.value / KIBI;
+const toSafeKibibytes = (size) => {
+	return size.value / KIBI;
 };
-var toSafeMebibytes = (size) => {
-  return size.value / MEBI;
+const toSafeMebibytes = (size) => {
+	return size.value / MEBI;
 };
-var toSafeGibibytes = (size) => {
-  return size.value / GIBI;
+const toSafeGibibytes = (size) => {
+	return size.value / GIBI;
 };
-var toSafeTebibytes = (size) => {
-  return size.value / TEBI;
+const toSafeTebibytes = (size) => {
+	return size.value / TEBI;
 };
-var toSafePebibytes = (size) => {
-  return size.value / PEBI;
+const toSafePebibytes = (size) => {
+	return size.value / PEBI;
 };
-
-// src/parse.ts
-var parse = (value) => {
-  const [count, unit] = value.split(/\s+/);
-  if (count && unit) {
-    const number = BigInt(count);
-    switch (unit) {
-      case "B":
-        return bytes(number);
-      case "KB":
-      case "KiB":
-        return kibibytes(number);
-      case "MB":
-      case "MiB":
-        return mebibytes(number);
-      case "GB":
-      case "GiB":
-        return gibibytes(number);
-      case "TB":
-      case "TiB":
-        return tebibytes(number);
-      case "PB":
-      case "PiB":
-        return pebibytes(number);
-    }
-  }
-  throw new SyntaxError(`Invalid size: ${value}`);
+//#endregion
+//#region src/parse.ts
+const parse = (value) => {
+	const [count, unit] = value.split(/\s+/);
+	if (count && unit) {
+		const number = BigInt(count);
+		switch (unit) {
+			case "B": return bytes(number);
+			case "KB":
+			case "KiB": return kibibytes(number);
+			case "MB":
+			case "MiB": return mebibytes(number);
+			case "GB":
+			case "GiB": return gibibytes(number);
+			case "TB":
+			case "TiB": return tebibytes(number);
+			case "PB":
+			case "PiB": return pebibytes(number);
+		}
+	}
+	throw new SyntaxError(`Invalid size: ${value}`);
 };
-
-// src/format.ts
-var UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
-var format = (size) => {
-  let value = Number(size.value);
-  let index = 0;
-  while (value >= 1024 && index < UNITS.length - 1) {
-    value = value / 1024;
-    index++;
-  }
-  const rounded = Math.round(value * 100) / 100;
-  return `${rounded} ${UNITS[index]}`;
+//#endregion
+//#region src/format.ts
+const UNITS = [
+	"B",
+	"KB",
+	"MB",
+	"GB",
+	"TB",
+	"PB"
+];
+const format = (size) => {
+	let value = Number(size.value);
+	let index = 0;
+	while (value >= 1024 && index < UNITS.length - 1) {
+		value = value / 1024;
+		index++;
+	}
+	return `${Math.round(value * 100) / 100} ${UNITS[index]}`;
 };
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  Size,
-  bytes,
-  format,
-  gibibytes,
-  kibibytes,
-  mebibytes,
-  parse,
-  pebibytes,
-  tebibytes,
-  toBytes,
-  toGibibytes,
-  toKibibytes,
-  toMebibytes,
-  toPebibytes,
-  toSafeBytes,
-  toSafeGibibytes,
-  toSafeKibibytes,
-  toSafeMebibytes,
-  toSafePebibytes,
-  toSafeTebibytes,
-  toTebibytes
-});
+//#endregion
+exports.Size = Size;
+exports.bytes = bytes;
+exports.format = format;
+exports.gibibytes = gibibytes;
+exports.kibibytes = kibibytes;
+exports.mebibytes = mebibytes;
+exports.parse = parse;
+exports.pebibytes = pebibytes;
+exports.tebibytes = tebibytes;
+exports.toBytes = toBytes;
+exports.toGibibytes = toGibibytes;
+exports.toKibibytes = toKibibytes;
+exports.toMebibytes = toMebibytes;
+exports.toPebibytes = toPebibytes;
+exports.toSafeBytes = toSafeBytes;
+exports.toSafeGibibytes = toSafeGibibytes;
+exports.toSafeKibibytes = toSafeKibibytes;
+exports.toSafeMebibytes = toSafeMebibytes;
+exports.toSafePebibytes = toSafePebibytes;
+exports.toSafeTebibytes = toSafeTebibytes;
+exports.toTebibytes = toTebibytes;

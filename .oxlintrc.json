@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"categories": {
+		"correctness": "warn",
+		"suspicious": "warn"
+	},
+	"rules": {
+		"no-explicit-any": "off",
+		"no-empty-function": "off",
+		"ban-ts-comment": "off"
+	},
+	"ignorePatterns": [
+		"**/dist/**",
+		"**/.awsless/**",
+		"**/_*",
+		"old/**",
+		"packages/cli/example/**",
+		"packages/cli/layers/**",
+		"packages/code/test/data/**"
+	]
+}

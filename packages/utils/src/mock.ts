@@ -1,4 +1,4 @@
-import { Mock } from 'vitest'
+import type { Mock } from 'vitest'
 
 export type Func = (...args: any[]) => any
 // export type Func = <TArgs extends any[] = any, TReturns = any>(...args: TArgs) => TReturns

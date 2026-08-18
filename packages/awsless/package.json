@@ -28,7 +28,7 @@
 	},
 	"scripts": {
 		"test": "pnpm vitest run",
-		"build": "pnpm tsup ./src/server.ts ./src/client.ts --format esm --clean && tsc -p tsconfig.build.json",
+		"build": "pnpm tsdown --no-fixed-extension ./src/server.ts ./src/client.ts --format esm --clean && tsc -p tsconfig.build.json",
 		"prepublish": "pnpm build"
 	},
 	"peerDependencies": {

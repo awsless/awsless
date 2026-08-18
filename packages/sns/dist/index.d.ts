@@ -1,29 +1,31 @@
-import { SNSClient } from '@aws-sdk/client-sns';
-export { SNSClient } from '@aws-sdk/client-sns';
-
+import { SNSClient, SNSClient as SNSClient$1 } from "@aws-sdk/client-sns";
+//#region src/types.d.ts
 type Attributes = {
-    [key: string]: string;
+  [key: string]: string;
 };
 interface PublishOptions {
-    client?: SNSClient;
-    topic: string;
-    subject?: string;
-    payload?: string;
-    attributes?: Attributes;
-    region?: string;
-    accountId?: string;
+  client?: SNSClient$1;
+  topic: string;
+  subject?: string;
+  payload?: string;
+  attributes?: Attributes;
+  region?: string;
+  accountId?: string;
 }
-
-declare const publish: ({ client, topic, subject, payload, attributes, region, accountId, }: PublishOptions) => Promise<void>;
-
+//#endregion
+//#region src/commands.d.ts
+declare const publish: ({ client, topic, subject, payload, attributes, region, accountId }: PublishOptions) => Promise<void>;
+//#endregion
+//#region src/mock.d.ts
 type Topics = {
-    [key: string]: (payload: any) => any;
+  [key: string]: (payload: any) => any;
 };
 declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: any; };
-
+//#endregion
+//#region src/client.d.ts
 declare const snsClient: {
-    (): SNSClient;
-    set(client: SNSClient): void;
+  (): SNSClient$1;
+  set(client: SNSClient$1): void;
 };
-
-export { type PublishOptions, mockSNS, publish, snsClient };
+//#endregion
+export { type PublishOptions, SNSClient, mockSNS, publish, snsClient };

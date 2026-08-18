@@ -17,7 +17,7 @@ import { nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
 import { Readable } from 'stream'
 // @ts-ignore
-import { Mock } from 'vitest'
+import type { Mock } from 'vitest'
 import { setSignedDownloadUrlMock, setSignedUploadUrlMock } from './commands'
 import { hashSHA1 } from './hash'
 import { Body } from './types'

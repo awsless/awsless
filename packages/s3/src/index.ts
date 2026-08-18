@@ -2,19 +2,19 @@ export { S3Client, StorageClass } from '@aws-sdk/client-s3'
 export { s3Client } from './client'
 export {
 	copyObject,
-	CopyObjectProps,
+	type CopyObjectProps,
 	createSignedDownloadUrl,
-	CreateSignedDownloadUrlProps,
+	type CreateSignedDownloadUrlProps,
 	createSignedUploadUrl,
-	CreateSignedUploadUrlProps,
+	type CreateSignedUploadUrlProps,
 	deleteObject,
-	DeleteObjectProps,
+	type DeleteObjectProps,
 	getObject,
-	GetObjectProps,
+	type GetObjectProps,
 	headObject,
-	HeadObjectProps,
+	type HeadObjectProps,
 	putObject,
-	PutObjectProps,
+	type PutObjectProps,
 } from './commands'
 export { mockS3 } from './mock'
-export { Body, BodyStream } from './types'
+export { type Body, type BodyStream } from './types'

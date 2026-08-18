@@ -122,10 +122,10 @@ describe('Code', () => {
 		const path = testPath('format')
 
 		const result1 = await compile(path, { sourceMap: false, format:'cjs' })
-		expect(result1.code).toBe(`'use strict';\n\nvar index = ((event, context, callback) => {\n  callback(null, event);\n});\n\nmodule.exports = index;\n`)
+		expect(result1.code).toBe(`'use strict';\n\nvar index = (event, context, callback) => {\n  callback(null, event);\n};\n\nmodule.exports = index;\n`)
 
 		const result2 = await compile(path, { sourceMap: false, format: 'esm' })
-		expect(result2.code).toBe(`var index = ((event, context, callback) => {\n  callback(null, event);\n});\n\nexport { index as default };\n`)
+		expect(result2.code).toBe(`var index = (event, context, callback) => {\n  callback(null, event);\n};\n\nexport { index as default };\n`)
 	})
 
 	it('should generate a source map', async () => {

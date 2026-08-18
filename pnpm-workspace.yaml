@@ -3,10 +3,10 @@ minimumReleaseAge: 0
 # Every v4 vitest resolves to one exact version, so the chai plugin
 # registration never mixes vitest subpackage versions.
 overrides:
-    'vitest@>=4': 4.1.10
-    # The organize-imports plugin drives the typescript JS api, which the
-    # native typescript 7 package doesn't provide, so it keeps its own 5.x.
-    'prettier-plugin-organize-imports>typescript': ^5.8.2
+    'vitest@>=4': 4.1.11
+    # One @types/node for the whole graph, so peer-splits can't create
+    # two vitest instances that share no internal state.
+    '@types/node': 26.2.0
 
 strictPeerDependencies: false
 gitChecks: false

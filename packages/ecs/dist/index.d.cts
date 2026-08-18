@@ -1,28 +1,29 @@
-import { ECSClient } from '@aws-sdk/client-ecs';
-export { ECSClient } from '@aws-sdk/client-ecs';
-
+import { ECSClient, ECSClient as ECSClient$1 } from "@aws-sdk/client-ecs";
+//#region src/client.d.ts
 declare const ecsClient: {
-    (): ECSClient;
-    set(client: ECSClient): void;
+  (): ECSClient$1;
+  set(client: ECSClient$1): void;
 };
-
+//#endregion
+//#region src/commands.d.ts
 type RunTaskOptions = {
-    client?: ECSClient;
-    cluster: string;
-    taskDefinition: string;
-    subnets: string[];
-    securityGroups: string[];
-    container: string;
-    payload?: unknown;
-    assignPublicIp?: boolean;
+  client?: ECSClient$1;
+  cluster: string;
+  taskDefinition: string;
+  subnets: string[];
+  securityGroups: string[];
+  container: string;
+  payload?: unknown;
+  assignPublicIp?: boolean;
 };
-declare const runTask: ({ client, cluster, taskDefinition, subnets, securityGroups, container, payload, assignPublicIp, }: RunTaskOptions) => Promise<{
-    taskArn: string | undefined;
+declare const runTask: ({ client, cluster, taskDefinition, subnets, securityGroups, container, payload, assignPublicIp }: RunTaskOptions) => Promise<{
+  taskArn: string | undefined;
 }>;
-
+//#endregion
+//#region src/mock.d.ts
 type Tasks = {
-    [key: string]: (payload: any) => unknown;
+  [key: string]: (payload: any) => unknown;
 };
 declare const mockEcs: <T extends Tasks>(tasks: T) => { [P in keyof T]: any; };
-
-export { type RunTaskOptions, ecsClient, mockEcs, runTask };
+//#endregion
+export { ECSClient, type RunTaskOptions, ecsClient, mockEcs, runTask };

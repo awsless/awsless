@@ -5,9 +5,7 @@ import { parse as parseSvelte } from 'svelte/compiler'
 export const findSvelteTranslatable = (code: string) => {
 	const found: string[] = []
 	const origin = lineColumn(code)
-	const ast = parseSvelte(code, {
-		css: false,
-	})
+	const ast = parseSvelte(code)
 
 	const enter = (node: Node) => {
 		if (

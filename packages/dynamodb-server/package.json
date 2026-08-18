@@ -24,7 +24,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
-		"build": "pnpm tsup src/index.ts --format esm --dts --clean --external dynamo-db-local",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean --external dynamo-db-local",
 		"prepublish": "if bun test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {

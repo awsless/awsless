@@ -1,179 +1,130 @@
-"use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+let _heat_request_port = require("@heat/request-port");
+let ioredis = require("ioredis");
+let redis_memory_server = require("redis-memory-server");
+//#region src/client.ts
+let optionOverrides = {};
+const overrideOptions = (options) => {
+	optionOverrides = options;
 };
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
+const redisClient = (options) => {
+	const props = {
+		tls: {},
+		lazyConnect: true,
+		stringNumbers: true,
+		keepAlive: 0,
+		noDelay: true,
+		enableReadyCheck: false,
+		maxRetriesPerRequest: 3,
+		autoResubscribe: false,
+		autoResendUnfulfilledCommands: false,
+		connectTimeout: 5e3,
+		commandTimeout: 5e3,
+		...options,
+		...optionOverrides
+	};
+	if (!props.cluster) return new ioredis.Redis(props);
+	return new ioredis.Cluster([{
+		host: props.host,
+		port: props.port
+	}], {
+		dnsLookup: (address, callback) => callback(null, address),
+		slotsRefreshTimeout: 5e3,
+		enableReadyCheck: false,
+		clusterRetryStrategy(times) {
+			if (times > 5) return null;
+			return Math.min(times * 200, 2e3);
+		},
+		redisOptions: props
+	});
 };
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/index.ts
-var index_exports = {};
-__export(index_exports, {
-  Cluster: () => import_ioredis3.Cluster,
-  Redis: () => import_ioredis3.Redis,
-  command: () => command,
-  mockRedis: () => mockRedis,
-  redisClient: () => redisClient
-});
-module.exports = __toCommonJS(index_exports);
-
-// src/mock.ts
-var import_request_port = require("@heat/request-port");
-
-// src/client.ts
-var import_ioredis = require("ioredis");
-var optionOverrides = {};
-var overrideOptions = (options) => {
-  optionOverrides = options;
-};
-var redisClient = (options) => {
-  const props = {
-    tls: {},
-    lazyConnect: true,
-    stringNumbers: true,
-    keepAlive: 0,
-    noDelay: true,
-    enableReadyCheck: false,
-    maxRetriesPerRequest: 3,
-    autoResubscribe: false,
-    autoResendUnfulfilledCommands: false,
-    connectTimeout: 5e3,
-    commandTimeout: 5e3,
-    // commandQueue: false,
-    // offlineQueue: false,
-    ...options,
-    ...optionOverrides
-  };
-  if (!props.cluster) {
-    return new import_ioredis.Redis(props);
-  }
-  return new import_ioredis.Cluster(
-    [
-      {
-        host: props.host,
-        port: props.port
-      }
-    ],
-    {
-      dnsLookup: (address, callback) => callback(null, address),
-      slotsRefreshTimeout: 5e3,
-      enableReadyCheck: false,
-      clusterRetryStrategy(times) {
-        if (times > 5) return null;
-        return Math.min(times * 200, 2e3);
-      },
-      redisOptions: props
-    }
-  );
-};
-
-// src/server.ts
-var import_ioredis2 = require("ioredis");
-var import_redis_memory_server = require("redis-memory-server");
+//#endregion
+//#region src/server.ts
 var RedisServer = class {
-  client;
-  process;
-  async start(port) {
-    if (this.process) {
-      throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
-    }
-    if (port && (port < 0 || port >= 65536)) {
-      throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
-    }
-    this.process = await import_redis_memory_server.RedisMemoryServer.create({
-      instance: {
-        port,
-        args: []
-      }
-      // binary: { systemBinary: '/usr/local/bin/redis-server' },
-    });
-  }
-  async kill() {
-    if (this.process) {
-      await this.client?.disconnect();
-      await this.process.stop();
-      this.process = void 0;
-    }
-  }
-  async ping() {
-    const client = await this.getClient();
-    return await client.ping() === "PONG";
-  }
-  async getClient() {
-    if (!this.client) {
-      this.client = new import_ioredis2.Redis({
-        host: await this.process?.getHost(),
-        port: await this.process?.getPort(),
-        stringNumbers: true,
-        keepAlive: 0,
-        noDelay: true,
-        enableReadyCheck: false,
-        maxRetriesPerRequest: null
-        // retryStrategy: (options) => {
-        // 	return
-        // },
-      });
-    }
-    return this.client;
-  }
+	client;
+	process;
+	async start(port) {
+		if (this.process) throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
+		if (port && (port < 0 || port >= 65536)) throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
+		this.process = await redis_memory_server.RedisMemoryServer.create({ instance: {
+			port,
+			args: []
+		} });
+	}
+	async kill() {
+		if (this.process) {
+			await this.client?.disconnect();
+			await this.process.stop();
+			this.process = void 0;
+		}
+	}
+	async ping() {
+		return await (await this.getClient()).ping() === "PONG";
+	}
+	async getClient() {
+		if (!this.client) this.client = new ioredis.Redis({
+			host: await this.process?.getHost(),
+			port: await this.process?.getPort(),
+			stringNumbers: true,
+			keepAlive: 0,
+			noDelay: true,
+			enableReadyCheck: false,
+			maxRetriesPerRequest: null
+		});
+		return this.client;
+	}
 };
-
-// src/mock.ts
-var mockRedis = () => {
-  const server = new RedisServer();
-  let releasePort;
-  beforeAll && beforeAll(async () => {
-    const [port, release] = await (0, import_request_port.requestPort)();
-    releasePort = release;
-    await server.start(port);
-    await server.ping();
-    overrideOptions({
-      port,
-      host: "localhost",
-      cluster: false,
-      tls: void 0,
-      commandQueue: false,
-      offlineQueue: false
-    });
-  }, 30 * 1e3);
-  afterAll && afterAll(async () => {
-    await server.kill();
-    await releasePort();
-  }, 30 * 1e3);
+//#endregion
+//#region src/mock.ts
+const mockRedis = () => {
+	const server = new RedisServer();
+	let releasePort;
+	beforeAll && beforeAll(async () => {
+		const [port, release] = await (0, _heat_request_port.requestPort)();
+		releasePort = release;
+		await server.start(port);
+		await server.ping();
+		overrideOptions({
+			port,
+			host: "localhost",
+			cluster: false,
+			tls: void 0,
+			commandQueue: false,
+			offlineQueue: false
+		});
+	}, 3e4);
+	afterAll && afterAll(async () => {
+		await server.kill();
+		await releasePort();
+	}, 3e4);
 };
-
-// src/commands.ts
-var command = async (options, callback) => {
-  const client = redisClient(options);
-  let result;
-  try {
-    result = await callback(client);
-  } catch (error) {
-    throw error;
-  } finally {
-    await client.quit();
-  }
-  return result;
+//#endregion
+//#region src/commands.ts
+const command = async (options, callback) => {
+	const client = redisClient(options);
+	let result;
+	try {
+		result = await callback(client);
+	} catch (error) {
+		throw error;
+	} finally {
+		await client.quit();
+	}
+	return result;
 };
-
-// src/index.ts
-var import_ioredis3 = require("ioredis");
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  Cluster,
-  Redis,
-  command,
-  mockRedis,
-  redisClient
+//#endregion
+Object.defineProperty(exports, "Cluster", {
+	enumerable: true,
+	get: function() {
+		return ioredis.Cluster;
+	}
 });
+Object.defineProperty(exports, "Redis", {
+	enumerable: true,
+	get: function() {
+		return ioredis.Redis;
+	}
+});
+exports.command = command;
+exports.mockRedis = mockRedis;
+exports.redisClient = redisClient;

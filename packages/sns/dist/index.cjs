@@ -1,119 +1,68 @@
-"use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/index.ts
-var index_exports = {};
-__export(index_exports, {
-  SNSClient: () => import_client_sns4.SNSClient,
-  mockSNS: () => mockSNS,
-  publish: () => publish,
-  snsClient: () => snsClient
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+let _aws_sdk_client_sns = require("@aws-sdk/client-sns");
+let _awsless_utils = require("@awsless/utils");
+let aws_sdk_client_mock = require("aws-sdk-client-mock");
+let crypto = require("crypto");
+//#region src/client.ts
+const snsClient = (0, _awsless_utils.globalClient)(() => {
+	return new _aws_sdk_client_sns.SNSClient({});
 });
-module.exports = __toCommonJS(index_exports);
-var import_client_sns4 = require("@aws-sdk/client-sns");
-
-// src/commands.ts
-var import_client_sns2 = require("@aws-sdk/client-sns");
-
-// src/client.ts
-var import_client_sns = require("@aws-sdk/client-sns");
-var import_utils = require("@awsless/utils");
-var snsClient = (0, import_utils.globalClient)(() => {
-  return new import_client_sns.SNSClient({});
+//#endregion
+//#region src/commands.ts
+const formatAttributes = (attributes) => {
+	const list = {};
+	for (let key in attributes) list[key] = {
+		DataType: "String",
+		StringValue: attributes[key]
+	};
+	return list;
+};
+const publish = async ({ client = snsClient(), topic, subject, payload, attributes = {}, region = process.env.AWS_REGION, accountId = process.env.AWS_ACCOUNT_ID }) => {
+	const command = new _aws_sdk_client_sns.PublishCommand({
+		TopicArn: `arn:aws:sns:${region}:${accountId}:${topic}`,
+		Subject: subject,
+		Message: payload,
+		MessageAttributes: formatAttributes({
+			topic,
+			...attributes
+		})
+	});
+	await client.send(command);
+};
+//#endregion
+//#region src/mock.ts
+const globalList = {};
+const mockSNS = (topics) => {
+	const alreadyMocked = Object.keys(globalList).length > 0;
+	const list = (0, _awsless_utils.mockObjectValues)(topics);
+	Object.assign(globalList, list);
+	if (alreadyMocked) return list;
+	(0, aws_sdk_client_mock.mockClient)(_aws_sdk_client_sns.SNSClient).on(_aws_sdk_client_sns.PublishCommand).callsFake(async (input) => {
+		const parts = input.TopicArn?.split(":") ?? "";
+		const topic = parts[parts.length - 1] ?? "";
+		const callback = globalList[topic];
+		if (!callback) throw new TypeError(`Sns mock function not defined for: ${topic}`);
+		await (0, _awsless_utils.nextTick)(callback, { Records: [{ Sns: {
+			TopicArn: input.TopicArn,
+			MessageId: (0, crypto.randomUUID)(),
+			Timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+			Message: input.Message
+		} }] });
+	});
+	beforeEach(() => {
+		Object.values(list).forEach((fn) => {
+			fn.mockClear();
+		});
+	});
+	return list;
+};
+//#endregion
+Object.defineProperty(exports, "SNSClient", {
+	enumerable: true,
+	get: function() {
+		return _aws_sdk_client_sns.SNSClient;
+	}
 });
-
-// src/commands.ts
-var formatAttributes = (attributes) => {
-  const list = {};
-  for (let key in attributes) {
-    list[key] = {
-      DataType: "String",
-      StringValue: attributes[key]
-    };
-  }
-  return list;
-};
-var publish = async ({
-  client = snsClient(),
-  topic,
-  subject,
-  payload,
-  attributes = {},
-  region = process.env.AWS_REGION,
-  accountId = process.env.AWS_ACCOUNT_ID
-}) => {
-  const command = new import_client_sns2.PublishCommand({
-    TopicArn: `arn:aws:sns:${region}:${accountId}:${topic}`,
-    Subject: subject,
-    Message: payload,
-    MessageAttributes: formatAttributes({
-      topic,
-      ...attributes
-    })
-  });
-  await client.send(command);
-};
-
-// src/mock.ts
-var import_client_sns3 = require("@aws-sdk/client-sns");
-var import_utils2 = require("@awsless/utils");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
-var import_crypto = require("crypto");
-var globalList = {};
-var mockSNS = (topics) => {
-  const alreadyMocked = Object.keys(globalList).length > 0;
-  const list = (0, import_utils2.mockObjectValues)(topics);
-  Object.assign(globalList, list);
-  if (alreadyMocked) {
-    return list;
-  }
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_sns3.SNSClient).on(import_client_sns3.PublishCommand).callsFake(async (input) => {
-    const parts = input.TopicArn?.split(":") ?? "";
-    const topic = parts[parts.length - 1] ?? "";
-    const callback = globalList[topic];
-    if (!callback) {
-      throw new TypeError(`Sns mock function not defined for: ${topic}`);
-    }
-    await (0, import_utils2.nextTick)(callback, {
-      Records: [
-        {
-          Sns: {
-            TopicArn: input.TopicArn,
-            MessageId: (0, import_crypto.randomUUID)(),
-            Timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-            Message: input.Message
-          }
-        }
-      ]
-    });
-  });
-  beforeEach(() => {
-    Object.values(list).forEach((fn) => {
-      fn.mockClear();
-    });
-  });
-  return list;
-};
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  SNSClient,
-  mockSNS,
-  publish,
-  snsClient
-});
+exports.mockSNS = mockSNS;
+exports.publish = publish;
+exports.snsClient = snsClient;

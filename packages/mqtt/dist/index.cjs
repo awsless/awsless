@@ -1,191 +1,166 @@
-"use strict";
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+//#region \0rolldown/runtime.js
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
 var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
+	if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
+		key = keys[i];
+		if (!__hasOwnProp.call(to, key) && key !== except) __defProp(to, key, {
+			get: ((k) => from[k]).bind(null, key),
+			enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+		});
+	}
+	return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/index.ts
-var index_exports = {};
-__export(index_exports, {
-  QoS: () => QoS,
-  createClient: () => createClient
-});
-module.exports = __toCommonJS(index_exports);
-var import_mqtt = __toESM(require("mqtt"), 1);
-var QoS = /* @__PURE__ */ ((QoS2) => {
-  QoS2[QoS2["AtMostOnce"] = 0] = "AtMostOnce";
-  QoS2[QoS2["AtLeastOnce"] = 1] = "AtLeastOnce";
-  QoS2[QoS2["ExactlyOnce"] = 2] = "ExactlyOnce";
-  return QoS2;
-})(QoS || {});
-var sleep = (delay) => new Promise((r) => setTimeout(r, delay));
-var createClient = (propsOrProvider, debug = () => {
-}) => {
-  const listeners = {};
-  const queue = /* @__PURE__ */ new Set();
-  let client;
-  let destroyed = false;
-  let connecting;
-  let reconnecting;
-  let retries = 0;
-  const disconnect = async () => {
-    if (client) {
-      debug("disconnect");
-      const old = client;
-      client = void 0;
-      old.removeAllListeners();
-      await old.endAsync(true).catch(() => {
-      });
-    }
-  };
-  const scheduleReconnect = () => {
-    if (destroyed) return;
-    reconnecting ??= (async () => {
-      const delay = Math.min(1e3 * Math.pow(4, retries), 30 * 60 * 1e3);
-      retries++;
-      debug("reconnect", { attempt: retries, delay });
-      await sleep(delay);
-      reconnecting = void 0;
-      await connect();
-    })();
-    return reconnecting;
-  };
-  const connect = () => {
-    if (client || destroyed) return;
-    if (queue.size === 0 && Object.keys(listeners).length === 0) return;
-    connecting ??= (async () => {
-      try {
-        debug("connecting");
-        const props = typeof propsOrProvider === "function" ? await propsOrProvider() : propsOrProvider;
-        const local = await import_mqtt.default.connectAsync(props.endpoint, {
-          ...props,
-          keepalive: 30,
-          reschedulePings: false,
-          reconnectPeriod: 0,
-          resubscribe: false
-          // reconnectOnConnackError: true,
-          // connectTimeout: 10 * 1000,
-        });
-        client = local;
-        debug("connected", { topics: Object.keys(listeners).length });
-        if (destroyed) {
-          await disconnect();
-          return;
-        }
-        local.on("disconnect", async () => {
-          debug("event:disconnect");
-          await disconnect();
-          scheduleReconnect();
-        });
-        local.on("close", () => {
-          debug("event:close");
-          if (client === local) {
-            client = void 0;
-          }
-          scheduleReconnect();
-        });
-        local.on("error", (err) => {
-          debug("event:error", err);
-        });
-        local.on("message", (topic, payload) => {
-          const entry = listeners[topic];
-          if (entry) {
-            for (const listener of entry.callbacks) {
-              listener.callback(payload);
-            }
-          }
-        });
-        await local.subscribeAsync(Object.keys(listeners), { qos: 1 /* AtLeastOnce */ });
-        await Promise.all([
-          ...[...queue].map(async (msg) => {
-            await local.publishAsync(msg.topic, msg.payload, { qos: msg.qos });
-            queue.delete(msg);
-          })
-        ]);
-        retries = 0;
-      } catch (err) {
-        debug("connect:error", err);
-        client = void 0;
-        scheduleReconnect();
-      } finally {
-        connecting = void 0;
-      }
-    })();
-    return connecting;
-  };
-  return {
-    get connected() {
-      return client?.connected ?? false;
-    },
-    get topics() {
-      return Object.keys(listeners);
-    },
-    async destroy() {
-      debug("destroy");
-      destroyed = true;
-      reconnecting = void 0;
-      await disconnect();
-    },
-    // async ping() {
-    // 	await client?.sendPing()
-    // },
-    async publish(topic, payload, qos = 0 /* AtMostOnce */) {
-      if (client) {
-        await client.publishAsync(topic, payload, { qos });
-      } else {
-        queue.add({ topic, payload, qos });
-        await connect();
-      }
-    },
-    async subscribe(topic, callback, qos = 0 /* AtMostOnce */) {
-      const listener = { callback };
-      const entry = listeners[topic] = listeners[topic] ?? { qos, callbacks: /* @__PURE__ */ new Set() };
-      entry.callbacks.add(listener);
-      if (client) {
-        if (entry.callbacks.size === 1) {
-          await client.subscribeAsync(topic, { qos });
-        }
-      } else {
-        await connect();
-      }
-      return async () => {
-        entry.callbacks.delete(listener);
-        if (entry.callbacks.size === 0) {
-          delete listeners[topic];
-          await client?.unsubscribeAsync(topic);
-        }
-        if (Object.keys(listeners).length === 0) {
-          await disconnect();
-        }
-      };
-    }
-  };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
+	value: mod,
+	enumerable: true
+}) : target, mod));
+//#endregion
+let mqtt = require("mqtt");
+mqtt = __toESM(mqtt, 1);
+//#region src/index.ts
+let QoS = /* @__PURE__ */ function(QoS) {
+	QoS[QoS["AtMostOnce"] = 0] = "AtMostOnce";
+	QoS[QoS["AtLeastOnce"] = 1] = "AtLeastOnce";
+	QoS[QoS["ExactlyOnce"] = 2] = "ExactlyOnce";
+	return QoS;
+}({});
+const sleep = (delay) => new Promise((r) => setTimeout(r, delay));
+const createClient = (propsOrProvider, debug = () => {}) => {
+	const listeners = {};
+	const queue = /* @__PURE__ */ new Set();
+	let client;
+	let destroyed = false;
+	let connecting;
+	let reconnecting;
+	let retries = 0;
+	const disconnect = async () => {
+		if (client) {
+			debug("disconnect");
+			const old = client;
+			client = void 0;
+			old.removeAllListeners();
+			await old.endAsync(true).catch(() => {});
+		}
+	};
+	const scheduleReconnect = () => {
+		if (destroyed) return;
+		reconnecting ??= (async () => {
+			const delay = Math.min(1e3 * Math.pow(4, retries), 18e5);
+			retries++;
+			debug("reconnect", {
+				attempt: retries,
+				delay
+			});
+			await sleep(delay);
+			reconnecting = void 0;
+			await connect();
+		})();
+		return reconnecting;
+	};
+	const connect = () => {
+		if (client || destroyed) return;
+		if (queue.size === 0 && Object.keys(listeners).length === 0) return;
+		connecting ??= (async () => {
+			try {
+				debug("connecting");
+				const props = typeof propsOrProvider === "function" ? await propsOrProvider() : propsOrProvider;
+				const local = await mqtt.default.connectAsync(props.endpoint, {
+					...props,
+					keepalive: 30,
+					reschedulePings: false,
+					reconnectPeriod: 0,
+					resubscribe: false
+				});
+				client = local;
+				debug("connected", { topics: Object.keys(listeners).length });
+				if (destroyed) {
+					await disconnect();
+					return;
+				}
+				local.on("disconnect", async () => {
+					debug("event:disconnect");
+					await disconnect();
+					scheduleReconnect();
+				});
+				local.on("close", () => {
+					debug("event:close");
+					if (client === local) client = void 0;
+					scheduleReconnect();
+				});
+				local.on("error", (err) => {
+					debug("event:error", err);
+				});
+				local.on("message", (topic, payload) => {
+					const entry = listeners[topic];
+					if (entry) for (const listener of entry.callbacks) listener.callback(payload);
+				});
+				await local.subscribeAsync(Object.keys(listeners), { qos: 1 });
+				await Promise.all([...[...queue].map(async (msg) => {
+					await local.publishAsync(msg.topic, msg.payload, { qos: msg.qos });
+					queue.delete(msg);
+				})]);
+				retries = 0;
+			} catch (err) {
+				debug("connect:error", err);
+				client = void 0;
+				scheduleReconnect();
+			} finally {
+				connecting = void 0;
+			}
+		})();
+		return connecting;
+	};
+	return {
+		get connected() {
+			return client?.connected ?? false;
+		},
+		get topics() {
+			return Object.keys(listeners);
+		},
+		async destroy() {
+			debug("destroy");
+			destroyed = true;
+			reconnecting = void 0;
+			await disconnect();
+		},
+		async publish(topic, payload, qos = 0) {
+			if (client) await client.publishAsync(topic, payload, { qos });
+			else {
+				queue.add({
+					topic,
+					payload,
+					qos
+				});
+				await connect();
+			}
+		},
+		async subscribe(topic, callback, qos = 0) {
+			const listener = { callback };
+			const entry = listeners[topic] = listeners[topic] ?? {
+				qos,
+				callbacks: /* @__PURE__ */ new Set()
+			};
+			entry.callbacks.add(listener);
+			if (client) {
+				if (entry.callbacks.size === 1) await client.subscribeAsync(topic, { qos });
+			} else await connect();
+			return async () => {
+				entry.callbacks.delete(listener);
+				if (entry.callbacks.size === 0) {
+					delete listeners[topic];
+					await client?.unsubscribeAsync(topic);
+				}
+				if (Object.keys(listeners).length === 0) await disconnect();
+			};
+		}
+	};
 };
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  QoS,
-  createClient
-});
+//#endregion
+exports.QoS = QoS;
+exports.createClient = createClient;

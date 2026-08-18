@@ -1,43 +1,139 @@
-import { Redis, Cluster, RedisOptions } from 'ioredis';
-import { Numeric } from '@awsless/big-float';
-import { Duration } from '@awsless/duration';
-
+import { Cluster, Redis, RedisOptions } from "ioredis";
+import { Numeric } from "@awsless/big-float";
+import { Duration } from "@awsless/duration";
+//#endregion
+//#region src/test/mock.d.ts
 declare const mockRedis: () => void;
-
+//#endregion
+//#region src/test/server.d.ts
 declare class RedisServer {
-    private client?;
-    private process?;
-    private stopping;
-    start(port?: number, version?: string, args?: string[]): Promise<void>;
-    onExit(handler: (code: number | null, signal: string | null) => void): void;
-    onOutput(handler: (line: string) => void): void;
-    kill(): Promise<void>;
-    getPort(): Promise<number>;
-    ping(): Promise<boolean>;
-    getClient(): Promise<Redis | Cluster>;
+  private client?;
+  private process?;
+  private stopping;
+  start(port?: number, version?: string, args?: string[]): Promise<void>;
+  onExit(handler: (code: number | null, signal: string | null) => void): void;
+  onOutput(handler: (line: string) => void): void;
+  kill(): Promise<void>;
+  getPort(): Promise<number>;
+  ping(): Promise<boolean>;
+  getClient(): Promise<Cluster | Redis>;
 }
-
+//#endregion
+//#region src/type.d.ts
 type InputValue = number | string;
 type RedisCommandOptions = {
-    readonly?: boolean;
+  readonly?: boolean;
 };
 type RedisCommand = {
-    name: string;
-    args: (InputValue | undefined)[];
-    options?: RedisCommandOptions;
+  name: string;
+  args: (InputValue | undefined)[];
+  options?: RedisCommandOptions;
 };
 type RedisClient = {
-    send: <T = any>(name: string, args: (InputValue | undefined)[], options?: RedisCommandOptions) => Promise<T>;
-    batch: <T = any[]>(commands: RedisCommand[]) => Promise<T>;
-    transact: <T = any[]>(commands: RedisCommand[]) => Promise<T>;
-    destroy(): Promise<void>;
+  send: <T = any>(name: string, args: (InputValue | undefined)[], options?: RedisCommandOptions) => Promise<T>;
+  batch: <T = any[]>(commands: RedisCommand[]) => Promise<T>;
+  transact: <T = any[]>(commands: RedisCommand[]) => Promise<T>;
+  destroy(): Promise<void>;
 };
 type Command<T, R> = RedisCommand & {
-    preloadScript?: string;
-    resolve: (response: R) => T;
-    then<Result1 = T, Result2 = never>(onfulfilled: (value: T) => Result1, onrejected?: (reason: any) => Result2): Promise<Result1 | Result2>;
+  preloadScript?: string;
+  resolve: (response: R) => T;
+  then<Result1 = T, Result2 = never>(onfulfilled: (value: T) => Result1, onrejected?: (reason: any) => Result2): Promise<Result1 | Result2>;
 };
-
+//#endregion
+//#region src/command/util.d.ts
+type ScanOptions = {
+  match?: string;
+  limit?: number;
+  cursor?: string;
+};
+declare namespace key_d_exports {
+  export { KeyType, asyncDelete, del$5 as delete, has$5 as has, rename, scan$4 as scan, type };
+}
+type KeyType = 'none' | 'string' | 'list' | 'set' | 'zset' | 'hash' | 'stream';
+/**
+ * Check whether a key exists.
+ *
+ * @command EXISTS
+ * @complexity O(N) where N is the number of keys to check
+ * @speed fast
+ * @since 1.0.0
+ */
+declare const has$5: (client: RedisClient, key: string) => Command<boolean, string | number>;
+/**
+ * Delete a key.
+ *
+ * @command DEL
+ * @complexity O(N) where N is the number of keys that will be removed
+ * @speed slow
+ * @since 1.0.0
+ */
+declare const del$5: (client: RedisClient, key: string) => Command<boolean, number>;
+/**
+ * Delete a key asynchronously.
+ *
+ * @command UNLINK
+ * @complexity O(1) for each key removed from the keyspace. The actual memory reclaiming happens asynchronously
+ * @speed fast
+ * @since 4.0.0
+ */
+declare const asyncDelete: (client: RedisClient, key: string) => Command<boolean, number>;
+/**
+ * Get the type of value stored at a key.
+ *
+ * @command TYPE
+ * @complexity O(1)
+ * @speed fast
+ * @since 1.0.0
+ */
+declare const type: (client: RedisClient, key: string) => Command<KeyType, KeyType>;
+/**
+ * Rename a key.
+ *
+ * @command RENAME | RENAMENX
+ * @complexity O(1)
+ * @speed fast
+ * @since 1.0.0
+ */
+declare const rename: (client: RedisClient, from: string, to: string, options?: {
+  when?: 'not-exists';
+}) => Command<boolean, string>;
+/**
+ * Iterate through keys in the current database.
+ *
+ * @command SCAN
+ * @complexity O(1) for every call. O(N) for a complete iteration, including enough command calls for the cursor to return to 0
+ * @speed slow
+ * @since 2.8.0
+ */
+declare const scan$4: (client: RedisClient, options?: ScanOptions) => {
+  name: string;
+  args: (InputValue | undefined)[];
+  options?: RedisCommandOptions;
+  preloadScript?: string;
+  resolve: (response: [string, string[]]) => {
+    cursor: string | undefined;
+    items: string[];
+  };
+  then<Result1 = {
+    cursor: string | undefined;
+    items: string[];
+  }, Result2 = never>(onfulfilled: (value: {
+    cursor: string | undefined;
+    items: string[];
+  }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  [Symbol.asyncIterator](): {
+    next(): Promise<{
+      done: true;
+    } | {
+      done: false;
+      value: string[];
+    }>;
+  };
+};
+declare namespace string_d_exports {
+  export { append$1 as append, decr$1 as decr, del$4 as delete, get$3 as get, has$4 as has, incr$2 as incr, set$3 as set, substring };
+}
 /**
  * Get a string value by key.
  *
@@ -55,9 +151,9 @@ declare const get$3: (client: RedisClient, key: string) => Command<string | unde
  * @speed slow
  * @since 1.0.0
  */
-declare const set$4: (client: RedisClient, key: string, value: InputValue, options?: {
-    ttl?: Duration | Date | "keep";
-    when?: "not-exists" | "exists";
+declare const set$3: (client: RedisClient, key: string, value: InputValue, options?: {
+  ttl?: Duration | Date | 'keep';
+  when?: 'not-exists' | 'exists';
 }) => Command<boolean, number>;
 /**
  * Check whether a key exists.
@@ -67,7 +163,7 @@ declare const set$4: (client: RedisClient, key: string, value: InputValue, optio
  * @speed fast
  * @since 1.0.0
  */
-declare const has$5: (client: RedisClient, key: string) => Command<boolean, string | number>;
+declare const has$4: typeof has$5;
 /**
  * Increment a numeric string value by a given amount.
  *
@@ -112,110 +208,10 @@ declare const substring: (client: RedisClient, key: string, start: number, end?:
  * @speed slow
  * @since 1.0.0
  */
-declare const del$5: (client: RedisClient, key: string) => Command<boolean, number>;
-
-declare const string_substring: typeof substring;
-declare namespace string {
-  export { append$1 as append, decr$1 as decr, del$5 as delete, get$3 as get, has$5 as has, incr$2 as incr, set$4 as set, string_substring as substring };
+declare const del$4: typeof del$5;
+declare namespace ttl_d_exports$1 {
+  export { persist$1 as delete, duration$1 as duration, get$2 as get, set$2 as set };
 }
-
-type ScanOptions = {
-    match?: string;
-    limit?: number;
-    cursor?: string;
-};
-
-type KeyType = 'none' | 'string' | 'list' | 'set' | 'zset' | 'hash' | 'stream';
-/**
- * Check whether a key exists.
- *
- * @command EXISTS
- * @complexity O(N) where N is the number of keys to check
- * @speed fast
- * @since 1.0.0
- */
-declare const has$4: (client: RedisClient, key: string) => Command<boolean, string | number>;
-/**
- * Delete a key.
- *
- * @command DEL
- * @complexity O(N) where N is the number of keys that will be removed
- * @speed slow
- * @since 1.0.0
- */
-declare const del$4: (client: RedisClient, key: string) => Command<boolean, number>;
-
-/**
- * Delete a key asynchronously.
- *
- * @command UNLINK
- * @complexity O(1) for each key removed from the keyspace. The actual memory reclaiming happens asynchronously
- * @speed fast
- * @since 4.0.0
- */
-declare const asyncDelete: (client: RedisClient, key: string) => Command<boolean, number>;
-/**
- * Get the type of value stored at a key.
- *
- * @command TYPE
- * @complexity O(1)
- * @speed fast
- * @since 1.0.0
- */
-declare const type: (client: RedisClient, key: string) => Command<KeyType, KeyType>;
-/**
- * Rename a key.
- *
- * @command RENAME | RENAMENX
- * @complexity O(1)
- * @speed fast
- * @since 1.0.0
- */
-declare const rename: (client: RedisClient, from: string, to: string, options?: {
-    when?: "not-exists";
-}) => Command<boolean, string>;
-/**
- * Iterate through keys in the current database.
- *
- * @command SCAN
- * @complexity O(1) for every call. O(N) for a complete iteration, including enough command calls for the cursor to return to 0
- * @speed slow
- * @since 2.8.0
- */
-declare const scan$4: (client: RedisClient, options?: ScanOptions) => {
-    [Symbol.asyncIterator](): {
-        next(): Promise<{
-            done: true;
-        } | {
-            done: false;
-            value: string[];
-        }>;
-    };
-    name: string;
-    args: (InputValue | undefined)[];
-    options?: RedisCommandOptions;
-    preloadScript?: string;
-    resolve: (response: [string, string[]]) => {
-        cursor: string | undefined;
-        items: string[];
-    };
-    then<Result1 = {
-        cursor: string | undefined;
-        items: string[];
-    }, Result2 = never>(onfulfilled: (value: {
-        cursor: string | undefined;
-        items: string[];
-    }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
-};
-
-type key_KeyType = KeyType;
-declare const key_asyncDelete: typeof asyncDelete;
-declare const key_rename: typeof rename;
-declare const key_type: typeof type;
-declare namespace key {
-  export { type key_KeyType as KeyType, key_asyncDelete as asyncDelete, del$4 as delete, has$4 as has, key_rename as rename, scan$4 as scan, key_type as type };
-}
-
 /**
  * Set expirations on one or more hash fields.
  *
@@ -224,7 +220,7 @@ declare namespace key {
  * @speed fast
  * @since 7.4.0
  */
-declare const set$3: (client: RedisClient, key: string, ttl: Duration | Date, ...fields: [string, ...string[]]) => Command<boolean[], number[]>;
+declare const set$2: (client: RedisClient, key: string, ttl: Duration | Date, ...fields: [string, ...string[]]) => Command<boolean[], number[]>;
 /**
  * Get expiration dates for hash fields.
  *
@@ -252,11 +248,9 @@ declare const duration$1: (client: RedisClient, key: string, ...fields: [string,
  * @since 7.4.0
  */
 declare const persist$1: (client: RedisClient, key: string, ...fields: [string, ...string[]]) => Command<boolean[], number[]>;
-
-declare namespace ttl$1 {
-  export { persist$1 as delete, duration$1 as duration, get$2 as get, set$3 as set };
+declare namespace map_d_exports {
+  export { all$3 as all, clear$3 as clear, decr, del$3 as delete, get$1 as get, has$3 as has, incr$1 as incr, length$3 as length, scan$3 as scan, set$1 as set, ttl_d_exports$1 as ttl };
 }
-
 /**
  * Get a hash field value.
  *
@@ -274,7 +268,7 @@ declare const get$1: (client: RedisClient, key: string, field: string) => Comman
  * @speed fast
  * @since 2.0.0
  */
-declare const set$2: (client: RedisClient, key: string, field: string, value: InputValue) => Command<boolean, number>;
+declare const set$1: (client: RedisClient, key: string, field: string, value: InputValue) => Command<boolean, number>;
 /**
  * Check whether a hash field exists.
  *
@@ -293,7 +287,6 @@ declare const has$3: (client: RedisClient, key: string, field: string) => Comman
  * @since 2.0.0
  */
 declare const del$3: (client: RedisClient, key: string, field: string) => Command<boolean, number>;
-
 /**
  * Increment a numeric hash field by a given amount.
  *
@@ -329,7 +322,7 @@ declare const length$3: (client: RedisClient, key: string) => Command<number, st
  * @speed slow
  * @since 1.0.0
  */
-declare const clear$3: (client: RedisClient, key: string) => Command<boolean, number>;
+declare const clear$3: typeof del$5;
 /**
  * Get all fields and values from a hash.
  *
@@ -348,36 +341,33 @@ declare const all$3: (client: RedisClient, key: string) => Command<Map<string, s
  * @since 2.8.0
  */
 declare const scan$3: (client: RedisClient, key: string, options?: ScanOptions) => {
-    [Symbol.asyncIterator](): {
-        next(): Promise<{
-            done: true;
-        } | {
-            done: false;
-            value: Map<string, string>;
-        }>;
-    };
-    name: string;
-    args: (InputValue | undefined)[];
-    options?: RedisCommandOptions;
-    preloadScript?: string;
-    resolve: (response: [string, string[]]) => {
-        cursor: string | undefined;
-        items: Map<string, string>;
-    };
-    then<Result1 = {
-        cursor: string | undefined;
-        items: Map<string, string>;
-    }, Result2 = never>(onfulfilled: (value: {
-        cursor: string | undefined;
-        items: Map<string, string>;
-    }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  name: string;
+  args: (InputValue | undefined)[];
+  options?: RedisCommandOptions;
+  preloadScript?: string;
+  resolve: (response: [string, string[]]) => {
+    cursor: string | undefined;
+    items: Map<string, string>;
+  };
+  then<Result1 = {
+    cursor: string | undefined;
+    items: Map<string, string>;
+  }, Result2 = never>(onfulfilled: (value: {
+    cursor: string | undefined;
+    items: Map<string, string>;
+  }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  [Symbol.asyncIterator](): {
+    next(): Promise<{
+      done: true;
+    } | {
+      done: false;
+      value: Map<string, string>;
+    }>;
+  };
 };
-
-declare const map_decr: typeof decr;
-declare namespace map {
-  export { all$3 as all, clear$3 as clear, map_decr as decr, del$3 as delete, get$1 as get, has$3 as has, incr$1 as incr, length$3 as length, scan$3 as scan, set$2 as set, ttl$1 as ttl };
+declare namespace ttl_d_exports {
+  export { persist as delete, duration, get, set };
 }
-
 /**
  * Set or update the expiration for a string key.
  *
@@ -386,7 +376,7 @@ declare namespace map {
  * @speed fast
  * @since 2.6.0
  */
-declare const set$1: (client: RedisClient, key: string, ttl: Duration | Date) => Command<boolean, number>;
+declare const set: (client: RedisClient, key: string, ttl: Duration | Date) => Command<boolean, number>;
 /**
  * Get the expiration date for a string key.
  *
@@ -414,13 +404,9 @@ declare const duration: (client: RedisClient, key: string) => Command<Duration |
  * @since 2.2.0
  */
 declare const persist: (client: RedisClient, key: string) => Command<boolean, number>;
-
-declare const ttl_duration: typeof duration;
-declare const ttl_get: typeof get;
-declare namespace ttl {
-  export { persist as delete, ttl_duration as duration, ttl_get as get, set$1 as set };
+declare namespace set_d_exports {
+  export { add$1 as add, all$2 as all, clear$2 as clear, del$2 as delete, has$2 as has, length$2 as length, pop$2 as pop, random$1 as random, scan$2 as scan };
 }
-
 /**
  * Add one or more values to a set.
  *
@@ -439,7 +425,6 @@ declare const add$1: (client: RedisClient, key: string, ...values: [InputValue, 
  * @since 1.0.0
  */
 declare const del$2: (client: RedisClient, key: string, ...values: [InputValue, ...InputValue[]]) => Command<number, string>;
-
 /**
  * Check whether a set contains a value.
  *
@@ -486,7 +471,7 @@ declare const length$2: (client: RedisClient, key: string) => Command<number, st
  * @speed slow
  * @since 1.0.0
  */
-declare const clear$2: (client: RedisClient, key: string) => Command<boolean, number>;
+declare const clear$2: typeof del$5;
 /**
  * Get all values from a set.
  *
@@ -505,35 +490,33 @@ declare const all$2: (client: RedisClient, key: string) => Command<Set<string>, 
  * @since 2.8.0
  */
 declare const scan$2: (client: RedisClient, key: string, options?: ScanOptions) => {
-    [Symbol.asyncIterator](): {
-        next(): Promise<{
-            done: true;
-        } | {
-            done: false;
-            value: Set<string>;
-        }>;
-    };
-    name: string;
-    args: (InputValue | undefined)[];
-    options?: RedisCommandOptions;
-    preloadScript?: string;
-    resolve: (response: [string, string[]]) => {
-        cursor: string | undefined;
-        items: Set<string>;
-    };
-    then<Result1 = {
-        cursor: string | undefined;
-        items: Set<string>;
-    }, Result2 = never>(onfulfilled: (value: {
-        cursor: string | undefined;
-        items: Set<string>;
-    }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  name: string;
+  args: (InputValue | undefined)[];
+  options?: RedisCommandOptions;
+  preloadScript?: string;
+  resolve: (response: [string, string[]]) => {
+    cursor: string | undefined;
+    items: Set<string>;
+  };
+  then<Result1 = {
+    cursor: string | undefined;
+    items: Set<string>;
+  }, Result2 = never>(onfulfilled: (value: {
+    cursor: string | undefined;
+    items: Set<string>;
+  }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  [Symbol.asyncIterator](): {
+    next(): Promise<{
+      done: true;
+    } | {
+      done: false;
+      value: Set<string>;
+    }>;
+  };
 };
-
-declare namespace set {
-  export { add$1 as add, all$2 as all, clear$2 as clear, del$2 as delete, has$2 as has, length$2 as length, pop$2 as pop, random$1 as random, scan$2 as scan };
+declare namespace sorted_set_d_exports {
+  export { add, all$1 as all, clear$1 as clear, del$1 as delete, has$1 as has, incr, indexOf$1 as indexOf, length$1 as length, pop$1 as pop, random, rangeByLex, rangeByRank, rangeByScore, scan$1 as scan, score };
 }
-
 type SortedSetInputValue = [InputValue, Numeric];
 type SortedSetOutput = [string, number];
 /**
@@ -581,7 +564,6 @@ declare const indexOf$1: (client: RedisClient, key: string, value: InputValue) =
  * @since 1.2.0
  */
 declare const del$1: (client: RedisClient, key: string, ...values: [InputValue, ...InputValue[]]) => Command<number, string>;
-
 /**
  * Check whether a sorted set contains a value.
  *
@@ -628,7 +610,7 @@ declare const length$1: (client: RedisClient, key: string) => Command<number, st
  * @speed slow
  * @since 1.0.0
  */
-declare const clear$1: (client: RedisClient, key: string) => Command<boolean, number>;
+declare const clear$1: typeof del$5;
 /**
  * Get all values from a sorted set.
  *
@@ -639,25 +621,25 @@ declare const clear$1: (client: RedisClient, key: string) => Command<boolean, nu
  */
 declare function all$1(client: RedisClient, key: string): Command<string[], string[]>;
 declare function all$1(client: RedisClient, key: string, options: {
-    withScores?: false;
+  withScores?: false;
 }): Command<string[], string[]>;
 declare function all$1(client: RedisClient, key: string, options: {
-    withScores: true;
+  withScores: true;
 }): Command<SortedSetOutput[], (number | string)[]>;
 type RangeBaseOptions = {
-    reverse?: boolean;
+  reverse?: boolean;
 };
 type RankRangeOptions = RangeBaseOptions & {
-    withScores?: boolean;
+  withScores?: boolean;
 };
 type ScoreRangeOptions = RangeBaseOptions & {
-    limit?: number;
-    offset?: number;
-    withScores?: boolean;
+  limit?: number;
+  offset?: number;
+  withScores?: boolean;
 };
 type LexRangeOptions = RangeBaseOptions & {
-    limit?: number;
-    offset?: number;
+  limit?: number;
+  offset?: number;
 };
 /**
  * Read members by their rank positions in a sorted set.
@@ -668,10 +650,10 @@ type LexRangeOptions = RangeBaseOptions & {
  * @since 1.2.0
  */
 declare function rangeByRank(client: RedisClient, key: string, start: number, end: number, options?: RankRangeOptions & {
-    withScores?: false;
+  withScores?: false;
 }): Command<string[], string[]>;
 declare function rangeByRank(client: RedisClient, key: string, start: number, end: number, options: RankRangeOptions & {
-    withScores: true;
+  withScores: true;
 }): Command<SortedSetOutput[], (number | string)[]>;
 /**
  * Read members whose scores fall between two bounds.
@@ -682,10 +664,10 @@ declare function rangeByRank(client: RedisClient, key: string, start: number, en
  * @since 1.2.0
  */
 declare function rangeByScore(client: RedisClient, key: string, start: Numeric, end: Numeric, options?: ScoreRangeOptions & {
-    withScores?: false;
+  withScores?: false;
 }): Command<string[], string[]>;
 declare function rangeByScore(client: RedisClient, key: string, start: Numeric, end: Numeric, options: ScoreRangeOptions & {
-    withScores: true;
+  withScores: true;
 }): Command<SortedSetOutput[], (number | string)[]>;
 /**
  * Read members whose values fall between two lexicographical bounds.
@@ -705,42 +687,33 @@ declare const rangeByLex: (client: RedisClient, key: string, start: string, end:
  * @since 2.8.0
  */
 declare const scan$1: (client: RedisClient, key: string, options?: ScanOptions) => {
-    [Symbol.asyncIterator](): {
-        next(): Promise<{
-            done: true;
-        } | {
-            done: false;
-            value: SortedSetOutput[];
-        }>;
-    };
-    name: string;
-    args: (InputValue | undefined)[];
-    options?: RedisCommandOptions;
-    preloadScript?: string;
-    resolve: (response: [string, (string | number)[]]) => {
-        cursor: string | undefined;
-        items: SortedSetOutput[];
-    };
-    then<Result1 = {
-        cursor: string | undefined;
-        items: SortedSetOutput[];
-    }, Result2 = never>(onfulfilled: (value: {
-        cursor: string | undefined;
-        items: SortedSetOutput[];
-    }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  name: string;
+  args: (InputValue | undefined)[];
+  options?: RedisCommandOptions;
+  preloadScript?: string;
+  resolve: (response: [string, (string | number)[]]) => {
+    cursor: string | undefined;
+    items: SortedSetOutput[];
+  };
+  then<Result1 = {
+    cursor: string | undefined;
+    items: SortedSetOutput[];
+  }, Result2 = never>(onfulfilled: (value: {
+    cursor: string | undefined;
+    items: SortedSetOutput[];
+  }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  [Symbol.asyncIterator](): {
+    next(): Promise<{
+      done: true;
+    } | {
+      done: false;
+      value: SortedSetOutput[];
+    }>;
+  };
 };
-
-declare const sortedSet_add: typeof add;
-declare const sortedSet_incr: typeof incr;
-declare const sortedSet_random: typeof random;
-declare const sortedSet_rangeByLex: typeof rangeByLex;
-declare const sortedSet_rangeByRank: typeof rangeByRank;
-declare const sortedSet_rangeByScore: typeof rangeByScore;
-declare const sortedSet_score: typeof score;
-declare namespace sortedSet {
-  export { sortedSet_add as add, all$1 as all, clear$1 as clear, del$1 as delete, has$1 as has, sortedSet_incr as incr, indexOf$1 as indexOf, length$1 as length, pop$1 as pop, sortedSet_random as random, sortedSet_rangeByLex as rangeByLex, sortedSet_rangeByRank as rangeByRank, sortedSet_rangeByScore as rangeByScore, scan$1 as scan, sortedSet_score as score };
+declare namespace array_d_exports {
+  export { all, append, at, clear, del as delete, has, indexOf, insertAfter, insertBefore, length, pop, prepend, range, replace, scan, shift, trim };
 }
-
 /**
  * Get the value at a list index.
  *
@@ -840,9 +813,8 @@ declare const shift: (client: RedisClient, key: string) => Command<string | unde
  * @since 1.0.0
  */
 declare const del: (client: RedisClient, key: string, value: InputValue, options?: {
-    count?: number;
+  count?: number;
 }) => Command<number, string>;
-
 /**
  * Trim a list to the specified start and end range.
  *
@@ -869,7 +841,7 @@ declare const length: (client: RedisClient, key: string) => Command<number, stri
  * @speed slow
  * @since 1.0.0
  */
-declare const clear: (client: RedisClient, key: string) => Command<boolean, number>;
+declare const clear: typeof del$5;
 /**
  * Get a range of values from a list.
  *
@@ -897,54 +869,36 @@ declare const all: (client: RedisClient, key: string) => Command<string[], strin
  * @since 1.0.0
  */
 declare const scan: (client: RedisClient, key: string, options?: {
-    cursor?: number;
-    limit?: number;
+  cursor?: number;
+  limit?: number;
 }) => {
-    [Symbol.asyncIterator](): {
-        next(): Promise<{
-            done: true;
-        } | {
-            done: false;
-            value: string[];
-        }>;
-    };
-    name: string;
-    args: (InputValue | undefined)[];
-    options?: RedisCommandOptions;
-    preloadScript?: string;
-    resolve: (response: string[]) => {
-        cursor: number | undefined;
-        items: string[];
-    };
-    then<Result1 = {
-        cursor: number | undefined;
-        items: string[];
-    }, Result2 = never>(onfulfilled: (value: {
-        cursor: number | undefined;
-        items: string[];
-    }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  name: string;
+  args: (InputValue | undefined)[];
+  options?: RedisCommandOptions;
+  preloadScript?: string;
+  resolve: (response: string[]) => {
+    cursor: number | undefined;
+    items: string[];
+  };
+  then<Result1 = {
+    cursor: number | undefined;
+    items: string[];
+  }, Result2 = never>(onfulfilled: (value: {
+    cursor: number | undefined;
+    items: string[];
+  }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+  [Symbol.asyncIterator](): {
+    next(): Promise<{
+      done: true;
+    } | {
+      done: false;
+      value: string[];
+    }>;
+  };
 };
-
-declare const array_all: typeof all;
-declare const array_append: typeof append;
-declare const array_at: typeof at;
-declare const array_clear: typeof clear;
-declare const array_has: typeof has;
-declare const array_indexOf: typeof indexOf;
-declare const array_insertAfter: typeof insertAfter;
-declare const array_insertBefore: typeof insertBefore;
-declare const array_length: typeof length;
-declare const array_pop: typeof pop;
-declare const array_prepend: typeof prepend;
-declare const array_range: typeof range;
-declare const array_replace: typeof replace;
-declare const array_scan: typeof scan;
-declare const array_shift: typeof shift;
-declare const array_trim: typeof trim;
-declare namespace array {
-  export { array_all as all, array_append as append, array_at as at, array_clear as clear, del as delete, array_has as has, array_indexOf as indexOf, array_insertAfter as insertAfter, array_insertBefore as insertBefore, array_length as length, array_pop as pop, array_prepend as prepend, array_range as range, array_replace as replace, array_scan as scan, array_shift as shift, array_trim as trim };
+declare namespace pubsub_d_exports {
+  export { publish };
 }
-
 /**
  * Publish a message to a channel.
  *
@@ -962,14 +916,11 @@ declare namespace array {
  * @since 2.0.0
  */
 declare const publish: (client: RedisClient, channel: string, message: InputValue, options?: {
-    sharded?: boolean;
+  sharded?: boolean;
 }) => Command<number, string>;
-
-declare const pubsub_publish: typeof publish;
-declare namespace pubsub {
-  export { pubsub_publish as publish };
+declare namespace script_d_exports {
+  export { define, evaluate as eval, evalSha, exists, flush$1 as flush, load, lua };
 }
-
 /**
  * Execute a Lua script directly.
  *
@@ -979,7 +930,6 @@ declare namespace pubsub {
  * @since 2.6.0
  */
 declare const evaluate: (client: RedisClient, script: string, keys: string[], args: InputValue[]) => Command<unknown, unknown>;
-
 /**
  * Execute a Lua script by SHA hash.
  *
@@ -1015,7 +965,7 @@ declare const exists: (client: RedisClient, ...hashes: [string, ...string[]]) =>
  * @speed slow
  * @since 2.6.0
  */
-declare const flush$1: (client: RedisClient, mode?: "sync" | "async") => Command<void, string>;
+declare const flush$1: (client: RedisClient, mode?: 'sync' | 'async') => Command<void, string>;
 /**
  * Define a reusable typed Lua script runner.
  *
@@ -1024,10 +974,10 @@ declare const flush$1: (client: RedisClient, mode?: "sync" | "async") => Command
  * @speed slow
  * @since 2.6.0
  */
-declare const define: <I extends InputValue[], O extends string | string[]>({ script, keys, readonly, }: {
-    script: string;
-    keys?: number;
-    readonly?: boolean;
+declare const define: <I extends InputValue[], O extends string | string[]>({ script, keys, readonly }: {
+  script: string;
+  keys?: number;
+  readonly?: boolean;
 }) => (client: RedisClient, ...args: I) => Command<O, unknown>;
 /**
  * Define a reusable Lua script with template literal arguments.
@@ -1038,16 +988,9 @@ declare const define: <I extends InputValue[], O extends string | string[]>({ sc
  * @since 2.6.0
  */
 declare const lua: (strings: TemplateStringsArray, ...args: InputValue[]) => <T extends string | string[]>(client: RedisClient) => Command<T, unknown>;
-
-declare const script_define: typeof define;
-declare const script_evalSha: typeof evalSha;
-declare const script_exists: typeof exists;
-declare const script_load: typeof load;
-declare const script_lua: typeof lua;
-declare namespace script {
-  export { script_define as define, evaluate as eval, script_evalSha as evalSha, script_exists as exists, flush$1 as flush, script_load as load, script_lua as lua };
+declare namespace db_d_exports {
+  export { flush, size };
 }
-
 /**
  * Remove all keys from the current database.
  *
@@ -1057,7 +1000,7 @@ declare namespace script {
  * @dangerous
  * @since 1.0.0
  */
-declare const flush: (client: RedisClient, mode?: "sync" | "async") => Command<void, "OK">;
+declare const flush: (client: RedisClient, mode?: 'sync' | 'async') => Command<void, "OK">;
 /**
  * Get the number of keys in the current database.
  *
@@ -1067,13 +1010,9 @@ declare const flush: (client: RedisClient, mode?: "sync" | "async") => Command<v
  * @since 1.0.0
  */
 declare const size: (client: RedisClient) => Command<number, string>;
-
-declare const db_flush: typeof flush;
-declare const db_size: typeof size;
-declare namespace db {
-  export { db_flush as flush, db_size as size };
+declare namespace server_d_exports {
+  export { flushAll, swap, time };
 }
-
 /**
  * Remove all keys from all databases.
  *
@@ -1083,7 +1022,7 @@ declare namespace db {
  * @dangerous
  * @since 1.0.0
  */
-declare const flushAll: (client: RedisClient, mode?: "sync" | "async") => Command<void, "OK">;
+declare const flushAll: (client: RedisClient, mode?: 'sync' | 'async') => Command<void, "OK">;
 /**
  * Get the Redis server time as a Date.
  *
@@ -1103,17 +1042,9 @@ declare const time: (client: RedisClient) => Command<Date, [string, string]>;
  * @since 4.0.0
  */
 declare const swap: (client: RedisClient, db1: number, db2: number) => Command<void, "OK">;
-
-declare const server_flushAll: typeof flushAll;
-declare const server_swap: typeof swap;
-declare const server_time: typeof time;
-declare namespace server {
-  export { server_flushAll as flushAll, server_swap as swap, server_time as time };
-}
-
-type BatchResponse<T extends Command<any, any>[]> = {
-    [K in keyof T]: ReturnType<T[K]['resolve']>;
-};
+//#endregion
+//#region src/command/batch.d.ts
+type BatchResponse<T extends Command<any, any>[]> = { [K in keyof T]: ReturnType<T[K]['resolve']>; };
 /**
  * Execute multiple commands with a Redis pipeline.
  *
@@ -1122,32 +1053,22 @@ type BatchResponse<T extends Command<any, any>[]> = {
  * @since n/a
  */
 declare const batch: <const T extends Command<any, any>[]>(client: RedisClient, commands: T) => Promise<BatchResponse<T>>;
-
-declare const index_array: typeof array;
-declare const index_batch: typeof batch;
-declare const index_db: typeof db;
-declare const index_key: typeof key;
-declare const index_map: typeof map;
-declare const index_pubsub: typeof pubsub;
-declare const index_script: typeof script;
-declare const index_server: typeof server;
-declare const index_set: typeof set;
-declare const index_sortedSet: typeof sortedSet;
-declare const index_string: typeof string;
-declare const index_ttl: typeof ttl;
-declare namespace index {
-  export { index_array as array, index_batch as batch, index_db as db, index_key as key, index_map as map, index_pubsub as pubsub, index_script as script, index_server as server, index_set as set, index_sortedSet as sortedSet, index_string as string, index_ttl as ttl };
+declare namespace index_d_exports {
+  export { array_d_exports as array, batch, db_d_exports as db, key_d_exports as key, map_d_exports as map, pubsub_d_exports as pubsub, script_d_exports as script, server_d_exports as server, set_d_exports as set, sorted_set_d_exports as sortedSet, string_d_exports as string, ttl_d_exports as ttl };
 }
-
+//#endregion
+//#region src/client/ioredis.d.ts
 type IoRedisOptions = RedisOptions & {
-    cluster?: boolean;
+  cluster?: boolean;
 };
 declare const overrideOptions: (options: IoRedisOptions) => void;
 declare const createIoRedisClient: (options: IoRedisOptions) => RedisClient;
-
+//#endregion
+//#region src/client/index.d.ts
 type RedisClientOptions = IoRedisOptions;
 declare const createRedisClient: (options: RedisClientOptions) => RedisClient;
-
+//#endregion
+//#region src/client/lazy.d.ts
 declare const createLazyClient: (cb: () => RedisClient) => RedisClient;
-
-export { type Command, type InputValue, type IoRedisOptions, type RedisClient, type RedisClientOptions, type RedisCommand, type RedisCommandOptions, RedisServer, createIoRedisClient, createLazyClient, createRedisClient, mockRedis, overrideOptions, index as redis };
+//#endregion
+export { Command, InputValue, IoRedisOptions, RedisClient, RedisClientOptions, RedisCommand, RedisCommandOptions, RedisServer, createIoRedisClient, createLazyClient, createRedisClient, mockRedis, overrideOptions, index_d_exports as redis };

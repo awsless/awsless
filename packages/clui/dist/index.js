@@ -1,386 +1,301 @@
-var __defProp = Object.defineProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
-// src/symbols.ts
-var symbols_exports = {};
-__export(symbols_exports, {
-  ellipsis: () => ellipsis,
-  error: () => error,
-  info: () => info,
-  message: () => message,
-  step: () => step,
-  success: () => success,
-  warning: () => warning
-});
-var message = "\u2502";
-var step = "\u25C7";
-var error = "\xD7";
-var success = "\u25C6";
-var warning = "\u25B2";
-var info = "\xB7";
-var ellipsis = "\u2026";
-
-// src/prompts.ts
-var prompts_exports = {};
-__export(prompts_exports, {
-  confirm: () => confirm,
-  float: () => float,
-  integer: () => integer,
-  multiSelect: () => multiSelect,
-  password: () => password,
-  select: () => select,
-  text: () => text
-});
-import {
-  confirm as p_confirm,
-  multiselect as p_multiselect,
-  password as p_password,
-  select as p_select,
-  text as p_text
-} from "@clack/prompts";
-
-// src/error.ts
-import { isCancel } from "@clack/prompts";
-var Cancelled = class extends Error {
-  constructor() {
-    super("cancelled");
-  }
-};
-async function wrapPrompt(cb) {
-  const result = await cb();
-  if (isCancel(result)) {
-    throw new Cancelled();
-  }
-  return result;
-}
-
-// src/prompts.ts
-var text = async (opts) => {
-  return wrapPrompt(() => {
-    return p_text(opts);
-  });
-};
-var password = async (opts) => {
-  return wrapPrompt(() => {
-    return p_password({ mask: "*", ...opts });
-  });
-};
-var integer = async (opts) => {
-  const result = await text({
-    ...opts,
-    defaultValue: opts.defaultValue?.toString(),
-    initialValue: opts.initialValue?.toString(),
-    validate(value) {
-      if (isNaN(Number(value)) || isNaN(parseInt(value, 10)) || value.includes(".")) {
-        return "Invalid integer";
-      }
-      return;
-    }
-  });
-  return parseInt(result, 10);
-};
-var float = async (opts) => {
-  const result = await text({
-    ...opts,
-    defaultValue: opts.defaultValue?.toString(),
-    initialValue: opts.initialValue?.toString(),
-    validate(value) {
-      if (isNaN(Number(value)) || isNaN(parseFloat(value))) {
-        return "Invalid float";
-      }
-      return;
-    }
-  });
-  return parseFloat(result);
-};
-var confirm = async (opts) => {
-  return wrapPrompt(() => {
-    return p_confirm(opts);
-  });
-};
-var select = async (opts) => {
-  return wrapPrompt(() => {
-    return p_select(opts);
-  });
-};
-var multiSelect = async (opts) => {
-  return wrapPrompt(() => {
-    return p_multiselect(opts);
-  });
-};
-
-// src/logs.ts
-var logs_exports = {};
-__export(logs_exports, {
-  error: () => error2,
-  info: () => info2,
-  intro: () => intro,
-  list: () => list,
-  message: () => message2,
-  note: () => note,
-  outro: () => outro,
-  step: () => step2,
-  success: () => success2,
-  table: () => table,
-  task: () => task,
-  warning: () => warning2
-});
-import { log, intro as p_intro, note as p_note, outro as p_outro } from "@clack/prompts";
+import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.js";
+import { confirm, intro, isCancel, log, multiselect, note, outro, password, select, text } from "@clack/prompts";
 import Table from "cli-table3";
-
-// src/ansi.ts
-var ansi_exports = {};
-__export(ansi_exports, {
-  length: () => length,
-  pad: () => pad,
-  truncate: () => truncate,
-  wrap: () => wrap
-});
 import ansiTruncate from "ansi-truncate";
 import ansiLength from "string-length";
 import ansiWrap from "wrap-ansi";
-var wrap = (value, width, options) => {
-  return ansiWrap(value, width, options);
-};
-var length = (value) => {
-  return ansiLength(value);
-};
-var truncate = (value, width) => {
-  return value.split("\n").map(
-    (line) => ansiTruncate(line, width, {
-      ellipsis
-    })
-  ).join("\n");
-};
-var pad = (texts) => {
-  const size = Math.max(...texts.map((text2) => ansiLength(text2)));
-  return (text2, padding = 0, fill) => {
-    return text2.padEnd(size + padding, fill);
-  };
-};
-
-// src/colors.ts
 import chalk from "chalk";
-var color = chalk;
-
-// src/logs.ts
-var endMargin = 3;
-var intro = (title = "") => {
-  p_intro(truncate(title, process.stdout.columns - 6 - endMargin));
+//#region src/symbols.ts
+var symbols_exports = /* @__PURE__ */ __exportAll({
+	ellipsis: () => "…",
+	error: () => "×",
+	info: () => "·",
+	message: () => "│",
+	step: () => "◇",
+	success: () => "◆",
+	warning: () => "▲"
+});
+//#endregion
+//#region src/error.ts
+var Cancelled = class extends Error {
+	constructor() {
+		super("cancelled");
+	}
 };
-var outro = (title = "") => {
-  p_outro(truncate(title, process.stdout.columns - 6 - endMargin));
+async function wrapPrompt(cb) {
+	const result = await cb();
+	if (isCancel(result)) throw new Cancelled();
+	return result;
+}
+//#endregion
+//#region src/prompts.ts
+var prompts_exports = /* @__PURE__ */ __exportAll({
+	confirm: () => confirm$1,
+	float: () => float,
+	integer: () => integer,
+	multiSelect: () => multiSelect,
+	password: () => password$1,
+	select: () => select$1,
+	text: () => text$1
+});
+const text$1 = async (opts) => {
+	return wrapPrompt(() => {
+		return text(opts);
+	});
 };
-var note = (title, message3) => {
-  const width = process.stdout.columns - 6 - endMargin;
-  p_note(
-    wrap(message3, width, {
-      hard: true
-    }),
-    truncate(title, width)
-  );
+const password$1 = async (opts) => {
+	return wrapPrompt(() => {
+		return password({
+			mask: "*",
+			...opts
+		});
+	});
 };
-var logMessage = (symbol, message3) => {
-  log.message(
-    wrap(message3, process.stdout.columns - 6 - endMargin, {
-      hard: true,
-      trim: false
-    }),
-    { symbol }
-  );
+const integer = async (opts) => {
+	const result = await text$1({
+		...opts,
+		defaultValue: opts.defaultValue?.toString(),
+		initialValue: opts.initialValue?.toString(),
+		validate(value) {
+			if (isNaN(Number(value)) || isNaN(parseInt(value, 10)) || value.includes(".")) return "Invalid integer";
+		}
+	});
+	return parseInt(result, 10);
 };
-var message2 = (message3, symbol = color.gray(message)) => logMessage(symbol, message3);
-var error2 = (message3) => logMessage(color.red(error), message3);
-var info2 = (message3) => logMessage(color.blue(info), message3);
-var step2 = (message3) => logMessage(color.green(step), message3);
-var warning2 = (message3) => logMessage(color.yellow(warning), message3);
-var success2 = (message3) => logMessage(color.green(success), message3);
-var list = (title, data) => {
-  const padName = pad(Object.keys(data));
-  note(
-    title,
-    Object.entries(data).map(([name, value]) => {
-      return color.reset.whiteBright.bold(padName(name + ":", 2)) + value;
-    }).join("\n")
-  );
+const float = async (opts) => {
+	const result = await text$1({
+		...opts,
+		defaultValue: opts.defaultValue?.toString(),
+		initialValue: opts.initialValue?.toString(),
+		validate(value) {
+			if (isNaN(Number(value)) || isNaN(parseFloat(value))) return "Invalid float";
+		}
+	});
+	return parseFloat(result);
 };
-var spinner = (opts = {}) => {
-  const frames = ["\u25D2", "\u25D0", "\u25D3", "\u25D1"];
-  const interactive = process.stdout.isTTY && process.env.CI !== "true";
-  let text2 = "";
-  let frame = 0;
-  let dots = 0;
-  let timer;
-  let started = false;
-  const render = () => {
-    const trail = ".".repeat(Math.floor(dots)).slice(0, 3);
-    process.stdout.write(`\r\x1B[2K${color.magenta(frames[frame])}  ${text2}${trail}`);
-    frame = frame + 1 < frames.length ? frame + 1 : 0;
-    dots = dots < frames.length ? dots + 0.125 : 0;
-  };
-  const onData = (data) => {
-    if (data.toString() === "") {
-      opts.onCancel?.();
-    }
-  };
-  return {
-    start(message3 = "") {
-      started = true;
-      text2 = message3;
-      process.stdout.write(`${color.gray(message)}
-`);
-      if (interactive) {
-        process.stdout.write("\x1B[?25l");
-        render();
-        timer = setInterval(render, 80);
-      } else {
-        process.stdout.write(`${color.magenta(frames[0])}  ${text2}...
-`);
-      }
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(true);
-        process.stdin.on("data", onData);
-        process.stdin.resume();
-      }
-    },
-    message(message3 = "") {
-      text2 = message3;
-    },
-    stop(message3 = "", code = 0) {
-      if (!started) {
-        return;
-      }
-      started = false;
-      if (process.stdin.isTTY) {
-        process.stdin.off("data", onData);
-        process.stdin.setRawMode(false);
-        process.stdin.pause();
-      }
-      const symbol = code === 0 ? color.green(step) : code === 1 ? color.red("\u25A0") : color.red(error);
-      if (interactive) {
-        clearInterval(timer);
-        process.stdout.write(`\r\x1B[2K${symbol}  ${message3 || text2}
-\x1B[?25h`);
-      } else {
-        process.stdout.write(`${symbol}  ${message3 || text2}
-`);
-      }
-    }
-  };
+const confirm$1 = async (opts) => {
+	return wrapPrompt(() => {
+		return confirm(opts);
+	});
 };
-var task = async (opts) => {
-  let initialMessage = opts.initialMessage;
-  let successMessage = opts.successMessage;
-  let errorMessage = opts.errorMessage;
-  let cancel;
-  const cancelled = new Promise((_, reject) => {
-    cancel = () => reject(new Cancelled());
-  });
-  const spin = spinner({ onCancel: () => cancel() });
-  spin.start(truncate(opts.initialMessage, process.stdout.columns - 6 - endMargin));
-  const stop = (message3, code) => {
-    spin.stop(truncate(message3 ?? initialMessage, process.stdout.columns - 6 - endMargin), code);
-  };
-  const work = opts.task({
-    updateMessage(m) {
-      spin.message(truncate(m, process.stdout.columns - 6 - endMargin));
-      initialMessage = m;
-    },
-    updateSuccessMessage(m) {
-      successMessage = m;
-    },
-    updateErrorMessage(m) {
-      errorMessage = m;
-    }
-  });
-  try {
-    const result = await Promise.race([work, cancelled]);
-    stop(successMessage);
-    return result;
-  } catch (error3) {
-    if (error3 instanceof Cancelled) {
-      work.catch(() => {
-      });
-      stop(initialMessage, 1);
-    } else {
-      stop(errorMessage, 2);
-    }
-    throw error3;
-  }
+const select$1 = async (opts) => {
+	return wrapPrompt(() => {
+		return select(opts);
+	});
 };
-var table = (props) => {
-  log.message();
-  const length2 = Math.max(props.head.length, ...props.body.map((b) => b.length));
-  const padding = 2;
-  const totalPadding = padding * 2 * length2;
-  const border = 1;
-  const totalBorder = (length2 - 1) * border + 2;
-  const windowSize = process.stdout.columns;
-  const maxTableSize = windowSize - totalPadding - totalBorder - endMargin;
-  const contentSizes = Array.from({ length: length2 }).map((_, i) => {
-    return Math.max(length(props.head[i] ?? ""), ...props.body.map((b) => length(String(b[i]))));
-  });
-  const columnSizes = Array.from({ length: length2 }).map(() => {
-    return 0;
-  });
-  let leftover = Math.min(
-    maxTableSize,
-    contentSizes.reduce((total, size) => total + size, 0)
-  );
-  while (leftover > 0) {
-    for (const x in columnSizes) {
-      const columnSize = columnSizes[x];
-      const contentSize = contentSizes[x];
-      if (leftover > 0 && columnSize < contentSize) {
-        leftover--;
-        columnSizes[x] = columnSize + 1;
-      }
-    }
-  }
-  const table2 = new Table({
-    head: props.head.map(
-      (value, x) => "\n" + color.reset.whiteBright.bold(
-        wrap(value, columnSizes[x], {
-          hard: true
-        })
-      )
-    ),
-    style: {
-      "padding-left": padding,
-      "padding-right": padding
-    },
-    chars: {
-      "bottom-right": "\u256F",
-      "top-right": "\u256E",
-      "top-left": "\u251C",
-      "bottom-left": "\u251C"
-    }
-  });
-  table2.push(
-    ...props.body.map((row) => {
-      return row.map((value, x) => {
-        if (typeof value === "boolean") {
-          return value ? color.green("yes") : color.red("no");
-        }
-        if (typeof value === "number") {
-          return color.blue(value);
-        }
-        return wrap(value, columnSizes[x], {
-          hard: true
-        });
-      });
-    })
-  );
-  console.log(table2.toString());
+const multiSelect = async (opts) => {
+	return wrapPrompt(() => {
+		return multiselect(opts);
+	});
 };
-export {
-  Cancelled,
-  ansi_exports as ansi,
-  color,
-  logs_exports as log,
-  prompts_exports as prompt,
-  symbols_exports as symbol
+//#endregion
+//#region src/ansi.ts
+var ansi_exports = /* @__PURE__ */ __exportAll({
+	length: () => length,
+	pad: () => pad,
+	truncate: () => truncate,
+	wrap: () => wrap
+});
+const wrap = (value, width, options) => {
+	return ansiWrap(value, width, options);
 };
+const length = (value) => {
+	return ansiLength(value);
+};
+const truncate = (value, width) => {
+	return value.split("\n").map((line) => ansiTruncate(line, width, { ellipsis: "…" })).join("\n");
+};
+const pad = (texts) => {
+	const size = Math.max(...texts.map((text) => ansiLength(text)));
+	return (text, padding = 0, fill) => {
+		return text.padEnd(size + padding, fill);
+	};
+};
+//#endregion
+//#region src/colors.ts
+const color = chalk;
+//#endregion
+//#region src/logs.ts
+var logs_exports = /* @__PURE__ */ __exportAll({
+	error: () => error,
+	info: () => info,
+	intro: () => intro$1,
+	list: () => list,
+	message: () => message,
+	note: () => note$1,
+	outro: () => outro$1,
+	step: () => step,
+	success: () => success,
+	table: () => table,
+	task: () => task,
+	warning: () => warning
+});
+const endMargin = 3;
+const intro$1 = (title = "") => {
+	intro(truncate(title, process.stdout.columns - 6 - endMargin));
+};
+const outro$1 = (title = "") => {
+	outro(truncate(title, process.stdout.columns - 6 - endMargin));
+};
+const note$1 = (title, message) => {
+	const width = process.stdout.columns - 6 - endMargin;
+	note(wrap(message, width, { hard: true }), truncate(title, width));
+};
+const logMessage = (symbol, message) => {
+	log.message(wrap(message, process.stdout.columns - 6 - endMargin, {
+		hard: true,
+		trim: false
+	}), { symbol });
+};
+const message = (message, symbol = color.gray("│")) => logMessage(symbol, message);
+const error = (message) => logMessage(color.red("×"), message);
+const info = (message) => logMessage(color.blue("·"), message);
+const step = (message) => logMessage(color.green("◇"), message);
+const warning = (message) => logMessage(color.yellow("▲"), message);
+const success = (message) => logMessage(color.green("◆"), message);
+const list = (title, data) => {
+	const padName = pad(Object.keys(data));
+	note$1(title, Object.entries(data).map(([name, value]) => {
+		return color.reset.whiteBright.bold(padName(name + ":", 2)) + value;
+	}).join("\n"));
+};
+const spinner = (opts = {}) => {
+	const frames = [
+		"◒",
+		"◐",
+		"◓",
+		"◑"
+	];
+	const interactive = process.stdout.isTTY && process.env.CI !== "true";
+	let text = "";
+	let frame = 0;
+	let dots = 0;
+	let timer;
+	let started = false;
+	const render = () => {
+		const trail = ".".repeat(Math.floor(dots)).slice(0, 3);
+		process.stdout.write(`\r\x1b[2K${color.magenta(frames[frame])}  ${text}${trail}`);
+		frame = frame + 1 < frames.length ? frame + 1 : 0;
+		dots = dots < frames.length ? dots + .125 : 0;
+	};
+	const onData = (data) => {
+		if (data.toString() === "") opts.onCancel?.();
+	};
+	return {
+		start(message = "") {
+			started = true;
+			text = message;
+			process.stdout.write(`${color.gray("│")}\n`);
+			if (interactive) {
+				process.stdout.write("\x1B[?25l");
+				render();
+				timer = setInterval(render, 80);
+			} else process.stdout.write(`${color.magenta(frames[0])}  ${text}...\n`);
+			if (process.stdin.isTTY) {
+				process.stdin.setRawMode(true);
+				process.stdin.on("data", onData);
+				process.stdin.resume();
+			}
+		},
+		message(message = "") {
+			text = message;
+		},
+		stop(message = "", code = 0) {
+			if (!started) return;
+			started = false;
+			if (process.stdin.isTTY) {
+				process.stdin.off("data", onData);
+				process.stdin.setRawMode(false);
+				process.stdin.pause();
+			}
+			const symbol = code === 0 ? color.green("◇") : code === 1 ? color.red("■") : color.red("×");
+			if (interactive) {
+				clearInterval(timer);
+				process.stdout.write(`\r\x1b[2K${symbol}  ${message || text}\n\x1b[?25h`);
+			} else process.stdout.write(`${symbol}  ${message || text}\n`);
+		}
+	};
+};
+const task = async (opts) => {
+	let initialMessage = opts.initialMessage;
+	let successMessage = opts.successMessage;
+	let errorMessage = opts.errorMessage;
+	let cancel;
+	const cancelled = new Promise((_, reject) => {
+		cancel = () => reject(new Cancelled());
+	});
+	const spin = spinner({ onCancel: () => cancel() });
+	spin.start(truncate(opts.initialMessage, process.stdout.columns - 6 - endMargin));
+	const stop = (message, code) => {
+		spin.stop(truncate(message ?? initialMessage, process.stdout.columns - 6 - endMargin), code);
+	};
+	const work = opts.task({
+		updateMessage(m) {
+			spin.message(truncate(m, process.stdout.columns - 6 - endMargin));
+			initialMessage = m;
+		},
+		updateSuccessMessage(m) {
+			successMessage = m;
+		},
+		updateErrorMessage(m) {
+			errorMessage = m;
+		}
+	});
+	try {
+		const result = await Promise.race([work, cancelled]);
+		stop(successMessage);
+		return result;
+	} catch (error) {
+		if (error instanceof Cancelled) {
+			work.catch(() => {});
+			stop(initialMessage, 1);
+		} else stop(errorMessage, 2);
+		throw error;
+	}
+};
+const table = (props) => {
+	log.message();
+	const length$1 = Math.max(props.head.length, ...props.body.map((b) => b.length));
+	const padding = 2;
+	const totalPadding = 4 * length$1;
+	const totalBorder = (length$1 - 1) * 1 + 2;
+	const maxTableSize = process.stdout.columns - totalPadding - totalBorder - endMargin;
+	const contentSizes = Array.from({ length: length$1 }).map((_, i) => {
+		return Math.max(length(props.head[i] ?? ""), ...props.body.map((b) => length(String(b[i]))));
+	});
+	const columnSizes = Array.from({ length: length$1 }).map(() => {
+		return 0;
+	});
+	let leftover = Math.min(maxTableSize, contentSizes.reduce((total, size) => total + size, 0));
+	while (leftover > 0) for (const x in columnSizes) {
+		const columnSize = columnSizes[x];
+		const contentSize = contentSizes[x];
+		if (leftover > 0 && columnSize < contentSize) {
+			leftover--;
+			columnSizes[x] = columnSize + 1;
+		}
+	}
+	const table = new Table({
+		head: props.head.map((value, x) => "\n" + color.reset.whiteBright.bold(wrap(value, columnSizes[x], { hard: true }))),
+		style: {
+			"padding-left": padding,
+			"padding-right": padding
+		},
+		chars: {
+			"bottom-right": "╯",
+			"top-right": "╮",
+			"top-left": "├",
+			"bottom-left": "├"
+		}
+	});
+	table.push(...props.body.map((row) => {
+		return row.map((value, x) => {
+			if (typeof value === "boolean") return value ? color.green("yes") : color.red("no");
+			if (typeof value === "number") return color.blue(value);
+			return wrap(value, columnSizes[x], { hard: true });
+		});
+	}));
+	console.log(table.toString());
+};
+//#endregion
+export { Cancelled, ansi_exports as ansi, color, logs_exports as log, prompts_exports as prompt, symbols_exports as symbol };

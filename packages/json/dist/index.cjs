@@ -1,304 +1,234 @@
-"use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+let _awsless_big_float = require("@awsless/big-float");
+let _awsless_duration = require("@awsless/duration");
+//#region src/type/bigfloat.ts
+const $bigfloat = {
+	is: (v) => v instanceof _awsless_big_float.BigFloat,
+	parse: (v) => (0, _awsless_big_float.parse)(v),
+	stringify: (v) => v.toString()
 };
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
+//#endregion
+//#region src/type/bigint.ts
+const $bigint = {
+	is: (v) => typeof v === "bigint",
+	parse: (v) => BigInt(v),
+	stringify: (v) => v.toString()
 };
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// src/index.ts
-var index_exports = {};
-__export(index_exports, {
-  $bigfloat: () => $bigfloat,
-  $bigint: () => $bigint,
-  $binary: () => $binary,
-  $date: () => $date,
-  $duration: () => $duration,
-  $infinity: () => $infinity,
-  $map: () => $map,
-  $mockdate: () => $mockdate,
-  $nan: () => $nan,
-  $regexp: () => $regexp,
-  $set: () => $set,
-  $undefined: () => $undefined,
-  $url: () => $url,
-  createReplacer: () => createReplacer,
-  createReviver: () => createReviver,
-  createSafeNumberReplacer: () => createSafeNumberReplacer,
-  createSafeNumberReviver: () => createSafeNumberReviver,
-  parse: () => parse2,
-  patch: () => patch,
-  safeNumberParse: () => safeNumberParse,
-  safeNumberStringify: () => safeNumberStringify,
-  setGlobalTypes: () => setGlobalTypes,
-  stringify: () => stringify,
-  unpatch: () => unpatch
-});
-module.exports = __toCommonJS(index_exports);
-
-// src/type/bigfloat.ts
-var import_big_float = require("@awsless/big-float");
-var $bigfloat = {
-  is: (v) => v instanceof import_big_float.BigFloat,
-  parse: (v) => (0, import_big_float.parse)(v),
-  stringify: (v) => v.toString()
+//#endregion
+//#region src/type/date.ts
+const $date = {
+	is: (v) => v instanceof Date,
+	parse: (v) => new Date(v),
+	stringify: (v) => v.toISOString()
 };
-
-// src/type/bigint.ts
-var $bigint = {
-  is: (v) => typeof v === "bigint",
-  parse: (v) => BigInt(v),
-  stringify: (v) => v.toString()
+//#endregion
+//#region src/type/infinity.ts
+const P = Infinity;
+const N = -Infinity;
+const $infinity = {
+	is: (v) => v === P || v === N,
+	parse: (v) => v === 1 ? P : N,
+	stringify: (v) => v > 0 ? 1 : 0
 };
-
-// src/type/date.ts
-var $date = {
-  is: (v) => v instanceof Date,
-  parse: (v) => new Date(v),
-  stringify: (v) => v.toISOString()
+//#endregion
+//#region src/type/undefined.ts
+const $undefined = {
+	is: (v) => typeof v === "undefined",
+	replace: (_) => void 0,
+	stringify: (_) => 0
 };
-
-// src/type/infinity.ts
-var P = Infinity;
-var N = -Infinity;
-var $infinity = {
-  is: (v) => v === P || v === N,
-  parse: (v) => v === 1 ? P : N,
-  stringify: (v) => v > 0 ? 1 : 0
+const isUndefined = (value) => {
+	return typeof value === "object" && value !== null && Object.keys(value).length === 1 && "$undefined" in value && value.$undefined === 0;
 };
-
-// src/type/undefined.ts
-var $undefined = {
-  is: (v) => typeof v === "undefined",
-  replace: (_) => void 0,
-  stringify: (_) => 0
+//#endregion
+//#region src/type/map.ts
+const $map = {
+	is: (v) => v instanceof Map,
+	parse: (v) => new Map(v.map((pair) => {
+		return pair.map((i) => isUndefined(i) ? void 0 : i);
+	})),
+	stringify: (v) => Array.from(v)
 };
-var isUndefined = (value) => {
-  return typeof value === "object" && value !== null && Object.keys(value).length === 1 && "$undefined" in value && value.$undefined === 0;
+//#endregion
+//#region src/type/nan.ts
+const $nan = {
+	is: (v) => typeof v === "number" && isNaN(v),
+	parse: (_) => NaN,
+	stringify: (_) => 0
 };
-
-// src/type/map.ts
-var $map = {
-  is: (v) => v instanceof Map,
-  parse: (v) => new Map(
-    v.map((pair) => {
-      return pair.map((i) => isUndefined(i) ? void 0 : i);
-    })
-  ),
-  stringify: (v) => Array.from(v)
+//#endregion
+//#region src/type/regexp.ts
+const $regexp = {
+	is: (v) => v instanceof RegExp,
+	parse: (v) => new RegExp(v[0], v[1]),
+	stringify: (v) => [v.source, v.flags]
 };
-
-// src/type/nan.ts
-var $nan = {
-  is: (v) => typeof v === "number" && isNaN(v),
-  parse: (_) => NaN,
-  stringify: (_) => 0
+//#endregion
+//#region src/type/set.ts
+const $set = {
+	is: (v) => v instanceof Set,
+	parse: (v) => new Set(v.map((i) => isUndefined(i) ? void 0 : i)),
+	stringify: (v) => Array.from(v)
 };
-
-// src/type/regexp.ts
-var $regexp = {
-  is: (v) => v instanceof RegExp,
-  parse: (v) => new RegExp(v[0], v[1]),
-  stringify: (v) => [v.source, v.flags]
+//#endregion
+//#region src/type/binary.ts
+const $binary = {
+	is: (v) => v instanceof Uint8Array,
+	parse: (v) => Uint8Array.from(atob(v), (c) => c.charCodeAt(0)),
+	stringify: (v) => btoa(String.fromCharCode(...v))
 };
-
-// src/type/set.ts
-var $set = {
-  is: (v) => v instanceof Set,
-  parse: (v) => new Set(v.map((i) => isUndefined(i) ? void 0 : i)),
-  stringify: (v) => Array.from(v)
+//#endregion
+//#region src/type/url.ts
+const $url = {
+	is: (v) => v instanceof URL,
+	parse: (v) => new URL(v),
+	stringify: (v) => v.toString()
 };
-
-// src/type/binary.ts
-var $binary = {
-  is: (v) => v instanceof Uint8Array,
-  parse: (v) => Uint8Array.from(atob(v), (c) => c.charCodeAt(0)),
-  stringify: (v) => btoa(String.fromCharCode(...v))
+//#endregion
+//#region src/type/duration.ts
+const $duration = {
+	is: (v) => v instanceof _awsless_duration.Duration,
+	parse: (v) => new _awsless_duration.Duration(BigInt(v)),
+	stringify: (v) => v.value.toString()
 };
-
-// src/type/url.ts
-var $url = {
-  is: (v) => v instanceof URL,
-  parse: (v) => new URL(v),
-  stringify: (v) => v.toString()
+//#endregion
+//#region src/type/index.ts
+const baseTypes = {
+	$undefined,
+	$duration,
+	$infinity,
+	$bigfloat,
+	$bigint,
+	$regexp,
+	$binary,
+	$date,
+	$set,
+	$map,
+	$nan,
+	$url
 };
-
-// src/type/duration.ts
-var import_duration = require("@awsless/duration");
-var $duration = {
-  is: (v) => v instanceof import_duration.Duration,
-  parse: (v) => new import_duration.Duration(BigInt(v)),
-  stringify: (v) => v.value.toString()
+//#endregion
+//#region src/parse.ts
+const parse = (json, options) => {
+	const replacements = [];
+	const result = JSON.parse(json, createReviver(options?.types, (target, key, value) => {
+		replacements.push([
+			target,
+			key,
+			value
+		]);
+	}));
+	for (const [target, key, value] of replacements) target[key] = value;
+	return result;
 };
-
-// src/type/index.ts
-var baseTypes = {
-  $undefined,
-  $duration,
-  $infinity,
-  $bigfloat,
-  $bigint,
-  $regexp,
-  $binary,
-  $date,
-  $set,
-  $map,
-  $nan,
-  $url
+const createReviver = (types = {}, registerReplacement) => {
+	types = {
+		...baseTypes,
+		...types
+	};
+	return function(key, value) {
+		const original = this[key];
+		if (original !== null && typeof original === "object") {
+			const keys = Object.keys(original);
+			if (keys.length === 1) {
+				const typeName = keys[0];
+				if (typeName in types && types[typeName]) {
+					const type = types[typeName];
+					const stringified = original[typeName];
+					if ("parse" in type) return type.parse(stringified);
+					else {
+						const result = type.replace(stringified);
+						registerReplacement?.(this, key, result);
+						return result;
+					}
+				}
+			}
+		}
+		return value;
+	};
 };
-
-// src/parse.ts
-var parse2 = (json, options) => {
-  const replacements = [];
-  const result = JSON.parse(
-    json,
-    createReviver(options?.types, (target, key, value) => {
-      replacements.push([target, key, value]);
-    })
-  );
-  for (const [target, key, value] of replacements) {
-    target[key] = value;
-  }
-  return result;
+//#endregion
+//#region src/stringify.ts
+const stringify = (value, options) => {
+	return JSON.stringify(value, createReplacer(options));
 };
-var createReviver = (types = {}, registerReplacement) => {
-  types = {
-    ...baseTypes,
-    ...types
-  };
-  return function(key, value) {
-    const original = this[key];
-    if (original !== null && typeof original === "object") {
-      const keys = Object.keys(original);
-      if (keys.length === 1) {
-        const typeName = keys[0];
-        if (typeName in types && types[typeName]) {
-          const type = types[typeName];
-          const stringified = original[typeName];
-          if ("parse" in type) {
-            return type.parse(stringified);
-          } else {
-            const result = type.replace(stringified);
-            registerReplacement?.(this, key, result);
-            return result;
-          }
-        }
-      }
-    }
-    return value;
-  };
+const createReplacer = (options) => {
+	const types = {
+		...baseTypes,
+		...options?.types
+	};
+	return function(key, value) {
+		const original = this[key];
+		if (!options?.preserveUndefinedValues && key && typeof original === "undefined" && typeof this === "object" && !Array.isArray(this)) return value;
+		for (const [typeName, type] of Object.entries(types)) if (type.is(original)) return { [typeName]: type.stringify(original) };
+		return value;
+	};
 };
-
-// src/stringify.ts
-var stringify = (value, options) => {
-  return JSON.stringify(value, createReplacer(options));
+//#endregion
+//#region src/patch.ts
+const patch = (value, types = {}) => {
+	return parse(JSON.stringify(value), types);
 };
-var createReplacer = (options) => {
-  const types = {
-    ...baseTypes,
-    ...options?.types
-  };
-  return function(key, value) {
-    const original = this[key];
-    if (!options?.preserveUndefinedValues && key && typeof original === "undefined" && typeof this === "object" && !Array.isArray(this)) {
-      return value;
-    }
-    for (const [typeName, type] of Object.entries(types)) {
-      if (type.is(original)) {
-        return {
-          [typeName]: type.stringify(original)
-        };
-      }
-    }
-    return value;
-  };
+const unpatch = (value, types = {}) => {
+	return JSON.parse(stringify(value, types));
 };
-
-// src/patch.ts
-var patch = (value, types = {}) => {
-  return parse2(JSON.stringify(value), types);
+//#endregion
+//#region src/global.ts
+const setGlobalTypes = (types) => {
+	Object.assign(baseTypes, types);
 };
-var unpatch = (value, types = {}) => {
-  return JSON.parse(stringify(value, types));
+//#endregion
+//#region src/safe-number/parse.ts
+const safeNumberParse = (json, props) => {
+	return JSON.parse(json, createSafeNumberReviver(props));
 };
-
-// src/global.ts
-var setGlobalTypes = (types) => {
-  Object.assign(baseTypes, types);
+const createSafeNumberReviver = (props) => {
+	return (_, value, context) => {
+		if (typeof value === "number") return props.parse(context.source);
+		return value;
+	};
 };
-
-// src/safe-number/parse.ts
-var safeNumberParse = (json, props) => {
-  return JSON.parse(
-    json,
-    // @ts-ignore
-    createSafeNumberReviver(props)
-  );
+//#endregion
+//#region src/safe-number/stringify.ts
+const safeNumberStringify = (value, props) => {
+	return JSON.stringify(value, createSafeNumberReplacer(props));
 };
-var createSafeNumberReviver = (props) => {
-  return (_, value, context) => {
-    if (typeof value === "number") {
-      return props.parse(context.source);
-    }
-    return value;
-  };
+const createSafeNumberReplacer = (props) => {
+	return function(key, value) {
+		const original = this[key];
+		if (props.is(original)) return JSON.rawJSON(props.stringify(original));
+		return value;
+	};
 };
-
-// src/safe-number/stringify.ts
-var safeNumberStringify = (value, props) => {
-  return JSON.stringify(value, createSafeNumberReplacer(props));
+//#endregion
+//#region src/type/mockdate.ts
+const $mockdate = {
+	is: (v) => typeof v === "object" && v !== null && "toISOString" in v && typeof v.toISOString === "function" && "getTime" in v && typeof v.getTime === "function" && "toUTCString" in v && typeof v.toUTCString === "function",
+	parse: (v) => new Date(v),
+	stringify: (v) => v.toISOString()
 };
-var createSafeNumberReplacer = (props) => {
-  return function(key, value) {
-    const original = this[key];
-    if (props.is(original)) {
-      return JSON.rawJSON(props.stringify(original));
-    }
-    return value;
-  };
-};
-
-// src/type/mockdate.ts
-var $mockdate = {
-  is: (v) => typeof v === "object" && v !== null && "toISOString" in v && typeof v.toISOString === "function" && "getTime" in v && typeof v.getTime === "function" && "toUTCString" in v && typeof v.toUTCString === "function",
-  parse: (v) => new Date(v),
-  stringify: (v) => v.toISOString()
-};
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  $bigfloat,
-  $bigint,
-  $binary,
-  $date,
-  $duration,
-  $infinity,
-  $map,
-  $mockdate,
-  $nan,
-  $regexp,
-  $set,
-  $undefined,
-  $url,
-  createReplacer,
-  createReviver,
-  createSafeNumberReplacer,
-  createSafeNumberReviver,
-  parse,
-  patch,
-  safeNumberParse,
-  safeNumberStringify,
-  setGlobalTypes,
-  stringify,
-  unpatch
-});
+//#endregion
+exports.$bigfloat = $bigfloat;
+exports.$bigint = $bigint;
+exports.$binary = $binary;
+exports.$date = $date;
+exports.$duration = $duration;
+exports.$infinity = $infinity;
+exports.$map = $map;
+exports.$mockdate = $mockdate;
+exports.$nan = $nan;
+exports.$regexp = $regexp;
+exports.$set = $set;
+exports.$undefined = $undefined;
+exports.$url = $url;
+exports.createReplacer = createReplacer;
+exports.createReviver = createReviver;
+exports.createSafeNumberReplacer = createSafeNumberReplacer;
+exports.createSafeNumberReviver = createSafeNumberReviver;
+exports.parse = parse;
+exports.patch = patch;
+exports.safeNumberParse = safeNumberParse;
+exports.safeNumberStringify = safeNumberStringify;
+exports.setGlobalTypes = setGlobalTypes;
+exports.stringify = stringify;
+exports.unpatch = unpatch;

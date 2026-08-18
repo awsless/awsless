@@ -1,9 +1,9 @@
 {
 	"compilerOptions": {
 		"target": "ESNext",
-		"module": "ESNext",
-		"moduleResolution": "Node",
-		"lib": ["DOM", "DOM.Iterable", "ES2023"],
+		"module": "Preserve",
+		"moduleResolution": "Bundler",
+		"lib": ["DOM", "DOM.Iterable", "DOM.AsyncIterable", "ES2023"],
 		"types": ["node", "vitest", "vitest/globals"],
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
@@ -13,8 +13,7 @@
 		"noFallthroughCasesInSwitch": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
-		"declaration": true,
-		"outDir": "dist",
+		"noEmit": true,
 	},
 	"exclude": ["packages/**/dist", "**/_*", "./old/**"],
 }

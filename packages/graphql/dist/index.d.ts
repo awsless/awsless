@@ -1,111 +1,104 @@
-import { GraphQLSchema as GraphQLSchema$1 } from 'graphql';
-
+import { GraphQLSchema as GraphQLSchema$1 } from "graphql";
+//#region src/client/argument.d.ts
 declare class Arg<Type extends string = string, Value = unknown> {
-    readonly type: Type;
-    readonly value: Value;
-    constructor(type: Type, value: Value);
+  readonly type: Type;
+  readonly value: Value;
+  constructor(type: Type, value: Value);
 }
 declare const $: <Type extends string, Value extends unknown>(type: Type, value: Value) => Arg<Type, Value>;
-
+//#endregion
+//#region src/client/query.d.ts
 type Request = {
-    [field: string]: boolean | number | Request | Arg | unknown;
+  [field: string]: boolean | number | Request | Arg | unknown;
 };
 type Operation$1 = 'query' | 'mutation' | 'subscription';
 declare function createQuery(operation: Operation$1, request: Request): {
-    query: string;
-    variables: Record<string, unknown>;
+  query: string;
+  variables: Record<string, unknown>;
 };
-
+//#endregion
+//#region src/client/fetcher.d.ts
 type Operation = {
-    query: string;
-    variables: {
-        [name: string]: unknown;
-    };
+  query: string;
+  variables: {
+    [name: string]: unknown;
+  };
 };
 type Fetcher = (opt: Operation, props?: FetchProps) => unknown;
 type FetcherOptions = {
-    url: string;
-    headers?: Record<string, string>;
+  url: string;
+  headers?: Record<string, string>;
 };
 type FetchProps = {
-    fetch?: typeof fetch;
-    headers?: Record<string, string>;
-    signal?: AbortSignal;
+  fetch?: typeof fetch;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
 };
 declare const createFetcher: (optionsOrFunc: FetcherOptions | (() => FetcherOptions | Promise<FetcherOptions>)) => Fetcher;
-
+//#endregion
+//#region src/client/response.d.ts
 type TupleLike = readonly [any, any];
 type ArrayLike = any[];
 type NeverLike = false | 0;
 type UnionLike = {
-    __union: any;
+  __union: any;
 };
 type ObjectLike = {};
 type NilLike = undefined | null;
 type Scalar = string | number | boolean | undefined;
-type Anify<T> = {
-    [P in keyof T]?: any;
-};
+type Anify<T> = { [P in keyof T]?: any; };
 type FieldsToRemove = '__union' | '__name' | '__args';
 type Optional<T, R> = T extends undefined ? R | undefined : R;
 type InferResponse<SRC extends Anify<DST> | undefined, DST> = {
-    scalar: SRC;
-    tuple: Optional<SRC, DST extends TupleLike ? SelectTuple<SRC, DST> : never>;
-    union: Optional<SRC, SRC extends UnionLike ? SelectUnion<SRC, DST> : never>;
-    array: Optional<SRC, SRC extends ArrayLike ? SelectArray<SRC, DST> : never>;
-    object: Optional<SRC, SRC extends ObjectLike ? SelectObject<SRC, DST> : never>;
-    never: never;
+  scalar: SRC;
+  tuple: Optional<SRC, DST extends TupleLike ? SelectTuple<SRC, DST> : never>;
+  union: Optional<SRC, SRC extends UnionLike ? SelectUnion<SRC, DST> : never>;
+  array: Optional<SRC, SRC extends ArrayLike ? SelectArray<SRC, DST> : never>;
+  object: Optional<SRC, SRC extends ObjectLike ? SelectObject<SRC, DST> : never>;
+  never: never;
 }[DST extends NilLike ? 'never' : SRC extends NilLike ? 'never' : DST extends TupleLike ? 'tuple' : DST extends NeverLike ? 'never' : SRC extends Scalar ? 'scalar' : SRC extends ArrayLike ? 'array' : SRC extends UnionLike ? 'union' : DST extends ObjectLike ? 'object' : 'never'];
 type SelectTuple<SRC extends Anify<DST>, DST> = DST extends readonly [any, infer PAYLOAD] ? InferResponse<SRC, PAYLOAD> : never;
 type SelectArray<SRC extends Anify<DST>, DST> = SRC extends (infer T)[] ? Array<InferResponse<T, DST>> : never;
-type RenameAliases<Object> = {
-    [Key in keyof Object as Key extends `${infer Alias}:${string}` ? Alias : Key]: Object[Key];
-};
-type SelectObject<SRC extends Anify<DST>, DST> = RenameAliases<Omit<{
-    [Key in keyof DST]: Key extends keyof SRC ? InferResponse<SRC[Key], DST[Key]> : SRC[Key];
-}, FieldsToRemove>>;
+type RenameAliases<Object> = { [Key in keyof Object as Key extends `${infer Alias}:${string}` ? Alias : Key]: Object[Key]; };
+type SelectObject<SRC extends Anify<DST>, DST> = RenameAliases<Omit<{ [Key in keyof DST]: Key extends keyof SRC ? InferResponse<SRC[Key], DST[Key]> : SRC[Key]; }, FieldsToRemove>>;
 type UnionKey = `...on ${string}`;
-type SelectUnion<SRC extends UnionLike, DST> = {
-    [Resolver in keyof SRC['__union']]: RenameAliases<{
-        [Key in keyof Omit<DST, FieldsToRemove | UnionKey>]: InferResponse<SRC['__union'][Resolver][Key], DST[Key]>;
-    } & {
-        [Key in keyof Omit<DST[Resolver], FieldsToRemove | UnionKey>]: InferResponse<SRC['__union'][Resolver][Key], DST[Resolver][Key]>;
-    }>;
-}[keyof SRC['__union']];
-
+type SelectUnion<SRC extends UnionLike, DST> = { [Resolver in keyof SRC['__union']]: RenameAliases<{ [Key in keyof Omit<DST, FieldsToRemove | UnionKey>]: InferResponse<SRC['__union'][Resolver][Key], DST[Key]>; } & { [Key in keyof Omit<DST[Resolver], FieldsToRemove | UnionKey>]: InferResponse<SRC['__union'][Resolver][Key], DST[Resolver][Key]>; }>; }[keyof SRC['__union']];
+//#endregion
+//#region src/client/client.d.ts
 type RootSchema = {
-    request: any;
-    response: any;
+  request: any;
+  response: any;
 };
 type GraphQLSchema = {
-    query: RootSchema;
-    mutate: RootSchema;
+  query: RootSchema;
+  mutate: RootSchema;
 };
-type Client<S extends GraphQLSchema> = {
-    [T in keyof S]: S[T] extends RootSchema ? <R extends S[T]['request'] & {
-        __name?: string;
-    }>(request: R, props?: FetchProps) => Promise<InferResponse<S[T]['response'], R>> : never;
-};
+type Client<S extends GraphQLSchema> = { [T in keyof S]: S[T] extends RootSchema ? <R extends S[T]['request'] & {
+  __name?: string;
+}>(request: R, props?: FetchProps) => Promise<InferResponse<S[T]['response'], R>> : never; };
 declare const createClient: <S extends GraphQLSchema>(fetcher: Fetcher) => Client<S>;
-
+//#endregion
+//#region src/client/error.d.ts
 type GraphQLErrorEntry = {
-    path: (string | number)[] | null;
-    errorType?: string;
-    message: string;
-    data?: unknown;
+  path: (string | number)[] | null;
+  errorType?: string;
+  message: string;
+  data?: unknown;
 };
 declare class GraphQLError extends Error {
-    readonly errors: GraphQLErrorEntry[];
-    constructor(errors: GraphQLErrorEntry[]);
+  readonly errors: GraphQLErrorEntry[];
+  constructor(errors: GraphQLErrorEntry[]);
 }
-
+//#endregion
+//#region src/generate/common/config.d.ts
 type Config = {
-    package?: string;
-    scalarTypes?: {
-        [k: string]: string;
-    };
+  package?: string;
+  scalarTypes?: {
+    [k: string]: string;
+  };
 };
-
+//#endregion
+//#region src/generate/index.d.ts
 declare const generate: (schema: GraphQLSchema$1, config?: Config) => string;
-
-export { $, Arg, Client, Fetcher, GraphQLError, GraphQLSchema, RootSchema, createClient, createFetcher, createQuery, generate };
+//#endregion
+export { $, Arg, type Client, type Fetcher, GraphQLError, type GraphQLSchema, type RootSchema, createClient, createFetcher, createQuery, generate };

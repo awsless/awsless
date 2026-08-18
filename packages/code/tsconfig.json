@@ -1,6 +1,15 @@
 {
-	"extends": "../../tsconfig.json",
+	// Self-contained: the jest stack here runs typescript 4.8, which
+	// can't parse the "Preserve" / "Bundler" / ES2023 options the root
+	// tsconfig uses. These are the previous root values it ran with.
 	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Node",
+		"lib": ["DOM", "DOM.Iterable", "ES2022"],
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
 		"types": ["node", "preact"],
 		"jsx": "react-jsx",
 		"jsxImportSource": "preact",

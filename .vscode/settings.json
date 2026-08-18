@@ -11,12 +11,12 @@
 		"editor.insertSpaces": false,
 		"editor.detectIndentation": false,
 		"editor.formatOnSave": true,
-		"editor.defaultFormatter": "esbenp.prettier-vscode"
+		"editor.defaultFormatter": "oxc.oxc-vscode"
 	},
 
 	"[svelte]": {
 		"editor.formatOnSave": true,
-		"editor.defaultFormatter": "esbenp.prettier-vscode"
+		"editor.defaultFormatter": "oxc.oxc-vscode"
 	},
 
 	"[json][jsonc]": {
@@ -24,24 +24,6 @@
 		"editor.insertSpaces": false,
 		"editor.detectIndentation": false,
 		"editor.formatOnSave": true,
-		"editor.defaultFormatter": "esbenp.prettier-vscode"
-	},
-
-	"json.schemas": [
-		// {
-		// 	"fileMatch": ["stack.json", "stack.jsonc"],
-		// 	"url": "https://unpkg.com/@awsless/awsless/dist/stack.json"
-		// },
-		// {
-		// 	"fileMatch": ["app.json", "app.jsonc"],
-		// 	"url": "https://unpkg.com/@awsless/awsless/dist/app.json"
-		// },
-		{
-			"fileMatch": [".eslintrc"],
-			"schema": {
-				"allowTrailingCommas": true,
-				"$schema": "https://json.schemastore.org/eslintrc"
-			}
-		}
-	]
+		"editor.defaultFormatter": "oxc.oxc-vscode"
+	}
 }

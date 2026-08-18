@@ -36,8 +36,8 @@
 	},
 	"scripts": {
 		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format esm --dts --clean",
-		"build-svelte": "pnpm tsup src/framework/svelte-5.svelte.ts --format esm --dts",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean",
+		"build-svelte": "pnpm tsdown --no-fixed-extension --no-clean src/framework/svelte-5.svelte.ts --format esm --dts",
 		"prepublish": "if pnpm test; then pnpm build; pnpm build-svelte; else exit; fi"
 	},
 	"vitest": {

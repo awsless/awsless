@@ -1,22 +1,24 @@
-import { Mock } from 'vitest';
-import * as _aws_sdk_client_sesv2 from '@aws-sdk/client-sesv2';
-import { SESv2Client } from '@aws-sdk/client-sesv2';
-
+import { Mock } from "vitest";
+import { SESv2Client } from "@aws-sdk/client-sesv2";
+//#region src/mock.d.ts
 declare const mockSES: (handler?: (input: unknown) => void) => Mock<(input: unknown) => void>;
-
+//#endregion
+//#region src/client.d.ts
 declare const sesClient: {
-    (): SESv2Client;
-    set(client: SESv2Client): void;
+  (): SESv2Client;
+  set(client: SESv2Client): void;
 };
-
+//#endregion
+//#region src/types.d.ts
 interface SendEmail {
-    client?: SESv2Client;
-    subject: string;
-    from: string;
-    to: string[];
-    html: string;
+  client?: SESv2Client;
+  subject: string;
+  from: string;
+  to: string[];
+  html: string;
 }
-
-declare const sendEmail: ({ client, subject, from, to, html }: SendEmail) => Promise<_aws_sdk_client_sesv2.SendEmailCommandOutput>;
-
+//#endregion
+//#region src/commands.d.ts
+declare const sendEmail: ({ client, subject, from, to, html }: SendEmail) => Promise<import("@aws-sdk/client-sesv2").SendEmailCommandOutput>;
+//#endregion
 export { mockSES, sendEmail, sesClient };

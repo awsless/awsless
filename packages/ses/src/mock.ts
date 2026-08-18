@@ -1,7 +1,7 @@
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import { mockClient } from 'aws-sdk-client-mock'
 // @ts-ignore
-import { Mock } from 'vitest'
+import type { Mock } from 'vitest'
 
 export const mockSES = (handler?: (input: unknown) => void) => {
 	const fn = vi.fn(handler ?? (() => {}))

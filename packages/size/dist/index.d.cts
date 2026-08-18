@@ -1,6 +1,7 @@
+//#region src/size.d.ts
 declare class Size {
-    readonly value: bigint;
-    constructor(value: bigint);
+  readonly value: bigint;
+  constructor(value: bigint);
 }
 declare const bytes: (value: number | bigint) => Size;
 declare const kibibytes: (value: number | bigint) => Size;
@@ -20,13 +21,15 @@ declare const toSafeMebibytes: (size: Size) => bigint;
 declare const toSafeGibibytes: (size: Size) => bigint;
 declare const toSafeTebibytes: (size: Size) => bigint;
 declare const toSafePebibytes: (size: Size) => bigint;
-
+//#endregion
+//#region src/parse.d.ts
 type BinarySizeUnit = 'B' | 'KiB' | 'MiB' | 'GiB' | 'TiB' | 'PiB';
 type DecimalSizeUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB' | 'PB';
 type SizeUnit = BinarySizeUnit | DecimalSizeUnit;
 type SizeFormat = `${number} ${SizeUnit}`;
 declare const parse: (value: SizeFormat) => Size;
-
+//#endregion
+//#region src/format.d.ts
 declare const format: (size: Size) => SizeFormat;
-
-export { Size, type SizeFormat, type SizeUnit, bytes, format, gibibytes, kibibytes, mebibytes, parse, pebibytes, tebibytes, toBytes, toGibibytes, toKibibytes, toMebibytes, toPebibytes, toSafeBytes, toSafeGibibytes, toSafeKibibytes, toSafeMebibytes, toSafePebibytes, toSafeTebibytes, toTebibytes };
+//#endregion
+export { Size, SizeFormat, SizeUnit, bytes, format, gibibytes, kibibytes, mebibytes, parse, pebibytes, tebibytes, toBytes, toGibibytes, toKibibytes, toMebibytes, toPebibytes, toSafeBytes, toSafeGibibytes, toSafeKibibytes, toSafeMebibytes, toSafePebibytes, toSafeTebibytes, toTebibytes };

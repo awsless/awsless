@@ -12,4 +12,4 @@ export {
 	getCachedQueueUrl,
 } from './commands'
 export { mockSQS } from './mock'
-export { SendMessageOptions, BatchItem, SendMessageBatchOptions } from './types'
+export { type SendMessageOptions, type BatchItem, type SendMessageBatchOptions } from './types'
