@@ -2,7 +2,7 @@ import { loadWorkspace } from '@awsless/ts-file-cache'
 import { constantCase } from 'change-case'
 import { watch } from 'chokidar'
 import { mkdir, rm, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { basename, join, sep } from 'path'
 import { createApp } from '../app.js'
 import { build, getBuildPath } from '../build/index.js'
 import { AppConfig } from '../config/app.js'
@@ -587,8 +587,21 @@ export const startDev = async (props: {
 	// the background right away, so the rebuild overlaps with the time
 	// between saving & the next request instead of blocking it. Build
 	// errors stay quiet here - the next invoke retries & surfaces them.
+	// Chokidar 5 dropped glob support, so the ignores are a function.
+	// Pruning the ignored directories also keeps the watcher away from
+	// unwatchable files like the git fsmonitor daemon socket.
+	const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
+
 	const watcher = watch(directories.root, {
-		ignored: ['**/node_modules/**', '**/.awsless/**', '**/dist/**', '**/.git/**', '**/*.stack.*', '**/app.json*'],
+		ignored: path => {
+			if (path.split(sep).some(segment => ignoredDirectories.has(segment))) {
+				return true
+			}
+
+			const base = basename(path)
+
+			return base.includes('.stack.') || base.startsWith('app.json')
+		},
 		ignoreInitial: true,
 		awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
 	})
