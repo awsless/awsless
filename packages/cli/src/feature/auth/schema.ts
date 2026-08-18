@@ -79,7 +79,7 @@ export const AuthDefaultSchema = z
 							'Specifies whether username case sensitivity will be enabled. When usernames and email addresses are case insensitive, users can sign in as the same user when they enter a different capitalization of their user name.'
 						),
 				})
-				.default({})
+				.prefault({})
 				.describe('The username policy.'),
 
 			password: z
@@ -112,26 +112,26 @@ export const AuthDefaultSchema = z
 						.default(true)
 						.describe('Required users to use at least one symbol in their password.'),
 
-					temporaryPasswordValidity: DurationSchema.default('7 days').describe(
+					temporaryPasswordValidity: DurationSchema.prefault('7 days').describe(
 						"The duration a temporary password is valid. If the user doesn't sign in during this time, an administrator must reset their password."
 					),
 				})
-				.default({})
+				.prefault({})
 				.describe('The password policy.'),
 
 			validity: z
 				.object({
-					idToken: DurationSchema.default('1 hour').describe(
+					idToken: DurationSchema.prefault('1 hour').describe(
 						"The ID token time limit. After this limit expires, your user can't use their ID token."
 					),
-					accessToken: DurationSchema.default('1 hour').describe(
+					accessToken: DurationSchema.prefault('1 hour').describe(
 						"The access token time limit. After this limit expires, your user can't use their access token."
 					),
-					refreshToken: DurationSchema.default('365 days').describe(
+					refreshToken: DurationSchema.prefault('365 days').describe(
 						"The refresh token time limit. After this limit expires, your user can't use their refresh token."
 					),
 				})
-				.default({})
+				.prefault({})
 				.describe('Specifies the validity duration for every JWT token.'),
 
 			// triggers: TriggersSchema.optional(),

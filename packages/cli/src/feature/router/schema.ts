@@ -149,13 +149,13 @@ const WafSettingsSchema = z
 			),
 		captchaImmunityTime: DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout duration is 1 minute')
 			.refine(durationMax(days(3)), 'Maximum timeout duration is 3 days')
-			.default('5 minutes')
+			.prefault('5 minutes')
 			.describe(
 				'The amount of time that a CAPTCHA timestamp is considered valid by AWS WAF. The default setting is 5 minutes.'
 			),
 		challengeImmunityTime: DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout duration is 1 minute')
 			.refine(durationMax(days(3)), 'Maximum timeout duration is 3 days')
-			.default('5 minutes')
+			.prefault('5 minutes')
 			.describe(
 				'The amount of time that a challenge timestamp is considered valid by AWS WAF. The default setting is 5 minutes.'
 			),
@@ -204,7 +204,7 @@ export const RouterDefaultSchema = z
 				cors: z
 					.object({
 						override: z.boolean().default(false),
-						maxAge: DurationSchema.default('365 days'),
+						maxAge: DurationSchema.prefault('365 days'),
 						exposeHeaders: z.string().array().optional(),
 						credentials: z.boolean().default(false),
 						headers: z.string().array().default(['*']),

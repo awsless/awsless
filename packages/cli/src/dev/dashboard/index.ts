@@ -261,7 +261,7 @@ export const createDashboardServer = (props: {
 						} else if (type === 'set') {
 							value = (await redis.smembers(key)).slice(0, 10)
 						} else if (type === 'zset') {
-							value = await redis.zrange(key, 0, 9, 'WITHSCORES')
+							value = await redis.zrange(key, 0, '9', 'WITHSCORES')
 						}
 
 						entries.push({ db, key, type, ttl, value })

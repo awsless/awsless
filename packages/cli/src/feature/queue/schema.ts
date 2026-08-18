@@ -33,13 +33,13 @@ const BatchSizeSchema = z
 
 export const QueueDefaultSchema = z
 	.object({
-		retentionPeriod: RetentionPeriodSchema.default('7 days'),
+		retentionPeriod: RetentionPeriodSchema.prefault('7 days'),
 		// The visibility timeout is derived from the bundle timeout.
 		receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
-		maxMessageSize: MaxMessageSizeSchema.default('256 KB'),
+		maxMessageSize: MaxMessageSizeSchema.prefault('256 KB'),
 		batchSize: BatchSizeSchema.default(10),
 	})
-	.default({})
+	.prefault({})
 
 const QueueSchema = z.object({
 	consumer: BundledFunctionSchema.optional().describe('The consuming lambda function properties.'),
@@ -53,9 +53,7 @@ export const QueuesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.union([
-			LocalFileSchema.transform(consumer => ({
-				consumer,
-			})).pipe(QueueSchema),
+			LocalFileSchema.transform(consumer => ({ consumer }) as z.input<typeof QueueSchema>).pipe(QueueSchema),
 			QueueSchema,
 		])
 	)

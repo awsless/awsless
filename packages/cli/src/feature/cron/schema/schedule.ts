@@ -13,7 +13,7 @@ export const RateExpressionSchema = z
 			return z
 				.string()
 				.regex(/^[0-9]+ (seconds?|minutes?|hours?|days?)$/)
-				.refine<RateExpression>((rate): rate is RateExpression => {
+				.refine(rate => {
 					const [str] = rate.split(' ')
 					const number = parseInt(str!)
 					return number > 0

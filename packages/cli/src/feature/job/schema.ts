@@ -89,9 +89,7 @@ const FileCodeSchema = z.object({
 
 const CodeSchema = z
 	.union([
-		LocalFileSchema.transform(file => ({
-			file,
-		})).pipe(FileCodeSchema),
+		LocalFileSchema.transform(file => ({ file }) as z.input<typeof FileCodeSchema>).pipe(FileCodeSchema),
 		FileCodeSchema,
 	])
 	.describe('Specify the code of your job.')
@@ -119,13 +117,11 @@ const ASchema = z.object({
 	architecture: ArchitectureSchema.optional(),
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
-	timeout: TimeoutSchema.default('30 minutes').describe('The maximum time the job is allowed to run before being stopped. Default: 30 minutes.'),
+	timeout: TimeoutSchema.prefault('30 minutes').describe('The maximum time the job is allowed to run before being stopped. Default: 30 minutes.'),
 })
 
 const JobSchema = z.union([
-	LocalFileSchema.transform(code => ({
-		code,
-	})).pipe(ASchema),
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof ASchema>).pipe(ASchema),
 	ASchema,
 ])
 
@@ -137,14 +133,14 @@ export const JobDefaultSchema = z
 	.object({
 		image: ImageSchema.optional(),
 		persistentStorage: PersistentStorageSchema.optional(),
-		cpu: CpuSchema.default(0.25),
-		memorySize: MemorySizeSchema.default('512 MB'),
+		cpu: CpuSchema.prefault(0.25),
+		memorySize: MemorySizeSchema.prefault('512 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 		timeout: TimeoutSchema.optional(),
-		log: LogSchema.default(true).transform(log => ({
+		log: LogSchema.prefault(true).transform(log => ({
 			retention: log.retention ?? days(7),
 		})),
 	})
-	.default({})
+	.prefault({})

@@ -12,7 +12,7 @@ vi.mock('@awsless/dynamodb', async importOriginal => {
 		...dynamodb,
 		updateItem: async (_table: unknown, key: { key: string }) => {
 			if (locks.has(key.key)) {
-				throw new dynamodb.ConditionalCheckFailedException({ $metadata: {} })
+				throw new dynamodb.ConditionalCheckFailedException({ $metadata: {}, message: 'The conditional request failed' })
 			}
 
 			locks.add(key.key)

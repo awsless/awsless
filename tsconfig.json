@@ -3,7 +3,7 @@
 		"target": "ESNext",
 		"module": "ESNext",
 		"moduleResolution": "Node",
-		"lib": ["DOM", "DOM.Iterable", "ES2022"],
+		"lib": ["DOM", "DOM.Iterable", "ES2023"],
 		"types": ["node", "vitest", "vitest/globals"],
 		"strict": true,
 		"noUncheckedIndexedAccess": true,

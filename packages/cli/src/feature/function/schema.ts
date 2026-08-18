@@ -170,9 +170,7 @@ const FileCodeSchema = z.object({
 
 const CodeSchema = z
 	.union([
-		LocalFileSchema.transform(file => ({
-			file,
-		})).pipe(FileCodeSchema),
+		LocalFileSchema.transform(file => ({ file }) as z.input<typeof FileCodeSchema>).pipe(FileCodeSchema),
 		FileCodeSchema,
 	])
 	.describe('Specify the code of your function.')
@@ -188,9 +186,7 @@ const BundledFnSchema = z
 	.strict()
 
 export const BundledFunctionSchema = z.union([
-	LocalFileSchema.transform(code => ({
-		code,
-	})).pipe(BundledFnSchema),
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof BundledFnSchema>).pipe(BundledFnSchema),
 	BundledFnSchema,
 ])
 
@@ -213,9 +209,7 @@ const FnSchema = BundledFnSchema.extend({
 export type FunctionProps = z.output<typeof FnSchema>
 
 export const FunctionSchema = z.union([
-	LocalFileSchema.transform(code => ({
-		code,
-	})).pipe(FnSchema),
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof FnSchema>).pipe(FnSchema),
 	FnSchema,
 ])
 
@@ -249,9 +243,7 @@ const StackFnSchema = z
 export type StackFunctionProps = z.output<typeof StackFnSchema>
 
 export const StackFunctionSchema = z.union([
-	LocalFileSchema.transform(code => ({
-		code,
-	})).pipe(StackFnSchema),
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof StackFnSchema>).pipe(StackFnSchema),
 	StackFnSchema,
 ])
 
@@ -270,7 +262,7 @@ export const FunctionDefaultSchema = z
 			.array()
 			.optional()
 			.describe(`A list of external packages that won't be included in the bundle.`),
-		log: LogSchema.default(true).transform(log => ({
+		log: LogSchema.prefault(true).transform(log => ({
 			retention: log.retention ?? days(7),
 			level: 'level' in log ? log.level : 'trace',
 			system: 'system' in log ? log.system : 'warn',
@@ -278,17 +270,17 @@ export const FunctionDefaultSchema = z
 		})),
 		// The defaults size the shared bundle lambda, which also serves queues,
 		// crons & tasks. Stand-alone functions inherit them as well.
-		timeout: TimeoutSchema.default('15 minutes'),
-		memorySize: MemorySizeSchema.default('1024 MB'),
+		timeout: TimeoutSchema.prefault('15 minutes'),
+		memorySize: MemorySizeSchema.prefault('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
 		// Stand-alone functions live inside the vpc by default, so moving a
 		// function out of the shared bundle doesn't cut it off from
 		// vpc-only resources like the cache.
 		vpc: VPCSchema.default(true),
-		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
+		ephemeralStorageSize: EphemeralStorageSizeSchema.prefault('512 MB'),
 		reserved: ReservedConcurrentExecutionsSchema.optional(),
 		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 	})
-	.default({})
+	.prefault({})

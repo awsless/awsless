@@ -14,7 +14,7 @@ export const PubSubDefaultSchema = z
 			),
 			router: ResourceIdSchema.describe('The router id to route pubsub traffic through.'),
 			path: RouteSchema.default('/ws').describe('The base path on the router that exposes the pubsub endpoint.'),
-			log: LogSchema.default(true).transform(log => ({
+			log: LogSchema.prefault(true).transform(log => ({
 				retention: log.retention ?? days(7),
 			})),
 		})

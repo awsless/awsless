@@ -3,10 +3,9 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 import { AppSchema } from '../src/config/app.js'
 import { loadAppConfig, loadStackConfigs } from '../src/config/load/load.js'
-import { JsonSchema, createStagePatchJsonSchema } from '../src/config/stage-patch-json-schema.js'
+import { JsonSchema, createStagePatchJsonSchema, zodSchemaToJsonSchema } from '../src/config/stage-patch-json-schema.js'
 
 const createWorkspace = async () => {
 	const root = await mkdtemp(join(tmpdir(), 'awsless-v3-stage-patch-'))
@@ -86,9 +85,10 @@ const findConditionalValueSchema = (operation: OperationSchema | undefined, path
 }
 
 beforeAll(() => {
-	;(globalThis as typeof globalThis & { Bun?: { JSON5: { parse: typeof JSON5.parse } } }).Bun = {
+	;(globalThis as unknown as { Bun: { JSON5: typeof JSON5 } }).Bun = {
 		JSON5: {
 			parse: JSON5.parse,
+			stringify: JSON5.stringify,
 		},
 	}
 })
@@ -198,11 +198,7 @@ describe('stage patch config loading', () => {
 
 describe('stage patch schema generation', () => {
 	it('creates path-aware entries from the app schema', () => {
-		const appSchema = zodToJsonSchema(AppSchema, {
-			name: 'app',
-			pipeStrategy: 'input',
-			$refStrategy: 'none',
-		})
+		const appSchema = zodSchemaToJsonSchema(AppSchema)
 		const stageSchema = createStagePatchJsonSchema(appSchema, 'Awsless App Stage Patch Config')
 		const operations = getOperationSchemas(stageSchema)
 		const replaceOperation = findOperationSchema(operations, 'replace')

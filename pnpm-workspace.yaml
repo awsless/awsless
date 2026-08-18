@@ -4,6 +4,9 @@ minimumReleaseAge: 0
 # registration never mixes vitest subpackage versions.
 overrides:
     'vitest@>=4': 4.1.10
+    # The organize-imports plugin drives the typescript JS api, which the
+    # native typescript 7 package doesn't provide, so it keeps its own 5.x.
+    'prettier-plugin-organize-imports>typescript': ^5.8.2
 
 strictPeerDependencies: false
 gitChecks: false

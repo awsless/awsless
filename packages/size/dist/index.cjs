@@ -22,6 +22,7 @@ var index_exports = {};
 __export(index_exports, {
   Size: () => Size,
   bytes: () => bytes,
+  format: () => format,
   gibibytes: () => gibibytes,
   kibibytes: () => kibibytes,
   mebibytes: () => mebibytes,
@@ -54,6 +55,7 @@ var Size = class {
   constructor(value) {
     this.value = value;
   }
+  value;
 };
 var bytes = (value) => {
   return new Size(BigInt(value));
@@ -137,10 +139,24 @@ var parse = (value) => {
   }
   throw new SyntaxError(`Invalid size: ${value}`);
 };
+
+// src/format.ts
+var UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
+var format = (size) => {
+  let value = Number(size.value);
+  let index = 0;
+  while (value >= 1024 && index < UNITS.length - 1) {
+    value = value / 1024;
+    index++;
+  }
+  const rounded = Math.round(value * 100) / 100;
+  return `${rounded} ${UNITS[index]}`;
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   Size,
   bytes,
+  format,
   gibibytes,
   kibibytes,
   mebibytes,

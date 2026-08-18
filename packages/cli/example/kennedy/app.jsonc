@@ -4,30 +4,28 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	"configs": ["greeting"],
-	"defaults": {
-		"domains": {
-			"main": {
-				"domain": "awsless.org"
-			}
-		},
-		"router": {
-			"main": {
-				"domain": "main",
-				"redirectWww": true
-			}
-		},
-		"rpc": {
-			"api": {
-				"router": "main",
-				"path": "/api"
-			}
-		},
-		"function": {
-			"log": {
-				"retention": "7 days",
-				"level": "trace",
-				"system": "warn"
-			}
+	"domains": {
+		"main": {
+			"domain": "awsless.org"
+		}
+	},
+	"router": {
+		"main": {
+			"domain": "main",
+			"redirectWww": true
+		}
+	},
+	"rpc": {
+		"api": {
+			"router": "main",
+			"path": "/api"
+		}
+	},
+	"function": {
+		"log": {
+			"retention": "7 days",
+			"level": "trace",
+			"system": "warn"
 		}
 	}
 }

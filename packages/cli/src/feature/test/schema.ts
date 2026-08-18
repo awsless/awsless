@@ -21,5 +21,5 @@ export const TestDefaultSchema = z
 			),
 	})
 	.strict()
-	.default({})
+	.prefault({})
 	.describe('Configure how your tests run.')

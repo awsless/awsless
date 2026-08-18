@@ -3,26 +3,20 @@
 
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ZodSchema } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { z } from 'zod'
 import { AppSchema } from '../src/config/app.js'
 import { StackSchema } from '../src/config/stack.js'
-import { createStagePatchJsonSchema, type JsonSchema } from '../src/config/stage-patch-json-schema.js'
+import { createStagePatchJsonSchema, zodSchemaToJsonSchema } from '../src/config/stage-patch-json-schema.js'
 
 type GenerateProps = {
-	schema: ZodSchema
+	schema: z.ZodType
 	title: string
 	name: string
 }
 
 const generateJsonSchema = (props: GenerateProps) => {
 	const file = join(process.cwd(), `dist/${props.name}.json`)
-	const schema = zodToJsonSchema(props.schema, {
-		name: props.name,
-		markdownDescription: true,
-		pipeStrategy: 'input',
-		$refStrategy: 'none',
-	}) as JsonSchema
+	const schema = zodSchemaToJsonSchema(props.schema)
 
 	appendDefaults(schema)
 	schema.title = props.title

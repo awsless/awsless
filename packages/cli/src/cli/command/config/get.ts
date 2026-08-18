@@ -1,5 +1,5 @@
 import { log } from '@awsless/clui'
-import chalk from 'chalk'
+import { color as chalk } from '@awsless/clui'
 import { Command } from 'commander'
 import { getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'

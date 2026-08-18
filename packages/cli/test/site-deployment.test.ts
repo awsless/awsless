@@ -53,7 +53,7 @@ describe('S3 site deployment', () => {
 				}),
 				expect.objectContaining({
 					Key: 'v-new-version/app.js',
-					ContentType: 'application/javascript; charset=utf-8',
+					ContentType: 'text/javascript; charset=utf-8',
 					CacheControl: 'public, max-age=31536000, immutable',
 				}),
 			])

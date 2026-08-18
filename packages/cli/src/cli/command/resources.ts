@@ -1,7 +1,7 @@
 import { log } from '@awsless/clui'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { ResourceStatus, URN } from '@terraforge/core'
-import chalk from 'chalk'
+import { color as chalk } from '@awsless/clui'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../app.js'

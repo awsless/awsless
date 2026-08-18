@@ -195,7 +195,7 @@ describe('CloudFront route deployments', () => {
 			value: JSON.stringify({ type: 's3', domainName: `page-${index}.example.com` }),
 		}))
 		const deployment = { ...state, routes }
-		const send = kvs.getMockImplementation()!
+		const send = kvs.getMockImplementation()! as (command: unknown) => Promise<unknown>
 		let updates = 0
 
 		kvs.mockImplementation(async command => {

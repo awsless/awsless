@@ -1,5 +1,5 @@
 import { log } from '@awsless/clui'
-import chalk from 'chalk'
+import { color as chalk } from '@awsless/clui'
 import { constantCase } from 'change-case'
 import { Command } from 'commander'
 import { readFile } from 'fs/promises'

@@ -293,7 +293,7 @@ export const startDevRouter = async (props: {
 					// Client messages queue until the upstream is open.
 					upstream.onopen = () => {
 						for (const message of data.buffer) {
-							upstream.send(message)
+							upstream.send(message as string | BufferSource)
 						}
 
 						data.buffer = []

@@ -15,7 +15,7 @@ export const importTable = (program: Command) => {
 				const credentials = await getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const { app } = createApp({ appConfig, stackConfigs, accountId })
+				createApp({ appConfig, stackConfigs, accountId })
 
 				const ok = await confirm({
 					message: 'Importing your local json file will replace the remote data. Are you sure?',

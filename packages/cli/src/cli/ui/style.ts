@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import { color as chalk } from '@awsless/clui'
 
 export const icon = {
 	// info: 'ℹ',

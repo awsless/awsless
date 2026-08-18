@@ -114,9 +114,7 @@ const FileCodeSchema = z.object({
 
 const CodeSchema = z
 	.union([
-		LocalFileSchema.transform(file => ({
-			file,
-		})).pipe(FileCodeSchema),
+		LocalFileSchema.transform(file => ({ file }) as z.input<typeof FileCodeSchema>).pipe(FileCodeSchema),
 		FileCodeSchema,
 	])
 	.describe('Specify the code of your instance.')
@@ -141,9 +139,7 @@ const ISchema = z.object({
 })
 
 const InstanceSchema = z.union([
-	LocalFileSchema.transform(code => ({
-		code,
-	})).pipe(ISchema),
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof ISchema>).pipe(ISchema),
 	ISchema,
 ])
 
@@ -157,15 +153,15 @@ export type InstanceProps = z.output<typeof ISchema>
 export const InstanceDefaultSchema = z
 	.object({
 		image: ImageSchema.optional(),
-		cpu: CpuSchema.default(0.25),
-		memorySize: MemorySizeSchema.default('512 MB'),
+		cpu: CpuSchema.prefault(0.25),
+		memorySize: MemorySizeSchema.prefault('512 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 		healthCheck: HealthCheckSchema.optional(),
 		// restartPolicy: RestartPolicySchema.default({ enabled: true }),
-		log: LogSchema.default(true).transform(log => ({
+		log: LogSchema.prefault(true).transform(log => ({
 			retention: log.retention ?? days(7),
 		})),
 	})
-	.default({})
+	.prefault({})

@@ -2,7 +2,7 @@ import { CloudWatchLogsClient, StartLiveTailCommand } from '@aws-sdk/client-clou
 import { log } from '@awsless/clui'
 import { aws } from '@terraforge/aws'
 import { getMeta, resolveInputs } from '@terraforge/core'
-import chalk from 'chalk'
+import { color as chalk } from '@awsless/clui'
 import chunk from 'chunk'
 import { Command as CliCommand } from 'commander'
 import { formatDate } from 'date-fns'

@@ -27,4 +27,6 @@ type SizeUnit = BinarySizeUnit | DecimalSizeUnit;
 type SizeFormat = `${number} ${SizeUnit}`;
 declare const parse: (value: SizeFormat) => Size;
 
-export { Size, type SizeFormat, type SizeUnit, bytes, gibibytes, kibibytes, mebibytes, parse, pebibytes, tebibytes, toBytes, toGibibytes, toKibibytes, toMebibytes, toPebibytes, toSafeBytes, toSafeGibibytes, toSafeKibibytes, toSafeMebibytes, toSafePebibytes, toSafeTebibytes, toTebibytes };
+declare const format: (size: Size) => SizeFormat;
+
+export { Size, type SizeFormat, type SizeUnit, bytes, format, gibibytes, kibibytes, mebibytes, parse, pebibytes, tebibytes, toBytes, toGibibytes, toKibibytes, toMebibytes, toPebibytes, toSafeBytes, toSafeGibibytes, toSafeKibibytes, toSafeMebibytes, toSafePebibytes, toSafeTebibytes, toTebibytes };

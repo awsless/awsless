@@ -36,7 +36,7 @@ export const task = async <T>(message: string, cb: (update: (message: string) =>
 		spin.stop(last)
 		return result
 	} catch (error) {
-		spin.stop('Failed.', 2)
+		spin.error('Failed.')
 		throw error
 	}
 }

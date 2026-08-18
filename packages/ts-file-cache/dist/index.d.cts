@@ -1,28 +1,30 @@
+//#region src/types.d.ts
 type PackageDependency = {
-    type: 'package';
-    version: string;
+  type: 'package';
+  version: string;
 };
 type WorkspaceDependency = {
-    type: 'workspace';
-    link: string;
+  type: 'workspace';
+  link: string;
 };
 type Dependency = PackageDependency | WorkspaceDependency;
 type Package = {
-    path: string;
-    name: string;
-    main?: string;
-    dependencies: Record<string, Dependency>;
+  path: string;
+  name: string;
+  main?: string;
+  dependencies: Record<string, Dependency>;
 };
 type Workspace = {
-    cwd: string;
-    packages: Record<string, Package>;
+  cwd: string;
+  packages: Record<string, Package>;
 };
-
+//#endregion
+//#region src/index.d.ts
 declare const loadWorkspace: (search: string) => Promise<Workspace>;
 type Options = {
-    extensions?: string[];
+  extensions?: string[];
 };
 declare const generateFileHash: (workspace: Workspace, file: string, opts?: Options) => Promise<string>;
 declare const generateFolderHash: (workspace: Workspace, folder: string, opts?: Options) => Promise<string>;
-
-export { type Dependency, type Package, type PackageDependency, type Workspace, type WorkspaceDependency, generateFileHash, generateFolderHash, loadWorkspace };
+//#endregion
+export { Dependency, Package, PackageDependency, Workspace, WorkspaceDependency, generateFileHash, generateFolderHash, loadWorkspace };

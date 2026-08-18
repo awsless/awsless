@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 export type JsonSchema = {
 	$schema?: string
 	title?: string
@@ -26,6 +28,38 @@ type PointerEntry = {
 	pattern?: string
 	schema: JsonSchema
 	addOnly?: boolean
+}
+
+// The IDE reads markdownDescription, which the zod json schema
+// generation doesn't emit, so every description gets mirrored.
+const appendMarkdownDescriptions = (object: unknown) => {
+	if (Array.isArray(object)) {
+		object.forEach(appendMarkdownDescriptions)
+		return
+	}
+
+	if (typeof object === 'object' && object !== null) {
+		const schema = object as JsonSchema
+
+		if (typeof schema.description === 'string') {
+			schema.markdownDescription = schema.description
+		}
+
+		Object.values(object).forEach(appendMarkdownDescriptions)
+	}
+}
+
+export const zodSchemaToJsonSchema = (schema: z.ZodType): JsonSchema => {
+	const json = z.toJSONSchema(schema, {
+		target: 'draft-7',
+		io: 'input',
+		reused: 'inline',
+		unrepresentable: 'any',
+	}) as JsonSchema
+
+	appendMarkdownDescriptions(json)
+
+	return json
 }
 
 const clone = <Value>(value: Value): Value => {

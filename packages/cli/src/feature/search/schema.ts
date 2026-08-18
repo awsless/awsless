@@ -60,10 +60,10 @@ export const SearchDefaultSchema = z
 		type: TypeSchema.default('t3.small'),
 		count: CountSchema.default(1),
 		version: VersionSchema.default('3.7'),
-		storage: StorageSizeSchema.default('10 GB'),
+		storage: StorageSizeSchema.prefault('10 GB'),
 	})
 	.strict()
-	.default({})
+	.prefault({})
 	.describe('Configure the shared OpenSearch domain that backs every search index in your app.')
 
 const IndexNameSchema = z
