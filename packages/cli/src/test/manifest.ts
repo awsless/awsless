@@ -102,5 +102,33 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		}
 	}
 
+	// zod 4 assembles async-parsed records in completion order instead of
+	// key order, so the resource order shuffles between runs. The test
+	// cache fingerprint hashes the manifest, so a stable order is what
+	// keeps an unchanged app hitting the cache.
+	const byStackAndId = (left: { stack: string; id: string }, right: { stack: string; id: string }) => {
+		return left.stack.localeCompare(right.stack) || left.id.localeCompare(right.id)
+	}
+
+	manifest.tables.sort((left, right) => {
+		return String((left as { TableName: string }).TableName).localeCompare(
+			String((right as { TableName: string }).TableName)
+		)
+	})
+
+	manifest.tableKeys.sort(byStackAndId)
+	manifest.streams.sort(byStackAndId)
+	manifest.searches.sort(byStackAndId)
+	manifest.functions.sort(byStackAndId)
+	manifest.tasks.sort(byStackAndId)
+	manifest.queues.sort(byStackAndId)
+	manifest.caches.sort(byStackAndId)
+	manifest.jobs.sort(byStackAndId)
+	manifest.instances.sort(byStackAndId)
+
+	manifest.topics.sort()
+	manifest.pubsub.sort()
+	manifest.alerts.sort()
+
 	return manifest
 }
