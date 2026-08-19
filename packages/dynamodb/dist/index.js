@@ -154,7 +154,7 @@ const uuid = () => createSchema({
 	marshall: (value) => ({ S: value }),
 	unmarshall: (value) => value.S,
 	validateInput: (value) => typeof value === "string" && regex.test(value),
-	validateOutput: (value) => !!(typeof value === "object" && "S" in value && typeof value.S === "string" && regex.test(value.S))
+	validateOutput: (value) => typeof value === "object" && "S" in value && typeof value.S === "string" && regex.test(value.S)
 });
 //#endregion
 //#region src/schema/string.ts
@@ -166,7 +166,7 @@ function string() {
 		unmarshall: (value) => value.S,
 		validateInput: (value) => typeof value === "string",
 		validateOutput: (value) => {
-			return !!(typeof value === "object" && "S" in value && typeof value.S === "string");
+			return typeof value === "object" && "S" in value && typeof value.S === "string";
 		}
 	});
 }
@@ -179,7 +179,7 @@ function boolean() {
 		marshall: (value) => ({ BOOL: value }),
 		unmarshall: (value) => value.BOOL,
 		validateInput: (value) => typeof value === "boolean",
-		validateOutput: (value) => !!(typeof value === "object" && "BOOL" in value && typeof value.BOOL === "boolean")
+		validateOutput: (value) => typeof value === "object" && "BOOL" in value && typeof value.BOOL === "boolean"
 	});
 }
 //#endregion
@@ -191,7 +191,7 @@ function number() {
 		marshall: (value) => ({ N: value.toString() }),
 		unmarshall: (value) => Number(value.N),
 		validateInput: (value) => typeof value === "number" && !isNaN(value) && isFinite(value),
-		validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
+		validateOutput: (value) => typeof value === "object" && "N" in value && typeof value.N === "string"
 	});
 }
 //#endregion
@@ -203,7 +203,7 @@ function bigint() {
 		marshall: (value) => ({ N: value.toString() }),
 		unmarshall: (value) => BigInt(value.N),
 		validateInput: (value) => typeof value === "bigint",
-		validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
+		validateOutput: (value) => typeof value === "object" && "N" in value && typeof value.N === "string"
 	});
 }
 //#endregion
@@ -214,7 +214,7 @@ const bigfloat = ({ precision = PRECISION } = {}) => createSchema({
 	marshall: (value) => ({ N: floor(value, precision).toString() }),
 	unmarshall: (value) => parse(value.N),
 	validateInput: (value) => value instanceof BigFloat,
-	validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
+	validateOutput: (value) => typeof value === "object" && "N" in value && typeof value.N === "string"
 });
 //#endregion
 //#region src/schema/uint8-array.ts
@@ -224,7 +224,7 @@ const uint8array = () => createSchema({
 	marshall: (value) => ({ B: value }),
 	unmarshall: (value) => value.B,
 	validateInput: (value) => value instanceof Uint8Array,
-	validateOutput: (value) => !!(typeof value === "object" && "B" in value && isUint8Array(value.B))
+	validateOutput: (value) => typeof value === "object" && "B" in value && isUint8Array(value.B)
 });
 //#endregion
 //#region src/schema/object.ts
@@ -266,7 +266,7 @@ const object = (props, rest) => createSchema({
 		return result;
 	},
 	validateInput: (value) => typeof value === "object" && value !== null,
-	validateOutput: (value) => !!(typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null),
+	validateOutput: (value) => typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null,
 	walk(path, ...next) {
 		const type = props[path] ?? rest;
 		return next.length ? type?.walk?.(...next) : type;
@@ -292,7 +292,7 @@ const record = (schema) => createSchema({
 		return result;
 	},
 	validateInput: (value) => typeof value === "object" && value !== null,
-	validateOutput: (value) => !!(typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null),
+	validateOutput: (value) => typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null,
 	walk(_, ...rest) {
 		return rest.length ? schema.walk?.(...rest) : schema;
 	}
@@ -323,7 +323,7 @@ const variant = (key, options) => createSchema({
 		};
 	},
 	validateInput: (value) => typeof value === "object" && value !== null,
-	validateOutput: (value) => !!(typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null),
+	validateOutput: (value) => typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null,
 	walk() {
 		throw new TypeError(`Update & condition expressions are unsupported for a variant type`);
 	}
@@ -348,7 +348,7 @@ function tuple(entries, rest) {
 		marshall: (value, path) => ({ L: value.map((item, i) => (entries[i] ?? rest)?.marshall(item, [...path, i])) }),
 		unmarshall: (value, path) => value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item, [...path, i])),
 		validateInput: (value) => Array.isArray(value),
-		validateOutput: (value) => !!(typeof value === "object" && "L" in value && Array.isArray(value.L)),
+		validateOutput: (value) => typeof value === "object" && "L" in value && Array.isArray(value.L),
 		walk(path, ...restPath) {
 			const schema = entries[path] ?? rest;
 			return restPath.length ? schema?.walk?.(...restPath) : schema;
@@ -363,7 +363,7 @@ const date = () => createSchema({
 	marshall: (value) => ({ N: String(value.getTime()) }),
 	unmarshall: (value) => new Date(Number(value.N)),
 	validateInput: (value) => value instanceof Date && !isNaN(value.getTime()),
-	validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
+	validateOutput: (value) => typeof value === "object" && "N" in value && typeof value.N === "string"
 });
 //#endregion
 //#region src/schema/enum.ts
@@ -378,7 +378,7 @@ const json = () => createSchema({
 	marshall: (value) => ({ S: stringify(value) }),
 	unmarshall: (value) => parse$1(value.S),
 	validateInput: () => true,
-	validateOutput: (value) => !!(typeof value === "object" && "S" in value && typeof value.S === "string")
+	validateOutput: (value) => typeof value === "object" && "S" in value && typeof value.S === "string"
 });
 //#endregion
 //#region src/schema/ttl.ts
@@ -388,7 +388,7 @@ const ttl = () => createSchema({
 	marshall: (value) => ({ N: String(Math.floor(value.getTime() / 1e3)) }),
 	unmarshall: (value) => /* @__PURE__ */ new Date(Number(value.N) * 1e3),
 	validateInput: (value) => value instanceof Date && !isNaN(value.getTime()),
-	validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
+	validateOutput: (value) => typeof value === "object" && "N" in value && typeof value.N === "string"
 });
 //#endregion
 //#region src/test/serialize.ts

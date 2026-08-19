@@ -84,7 +84,7 @@ export const launch = async ({
 
 		const output: string[] = []
 
-		const onError = (error: string) => void fail(String(error))
+		const onError = (error: string) => void fail(error)
 		const onExit = (code: number | null) => {
 			void fail(`OpenSearch exited before starting (code ${code})\n${output.join('')}`)
 		}

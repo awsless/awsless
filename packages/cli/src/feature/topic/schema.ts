@@ -6,7 +6,7 @@ const TopicNameSchema = z
 	.string()
 	.min(3)
 	.max(256)
-	.regex(/^[a-z0-9\-]+$/i, 'Invalid topic name')
+	.regex(/^[a-z0-9-]+$/i, 'Invalid topic name')
 	.transform(value => kebabCase(value))
 	.describe('Define event topic name.')
 

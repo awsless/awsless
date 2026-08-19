@@ -6,7 +6,7 @@ export const parse = (a: Numeric): IBigFloat => {
 	if (typeof a === 'bigint') {
 		return make(a, 0)
 	} else if (typeof a === 'string' || typeof a === 'number') {
-		const number_pattern = /^(-?\d+)(?:\.(\d*))?(?:e([\-\+]?\d+))?$/i
+		const number_pattern = /^(-?\d+)(?:\.(\d*))?(?:e([-+]?\d+))?$/i
 		const parts = String(a).match(number_pattern)
 
 		if (parts) {

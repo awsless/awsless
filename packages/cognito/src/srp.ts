@@ -5,7 +5,6 @@ import { toBigInt, fromBase64, toBase64, fromUtf8, padHex, fromHex, toHex } from
 import { createTimestamp } from './helper/timestamp.js'
 
 const initN =
-	'' +
 	'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1' +
 	'29024E088A67CC74020BBEA63B139B22514A08798E3404DD' +
 	'EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245' +

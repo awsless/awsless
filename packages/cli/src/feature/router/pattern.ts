@@ -9,7 +9,7 @@ export type CompiledRoutePattern = {
 const PARAM_TOKEN = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}|\*/g
 
 const escapeRegex = (value: string) => {
-	return value.replace(/[|\\{}()[\]^$+*?.\-]/g, '\\$&')
+	return value.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&')
 }
 
 // Compile a route pattern into the key used for the route store lookup,

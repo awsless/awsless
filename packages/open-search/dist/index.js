@@ -19,7 +19,7 @@ const searchClient = (options = {}, service = "es") => {
 	const scheme = process.env.AWSLESS_ENV === "local" ? "http://" : "https://";
 	const node = options.node ?? scheme + process.env.SEARCH_DOMAIN;
 	const first = Array.isArray(node) ? node[0] : node;
-	const nodeUrl = typeof first === "string" ? first : String(first?.url ?? "");
+	const nodeUrl = typeof first === "string" ? first : first?.url.href ?? "";
 	return new Client({
 		node,
 		requestTimeout: 5e3,
@@ -160,7 +160,7 @@ const launch = async ({ path, host, port, version, debug, onExit: onDied, onOutp
 			cache
 		})), { env });
 		const output = [];
-		const onError = (error) => void fail(String(error));
+		const onError = (error) => void fail(error);
 		const onExit = (code) => {
 			fail(`OpenSearch exited before starting (code ${code})\n${output.join("")}`);
 		};

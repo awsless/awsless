@@ -92,11 +92,11 @@ const createSignedUploadUrl = async ({ client = s3Client(), bucket, key, fields,
 		Bucket: bucket,
 		Key: key,
 		Fields: fields,
-		Expires: expires ? Number(toSeconds(expires)) : void 0,
+		Expires: expires ? toSeconds(expires) : void 0,
 		Conditions: contentLengthRange ? [[
 			"content-length-range",
-			Number(toBytes(contentLengthRange[0])),
-			Number(toBytes(contentLengthRange[1]))
+			toBytes(contentLengthRange[0]),
+			toBytes(contentLengthRange[1])
 		]] : void 0
 	});
 };
@@ -111,7 +111,7 @@ const createSignedDownloadUrl = async ({ client = s3Client(), bucket, key, versi
 		Key: key,
 		VersionId: versionId
 	});
-	return await getSignedUrl(client, command, { expiresIn: expires ? Number(toSeconds(expires)) : void 0 });
+	return await getSignedUrl(client, command, { expiresIn: expires ? toSeconds(expires) : void 0 });
 };
 //#endregion
 //#region src/hash.ts

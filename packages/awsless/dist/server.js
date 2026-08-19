@@ -519,7 +519,7 @@ const Config = /*@__PURE__*/ new Proxy({}, {
 		return getConfigValue(name);
 	},
 	set(_, name) {
-		throw new Error(`Config values are read only. Use "mock.config.${String(name)}" to fake a value inside tests.`);
+		throw new Error(`Config values are read only. Use "mock.config.${name}" to fake a value inside tests.`);
 	}
 });
 //#endregion

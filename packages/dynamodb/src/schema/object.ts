@@ -200,7 +200,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 		// validate: value => typeof value === 'object' && value !== null,
 		validateInput: value => typeof value === 'object' && value !== null,
 		validateOutput: value =>
-			!!(typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null),
+			typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null,
 		walk(path, ...next) {
 			const type = props[path] ?? rest
 

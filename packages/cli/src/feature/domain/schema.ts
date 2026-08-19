@@ -4,7 +4,7 @@ import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
 const DomainNameSchema = z
 	.string()
-	.regex(/[a-z\-\_\.]/g, 'Invalid domain name')
+	.regex(/[a-z\-_.]/g, 'Invalid domain name')
 	.describe(
 		'Enter a fully qualified domain name, for example, www.example.com. You can optionally include a trailing dot. If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified. This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.'
 	)

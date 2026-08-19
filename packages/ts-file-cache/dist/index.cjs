@@ -140,7 +140,7 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 		}
 		return;
 	}
-	if (node_module.builtinModules.includes(module.replace(/^node\:/, ""))) return;
+	if (node_module.builtinModules.includes(module.replace(/^node:/, ""))) return;
 	throw new Error(`Can't find the dependency version for: ${file} inside the source: ${sourceFile}`);
 };
 const mergeHashes = (hashes) => {

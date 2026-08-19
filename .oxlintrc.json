@@ -24,12 +24,11 @@
 		"no-extraneous-class": "off",
 		"no-shadow": "off",
 		"no-new": "off", // Declaring a terraforge resource is the effect
-		"no-underscore-dangle": "off",
+		"no-underscore-dangle": "off", // AWS uses fields like __type & reserved word names
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off",
 		"prefer-add-event-listener": "off",
 		"no-unneeded-ternary": "off",
-		"no-useless-escape": "off",
 		"no-useless-spread": "off", // We copy a map before deleting from it while looping
 
 		// Type-strictness noise: assertions & template stringification
@@ -40,7 +39,6 @@
 		"no-unsafe-type-assertion": "off",
 		"restrict-template-expressions": "off",
 		"no-unnecessary-type-parameters": "off",
-		"no-unnecessary-type-conversion": "off",
 		"no-unnecessary-type-constraint": "off",
 		"no-unnecessary-boolean-literal-compare": "off",
 		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings

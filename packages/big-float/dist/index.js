@@ -153,7 +153,7 @@ const scientific$1 = (a) => {
 const parse$1 = (a) => {
 	if (typeof a === "bigint") return make$1(a, 0);
 	else if (typeof a === "string" || typeof a === "number") {
-		const parts = String(a).match(/^(-?\d+)(?:\.(\d*))?(?:e([\-\+]?\d+))?$/i);
+		const parts = String(a).match(/^(-?\d+)(?:\.(\d*))?(?:e([-+]?\d+))?$/i);
 		if (parts) {
 			const frac = parts[2] ?? "";
 			return make$1(BigInt(parts[1] + frac), Number(parts[3] ?? 0) - frac.length);

@@ -172,7 +172,7 @@ export const update = (program: Command) => {
 						return `Should include numbers`
 					}
 
-					if (props.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
+					if (props.password.symbols && !/[ `!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)) {
 						return `Should include symbols`
 					}
 

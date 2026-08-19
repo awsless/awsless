@@ -8,7 +8,7 @@ const AlertNameSchema = z
 	.string()
 	.min(3)
 	.max(256)
-	.regex(/^[a-z0-9\-]+$/i, 'Invalid alert name')
+	.regex(/^[a-z0-9-]+$/i, 'Invalid alert name')
 	.transform(value => kebabCase(value))
 	.describe('Define alert name.')
 

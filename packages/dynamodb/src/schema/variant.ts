@@ -107,7 +107,7 @@ export const variant = <K extends string, O extends Options<K>>(key: K, options:
 		// validate: value => typeof value === 'object' && value !== null,
 		validateInput: value => typeof value === 'object' && value !== null,
 		validateOutput: value =>
-			!!(typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null),
+			typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null,
 		walk() {
 			throw new TypeError(`Update & condition expressions are unsupported for a variant type`)
 		},

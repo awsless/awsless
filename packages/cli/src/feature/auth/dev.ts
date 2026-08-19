@@ -208,7 +208,7 @@ export const createAuthAdmin = (props: {
 			return `The password should include numbers`
 		}
 
-		if (pool.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
+		if (pool.password.symbols && !/[ `!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)) {
 			return `The password should include symbols`
 		}
 

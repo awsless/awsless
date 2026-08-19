@@ -61,9 +61,7 @@ export const Config: ConfigResources = /*@__PURE__*/ new Proxy(
 		// empty proxy target while reads keep failing - fail loud &
 		// point at the test api instead.
 		set(_, name: string) {
-			throw new Error(
-				`Config values are read only. Use "mock.config.${String(name)}" to fake a value inside tests.`
-			)
+			throw new Error(`Config values are read only. Use "mock.config.${name}" to fake a value inside tests.`)
 		},
 	}
 )

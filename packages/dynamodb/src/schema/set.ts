@@ -127,7 +127,7 @@ export type SetSchema<T extends AllowedSchema> = BaseSchema<
 // 		},
 // 		validateInput: value => value instanceof Set,
 // 		validateOutput: (value: any) =>
-// 			!!(
+// 			(
 // 				'M' in value &&
 // 				(SET_KEY in value.M ? type in value.M[SET_KEY] && Array.isArray(value.M[SET_KEY][type]) : true)
 // 			),
@@ -191,7 +191,7 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 
 			return false
 
-			// !!(type in value ? Array.isArray(value[type]) : true),
+			// (type in value ? Array.isArray(value[type]) : true),
 		},
 		walk: () => schema,
 	})

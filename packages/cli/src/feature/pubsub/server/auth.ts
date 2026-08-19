@@ -136,7 +136,7 @@ export const authenticate = async (token?: string | null): Promise<Session> => {
 	// Cache the authorized token response
 
 	const now = new Date()
-	const ttl = addSeconds(now, Number(toSeconds(result.output.ttl)))
+	const ttl = addSeconds(now, toSeconds(result.output.ttl))
 	const context = result.output.context
 	const allowed = result.output.allowed
 	const disconnectAfter = result.output.disconnectAfter

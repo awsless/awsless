@@ -1,6 +1,6 @@
 import { Serializable } from '.'
 
-const P = +Infinity,
+const P = Infinity,
 	N = -Infinity
 
 export const $infinity: Serializable<typeof Infinity, 1 | 0> = {

@@ -203,9 +203,9 @@ export const createSignedUploadUrl = async ({
 		Bucket: bucket,
 		Key: key,
 		Fields: fields,
-		Expires: expires ? Number(toSeconds(expires)) : undefined,
+		Expires: expires ? toSeconds(expires) : undefined,
 		Conditions: contentLengthRange
-			? [['content-length-range', Number(toBytes(contentLengthRange[0])), Number(toBytes(contentLengthRange[1]))]]
+			? [['content-length-range', toBytes(contentLengthRange[0]), toBytes(contentLengthRange[1])]]
 			: undefined,
 	})
 
@@ -245,7 +245,7 @@ export const createSignedDownloadUrl = async ({
 	})
 
 	const url = await getSignedUrl(client, command, {
-		expiresIn: expires ? Number(toSeconds(expires)) : undefined,
+		expiresIn: expires ? toSeconds(expires) : undefined,
 	})
 
 	return url

@@ -110,7 +110,7 @@ export const authenticate = async (token?: string): Promise<Session> => {
 	// Cache the authorized token response
 
 	const now = new Date()
-	const ttl = addSeconds(now, Number(toSeconds(result.output.ttl)))
+	const ttl = addSeconds(now, toSeconds(result.output.ttl))
 	const context = result.output.context
 	const allowedFunctions = result.output.allowedFunctions
 	const lockKey = result.output.lockKey

@@ -82,7 +82,7 @@ export const generateRecursiveFileHashes = async (
 		return
 	}
 
-	if (builtinModules.includes(module.replace(/^node\:/, ''))) {
+	if (builtinModules.includes(module.replace(/^node:/, ''))) {
 		return
 	}
 

@@ -493,7 +493,7 @@ function tokenize(expression) {
 			if (tokens.length > 0 && tokens[tokens.length - 1].type === "PATH") {
 				i++;
 				let pathPart = ".";
-				while (i < expression.length && /[a-zA-Z0-9_#\[\]]/.test(expression[i])) {
+				while (i < expression.length && /[a-zA-Z0-9_#[\]]/.test(expression[i])) {
 					pathPart += expression[i];
 					i++;
 				}
