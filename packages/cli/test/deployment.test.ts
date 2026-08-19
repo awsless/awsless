@@ -90,7 +90,7 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		if (name === 'QueryCommand') {
 			const values = Object.values(input.ExpressionAttributeValues ?? {}).map(value => fromAttr(value as Attr))
 			const prefix = values.find(value => typeof value === 'string' && value.endsWith('-')) as string | undefined
-			let items = [...manifest.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)))
+			let items = [...manifest.values()].toSorted((a, b) => String(a.id).localeCompare(String(b.id)))
 
 			if (prefix) {
 				items = items.filter(item => String(item.id).startsWith(prefix))

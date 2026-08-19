@@ -45,7 +45,7 @@ export type DevPhase = <T>(
 // The per-item breakdown inside a phase: everything at 100ms or more
 // makes the finished line, slowest first.
 const breakdown = (timings: [string, number][]) => {
-	const slow = timings.filter(([, ms]) => ms >= 100).sort((a, b) => b[1] - a[1])
+	const slow = timings.filter(([, ms]) => ms >= 100).toSorted((a, b) => b[1] - a[1])
 
 	return slow
 		.map(([name, ms]) => `${name} ${ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`}`)
@@ -207,7 +207,7 @@ export const startDev = async (props: {
 	// The bundle inlines the build output of other features, like the
 	// SSR server code of the sites, so the bundle must build last.
 	// Builds are fingerprint cached, so unchanged builders are cheap.
-	const sorted = [...builders].sort((a, b) => Number(a.type === 'bundle') - Number(b.type === 'bundle'))
+	const sorted = [...builders].toSorted((a, b) => Number(a.type === 'bundle') - Number(b.type === 'bundle'))
 
 	// The workspace scan only depends on boot stable state, so one scan
 	// serves every rebuild instead of blocking each one.

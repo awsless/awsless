@@ -81,7 +81,7 @@ export const rpcOnDev = async (ctx: DevContext) => {
 			id,
 			routeKey: serverRouteKey,
 			detail: `http://localhost:${ctx.routerPort(props.router)}${props.path}`,
-			queries: queries.sort(),
+			queries: queries.toSorted(),
 		})
 	}
 }

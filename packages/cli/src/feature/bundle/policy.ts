@@ -25,7 +25,7 @@ const mergeEqualStatements = (statements: PolicyStatement[]) => {
 	for (const statement of statements) {
 		const key = JSON.stringify([
 			statement.effect ?? 'allow',
-			[...statement.actions].sort(),
+			[...statement.actions].toSorted(),
 			statement.conditions ?? null,
 		])
 
@@ -87,8 +87,8 @@ const mergeConditionValues = (statements: PolicyStatement[]) => {
 
 		const key = JSON.stringify([
 			statement.effect ?? 'allow',
-			[...statement.actions].sort(),
-			[...statement.resources].sort(),
+			[...statement.actions].toSorted(),
+			[...statement.resources].toSorted(),
 			condition.key,
 		])
 

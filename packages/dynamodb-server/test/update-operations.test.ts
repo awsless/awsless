@@ -171,7 +171,7 @@ describe('Update Operations', () => {
 
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
-			expect(result.Item?.tags?.SS?.sort()).toEqual(['a', 'b', 'c', 'd'])
+			expect(result.Item?.tags?.SS?.toSorted()).toEqual(['a', 'b', 'c', 'd'])
 		})
 
 		it('should not duplicate elements when adding to a string set', async () => {
@@ -195,7 +195,7 @@ describe('Update Operations', () => {
 
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
-			expect(result.Item?.tags?.SS?.sort()).toEqual(['a', 'b', 'c'])
+			expect(result.Item?.tags?.SS?.toSorted()).toEqual(['a', 'b', 'c'])
 		})
 
 		it('should remove elements from a string set using DELETE', async () => {
@@ -219,7 +219,7 @@ describe('Update Operations', () => {
 
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
-			expect(result.Item?.tags?.SS?.sort()).toEqual(['a', 'c'])
+			expect(result.Item?.tags?.SS?.toSorted()).toEqual(['a', 'c'])
 		})
 
 		it('should add elements to a number set', async () => {
@@ -243,7 +243,7 @@ describe('Update Operations', () => {
 
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
-			expect(result.Item?.scores?.NS?.sort()).toEqual(['1', '2', '3', '4'])
+			expect(result.Item?.scores?.NS?.toSorted()).toEqual(['1', '2', '3', '4'])
 		})
 
 		it('should remove elements from a number set using DELETE', async () => {
@@ -267,7 +267,7 @@ describe('Update Operations', () => {
 
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
-			expect(result.Item?.scores?.NS?.sort()).toEqual(['1', '3'])
+			expect(result.Item?.scores?.NS?.toSorted()).toEqual(['1', '3'])
 		})
 
 		it('should create a new set using ADD on a non-existent attribute', async () => {
@@ -291,7 +291,7 @@ describe('Update Operations', () => {
 
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
-			expect(result.Item?.tags?.SS?.sort()).toEqual(['x', 'y'])
+			expect(result.Item?.tags?.SS?.toSorted()).toEqual(['x', 'y'])
 		})
 	})
 
@@ -492,7 +492,7 @@ describe('Update Operations', () => {
 			const result = await client.send(new GetItemCommand({ TableName: 'TestTable', Key: { id: { S: '1' } } }))
 
 			expect(result.Item?.status?.S).toBe('inactive')
-			expect(result.Item?.tags?.SS?.sort()).toEqual(['a', 'c'])
+			expect(result.Item?.tags?.SS?.toSorted()).toEqual(['a', 'c'])
 		})
 
 		it('should SET, ADD, and REMOVE in one expression', async () => {

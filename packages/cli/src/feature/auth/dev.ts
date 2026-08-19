@@ -35,7 +35,7 @@ export const authOnDev = async (ctx: DevContext) => {
 		return
 	}
 
-	const pools = await ctx.keep('auth:pull', [...ids].sort().join(','), async () => {
+	const pools = await ctx.keep('auth:pull', [...ids].toSorted().join(','), async () => {
 		const values: Record<string, ResolvedPool> = {}
 
 		try {
@@ -293,7 +293,7 @@ export const createAuthAdmin = (props: {
 				})
 			)
 
-			return users.sort((a, b) => a.username.localeCompare(b.username))
+			return users.toSorted((a, b) => a.username.localeCompare(b.username))
 		},
 
 		async createUser(id: string, input: { username: string; password: string; groups: string[] }) {

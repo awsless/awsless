@@ -43,7 +43,10 @@ describe('S3 site deployment', () => {
 
 		const uploads = sent(send, PutObjectCommand).map(command => command.input)
 
-		expect(uploads.map(upload => upload.Key!).sort()).toEqual(['v-new-version/app.js', 'v-new-version/index.html'])
+		expect(uploads.map(upload => upload.Key!).toSorted()).toEqual([
+			'v-new-version/app.js',
+			'v-new-version/index.html',
+		])
 		expect(uploads).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -70,7 +73,7 @@ describe('S3 site deployment', () => {
 		expect(
 			sent(send, PutObjectCommand)
 				.map(command => command.input.Key!)
-				.sort()
+				.toSorted()
 		).toEqual(['v-next-version/app.js', 'v-next-version/index.html'])
 		expect(updated.state.version).toBe('next-version')
 	})

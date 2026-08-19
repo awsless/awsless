@@ -58,7 +58,7 @@ export const buildBundle = (props: {
 }): Builder => {
 	return async (build, { workspace }) => {
 		const runtime = props.runtime ?? join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.js')
-		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
+		const handlers = [...props.handlers].toSorted((a, b) => a.routeKey.localeCompare(b.routeKey))
 
 		// Every route key maps to a lazy import, so a cold start only loads
 		// the handler being dispatched. The import query gives each route a

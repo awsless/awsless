@@ -143,7 +143,7 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 	throw new Error(`Can't find the dependency version for: ${file} inside the source: ${sourceFile}`);
 };
 const mergeHashes = (hashes) => {
-	const names = Array.from(hashes.keys()).sort();
+	const names = Array.from(hashes.keys()).toSorted();
 	const merged = createHash("sha1");
 	for (const name of names) {
 		merged.update(name);
@@ -159,7 +159,7 @@ const getPackageName = (importee) => {
 	throw new Error(`Malformed importee: ${importee}`);
 };
 const findDependency = (workspace, module, source) => {
-	const pkg = Object.values(workspace.packages).filter((p) => source === p.path || source.startsWith(p.path + sep)).sort((a, b) => b.path.split(sep).length - a.path.split(sep).length).find((p) => p.dependencies[module]);
+	const pkg = Object.values(workspace.packages).filter((p) => source === p.path || source.startsWith(p.path + sep)).toSorted((a, b) => b.path.split(sep).length - a.path.split(sep).length).find((p) => p.dependencies[module]);
 	if (!pkg) return;
 	return pkg.dependencies[module];
 };

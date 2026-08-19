@@ -93,7 +93,7 @@ export const mergeHashes = (hashes: Map<string, Buffer>) => {
 	// Sorting by entry name keeps the result independent of the file
 	// traversal order, and including the name in the digest makes two
 	// files swapping their contents produce a different hash.
-	const names = Array.from(hashes.keys()).sort()
+	const names = Array.from(hashes.keys()).toSorted()
 	const merged = createHash('sha1')
 
 	for (const name of names) {
@@ -123,7 +123,7 @@ const findDependency = (workspace: Workspace, module: string, source: string) =>
 		// The separator suffix stops prefix packages from matching their
 		// sibling's sources, like "cli" matching "cli-next" files.
 		.filter(p => source === p.path || source.startsWith(p.path + sep))
-		.sort((a, b) => b.path.split(sep).length - a.path.split(sep).length)
+		.toSorted((a, b) => b.path.split(sep).length - a.path.split(sep).length)
 		.find(p => p.dependencies[module])
 
 	if (!pkg) {

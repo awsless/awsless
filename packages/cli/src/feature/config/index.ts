@@ -137,7 +137,7 @@ export const configFeature = defineFeature({
 		// only warns: the env boots & the values can still be set on
 		// the dashboard. A local override always wins over a pulled
 		// value.
-		const pulled = await ctx.keep('config:pull', [...names].sort().join(','), async () => {
+		const pulled = await ctx.keep('config:pull', [...names].toSorted().join(','), async () => {
 			const values: Record<string, string> = {}
 
 			try {

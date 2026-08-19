@@ -79,7 +79,7 @@ export class TableStore {
 		exclusiveStartTableName?: string,
 		limit?: number
 	): { tableNames: string[]; lastEvaluatedTableName?: string } {
-		const allNames = Array.from(this.tables.keys()).sort()
+		const allNames = Array.from(this.tables.keys()).toSorted()
 
 		let startIdx = 0
 		if (exclusiveStartTableName) {

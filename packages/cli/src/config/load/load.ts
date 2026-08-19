@@ -63,7 +63,7 @@ export const loadStackConfigs = async (options: ProgramOptions) => {
 
 	const stacks: StackConfig[] = []
 
-	for (const file of stackFiles.sort()) {
+	for (const file of stackFiles.toSorted()) {
 		const shouldIngore = file.split('/').filter(v => v.startsWith('_')).length > 0
 		if (shouldIngore) {
 			debug('Skip stack file:', color.info(file))

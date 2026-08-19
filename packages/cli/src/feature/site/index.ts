@@ -207,7 +207,7 @@ export const siteFeature = defineFeature({
 								cwd: staticDir,
 								nodir: true,
 							})
-							.sort()
+							.toSorted()
 						const hashes = files.map(file => $hash(join(staticDir, file)))
 						const version = $combine(...hashes).pipe(hashes => {
 							const hash = createHash('sha1')

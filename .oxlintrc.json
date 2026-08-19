@@ -23,11 +23,10 @@
 		"no-array-reverse": "off",
 		"no-extraneous-class": "off",
 		"no-shadow": "off",
-		"no-new": "off",
+		"no-new": "off", // Declaring a terraforge resource is the effect
 		"no-underscore-dangle": "off",
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off",
-		"no-array-sort": "off",
 		"prefer-add-event-listener": "off",
 		"no-unneeded-ternary": "off",
 		"no-useless-escape": "off",

@@ -330,7 +330,7 @@ export const runTests = async (
 		const files = [...stable.streams, ...stable.functions, ...stable.tasks, ...stable.queues]
 			.map(entry => entry.file)
 			.filter((file): file is string => typeof file === 'string')
-			.sort()
+			.toSorted()
 
 		const hashes = await Promise.all(files.map(file => generateFileHash(workspace, file).catch(() => 'missing')))
 

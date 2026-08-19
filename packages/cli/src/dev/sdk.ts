@@ -59,7 +59,7 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 
 			// The highest version sorts last.
 			const best = entries
-				.sort((a, b) =>
+				.toSorted((a, b) =>
 					a.slice(prefix.length).localeCompare(b.slice(prefix.length), undefined, { numeric: true })
 				)
 				.at(-1)

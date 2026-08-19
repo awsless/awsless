@@ -40,7 +40,7 @@ describe('i18n', () => {
 		const sourceTexts = Object.keys(result)
 		const translatedTexts = Object.values(result)
 
-		expect(sourceTexts.sort()).toStrictEqual([
+		expect(sourceTexts.toSorted()).toStrictEqual([
 			'',
 			'Hello ${1} world',
 			'Loading...',

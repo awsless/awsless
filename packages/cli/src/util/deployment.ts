@@ -93,7 +93,7 @@ export const deploymentsTable: AnyTable = table
 const latestBranchDeployment = async (client: DynamoDBClient, appId: string, branch: string) => {
 	const items = await listDeployments(client, appId, branch)
 
-	return items.sort((a, b) => b.seq - a.seq)[0]
+	return items.toSorted((a, b) => b.seq - a.seq)[0]
 }
 
 export const claimDeployment = async (props: { client: DynamoDBClient; appId: string }): Promise<Deployment> => {
@@ -177,7 +177,7 @@ export const listDeployments = async (
 	// The id prefix also matches longer branch names like '<branch>-2'.
 	return items
 		.filter(item => !branch || item.branch === branch)
-		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+		.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 export const markDeployed = async (props: {
@@ -234,7 +234,7 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 	// always survive, so a rollback keeps a target.
 	const rollbackTarget = items
 		.filter(item => item.promotedAt && item.id !== liveId)
-		.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))[0]
+		.toSorted((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))[0]
 
 	const keep = Math.max(1, options.keep)
 	const mainSlug = slugifyBranch(options.main)
@@ -242,7 +242,7 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 		items
 			.filter(item => item.branch === mainSlug && item.functionVersion)
 			.map(item => item.seq)
-			.sort((a, b) => b - a)
+			.toSorted((a, b) => b - a)
 			.slice(0, keep)
 	)
 	return items.filter(item => {
@@ -378,7 +378,7 @@ export const previousDeploymentId = async (props: {
 		liveId &&
 		(await listDeployments(props.dynamo, props.appId))
 			.filter(item => item.promotedAt && item.functionVersion)
-			.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))
+			.toSorted((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))
 			.find(item => item.id !== liveId)
 
 	if (!previous) {

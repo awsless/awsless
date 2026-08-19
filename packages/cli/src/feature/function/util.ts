@@ -249,7 +249,7 @@ export default (event, context) => {
 	const sourceHash = new Output<string>(envDeps, async (resolve: (value: string) => void) => {
 		const buildHash = await readFile(getBuildPath('function', name, 'HASH'), 'utf8')
 		const vars = await resolveInputs(env)
-		const sorted = Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b)))
+		const sorted = Object.fromEntries(Object.entries(vars).toSorted(([a], [b]) => a.localeCompare(b)))
 		const envFile = `export default ${JSON.stringify(sorted, undefined, '\t')}
 `
 

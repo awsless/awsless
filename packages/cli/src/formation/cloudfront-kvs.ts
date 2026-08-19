@@ -77,7 +77,7 @@ const parseValue = (value: string | undefined): [string, string] | undefined => 
 
 // Route keys are unique by construction, so the key alone sorts deterministically.
 const sortRoutes = (routes: RouteEntry[]) => {
-	return [...routes].sort((a, b) => (a.key < b.key ? -1 : 1))
+	return [...routes].toSorted((a, b) => (a.key < b.key ? -1 : 1))
 }
 
 const getRouteTableId = (routes: RouteEntry[]) => {

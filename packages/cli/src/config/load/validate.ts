@@ -21,7 +21,7 @@ const sortKeysDeep = <T>(value: T): T => {
 	if (isPlainObject(value)) {
 		const sorted: Record<string, unknown> = {}
 
-		for (const key of Object.keys(value).sort()) {
+		for (const key of Object.keys(value).toSorted()) {
 			sorted[key] = sortKeysDeep(value[key])
 		}
 

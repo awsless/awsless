@@ -28,7 +28,7 @@ const md5OfAttributes = (attributes: MessageAttributes) => {
 		parts.push(size, data)
 	}
 
-	for (const name of Object.keys(attributes).sort()) {
+	for (const name of Object.keys(attributes).toSorted()) {
 		const attribute = attributes[name]!
 
 		push(name)

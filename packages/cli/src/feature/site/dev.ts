@@ -233,7 +233,7 @@ export const siteOnDev = async (ctx: DevContext) => {
 				})
 
 				const proxy = `http://127.0.0.1:${server.port}`
-				const files = glob.sync('**', { cwd: staticDir, nodir: true }).sort()
+				const files = glob.sync('**', { cwd: staticDir, nodir: true }).toSorted()
 				const plan = planStaticRoutes(files, props.path)
 
 				// Exact file routes rewrite straight to their file, like

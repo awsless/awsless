@@ -770,9 +770,9 @@ function serializeAttributeValue(value) {
 	if ("S" in value) return `S:${value.S}`;
 	if ("N" in value) return `N:${value.N}`;
 	if ("B" in value) return `B:${value.B}`;
-	if ("SS" in value) return `SS:${value.SS.sort().join(",")}`;
-	if ("NS" in value) return `NS:${value.NS.sort().join(",")}`;
-	if ("BS" in value) return `BS:${value.BS.sort().join(",")}`;
+	if ("SS" in value) return `SS:${value.SS.toSorted().join(",")}`;
+	if ("NS" in value) return `NS:${value.NS.toSorted().join(",")}`;
+	if ("BS" in value) return `BS:${value.BS.toSorted().join(",")}`;
 	if ("BOOL" in value) return `BOOL:${value.BOOL}`;
 	if ("NULL" in value) return "NULL";
 	if ("L" in value) return `L:${JSON.stringify(value.L)}`;
@@ -2434,7 +2434,7 @@ var TableStore = class {
 		return table;
 	}
 	listTables(exclusiveStartTableName, limit) {
-		const allNames = Array.from(this.tables.keys()).sort();
+		const allNames = Array.from(this.tables.keys()).toSorted();
 		let startIdx = 0;
 		if (exclusiveStartTableName) {
 			startIdx = allNames.indexOf(exclusiveStartTableName);

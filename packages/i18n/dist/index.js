@@ -69,8 +69,8 @@ var Cache = class {
 		};
 	}
 	toJSON() {
-		return Object.fromEntries(Object.entries(this.data).sort(([left], [right]) => left.localeCompare(right)).map(([source, locales]) => {
-			return [source, Object.fromEntries(Object.entries(locales).sort(([left], [right]) => left.localeCompare(right)))];
+		return Object.fromEntries(Object.entries(this.data).toSorted(([left], [right]) => left.localeCompare(right)).map(([source, locales]) => {
+			return [source, Object.fromEntries(Object.entries(locales).toSorted(([left], [right]) => left.localeCompare(right)))];
 		}));
 	}
 };
