@@ -14,7 +14,7 @@ type Input = {
 }
 
 export const isWarmUpEvent = (event: unknown): event is Event => {
-	return typeof event === 'object' && (event as Event).warmer === true
+	return typeof event === 'object' && (event as Event).warmer
 }
 
 export const getWarmUpEvent = (event: unknown): Input | undefined => {

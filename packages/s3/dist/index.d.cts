@@ -36,7 +36,7 @@ declare global {
 //#endregion
 //#region src/types.d.ts
 type Body = string | Readable | ReadableStream | Blob | Uint8Array | Buffer | undefined;
-type BodyStream = SdkStream<Readable | Blob | ReadableStream<any> | undefined>;
+type BodyStream = SdkStream<Readable | Blob | ReadableStream | undefined>;
 //#endregion
 //#region src/commands.d.ts
 type PutObjectProps = {

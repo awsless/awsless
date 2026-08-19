@@ -2,7 +2,7 @@ type Item<Value> = {
 	value: Value
 }
 
-export class WeakCache<Key extends string | number | symbol, Value extends unknown> {
+export class WeakCache<Key extends string | number | symbol, Value> {
 	private registry: FinalizationRegistry<Key>
 	private cache: Map<Key, WeakRef<Item<Value>>>
 

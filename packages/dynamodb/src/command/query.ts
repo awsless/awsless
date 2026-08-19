@@ -54,7 +54,7 @@ export const query = <
 				...(options.where ? [options.where(e)] : []),
 			]),
 			ConsistentRead: options.consistentRead,
-			ScanIndexForward: sort === 'desc' ? false : true,
+			ScanIndexForward: sort !== 'desc',
 			ExclusiveStartKey: fromCursorString(cursor),
 			ProjectionExpression: buildProjectionExpression(attrs, options.select),
 			Limit: limit ?? options.limit ?? 10,

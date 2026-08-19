@@ -26,7 +26,7 @@ import {
 
 type BaseConditionExpression<A extends AttributeType, T> =
 	//
-	Path<A, any> & EqualFunction<A, T> & NotEqualFunction<A, T> & ExistsFunction & NotExistsFunction & TypeFunction<A>
+	Path<A> & EqualFunction<A, T> & NotEqualFunction<A, T> & ExistsFunction & NotExistsFunction & TypeFunction<A>
 
 // type LogicalConditionExpression<T> =
 // 	//

@@ -127,7 +127,7 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
   throwExpectedErrors?: boolean;
 }
 type LambdaFactory = {
-  <H extends Handler>(options: Options<H, undefined>): (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
+  <H extends Handler>(options: Options<H>): (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
   <H extends Handler<S>, S extends Schema>(options: Options<H, S>): (event: Input<S>, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
 };
 type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S extends undefined ? (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>> : (event: Input<S>, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;

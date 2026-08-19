@@ -216,7 +216,7 @@ const warmerKey = "warmer";
 const concurrencyKey = "concurrency";
 const concurrencyLimit = 10;
 const isWarmUpEvent = (event) => {
-	return typeof event === "object" && event.warmer === true;
+	return typeof event === "object" && event.warmer;
 };
 const getWarmUpEvent = (event) => {
 	if (!isWarmUpEvent(event)) return;

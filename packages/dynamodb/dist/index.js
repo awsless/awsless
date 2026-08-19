@@ -1160,7 +1160,7 @@ const query = (table, key, options = {}) => {
 			IndexName: options.index,
 			KeyConditionExpression: buildConditionExpression(attrs, (e) => [...Object.entries(key).map(([k, v]) => e(k).eq(v)), ...options.where ? [options.where(e)] : []]),
 			ConsistentRead: options.consistentRead,
-			ScanIndexForward: sort === "desc" ? false : true,
+			ScanIndexForward: sort !== "desc",
 			ExclusiveStartKey: fromCursorString(cursor),
 			ProjectionExpression: buildProjectionExpression(attrs, options.select),
 			Limit: limit ?? options.limit ?? 10,

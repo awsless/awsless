@@ -17,10 +17,8 @@
 
 		// Style opinions this codebase deliberately doesn't follow.
 		"no-for-in-array": "off", // want able to use for .. in/of ..
+		"no-useless-concat": "off", // The bigfloat tests split their long literals
 		"no-unmodified-loop-condition": "off", // Abort signals mutate from outside the loop.
-		"no-unnecessary-type-arguments": "off",
-		"no-useless-concat": "off",
-		"no-array-reverse": "off",
 		"no-extraneous-class": "off",
 		"no-shadow": "off",
 		"no-new": "off", // Declaring a terraforge resource is the effect
@@ -28,7 +26,6 @@
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off", // Test helpers belong next to the cases they run
 		"prefer-add-event-listener": "off",
-		"no-unneeded-ternary": "off",
 		"no-useless-spread": "off", // We copy a map before deleting from it while looping
 
 		// Type-strictness noise: assertions & template stringification
@@ -39,8 +36,6 @@
 		"no-unsafe-type-assertion": "off",
 		"restrict-template-expressions": "off",
 		"no-unnecessary-type-parameters": "off", // The caller picks the type, like peek<User>()
-		"no-unnecessary-type-constraint": "off",
-		"no-unnecessary-boolean-literal-compare": "off",
 		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings
 
 		// The whole-repo tsc gate already reports unused code, and the

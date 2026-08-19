@@ -179,7 +179,7 @@ export type SizeFunction = {
 	 *
 	 * @param path - A reference to the attribute whose size should be evaluated.
 	 */
-	size(path: Path<'S' | 'B' | 'L' | 'M' | 'SS' | 'NS' | 'BS', any>): NumberConditionExpression<number>
+	size(path: Path<'S' | 'B' | 'L' | 'M' | 'SS' | 'NS' | 'BS'>): NumberConditionExpression<number>
 }
 
 //

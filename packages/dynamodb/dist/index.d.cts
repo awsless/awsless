@@ -124,7 +124,7 @@ declare class Fluent extends Function {
 declare const createFluent: () => any;
 //#endregion
 //#region src/expression/condition.d.ts
-type BaseConditionExpression<A extends AttributeType, T> = Path<A, any> & EqualFunction<A, T> & NotEqualFunction<A, T> & ExistsFunction & NotExistsFunction & TypeFunction<A>;
+type BaseConditionExpression<A extends AttributeType, T> = Path<A> & EqualFunction<A, T> & NotEqualFunction<A, T> & ExistsFunction & NotExistsFunction & TypeFunction<A>;
 type RootConditionExpression<R extends Record<string, any>> = {
   at<K extends keyof R>(key: K): R[K];
 } & AndFunction & OrFunction & NotFunction & SizeFunction & R;
@@ -309,7 +309,7 @@ type SizeFunction = {
    *
    * @param path - A reference to the attribute whose size should be evaluated.
    */
-  size(path: Path<'S' | 'B' | 'L' | 'M' | 'SS' | 'NS' | 'BS', any>): NumberConditionExpression<number>;
+  size(path: Path<'S' | 'B' | 'L' | 'M' | 'SS' | 'NS' | 'BS'>): NumberConditionExpression<number>;
 };
 type EqualFunction<A extends AttributeType, T> = {
   /**

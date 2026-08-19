@@ -699,7 +699,7 @@ export const startDev = async (props: {
 
 			// Reverse registration order, so dependent servers stop
 			// before the servers they rely on.
-			for (const server of [...dev.servers].reverse()) {
+			for (const server of dev.servers.toReversed()) {
 				await server.stop?.()
 			}
 		},

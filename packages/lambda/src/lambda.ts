@@ -31,9 +31,7 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
 }
 
 export type LambdaFactory = {
-	<H extends Handler>(
-		options: Options<H, undefined>
-	): (event?: unknown, context?: Context) => Promise<Awaited<ReturnType<H>>>
+	<H extends Handler>(options: Options<H>): (event?: unknown, context?: Context) => Promise<Awaited<ReturnType<H>>>
 	<H extends Handler<S>, S extends Schema>(
 		options: Options<H, S>
 	): (event: Input<S>, context?: Context) => Promise<Awaited<ReturnType<H>>>

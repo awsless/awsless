@@ -81,7 +81,7 @@ export const createServerPool = (): ServerPool => {
 		stopAll: async () => {
 			claimed.clear()
 
-			for (const [key, entry] of [...entries].reverse()) {
+			for (const [key, entry] of [...entries].toReversed()) {
 				entries.delete(key)
 				await entry.stop()
 			}

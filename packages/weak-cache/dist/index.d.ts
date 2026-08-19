@@ -1,5 +1,5 @@
 //#region src/index.d.ts
-declare class WeakCache<Key extends string | number | symbol, Value extends unknown> {
+declare class WeakCache<Key extends string | number | symbol, Value> {
   private registry;
   private cache;
   constructor();
