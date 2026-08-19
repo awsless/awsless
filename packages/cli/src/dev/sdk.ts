@@ -1,6 +1,7 @@
 import { readdir, readFile, mkdir, rm, stat, symlink } from 'fs/promises'
 import { createRequire } from 'module'
 import { dirname, join } from 'path'
+import { Workspace } from '@awsless/ts-file-cache'
 import { debug } from '../cli/debug.js'
 import { directories } from '../util/path.js'
 
@@ -10,7 +11,7 @@ import { directories } from '../util/path.js'
 // the sdk clients the project directly depends on. The dev server
 // plays the role of the lambda runtime by symlinking its own sdk
 // copies into the build folder for every missing client.
-export const linkSdkPackages = async (buildDir: string, onWarn?: (message: string) => void) => {
+export const linkSdkPackages = async (workspace: Workspace, buildDir: string, onWarn?: (message: string) => void) => {
 	const filesDir = join(buildDir, 'files')
 	const packages = new Set<string>()
 
@@ -47,27 +48,33 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 	}
 
 	// A transitive dependency (like the sdk client of a library the
-	// project uses) lives in the pnpm store without being resolvable
-	// from the project root. Those instances match the app's lockfile,
-	// so they always win over the cli's own copies.
-	const resolveFromStore = async (name: string) => {
-		const store = join(directories.root, 'node_modules', '.pnpm')
-		const prefix = name.replaceAll('/', '+') + '@'
+	// project uses) isn't resolvable from the project root. The library
+	// that pulls it in resolves the version its lockfile pins, so the
+	// link follows that instead of picking a copy out of the store -
+	// a second copy of a client would break the bundle in ways that
+	// only surface as a garbled request.
+	const resolveFromDependents = async (name: string) => {
+		const roots = Object.values(workspace.packages).flatMap(pkg => [
+			pkg.path,
+			...Object.entries(pkg.dependencies).map(([dependency, info]) =>
+				info.type === 'workspace'
+					? workspace.packages[info.link]?.path
+					: join(pkg.path, 'node_modules', dependency)
+			),
+		])
 
-		try {
-			const entries = (await readdir(store)).filter(entry => entry.startsWith(prefix))
+		// Sorted, so two libraries pinning different versions still pick
+		// the same one on every run.
+		for (const root of roots.filter(root => typeof root === 'string').toSorted()) {
+			const path = join(root, 'node_modules', name)
 
-			// The highest version sorts last.
-			const best = entries
-				.toSorted((a, b) =>
-					a.slice(prefix.length).localeCompare(b.slice(prefix.length), undefined, { numeric: true })
-				)
-				.at(-1)
-
-			return best ? join(store, best, 'node_modules', name) : undefined
-		} catch {
-			return undefined
+			try {
+				await stat(join(path, 'package.json'))
+				return path
+			} catch {}
 		}
+
+		return
 	}
 
 	for (const name of packages) {
@@ -83,7 +90,7 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 				continue
 			}
 
-			let source = await resolveFromStore(name)
+			let source = await resolveFromDependents(name)
 
 			if (!source) {
 				try {

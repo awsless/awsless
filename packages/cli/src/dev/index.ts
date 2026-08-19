@@ -234,7 +234,7 @@ export const startDev = async (props: {
 
 		// Play the lambda runtime role for aws sdk packages the project
 		// doesn't depend on directly.
-		await linkSdkPackages(buildDir, log)
+		await linkSdkPackages(workspace, buildDir, log)
 
 		return changed
 	}
