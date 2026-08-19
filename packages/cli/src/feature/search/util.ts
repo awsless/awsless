@@ -7,7 +7,7 @@ export const formatSearchIndexName = (stackName: string, indexName: string) => {
 	return `${kebabCase(stackName)}--${indexName}`
 }
 
-type ShorthandField = string | Record<string, unknown> | [Record<string, unknown>] | unknown
+type ShorthandField = string | Record<string, unknown> | [Record<string, unknown>]
 
 const compileField = (field: ShorthandField): Record<string, unknown> => {
 	// "keyword" - a plain type, where text gets the ".keyword" sub
@@ -42,7 +42,9 @@ const compileField = (field: ShorthandField): Record<string, unknown> => {
 }
 
 const compileFields = (fields: Record<string, unknown>) => {
-	return Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, compileField(field)]))
+	return Object.fromEntries(
+		Object.entries(fields).map(([name, field]) => [name, compileField(field as ShorthandField)])
+	)
 }
 
 // Resolve the mappings of an index declaration: the shorthand schema

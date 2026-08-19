@@ -600,7 +600,7 @@ const Instance = /*@__PURE__*/ createProxy((stack) => {
 				queue: resolved,
 				payload,
 				attributes: {
-					...options.attributes ?? {},
+					...options.attributes,
 					queueUrl: resolved,
 					queueName: queue
 				}
@@ -695,7 +695,7 @@ const Queue = /*@__PURE__*/ createProxy((stack) => {
 				queue: url ?? name,
 				payload,
 				attributes: {
-					...options.attributes ?? {},
+					...options.attributes,
 					...url ? { queueUrl: url } : {},
 					queueName: name
 				}
@@ -709,7 +709,7 @@ const Queue = /*@__PURE__*/ createProxy((stack) => {
 				items: items.map((item) => ({
 					...item,
 					attributes: {
-						...item.attributes ?? {},
+						...item.attributes,
 						...url ? { queueUrl: url } : {},
 						queueName: name
 					}

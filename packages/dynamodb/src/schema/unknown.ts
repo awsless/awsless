@@ -46,7 +46,7 @@ export const unknown = (opts?: UnknownOptions): UnknownSchema =>
 				{ value },
 				{
 					removeUndefinedValues: true,
-					...(opts?.marshall ?? {}),
+					...opts?.marshall,
 				}
 			).value as Record<AttributeType, any>
 		},

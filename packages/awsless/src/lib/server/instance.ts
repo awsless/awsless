@@ -30,7 +30,7 @@ export const Instance: InstanceResources = /*@__PURE__*/ createProxy(stack => {
 					queue: resolved,
 					payload,
 					attributes: {
-						...(options.attributes ?? {}),
+						...options.attributes,
 						queueUrl: resolved,
 						queueName: queue,
 					},

@@ -146,7 +146,7 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 	}
 
 	const decode = (
-		value: Array<AttributeOutputValue<'S'> & AttributeOutputValue<'N'> & AttributeOutputValue<'B'>>,
+		value: Array<AttributeOutputValue<'S'> & AttributeOutputValue<'B'>>,
 		path: Array<string | number>
 	) => {
 		return new Set<S[symbol]['Type']>(

@@ -2,7 +2,7 @@ import { CreateTableCommandInput } from '@aws-sdk/client-dynamodb'
 import { GenericSchema } from '../schema/schema'
 import { AnyTable, TableIndex } from '../table'
 
-const filter = <L extends (unknown | undefined)[]>(list: L) => {
+const filter = <L extends unknown[]>(list: L) => {
 	return list.filter(item => !!item) as Exclude<L[number], undefined>[]
 }
 

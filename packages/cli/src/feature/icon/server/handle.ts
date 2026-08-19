@@ -98,13 +98,11 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 				{
 					name: 'preset-default',
 					params: {
-						overrides: {
-							...(config.preserveIds
-								? {
-										cleanupIds: false,
-									}
-								: {}),
-						},
+						overrides: config.preserveIds
+							? {
+									cleanupIds: false,
+								}
+							: {},
 					},
 				},
 			],

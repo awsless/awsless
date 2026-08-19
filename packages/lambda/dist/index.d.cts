@@ -74,7 +74,7 @@ type Context = {
 type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R;
 type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>;
 type Loggers = Array<Logger | Loggers> | Logger;
-type ExtraMetaData = Record<string, unknown | Record<string, unknown>>;
+type ExtraMetaData = Record<string, unknown>;
 //#endregion
 //#region src/context/lambda-context.d.ts
 declare const getContext: () => Context;

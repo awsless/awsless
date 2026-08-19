@@ -1,7 +1,7 @@
 import { request } from 'node:https'
 import { toException } from './error.js'
 
-export type ErrorMetaData = { [key: string]: unknown | { [key: string]: unknown } }
+export type ErrorMetaData = { [key: string]: unknown }
 
 interface NotifyOptions {
 	metaData?: ErrorMetaData

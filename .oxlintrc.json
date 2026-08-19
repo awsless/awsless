@@ -30,8 +30,7 @@
 		"prefer-add-event-listener": "off",
 		"no-unneeded-ternary": "off",
 		"no-useless-escape": "off",
-		"no-useless-spread": "off",
-		"no-useless-fallback-in-spread": "off",
+		"no-useless-spread": "off", // We copy a map before deleting from it while looping
 
 		// Type-strictness noise: assertions & template stringification
 		// are used deliberately all over the schema & config internals.
@@ -44,8 +43,7 @@
 		"no-unnecessary-type-conversion": "off",
 		"no-unnecessary-type-constraint": "off",
 		"no-unnecessary-boolean-literal-compare": "off",
-		"no-redundant-type-constituents": "off",
-		"no-duplicate-type-constituents": "off",
+		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings
 
 		// The whole-repo tsc gate already reports unused code, and the
 		// `beforeEach && beforeEach(...)` mock guards trip the

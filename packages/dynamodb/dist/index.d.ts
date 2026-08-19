@@ -553,9 +553,9 @@ type StreamRequest<T extends AnyTable> = {
 };
 type Stream<T extends AnyTable> = {
   table: T;
-  fn: (payload: StreamRequest<T>) => unknown | void;
+  fn: (payload: StreamRequest<T>) => unknown;
 };
-declare const streamTable: <T extends AnyTable>(table: T, fn: (payload: StreamRequest<T>) => unknown | void) => Stream<AnyTable>;
+declare const streamTable: <T extends AnyTable>(table: T, fn: (payload: StreamRequest<T>) => unknown) => Stream<AnyTable>;
 //#endregion
 //#region src/test/mock.d.ts
 type SeedTable<T extends AnyTable> = {

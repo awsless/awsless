@@ -145,8 +145,8 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 				let data: unknown
 				try {
 					data = await internalInvoke(fn.details.name, {
-						...(fn.payload ?? {}),
-						...(auth.context ?? {}),
+						...fn.payload,
+						...auth.context,
 						// headers: request.output.headers,
 						viewer: buildViewerPayload(request.output),
 					})

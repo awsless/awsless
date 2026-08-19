@@ -21,4 +21,4 @@ export type Handler<S extends Schema = undefined, R = unknown> = (event: Output<
 
 export type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>
 export type Loggers = Array<Logger | Loggers> | Logger
-export type ExtraMetaData = Record<string, unknown | Record<string, unknown>>
+export type ExtraMetaData = Record<string, unknown>

@@ -40,24 +40,22 @@ export class TypeFile {
 
 		if (this.imports.size > 0) {
 			lines.push(
-				...[
-					'// Imports',
-					...Array.from(this.imports.entries()).map(([varName, path]) => {
-						if (typeof varName === 'string') {
-							return `import ${camelCase(varName)} from '${path}'`
-						}
+				'// Imports',
+				...Array.from(this.imports.entries()).map(([varName, path]) => {
+					if (typeof varName === 'string') {
+						return `import ${camelCase(varName)} from '${path}'`
+					}
 
-						return `import { ${Object.entries(varName)
-							.map(([key, alias]) => `${key} as ${camelCase(alias)}`)
-							.join(', ')} } from '${path}'`
-					}),
-					'',
-				]
+					return `import { ${Object.entries(varName)
+						.map(([key, alias]) => `${key} as ${camelCase(alias)}`)
+						.join(', ')} } from '${path}'`
+				}),
+				''
 			)
 		}
 
 		if (this.codes.size > 0) {
-			lines.push(...['// Types', ...Array.from(this.codes).map(v => v.trim()), ''])
+			lines.push('// Types', ...Array.from(this.codes).map(v => v.trim()), '')
 		}
 
 		return [

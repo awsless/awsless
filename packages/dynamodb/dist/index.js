@@ -97,7 +97,7 @@ const unknown = (opts) => createSchema({
 	marshall(value) {
 		return marshall({ value }, {
 			removeUndefinedValues: true,
-			...opts?.marshall ?? {}
+			...opts?.marshall
 		}).value;
 	},
 	unmarshall(value) {
@@ -807,22 +807,22 @@ const mockDynamoDB = (configOrServer) => {
 			};
 		}, configOrServer.timeout);
 	}
-	const originalDynamoDBSend = DynamoDBClient$1.prototype.send;
-	const originalDocumentClientSend = DynamoDBDocumentClient$1.prototype.send;
 	const client = server.getClient();
 	const documentClient = server.getDocumentClient();
+	const originalDynamoDBSend = DynamoDBClient$1.prototype.send.bind(client);
+	const originalDocumentClientSend = DynamoDBDocumentClient$1.prototype.send.bind(documentClient);
 	const processStream = (command, send) => {
 		if (!(configOrServer instanceof DynamoDBServer$1) && configOrServer.stream) return pipeStream(configOrServer.stream, command, send);
 		return send();
 	};
 	const clientSend = (command) => {
 		return processStream(command, () => {
-			return originalDynamoDBSend.call(client, command);
+			return originalDynamoDBSend(command);
 		});
 	};
 	const documentClientSend = (command) => {
 		return processStream(command, () => {
-			return originalDocumentClientSend.call(documentClient, command);
+			return originalDocumentClientSend(command);
 		});
 	};
 	return server;

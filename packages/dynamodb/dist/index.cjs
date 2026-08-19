@@ -98,7 +98,7 @@ const unknown = (opts) => createSchema({
 	marshall(value) {
 		return (0, _aws_sdk_util_dynamodb.marshall)({ value }, {
 			removeUndefinedValues: true,
-			...opts?.marshall ?? {}
+			...opts?.marshall
 		}).value;
 	},
 	unmarshall(value) {
@@ -808,22 +808,22 @@ const mockDynamoDB = (configOrServer) => {
 			};
 		}, configOrServer.timeout);
 	}
-	const originalDynamoDBSend = _aws_sdk_client_dynamodb.DynamoDBClient.prototype.send;
-	const originalDocumentClientSend = _aws_sdk_lib_dynamodb.DynamoDBDocumentClient.prototype.send;
 	const client = server.getClient();
 	const documentClient = server.getDocumentClient();
+	const originalDynamoDBSend = _aws_sdk_client_dynamodb.DynamoDBClient.prototype.send.bind(client);
+	const originalDocumentClientSend = _aws_sdk_lib_dynamodb.DynamoDBDocumentClient.prototype.send.bind(documentClient);
 	const processStream = (command, send) => {
 		if (!(configOrServer instanceof _awsless_dynamodb_server.DynamoDBServer) && configOrServer.stream) return pipeStream(configOrServer.stream, command, send);
 		return send();
 	};
 	const clientSend = (command) => {
 		return processStream(command, () => {
-			return originalDynamoDBSend.call(client, command);
+			return originalDynamoDBSend(command);
 		});
 	};
 	const documentClientSend = (command) => {
 		return processStream(command, () => {
-			return originalDocumentClientSend.call(documentClient, command);
+			return originalDocumentClientSend(command);
 		});
 	};
 	return server;

@@ -216,7 +216,7 @@ const toResponse = (result: unknown) => {
 // The node http server still uses this shape for the rest emulator.
 export const writeWebResponse = (res: ServerResponse, result: unknown) => {
 	if (isStructured(result)) {
-		const headers: Record<string, string | string[]> = { ...(result.headers ?? {}) }
+		const headers: Record<string, string | string[]> = { ...result.headers }
 
 		if (result.cookies && result.cookies.length > 0) {
 			headers['set-cookie'] = result.cookies

@@ -108,13 +108,13 @@ describe('Lambda', () => {
 		const f6 = lambda({ handle: () => new Date() })
 		const f7 = lambda({ handle: () => [1, undefined] })
 
-		type e1 = (event?: unknown, context?: Context | undefined) => Promise<void>
-		type e2 = (event?: unknown, context?: Context | undefined) => Promise<void>
-		type e3 = (event: string, context?: Context | undefined) => Promise<void>
-		type e4 = (event: string, context?: Context | undefined) => Promise<string>
-		type e5 = (event?: unknown, context?: Context | undefined) => Promise<'1' | undefined>
-		type e6 = (event?: unknown, context?: Context | undefined) => Promise<Date>
-		type e7 = (event?: unknown, context?: Context | undefined) => Promise<Array<number | undefined>>
+		type e1 = (event?: unknown, context?: Context) => Promise<void>
+		type e2 = (event?: unknown, context?: Context) => Promise<void>
+		type e3 = (event: string, context?: Context) => Promise<void>
+		type e4 = (event: string, context?: Context) => Promise<string>
+		type e5 = (event?: unknown, context?: Context) => Promise<'1' | undefined>
+		type e6 = (event?: unknown, context?: Context) => Promise<Date>
+		type e7 = (event?: unknown, context?: Context) => Promise<Array<number | undefined>>
 
 		expectTypeOf(f1).toEqualTypeOf<e1>()
 		expectTypeOf(f2).toEqualTypeOf<e2>()

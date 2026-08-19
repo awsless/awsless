@@ -96,7 +96,7 @@ export const instanceOnDev = async (ctx: DevContext) => {
 						env: {
 							...process.env,
 							...env,
-							...(merged.environment ?? {}),
+							...merged.environment,
 							STACK: stackConfig.name,
 							PORT: String(healthPort),
 							PATH: binPath(cwd),

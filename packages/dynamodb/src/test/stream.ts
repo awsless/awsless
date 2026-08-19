@@ -24,12 +24,12 @@ export type StreamRequest<T extends AnyTable> = {
 
 export type Stream<T extends AnyTable> = {
 	table: T
-	fn: (payload: StreamRequest<T>) => unknown | void
+	fn: (payload: StreamRequest<T>) => unknown
 }
 
 export const streamTable = <T extends AnyTable>(
 	table: T,
-	fn: (payload: StreamRequest<T>) => unknown | void
+	fn: (payload: StreamRequest<T>) => unknown
 ): Stream<AnyTable> => {
 	return { table, fn } as any
 }
