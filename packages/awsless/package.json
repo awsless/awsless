@@ -1,6 +1,6 @@
 {
 	"name": "awsless",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -76,5 +76,10 @@
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
 		"vitest": ">=4"
+	},
+	"peerDependenciesMeta": {
+		"vitest": {
+			"optional": true
+		}
 	}
 }

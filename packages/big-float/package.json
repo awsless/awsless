@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/big-float",
-	"version": "0.1.7",
+	"version": "0.1.8",
 	"description": "A tree-shakable, library for arbitrary-precision decimal arithmetic.",
 	"keywords": [
 		"arbitrary",

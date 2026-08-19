@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/s3",
-	"version": "0.0.22",
+	"version": "0.0.23",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},

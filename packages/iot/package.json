@@ -36,5 +36,10 @@
 	},
 	"peerDependencies": {
 		"vitest": ">=4"
+	},
+	"peerDependenciesMeta": {
+		"vitest": {
+			"optional": true
+		}
 	}
 }

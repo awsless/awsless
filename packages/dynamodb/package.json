@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.3.25",
+	"version": "0.3.26",
 	"keywords": [
 		"AWS",
 		"DynamoDB",
@@ -58,6 +58,11 @@
 		"@awsless/big-float": "workspace:^",
 		"@awsless/json": "workspace:^",
 		"vitest": ">=4"
+	},
+	"peerDependenciesMeta": {
+		"vitest": {
+			"optional": true
+		}
 	},
 	"vitest": {
 		"hookTimeout": 30000,
