@@ -212,29 +212,6 @@ const mockLambda = (lambdas) => {
 	return list;
 };
 //#endregion
-//#region src/helpers/warm-up.ts
-const warmerKey = "warmer";
-const concurrencyKey = "concurrency";
-const concurrencyLimit = 10;
-const isWarmUpEvent = (event) => {
-	return typeof event === "object" && event.warmer;
-};
-const getWarmUpEvent = (event) => {
-	if (!isWarmUpEvent(event)) return;
-	return { concurrency: parseInt(String(event[concurrencyKey]), 10) || 3 };
-};
-const warmUp = async (input) => {
-	if (input.concurrency > concurrencyLimit) throw new Error(`Warm up concurrency limit can't be greater than ${concurrencyLimit}`);
-	if (input.concurrency <= 1) return;
-	await invoke({
-		name: process.env.AWS_LAMBDA_FUNCTION_NAME ?? "",
-		payload: {
-			[warmerKey]: true,
-			[concurrencyKey]: input.concurrency - 1
-		}
-	});
-};
-//#endregion
 //#region src/lambda.ts
 /** Create a lambda handle function. */
 const lambda = (options) => {
@@ -251,11 +228,6 @@ const lambda = (options) => {
 		const failureCallbacks = [];
 		const finallyCallbacks = [];
 		try {
-			const warmUpEvent = getWarmUpEvent(event);
-			if (warmUpEvent) {
-				await warmUp(warmUpEvent);
-				return;
-			}
 			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
 					const raw = typeof event === "undefined" || isTestEnv ? event : (0, _awsless_json.patch)(event);

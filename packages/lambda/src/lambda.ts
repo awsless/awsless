@@ -11,7 +11,6 @@ import { createTimeoutWrap } from './errors/timeout.js'
 import { transformValidationErrors } from './errors/validation.js'
 import { ViewableError } from './errors/viewable.js'
 import { normalizeError } from './helpers/error.js'
-import { getWarmUpEvent, warmUp } from './helpers/warm-up.js'
 import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
 
 interface Options<H extends Handler<S>, S extends Schema = undefined> {
@@ -76,14 +75,6 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 		const finallyCallbacks: Array<() => unknown> = []
 
 		try {
-			const warmUpEvent = getWarmUpEvent(event)
-
-			if (warmUpEvent) {
-				await warmUp(warmUpEvent)
-				// @ts-ignore
-				return undefined
-			}
-
 			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
 					const raw = typeof event === 'undefined' || isTestEnv ? event : patch(event)
