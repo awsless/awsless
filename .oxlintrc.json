@@ -24,7 +24,7 @@
 		"no-extraneous-class": "off",
 		"no-shadow": "off",
 		"no-new": "off", // Declaring a terraforge resource is the effect
-		"no-underscore-dangle": "off", // AWS uses fields like __type & reserved word names
+		"no-underscore-dangle": "off", // Wire fields like __type, and enum_ for reserved words
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off",
 		"prefer-add-event-listener": "off",
@@ -38,7 +38,7 @@
 		"no-unnecessary-type-assertion": "off",
 		"no-unsafe-type-assertion": "off",
 		"restrict-template-expressions": "off",
-		"no-unnecessary-type-parameters": "off",
+		"no-unnecessary-type-parameters": "off", // The caller picks the type, like peek<User>()
 		"no-unnecessary-type-constraint": "off",
 		"no-unnecessary-boolean-literal-compare": "off",
 		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings
