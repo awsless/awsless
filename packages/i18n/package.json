@@ -36,9 +36,9 @@
 	},
 	"scripts": {
 		"test": "pnpm vitest run -c ../../vitest.shared.ts",
-		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean && pnpm build-svelte",
 		"build-svelte": "pnpm tsdown --no-fixed-extension --no-clean src/framework/svelte-5.svelte.ts --format esm --dts",
-		"prepublish": "if pnpm test; then pnpm build; pnpm build-svelte; else exit; fi"
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
 		"@swc/core": "1.16.1",
@@ -61,8 +61,8 @@
 		"vite": "8.2.1"
 	},
 	"peerDependencies": {
-		"svelte": "5.55.1",
-		"vite": "7.3.1"
+		"svelte": "5.56.9",
+		"vite": "8.2.1"
 	},
 	"vitest": {
 		"exclude": [
