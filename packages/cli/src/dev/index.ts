@@ -454,7 +454,7 @@ export const startDev = async (props: {
 	// Failed async consumers route to the on-failure consumer when the
 	// app has one, instead of retry & dlq machinery. Every failure also
 	// lands on the homepage problems feed.
-	const reportFailure = createFailureReporter({
+	const report = createFailureReporter({
 		enabled: Boolean(appConfig.onFailure),
 		dispatch,
 		log,
@@ -467,6 +467,17 @@ export const startDev = async (props: {
 			})
 		},
 	})
+
+	// The local servers keep producing until they stop, which is after
+	// the worker, so a dispatch during the teardown always fails on a
+	// pool that is already empty. Reporting that says nothing.
+	const reportFailure: typeof report = failure => {
+		if (stopping) {
+			return
+		}
+
+		report(failure)
+	}
 
 	// Local resource servers already listen since their onDev hook ran,
 	// so the worker module init can talk to them right away. Their
