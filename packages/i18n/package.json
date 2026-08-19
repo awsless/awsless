@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/i18n",
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"keywords": [
 		"ai",
 		"i18n",
@@ -41,7 +41,6 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@swc/core": "1.16.1",
 		"@types/chunk": "0.0.2",
 		"@types/line-column": "1.0.2",
 		"ai": "7.0.68",
@@ -50,7 +49,7 @@
 		"glob": "13.0.6",
 		"line-column": "1.0.2",
 		"magic-string": "1.2.1",
-		"swc-walk": "3.0.0-rc.0",
+		"oxc-parser": "0.146.0",
 		"zod": "4.4.3"
 	},
 	"devDependencies": {

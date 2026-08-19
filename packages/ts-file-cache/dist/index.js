@@ -2,65 +2,21 @@ import { builtinModules } from "node:module";
 import { lstat, readFile, readdir, stat } from "fs/promises";
 import { basename, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "path";
 import { createHash } from "crypto";
-import { parse } from "@swc/core";
-import { simple } from "swc-walk";
-import { BaseVisitor } from "swc-walk/baseVisitor";
-import { parse as parse$1 } from "yaml";
+import { walk } from "estree-walker";
+import { parseSync } from "oxc-parser";
+import { parse } from "yaml";
 //#region src/import.ts
-var PatchedBaseVisitor = class extends BaseVisitor {
-	FunctionBody(node, state, callback) {
-		for (const statement of node.stmts) callback(statement, state);
-	}
-};
-const baseVisitor = new PatchedBaseVisitor();
-const parseOptions = (file) => {
-	if (file.endsWith(".tsx")) return {
-		syntax: "typescript",
-		tsx: true,
-		decorators: true
-	};
-	if (file.endsWith(".ts") || file.endsWith(".mts") || file.endsWith(".cts")) return {
-		syntax: "typescript",
-		decorators: true
-	};
-	return {
-		syntax: "ecmascript",
-		jsx: true,
-		decorators: true
-	};
-};
 const findImports = async (file, code) => {
-	let ast;
-	try {
-		ast = await parse(code, parseOptions(file));
-	} catch (error) {
-		throw new Error(`Failed to parse: ${file}`, { cause: error });
-	}
+	const ast = parseSync(file, code);
+	if (ast.errors.length > 0) throw new Error(`Failed to parse: ${file}`, { cause: ast.errors[0] });
 	const importing = /* @__PURE__ */ new Set();
-	try {
-		simple(ast, {
-			ImportDeclaration(node) {
-				importing.add(node.source.value);
-			},
-			ExportAllDeclaration(node) {
-				importing.add(node.source.value);
-			},
-			ExportNamedDeclaration(node) {
-				if (node.source) importing.add(node.source.value);
-			},
-			CallExpression(node) {
-				if (node.callee.type === "Import") {
-					const first = node.arguments.at(0);
-					if (first && first.expression.type === "StringLiteral") importing.add(first.expression.value);
-				}
-			},
-			TsImportEqualsDeclaration(node) {
-				if (node.moduleRef.type === "TsExternalModuleReference") importing.add(node.moduleRef.expression.value);
-			}
-		}, baseVisitor);
-	} catch (error) {
-		throw new Error(`Failed to walk the AST of: ${file}`, { cause: error });
-	}
+	walk(ast.program, { enter(node) {
+		if (node.type === "ImportDeclaration" || node.type === "ExportAllDeclaration") importing.add(node.source.value);
+		if (node.type === "ExportNamedDeclaration" && node.source) importing.add(node.source.value);
+		if (node.type === "ImportExpression" && node.source.type === "Literal") importing.add(node.source.value);
+		const importEquals = node;
+		if (importEquals.type === "TSImportEqualsDeclaration" && importEquals.moduleReference.type === "TSExternalModuleReference") importing.add(importEquals.moduleReference.expression.value);
+	} });
 	return [...importing].map((importee) => {
 		if (importee.startsWith(".")) return resolve(dirname(file), importee);
 		const parts = importee.split("/");
@@ -269,7 +225,7 @@ const stripJsoncSyntax = (text) => {
 //#endregion
 //#region src/package-manager/pnpm.ts
 const pnpm = async (cwd, lockFile) => {
-	const data = parse$1(lockFile);
+	const data = parse(lockFile);
 	const importers = {};
 	for (const [path, importee] of Object.entries(data.importers)) {
 		const deps = {

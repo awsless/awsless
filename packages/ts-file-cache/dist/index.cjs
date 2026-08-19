@@ -3,65 +3,21 @@ let fs_promises = require("fs/promises");
 let path = require("path");
 let crypto = require("crypto");
 let node_module = require("node:module");
-let _swc_core = require("@swc/core");
-let swc_walk = require("swc-walk");
-let swc_walk_baseVisitor = require("swc-walk/baseVisitor");
+let estree_walker = require("estree-walker");
+let oxc_parser = require("oxc-parser");
 let yaml = require("yaml");
 //#region src/import.ts
-var PatchedBaseVisitor = class extends swc_walk_baseVisitor.BaseVisitor {
-	FunctionBody(node, state, callback) {
-		for (const statement of node.stmts) callback(statement, state);
-	}
-};
-const baseVisitor = new PatchedBaseVisitor();
-const parseOptions = (file) => {
-	if (file.endsWith(".tsx")) return {
-		syntax: "typescript",
-		tsx: true,
-		decorators: true
-	};
-	if (file.endsWith(".ts") || file.endsWith(".mts") || file.endsWith(".cts")) return {
-		syntax: "typescript",
-		decorators: true
-	};
-	return {
-		syntax: "ecmascript",
-		jsx: true,
-		decorators: true
-	};
-};
 const findImports = async (file, code) => {
-	let ast;
-	try {
-		ast = await (0, _swc_core.parse)(code, parseOptions(file));
-	} catch (error) {
-		throw new Error(`Failed to parse: ${file}`, { cause: error });
-	}
+	const ast = (0, oxc_parser.parseSync)(file, code);
+	if (ast.errors.length > 0) throw new Error(`Failed to parse: ${file}`, { cause: ast.errors[0] });
 	const importing = /* @__PURE__ */ new Set();
-	try {
-		(0, swc_walk.simple)(ast, {
-			ImportDeclaration(node) {
-				importing.add(node.source.value);
-			},
-			ExportAllDeclaration(node) {
-				importing.add(node.source.value);
-			},
-			ExportNamedDeclaration(node) {
-				if (node.source) importing.add(node.source.value);
-			},
-			CallExpression(node) {
-				if (node.callee.type === "Import") {
-					const first = node.arguments.at(0);
-					if (first && first.expression.type === "StringLiteral") importing.add(first.expression.value);
-				}
-			},
-			TsImportEqualsDeclaration(node) {
-				if (node.moduleRef.type === "TsExternalModuleReference") importing.add(node.moduleRef.expression.value);
-			}
-		}, baseVisitor);
-	} catch (error) {
-		throw new Error(`Failed to walk the AST of: ${file}`, { cause: error });
-	}
+	(0, estree_walker.walk)(ast.program, { enter(node) {
+		if (node.type === "ImportDeclaration" || node.type === "ExportAllDeclaration") importing.add(node.source.value);
+		if (node.type === "ExportNamedDeclaration" && node.source) importing.add(node.source.value);
+		if (node.type === "ImportExpression" && node.source.type === "Literal") importing.add(node.source.value);
+		const importEquals = node;
+		if (importEquals.type === "TSImportEqualsDeclaration" && importEquals.moduleReference.type === "TSExternalModuleReference") importing.add(importEquals.moduleReference.expression.value);
+	} });
 	return [...importing].map((importee) => {
 		if (importee.startsWith(".")) return (0, path.resolve)((0, path.dirname)(file), importee);
 		const parts = importee.split("/");

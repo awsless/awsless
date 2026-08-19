@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/ts-file-cache",
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -29,8 +29,8 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@swc/core": "1.16.1",
-		"swc-walk": "3.0.0-rc.0",
+		"estree-walker": "3.0.3",
+		"oxc-parser": "0.146.0",
 		"yaml": "2.9.0"
 	}
 }

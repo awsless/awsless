@@ -5,9 +5,7 @@ import { glob } from "glob";
 import { walk } from "estree-walker";
 import lineColumn from "line-column";
 import { parse } from "svelte/compiler";
-import { parse as parse$1 } from "@swc/core";
-import { simple } from "swc-walk";
-import { BaseVisitor } from "swc-walk/baseVisitor";
+import { parseSync } from "oxc-parser";
 import { generateObject } from "ai";
 import chunk from "chunk";
 import { z } from "zod";
@@ -108,22 +106,15 @@ const findSvelteTranslatable = (code) => {
 };
 //#endregion
 //#region src/find/typescript.ts
-var PatchedBaseVisitor = class extends BaseVisitor {
-	FunctionBody(node, state, callback) {
-		for (const statement of node.stmts) callback(statement, state);
-	}
-};
-const baseVisitor = new PatchedBaseVisitor();
 const findTypescriptTranslatable = async (code) => {
 	const found = [];
-	const ast = await parse$1(code, { syntax: "typescript" });
-	const bytes = Buffer.from(code, "utf8");
-	simple(ast, { TaggedTemplateExpression(node) {
-		if (node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.value === "lang" && node.tag.property.type === "Identifier" && node.tag.property.value === "t") {
-			const content = bytes.subarray(node.template.span.start - ast.span.start + 1, node.template.span.end - ast.span.start - 1).toString("utf8");
-			found.push(content);
+	const ast = parseSync("module.ts", code);
+	walk(ast.program, { enter(node) {
+		if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t") {
+			const quasi = node.quasi;
+			found.push(code.slice(quasi.start + 1, quasi.end - 1));
 		}
-	} }, baseVisitor);
+	} });
 	return found;
 };
 //#endregion
