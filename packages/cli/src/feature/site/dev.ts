@@ -1,7 +1,8 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess } from 'child_process'
 import { delimiter, dirname, isAbsolute, join, normalize, relative } from 'path'
 import { log } from '@awsless/clui'
 import { glob } from 'glob'
+import { spawnDevChild } from '../../dev/children.js'
 import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { directories } from '../../util/path.js'
@@ -98,7 +99,7 @@ export const siteOnDev = async (ctx: DevContext) => {
 							// of the cli log: every line streams to the
 							// dashboard panel & the last lines only surface in
 							// the terminal when the dev server dies.
-							const child = spawn(bin!, args, {
+							const child = spawnDevChild(bin!, [...args], {
 								cwd,
 								stdio: ['ignore', 'pipe', 'pipe'],
 								env: { ...process.env, ...env, PORT: String(port), PATH: binPath(cwd) },

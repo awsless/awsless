@@ -334,6 +334,9 @@ importers:
       svgstore:
         specifier: 3.0.1
         version: 3.0.1
+      tree-kill:
+        specifier: 1.2.2
+        version: 1.2.2
       type-fest:
         specifier: 5.8.0
         version: 5.8.0

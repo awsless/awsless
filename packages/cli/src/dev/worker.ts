@@ -1,8 +1,9 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess } from 'child_process'
 import { writeFile } from 'fs/promises'
 import { availableParallelism } from 'os'
 import { join } from 'path'
 import { debug } from '../cli/debug.js'
+import { spawnDevChild } from './children.js'
 import { findFreePort, stopChild, stripAnsi } from './util.js'
 
 export type BundleWorker = {
@@ -38,6 +39,16 @@ export class WorkerError extends Error {
 // instead of IPC, so the worker runtime never needs to match the CLI
 // runtime.
 const WORKER_ENTRY = `import { AsyncLocalStorage } from 'node:async_hooks'
+
+// A hard kill of the dev process reparents the worker to pid 1
+// without any signal, so the worker watches its parent and exits on
+// its own instead of lingering as an orphan.
+setInterval(() => {
+	if (process.ppid === 1) {
+		process.exit(0)
+	}
+}, 2000).unref()
+
 import http from 'node:http'
 import https from 'node:https'
 import { createServer } from 'node:http'
@@ -265,7 +276,7 @@ export const createBundleWorker = (props: {
 		// worker spawned during the boot spinner's raw mode would put
 		// the terminal back into raw mode on every reload, killing
 		// ctrl-c.
-		const child = spawn('node', ['--enable-source-maps', entry], {
+		const child = spawnDevChild('node', ['--enable-source-maps', entry], {
 			cwd: props.buildDir,
 			stdio: ['ignore', 'pipe', 'pipe'],
 			env: {

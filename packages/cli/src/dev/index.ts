@@ -14,6 +14,7 @@ import { ROUTE_HEADER } from '../feature/bundle/util.js'
 import { features } from '../feature/index.js'
 import { getBundleFunctionName } from '../util/name.js'
 import { directories, useDevBuildDir } from '../util/path.js'
+import { reapOrphanedDevChildren } from './children.js'
 import { createDevContext } from './context.js'
 import { createDashboardServer } from './dashboard/index.js'
 import { createFailureReporter } from './failure.js'
@@ -67,6 +68,14 @@ export const startDev = async (props: {
 	// Isolate the dev builds from deploy/build/test runs in the same
 	// repo - see useDevBuildDir. Must happen before any builder runs.
 	useDevBuildDir()
+
+	// A hard-killed previous run can't clean up after itself, so its
+	// surviving children die here, before their ports are needed again.
+	const reaped = await reapOrphanedDevChildren()
+
+	if (reaped > 0) {
+		debug(`Reaped ${reaped} orphaned dev child processes`)
+	}
 
 	// The synth is pure, so we can run it with a fake account to collect
 	// the builders, including the bundle build with every handler route.

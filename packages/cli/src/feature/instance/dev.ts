@@ -1,8 +1,9 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess } from 'child_process'
 import { dirname, join } from 'path'
 import { log } from '@awsless/clui'
 import { constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
+import { spawnDevChild } from '../../dev/children.js'
 import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
@@ -89,7 +90,7 @@ export const instanceOnDev = async (ctx: DevContext) => {
 					// The program runs on bun straight from source, like the
 					// deployed executable that bun compiled. It sees the full
 					// local environment plus its production only vars.
-					child = spawn('bun', [file], {
+					child = spawnDevChild('bun', [file], {
 						cwd,
 						stdio: ['ignore', 'pipe', 'pipe'],
 						env: {

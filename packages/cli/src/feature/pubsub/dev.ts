@@ -1,9 +1,9 @@
-import { spawn } from 'child_process'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { RedisServer } from '@awsless/redis'
 import { formatRouteEnvName } from 'awsless'
 import { Redis } from 'ioredis'
+import { spawnDevChild } from '../../dev/children.js'
 import { createSnsServer } from '../../dev/servers/sns.js'
 import { findFreePort, stopChild } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
@@ -215,7 +215,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 					// child never snapshots & restores the tty termios on
 					// exit (which would re-apply the boot spinner's raw
 					// mode & kill ctrl-c).
-					const child = spawn(process.execPath, [runtime], {
+					const child = spawnDevChild(process.execPath, [runtime], {
 						stdio: ['ignore', 'ignore', 'pipe'],
 						env: {
 							PATH: process.env.PATH,
