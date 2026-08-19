@@ -1,5 +1,5 @@
-import { BigFloat, ONE, TWO } from '@awsless/big-float'
 import { UUID } from 'crypto'
+import { BigFloat, ONE, TWO } from '@awsless/big-float'
 import {
 	any,
 	array,
@@ -81,7 +81,7 @@ describe('Infer', () => {
 	it('infer primary key', () => {
 		type Type = PrimaryKey<typeof posts>
 
-		expectTypeOf<Type>().toEqualTypeOf<{
+		expectTypeOf<Type>().branded.toEqualTypeOf<{
 			string: string
 			number: number
 		}>()
@@ -123,7 +123,7 @@ describe('Infer', () => {
 			}
 		}
 
-		expectTypeOf<Type>().toEqualTypeOf<Expectation>()
+		expectTypeOf<Type>().branded.toEqualTypeOf<Expectation>()
 	})
 
 	it('infer correct update expression', () => {

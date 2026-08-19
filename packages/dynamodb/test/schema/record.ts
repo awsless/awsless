@@ -23,7 +23,7 @@ describe('record', () => {
 	it('get', async () => {
 		const result = await getItem(table, { key: 1 })
 
-		expectTypeOf(result).toEqualTypeOf<
+		expectTypeOf(result).branded.toEqualTypeOf<
 			| undefined
 			| {
 					key: number

@@ -1,5 +1,5 @@
-import { BigFloat } from '@awsless/big-float'
 import { randomUUID, UUID } from 'crypto'
+import { BigFloat } from '@awsless/big-float'
 import {
 	any,
 	array,
@@ -181,7 +181,7 @@ describe('Schema', () => {
 	it('get', async () => {
 		const result = await getItem(table, { key: 1 })
 
-		expectTypeOf(result).toEqualTypeOf<
+		expectTypeOf(result).branded.toEqualTypeOf<
 			| undefined
 			| {
 					id: UUID

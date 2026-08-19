@@ -1,16 +1,15 @@
-export const concat = (...args: ArrayBufferLike[]) => {
+export const concat = (...args: (ArrayBufferLike | Uint8Array)[]) => {
 	let length = 0
 
-	for (var i in args) {
-		length += args[i].byteLength
+	for (const buffer of args) {
+		length += buffer.byteLength
 	}
 
 	const joined = new Uint8Array(length)
 	let offset = 0
 
-	for (var i in args) {
-		const buffer = args[i]
-		joined.set(new Uint8Array(buffer), offset)
+	for (const buffer of args) {
+		joined.set(buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer), offset)
 		offset += buffer.byteLength
 	}
 

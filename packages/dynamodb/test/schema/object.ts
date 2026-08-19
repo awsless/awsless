@@ -45,7 +45,7 @@ describe('object', () => {
 	it('get', async () => {
 		const result = await getItem(table, { id })
 
-		expectTypeOf(result).toEqualTypeOf<
+		expectTypeOf(result).branded.toEqualTypeOf<
 			| undefined
 			| {
 					id: UUID

@@ -25,12 +25,12 @@ export const serializeTable = (table: AnyTable) => {
 		TableName: table.name,
 		KeySchema: filter([
 			{
-				KeyType: 'HASH',
+				KeyType: 'HASH' as const,
 				AttributeName: table.hash,
 			},
 			table.sort
 				? {
-						KeyType: 'RANGE',
+						KeyType: 'RANGE' as const,
 						AttributeName: table.sort,
 					}
 				: undefined,
@@ -80,22 +80,22 @@ export const serializeTable = (table: AnyTable) => {
 			IndexName: name,
 			KeySchema: [
 				...toArray(item.hash).map(hash => ({
-					KeyType: 'HASH',
+					KeyType: 'HASH' as const,
 					AttributeName: hash,
 				})),
 				...toArray(item.sort).map(sort => ({
-					KeyType: 'RANGE',
+					KeyType: 'RANGE' as const,
 					AttributeName: sort,
 				})),
 			],
 			// KeySchema: filter([
 			// 	{
-			// 		KeyType: 'HASH',
+			// 		KeyType: 'HASH' as const,
 			// 		AttributeName: item.hash,
 			// 	},
 			// 	item.sort
 			// 		? {
-			// 				KeyType: 'RANGE',
+			// 				KeyType: 'RANGE' as const,
 			// 				AttributeName: item.sort,
 			// 			}
 			// 		: undefined,

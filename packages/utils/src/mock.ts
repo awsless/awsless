@@ -2,7 +2,7 @@ import type { Mock } from 'vitest'
 
 export type Func = (...args: any[]) => any
 // export type Func = <TArgs extends any[] = any, TReturns = any>(...args: TArgs) => TReturns
-export type Result<T extends string | number | symbol> = Record<T, Mock<any, Func>>
+export type Result<T extends string | number | symbol> = Record<T, Mock<Func>>
 
 export const mockObjectValues = <T extends Record<string, Func>>(object: T): Result<keyof T> => {
 	const list: Result<string> = {}
@@ -15,7 +15,7 @@ export const mockObjectValues = <T extends Record<string, Func>>(object: T): Res
 }
 
 export const mockFn = <T extends Func>(fn: T) => {
-	return (vi ? vi.fn(fn) : fn) as Mock<any>
+	return (vi ? vi.fn(fn) : fn) as Mock<T>
 }
 
 export const nextTick = (fn: Func, ...args: unknown[]) => {

@@ -7,7 +7,6 @@ import {
 	number,
 	object,
 	optional,
-	putItem,
 	string,
 	updateItem,
 } from '../../src/index'

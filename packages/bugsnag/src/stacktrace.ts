@@ -1,4 +1,3 @@
-
 export type StackFrame = {
 	file: string
 	lineNumber?: number
@@ -14,11 +13,7 @@ const CHROME_IE_STACK_REGEXP = /^\s*at .*(\S+:\d+|\(native\))/m
 
 export const getStackString = (error: Error): string | undefined => {
 	const stack = error.stack || (error as StackTrace).stacktrace
-	return typeof stack === 'string' &&
-		stack.length &&
-		stack !== `${error.name}: ${error.message}`
-		? stack
-		: undefined
+	return typeof stack === 'string' && stack.length && stack !== `${error.name}: ${error.message}` ? stack : undefined
 }
 
 export const parseStack = (stackString: string): Array<StackFrame> => {
@@ -32,9 +27,10 @@ export const parseStack = (stackString: string): Array<StackFrame> => {
 
 		// If we have no file or method but we _do_ have a line number, it must be
 		// global code.
-		let file = !stack.file && !stack.method && typeof stack.lineNumber === 'number'
-			? 'global code'
-			: stack.file || '(unknown file)'
+		let file =
+			!stack.file && !stack.method && typeof stack.lineNumber === 'number'
+				? 'global code'
+				: stack.file || '(unknown file)'
 
 		// Strip the query string / fragment from filenames
 		file = file.replace(/\?.*$/, '').replace(/#.*$/, '')
@@ -55,20 +51,16 @@ export const parseStack = (stackString: string): Array<StackFrame> => {
 }
 
 function parseV8OrIE(stackString: string): Array<Partial<StackFrame>> {
-	const filtered = stackString
-		.split('\n')
-		.filter((line) => !!line.match(CHROME_IE_STACK_REGEXP))
+	const filtered = stackString.split('\n').filter(line => !!line.match(CHROME_IE_STACK_REGEXP))
 
-	return filtered.map((line) => {
+	return filtered.map(line => {
 		// Bugsnag stack frames don't have a way of representing eval origins
 		// so we just throw that information away for now.
 		//
 		// stacktrace.js can represent this but it still throws this information
 		// away.
 		if (line.indexOf('(eval ') > -1) {
-			line = line
-				.replace(/eval code/g, 'eval')
-				.replace(/(\(eval at [^()]*)|(\),.*$)/g, '')
+			line = line.replace(/eval code/g, 'eval').replace(/(\(eval at [^()]*)|(\),.*$)/g, '')
 		}
 
 		let sanitizedLine = line.replace(/^\s+/, '').replace(/\(eval code/g, '(')
@@ -78,20 +70,16 @@ function parseV8OrIE(stackString: string): Array<Partial<StackFrame>> {
 		const location = sanitizedLine.match(/ (\((.+):(\d+):(\d+)\)$)/)
 
 		// Remove the parenthesized location from the line, if it was matched.
-		sanitizedLine = location
-			? sanitizedLine.replace(location[0], '')
-			: sanitizedLine
+		sanitizedLine = location ? sanitizedLine.replace(location[0], '') : sanitizedLine
 
 		const tokens = sanitizedLine.split(/\s+/).slice(1)
 
 		// If a location was matched, pass it to extractLocation(), otherwise pop
 		// the last token.
-		const locationParts = extractLocation(location ? location[1] : tokens.pop() || '(no location)')
+		const locationParts = extractLocation(location?.[1] ?? tokens.pop() ?? '(no location)')
 
 		const method = tokens.join(' ') || undefined
-		const file = ['eval', '<anonymous>'].indexOf(locationParts[0]) > -1
-			? undefined
-			: locationParts[0]
+		const file = ['eval', '<anonymous>'].indexOf(locationParts[0]) > -1 ? undefined : locationParts[0]
 
 		return {
 			file,
@@ -118,5 +106,5 @@ function extractLocation(urlLike: string): [uri: string, line?: number | undefin
 	const line = parts[2] ? parseInt(parts[2], 10) : undefined
 	const col = parts[3] ? parseInt(parts[3], 10) : undefined
 
-	return [parts[1], line, col]
+	return [parts[1] ?? urlLike, line, col]
 }

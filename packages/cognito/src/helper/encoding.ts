@@ -48,7 +48,7 @@ export const padHex = (bigInt: bigint | string) => {
 		return '0' + hashStr
 	}
 
-	if ('89ABCDEFabcdef'.indexOf(hashStr[0]) !== -1) {
+	if ('89ABCDEFabcdef'.indexOf(hashStr.charAt(0)) !== -1) {
 		return '00' + hashStr
 	}
 

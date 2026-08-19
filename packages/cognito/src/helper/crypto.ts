@@ -28,13 +28,9 @@ export const hash = (algorithm: AlgorithmIdentifier, message: BufferSource) => {
 }
 
 export const hmac = async (algorithm: string, message: BufferSource, key: BufferSource) => {
-	const cryptoKey = await crypto.subtle.importKey(
-		'raw',
-		key,
-		{ name: 'HMAC', hash: { name: algorithm } },
-		false,
-		['sign']
-	)
+	const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: { name: algorithm } }, false, [
+		'sign',
+	])
 
 	return crypto.subtle.sign('HMAC', cryptoKey, message)
 }

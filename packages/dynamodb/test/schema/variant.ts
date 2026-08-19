@@ -47,7 +47,7 @@ describe('variant', () => {
 	it('get', async () => {
 		const result = await getItem(table, { id: 1 })
 
-		expectTypeOf(result).toEqualTypeOf<
+		expectTypeOf(result).branded.toEqualTypeOf<
 			| undefined
 			| {
 					id: number

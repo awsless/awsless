@@ -5,7 +5,7 @@ import {
 	SetExpression,
 	StringExpression,
 } from '../expression/types'
-import { AnySchema, BaseSchema } from './schema'
+import { BaseSchema, GenericSchema } from './schema'
 
 export declare const BrandSymbol: unique symbol
 
@@ -15,7 +15,7 @@ export type Brand<T, TName extends BrandName> = T & {
 	[BrandSymbol]: { [TValue in TName]: TValue }
 }
 
-export type BrandSchema<S extends AnySchema, B extends BrandName> = BaseSchema<
+export type BrandSchema<S extends GenericSchema, B extends BrandName> = BaseSchema<
 	S['type'],
 	Brand<S[symbol]['Type'], B>,
 	'S' extends S['type']
@@ -31,7 +31,7 @@ export type BrandSchema<S extends AnySchema, B extends BrandName> = BaseSchema<
 						: S[symbol]['Expression']
 >
 
-export const brand = <S extends AnySchema, B extends BrandName>(schema: S, _brand: B): BrandSchema<S, B> => {
+export const brand = <S extends GenericSchema, B extends BrandName>(schema: S, _brand: B): BrandSchema<S, B> => {
 	return schema
 }
 
