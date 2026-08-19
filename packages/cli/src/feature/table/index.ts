@@ -1,13 +1,13 @@
-import { Group } from '@terraforge/core'
+import { toSeconds } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
+import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
-import { constantCase } from 'change-case'
-import { toSeconds } from '@awsless/duration'
 import { tableOnDev } from './dev.js'
 import { formatTableKeys } from './util.js'
 
@@ -44,8 +44,8 @@ export const tableFeature = defineFeature({
 									const indexSort = index.sort ? `; sort: ${typeValue(index.sort)}` : ''
 
 									// Quoted, since index names like "log-level" are not
-								// valid bare object keys.
-								return `'${indexName}': { hash: ${typeValue(index.hash)}${indexSort} }`
+									// valid bare object keys.
+									return `'${indexName}': { hash: ${typeValue(index.hash)}${indexSort} }`
 								})
 								.join('; ')} }`
 						: 'undefined'
@@ -231,17 +231,17 @@ export const tableFeature = defineFeature({
 						functionName: bundle.alias.arn,
 						eventSourceArn: table.streamArn,
 
-					// tumblingWindowInSeconds
-					// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
-					// bisectBatchOnFunctionError: true,
+						// tumblingWindowInSeconds
+						// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
+						// bisectBatchOnFunctionError: true,
 
-					batchSize: props.stream.batchSize,
-					maximumBatchingWindowInSeconds: props.stream.batchWindow
-						? toSeconds(props.stream.batchWindow)
-						: undefined,
-					maximumRetryAttempts: props.stream.retryAttempts,
-					parallelizationFactor: props.stream.concurrencyPerShard,
-					functionResponseTypes: ['ReportBatchItemFailures'],
+						batchSize: props.stream.batchSize,
+						maximumBatchingWindowInSeconds: props.stream.batchWindow
+							? toSeconds(props.stream.batchWindow)
+							: undefined,
+						maximumRetryAttempts: props.stream.retryAttempts,
+						parallelizationFactor: props.stream.concurrencyPerShard,
+						functionResponseTypes: ['ReportBatchItemFailures'],
 
 						startingPosition: 'LATEST',
 						destinationConfig: onFailure

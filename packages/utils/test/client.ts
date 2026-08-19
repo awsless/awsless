@@ -1,10 +1,8 @@
-
-import { globalClient } from "../src"
+import { globalClient } from '../src'
 
 describe('client', () => {
-
 	class Client {}
-	const getter = globalClient(() => new Client)
+	const getter = globalClient(() => new Client())
 
 	it('getter', async () => {
 		const result = getter()

@@ -161,7 +161,9 @@ export function parseKeyCondition(
 		const condition = rangeConditions.get(key)
 		if (!condition) {
 			if (lastSortKeyIndex !== -1) {
-				throw new ValidationException(`Sort key conditions must reference a contiguous prefix of the key schema`)
+				throw new ValidationException(
+					`Sort key conditions must reference a contiguous prefix of the key schema`
+				)
 			}
 			continue
 		}

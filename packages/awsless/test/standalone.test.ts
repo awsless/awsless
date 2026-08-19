@@ -67,9 +67,8 @@ describe('standalone routes', () => {
 		vi.stubEnv('VITEST', '')
 		vi.stubEnv('APP', 'app')
 
-		const { captureInvokedQualifier, setBundleRoutes, withBundleRouteContext } = await import(
-			'../src/lib/server/bundle'
-		)
+		const { captureInvokedQualifier, setBundleRoutes, withBundleRouteContext } =
+			await import('../src/lib/server/bundle')
 		const { Fn } = await import('../src/lib/server/function')
 
 		captureInvokedQualifier({

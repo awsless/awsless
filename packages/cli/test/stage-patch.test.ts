@@ -1,7 +1,7 @@
-import JSON5 from 'json5'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import JSON5 from 'json5'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { AppSchema } from '../src/config/app.js'
 import { loadAppConfig, loadStackConfigs } from '../src/config/load/load.js'

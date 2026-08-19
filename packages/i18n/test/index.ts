@@ -1,11 +1,11 @@
-import { build } from 'vite'
-import { i18n, ai } from '../src'
-import { resolve } from 'path'
 import { mkdtemp, readFile, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
-import { svelte } from '@sveltejs/vite-plugin-svelte'
-import { Cache, loadCache, saveCache } from '../src/cache'
+import { resolve } from 'path'
 import { openai } from '@ai-sdk/openai'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+import { build } from 'vite'
+import { i18n, ai } from '../src'
+import { Cache, loadCache, saveCache } from '../src/cache'
 
 describe('i18n', () => {
 	process.env.OPENAI_API_KEY = ''

@@ -1,7 +1,7 @@
-import { $mockdate, setGlobalTypes } from '@awsless/json'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
+import { $mockdate, setGlobalTypes } from '@awsless/json'
 import { beforeAll } from 'vitest'
 
 // The awsless module MUST be the exact same instance the test files

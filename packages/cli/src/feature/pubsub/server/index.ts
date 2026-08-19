@@ -1,5 +1,5 @@
-import { toMilliSeconds } from '@awsless/duration'
 import { randomUUID } from 'node:crypto'
+import { toMilliSeconds } from '@awsless/duration'
 import { connect, disconnect, subscribe, unsubscribe } from './action'
 import { authenticate } from './auth'
 import { startRelay } from './relay'

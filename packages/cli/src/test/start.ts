@@ -184,7 +184,15 @@ export const startTest = async (props: {
 			}
 			// Bun's system errors hide their details in non-standard spots,
 			// so keep every leftover own prop & the cause chain verbatim.
-			const { name: _n, message: _m, stack: _s, stacks: _ss, diff: _d, cause, ...rest } = error as Record<string, unknown>
+			const {
+				name: _n,
+				message: _m,
+				stack: _s,
+				stacks: _ss,
+				diff: _d,
+				cause,
+				...rest
+			} = error as Record<string, unknown>
 
 			errors.push({
 				type: error.name,

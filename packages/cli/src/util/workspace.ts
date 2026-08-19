@@ -1,3 +1,5 @@
+import { mkdir, readFile, rm, writeFile } from 'fs/promises'
+import { dirname, join } from 'path'
 import { aws } from '@terraforge/aws'
 import {
 	App,
@@ -8,8 +10,6 @@ import {
 	StateBackend,
 	WorkSpace,
 } from '@terraforge/core'
-import { mkdir, readFile, rm, writeFile } from 'fs/promises'
-import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
 import { debug } from '../cli/debug.js'
 import { Region } from '../config/schema/region.js'

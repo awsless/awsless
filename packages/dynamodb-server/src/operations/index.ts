@@ -11,4 +11,8 @@ export { scan, type ScanInput, type ScanOutput } from './scan.js'
 export { batchGetItem, type BatchGetItemInput, type BatchGetItemOutput } from './batch-get-item.js'
 export { batchWriteItem, type BatchWriteItemInput, type BatchWriteItemOutput } from './batch-write-item.js'
 export { transactGetItems, type TransactGetItemsInput, type TransactGetItemsOutput } from './transact-get-items.js'
-export { transactWriteItems, type TransactWriteItemsInput, type TransactWriteItemsOutput } from './transact-write-items.js'
+export {
+	transactWriteItems,
+	type TransactWriteItemsInput,
+	type TransactWriteItemsOutput,
+} from './transact-write-items.js'

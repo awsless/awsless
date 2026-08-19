@@ -160,10 +160,7 @@ const MappingPropertySchema = mappingProperty(mappingProperty(mappingProperty(ma
 
 const MappingsSchema = z
 	.object({
-		properties: z
-			.record(z.string(), MappingPropertySchema)
-			.optional()
-			.describe('The field mappings of the index.'),
+		properties: z.record(z.string(), MappingPropertySchema).optional().describe('The field mappings of the index.'),
 		dynamic: z
 			.union([z.boolean(), z.enum(['strict', 'runtime'])])
 			.optional()
@@ -209,10 +206,7 @@ const SchemaSchema = z
 const IndexSchema = z
 	.object({
 		schema: SchemaSchema.optional(),
-		strict: z
-			.boolean()
-			.optional()
-			.describe('Reject documents with fields that are missing from the schema.'),
+		strict: z.boolean().optional().describe('Reject documents with fields that are missing from the schema.'),
 		mappings: MappingsSchema.optional(),
 		settings: z
 			.record(z.string(), z.unknown())

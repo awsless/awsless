@@ -6,4 +6,3 @@ export default h.func(async () => {
 
 	return list
 })
-

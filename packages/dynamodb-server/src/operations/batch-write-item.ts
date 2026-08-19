@@ -5,10 +5,7 @@ import type { AttributeMap, ConsumedCapacity } from '../types.js'
 export interface BatchWriteItemInput {
 	RequestItems: Record<
 		string,
-		Array<
-			| { PutRequest: { Item: AttributeMap } }
-			| { DeleteRequest: { Key: AttributeMap } }
-		>
+		Array<{ PutRequest: { Item: AttributeMap } } | { DeleteRequest: { Key: AttributeMap } }>
 	>
 	ReturnConsumedCapacity?: 'INDEXES' | 'TOTAL' | 'NONE'
 	ReturnItemCollectionMetrics?: 'SIZE' | 'NONE'
@@ -17,10 +14,7 @@ export interface BatchWriteItemInput {
 export interface BatchWriteItemOutput {
 	UnprocessedItems?: Record<
 		string,
-		Array<
-			| { PutRequest: { Item: AttributeMap } }
-			| { DeleteRequest: { Key: AttributeMap } }
-		>
+		Array<{ PutRequest: { Item: AttributeMap } } | { DeleteRequest: { Key: AttributeMap } }>
 	>
 	ConsumedCapacity?: ConsumedCapacity[]
 	ItemCollectionMetrics?: Record<
@@ -45,7 +39,9 @@ export function batchWriteItem(store: TableStore, input: BatchWriteItemInput): B
 	}
 
 	if (totalItems > MAX_BATCH_WRITE_ITEMS) {
-		throw new ValidationException(`Too many items requested for the BatchWriteItem call. Max is ${MAX_BATCH_WRITE_ITEMS}`)
+		throw new ValidationException(
+			`Too many items requested for the BatchWriteItem call. Max is ${MAX_BATCH_WRITE_ITEMS}`
+		)
 	}
 
 	const consumedCapacity: ConsumedCapacity[] = []

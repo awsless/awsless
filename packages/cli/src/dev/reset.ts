@@ -1,9 +1,9 @@
+import { readdir, rm } from 'fs/promises'
+import { join } from 'path'
 import { DeleteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoDBServer } from '@awsless/dynamodb-server'
 import { Client } from '@opensearch-project/opensearch'
-import { readdir, rm } from 'fs/promises'
 import { Redis } from 'ioredis'
-import { join } from 'path'
 import { StackConfig } from '../config/stack.js'
 import { formatSearchIndexName, resolveSearchMappings } from '../feature/search/util.js'
 import { applySearchIndex } from '../formation/open-search.js'
@@ -18,10 +18,7 @@ export const isWiping = () => wiping
 
 // Wipes every local data store back to empty, so a reseed lands on a
 // known state instead of upserting into leftovers.
-export const createDataReset = (props: {
-	pool: ServerPool
-	stackConfigs: StackConfig[]
-}) => {
+export const createDataReset = (props: { pool: ServerPool; stackConfigs: StackConfig[] }) => {
 	return async () => {
 		wiping = true
 
@@ -41,7 +38,9 @@ export const createDataReset = (props: {
 					let cursor: Record<string, unknown> | undefined
 
 					do {
-						const result = await client.send(new ScanCommand({ TableName: name, ExclusiveStartKey: cursor }))
+						const result = await client.send(
+							new ScanCommand({ TableName: name, ExclusiveStartKey: cursor })
+						)
 
 						for (const item of result.Items ?? []) {
 							await client.send(

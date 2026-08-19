@@ -116,7 +116,7 @@ describe('on failure handler', () => {
 			...asyncFailure,
 			requestPayload: {
 				'$awsless-route': 'test-stack:task:export',
-				'event': { roomId: 'room-1' },
+				event: { roomId: 'room-1' },
 			},
 		}
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import {
 	ChangeMessageVisibilityCommand,
 	ChangeMessageVisibilityCommandInput,
@@ -19,7 +20,6 @@ import {
 } from '@aws-sdk/client-sqs'
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-vitest-mock'
-import { randomUUID } from 'crypto'
 
 type Queues = {
 	[key: string]: (payload: unknown) => unknown

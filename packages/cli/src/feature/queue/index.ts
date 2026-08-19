@@ -1,16 +1,16 @@
-import { Group } from '@terraforge/core'
+import { relative } from 'path'
+import { minutes, seconds, toSeconds } from '@awsless/duration'
+import { toBytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { camelCase, constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
-import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { minutes, seconds, toSeconds } from '@awsless/duration'
-import { toBytes } from '@awsless/size'
 
 const typeGenCode = `
 import {

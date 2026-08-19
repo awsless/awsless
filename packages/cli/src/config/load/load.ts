@@ -1,5 +1,5 @@
-import { glob } from 'glob'
 import { basename, dirname, join } from 'path'
+import { glob } from 'glob'
 import { debug } from '../../cli/debug.js'
 import { ProgramOptions } from '../../cli/program.js'
 import { color } from '../../cli/ui/style.js'

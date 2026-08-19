@@ -1,7 +1,7 @@
 import { DurationFormat } from '@awsless/duration'
-import { z } from 'zod'
 // @ts-ignore
 import { awsCronExpressionValidator } from 'aws-cron-expression-validator'
+import { z } from 'zod'
 
 export type RateExpression = DurationFormat
 export type CronExpression = `${string} ${string} ${string} ${string} ${string} ${string}`

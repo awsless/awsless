@@ -1,9 +1,8 @@
 import { Command } from 'commander'
-
 import { pull } from './pull.js'
 import { push } from './push.js'
-import { unlock } from './unlock.js'
 import { refresh } from './refresh.js'
+import { unlock } from './unlock.js'
 
 const commands = [pull, push, unlock, refresh]
 

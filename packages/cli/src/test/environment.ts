@@ -1,6 +1,6 @@
-import { RedisServer } from '@awsless/redis'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { RedisServer } from '@awsless/redis'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { findFreePort } from '../dev/util.js'

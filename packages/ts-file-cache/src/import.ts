@@ -1,5 +1,5 @@
-import { parse, ParseOptions, Statement } from '@swc/core'
 import { dirname, resolve } from 'path'
+import { parse, ParseOptions, Statement } from '@swc/core'
 import { simple } from 'swc-walk'
 import { BaseVisitor } from 'swc-walk/baseVisitor'
 import type { Callback } from 'swc-walk/types'
@@ -41,32 +41,36 @@ export const findImports = async (file: string, code: string) => {
 	const importing = new Set<string>()
 
 	try {
-		simple(ast, {
-			ImportDeclaration(node) {
-				importing.add(node.source.value)
-			},
-			ExportAllDeclaration(node) {
-				importing.add(node.source.value)
-			},
-			ExportNamedDeclaration(node) {
-				if (node.source) {
+		simple(
+			ast,
+			{
+				ImportDeclaration(node) {
 					importing.add(node.source.value)
-				}
-			},
-			CallExpression(node) {
-				if (node.callee.type === 'Import') {
-					const first = node.arguments.at(0)
-					if (first && first.expression.type === 'StringLiteral') {
-						importing.add(first.expression.value)
+				},
+				ExportAllDeclaration(node) {
+					importing.add(node.source.value)
+				},
+				ExportNamedDeclaration(node) {
+					if (node.source) {
+						importing.add(node.source.value)
 					}
-				}
+				},
+				CallExpression(node) {
+					if (node.callee.type === 'Import') {
+						const first = node.arguments.at(0)
+						if (first && first.expression.type === 'StringLiteral') {
+							importing.add(first.expression.value)
+						}
+					}
+				},
+				TsImportEqualsDeclaration(node) {
+					if (node.moduleRef.type === 'TsExternalModuleReference') {
+						importing.add(node.moduleRef.expression.value)
+					}
+				},
 			},
-			TsImportEqualsDeclaration(node) {
-				if (node.moduleRef.type === 'TsExternalModuleReference') {
-					importing.add(node.moduleRef.expression.value)
-				}
-			},
-		}, baseVisitor)
+			baseVisitor
+		)
 	} catch (error) {
 		// A silently ignored walk failure would produce a cache key that
 		// misses dependencies, so the failure must stop the build.

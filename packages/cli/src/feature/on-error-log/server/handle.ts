@@ -1,3 +1,5 @@
+import { createHash, UUID } from 'crypto'
+import * as zlib from 'zlib'
 import {
 	array,
 	literal,
@@ -14,8 +16,6 @@ import {
 	uuid,
 } from '@awsless/validate'
 import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
-import { createHash, UUID } from 'crypto'
-import * as zlib from 'zlib'
 
 // Runtime error log (thrown by function code)
 const RuntimeErrorSchema = object({

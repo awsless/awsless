@@ -5,8 +5,8 @@ import {
 	type CancellationReason,
 } from '../errors/index.js'
 import { applyUpdateExpression, evaluateCondition } from '../expressions/index.js'
-import { extractKey, serializeKey } from '../store/item.js'
 import type { TableStore } from '../store/index.js'
+import { extractKey, serializeKey } from '../store/item.js'
 import type { AttributeMap, AttributeValue, ConsumedCapacity } from '../types.js'
 
 interface ConditionCheck {
@@ -47,12 +47,7 @@ interface Update {
 }
 
 export interface TransactWriteItemsInput {
-	TransactItems: Array<
-		| { ConditionCheck: ConditionCheck }
-		| { Put: Put }
-		| { Delete: Delete }
-		| { Update: Update }
-	>
+	TransactItems: Array<{ ConditionCheck: ConditionCheck } | { Put: Put } | { Delete: Delete } | { Update: Update }>
 	ClientRequestToken?: string
 	ReturnConsumedCapacity?: 'INDEXES' | 'TOTAL' | 'NONE'
 	ReturnItemCollectionMetrics?: 'SIZE' | 'NONE'
@@ -136,7 +131,10 @@ export function transactWriteItems(store: TableStore, input: TransactWriteItemsI
 	}
 
 	if (hasCancellation) {
-		throw new TransactionCanceledException('Transaction cancelled, please refer cancance reasons for specific reasons', cancellationReasons)
+		throw new TransactionCanceledException(
+			'Transaction cancelled, please refer cancance reasons for specific reasons',
+			cancellationReasons
+		)
 	}
 
 	const consumedCapacity: Map<string, number> = new Map()
@@ -167,11 +165,7 @@ export function transactWriteItems(store: TableStore, input: TransactWriteItemsI
 
 function validateTransactionItem(
 	store: TableStore,
-	transactItem:
-		| { ConditionCheck: ConditionCheck }
-		| { Put: Put }
-		| { Delete: Delete }
-		| { Update: Update }
+	transactItem: { ConditionCheck: ConditionCheck } | { Put: Put } | { Delete: Delete } | { Update: Update }
 ): CancellationReason {
 	try {
 		if ('ConditionCheck' in transactItem) {
@@ -272,11 +266,7 @@ function validateTransactionItem(
 
 function executeTransactionItem(
 	store: TableStore,
-	transactItem:
-		| { ConditionCheck: ConditionCheck }
-		| { Put: Put }
-		| { Delete: Delete }
-		| { Update: Update },
+	transactItem: { ConditionCheck: ConditionCheck } | { Put: Put } | { Delete: Delete } | { Update: Update },
 	consumedCapacity: Map<string, number>
 ): void {
 	if ('ConditionCheck' in transactItem) {

@@ -1,7 +1,7 @@
+import { randomUUID } from 'crypto'
 import { CreateScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler'
 import { Duration, toSeconds } from '@awsless/duration'
 import { stringify } from '@awsless/json'
-import { randomUUID } from 'crypto'
 import { addSeconds } from 'date-fns'
 import { schedulerClient } from './client'
 

@@ -1,5 +1,5 @@
-import { CreateTableCommand, PutItemCommand, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+import { CreateTableCommand, PutItemCommand, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Sorting', () => {

@@ -1,7 +1,7 @@
+import { createServer } from 'node:http'
 import { seconds } from '@awsless/duration'
 import { subscribe } from '@awsless/sqs'
 import { getInstanceQueueName } from 'awsless'
-import { createServer } from 'node:http'
 
 // An instance is a long running program on fargate: a health server
 // plus whatever loop the app needs. Locally the dev server runs this

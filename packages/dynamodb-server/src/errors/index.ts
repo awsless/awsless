@@ -52,7 +52,14 @@ export class ConditionalCheckFailedException extends DynamoDBError {
 }
 
 export interface CancellationReason {
-	Code: 'None' | 'ConditionalCheckFailed' | 'ItemCollectionSizeLimitExceeded' | 'TransactionConflict' | 'ProvisionedThroughputExceeded' | 'ThrottlingError' | 'ValidationError'
+	Code:
+		| 'None'
+		| 'ConditionalCheckFailed'
+		| 'ItemCollectionSizeLimitExceeded'
+		| 'TransactionConflict'
+		| 'ProvisionedThroughputExceeded'
+		| 'ThrottlingError'
+		| 'ValidationError'
 	Message?: string | null
 	Item?: Record<string, unknown>
 }

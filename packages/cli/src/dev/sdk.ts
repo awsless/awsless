@@ -58,9 +58,11 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 			const entries = (await readdir(store)).filter(entry => entry.startsWith(prefix))
 
 			// The highest version sorts last.
-			const best = entries.sort((a, b) =>
-				a.slice(prefix.length).localeCompare(b.slice(prefix.length), undefined, { numeric: true })
-			).at(-1)
+			const best = entries
+				.sort((a, b) =>
+					a.slice(prefix.length).localeCompare(b.slice(prefix.length), undefined, { numeric: true })
+				)
+				.at(-1)
 
 			return best ? join(store, best, 'node_modules', name) : undefined
 		} catch (_) {

@@ -1,12 +1,12 @@
-import { Group, Output } from '@terraforge/core'
+import { toSeconds } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
+import { Group, Output } from '@terraforge/core'
+import { kebabCase, constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { kebabCase, constantCase } from 'change-case'
-import { toSeconds } from '@awsless/duration'
 
 const typeGenCode = `
 import { type PutDataProps, putData, batchPutData } from '@awsless/cloudwatch'

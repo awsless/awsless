@@ -1,5 +1,5 @@
-import { Config, PubSub, Task, h, t, v } from 'awsless'
 import { randomUUID } from 'node:crypto'
+import { Config, PubSub, Task, h, t, v } from 'awsless'
 import { taskCreated } from '../../../topics'
 import { tasks } from '../table'
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { CloudFrontClient, DescribeKeyValueStoreCommand } from '@aws-sdk/client-cloudfront'
 import {
 	CloudFrontKeyValueStoreClient,
@@ -8,7 +9,6 @@ import {
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import chunk from 'chunk'
-import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials, isError } from '../util/aws'
@@ -158,13 +158,11 @@ const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<t
 	const table = getRouteTableId(routes)
 
 	const mutations: Mutation[] = [
-		...routes.map(
-			(route): Mutation => ({
-				type: 'put',
-				key: `${table}:${route.key}`,
-				value: route.value,
-			})
-		),
+		...routes.map((route): Mutation => ({
+			type: 'put',
+			key: `${table}:${route.key}`,
+			value: route.value,
+		})),
 		{
 			type: 'put',
 			key: `${DEPLOY_KEY_PREFIX}${state.deploymentId}`,

@@ -27,7 +27,9 @@ export const PubSubSchema = z
 		ResourceIdSchema,
 		z.object({
 			connected: BundledFunctionSchema.optional().describe('Subscribe to the event when a client connects.'),
-			disconnected: BundledFunctionSchema.optional().describe('Subscribe to the event when a client disconnects.'),
+			disconnected: BundledFunctionSchema.optional().describe(
+				'Subscribe to the event when a client disconnects.'
+			),
 			subscribed: BundledFunctionSchema.optional().describe(
 				'Subscribe to the event when a client subscribes to topics.'
 			),

@@ -1,6 +1,6 @@
+import { aws } from '@terraforge/aws'
 // import { ipv6CidrBlockFromString } from '@arcanyx/cidr-slicer'
 import { Group, Output } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 
 export const vpcFeature = defineFeature({

@@ -1,3 +1,4 @@
+import { userInfo } from 'node:os'
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { DeleteFunctionCommand, GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
@@ -17,7 +18,6 @@ import {
 } from '@awsless/dynamodb'
 import { StateBackend } from '@terraforge/core'
 import { isAfter, subHours } from 'date-fns'
-import { userInfo } from 'node:os'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
 import {
@@ -443,8 +443,7 @@ export const promoteDeployment = async (props: {
 
 	for (const store of stores) {
 		const activeId = await readActiveDeploymentId(props.kvs, store.arn)
-		const active =
-			activeId !== undefined ? await readRouteDeployment(props.kvs, store.arn, activeId) : undefined
+		const active = activeId !== undefined ? await readRouteDeployment(props.kvs, store.arn, activeId) : undefined
 
 		activeRoutes.set(store.arn, active)
 	}

@@ -1,6 +1,6 @@
+import type { UUID } from 'node:crypto'
 import { stringify } from '@awsless/json'
 import { publish } from '@awsless/sns'
-import type { UUID } from 'node:crypto'
 
 type EventType = 'connected' | 'disconnected' | 'subscribed' | 'unsubscribed'
 

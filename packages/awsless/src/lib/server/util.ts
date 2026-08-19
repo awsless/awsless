@@ -60,4 +60,3 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		}) as `${typeof APP}--${T}--${N}`
 	}
 }
-

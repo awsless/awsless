@@ -1,15 +1,15 @@
 import { $bigfloat } from './bigfloat'
 import { $bigint } from './bigint'
+import { $binary } from './binary'
 import { $date } from './date'
+import { $duration } from './duration'
 import { $infinity } from './infinity'
 import { $map } from './map'
 import { $nan } from './nan'
 import { $regexp } from './regexp'
 import { $set } from './set'
-import { $binary } from './binary'
 import { $undefined } from './undefined'
 import { $url } from './url'
-import { $duration } from './duration'
 
 export type Serializable<I, O> = {
 	is: (value: unknown) => boolean

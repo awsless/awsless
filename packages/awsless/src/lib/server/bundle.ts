@@ -1,6 +1,6 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { kebabCase } from 'change-case'
-import { AsyncLocalStorage } from 'node:async_hooks'
 
 // ------------------------------------------------------------
 // The bundle lambda.

@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { CreateTableCommand } from '@aws-sdk/client-dynamodb'
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('DynamoDB Document Client', () => {

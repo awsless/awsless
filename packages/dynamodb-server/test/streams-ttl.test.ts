@@ -1,5 +1,5 @@
-import { CreateTableCommand, GetItemCommand, PutItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+import { CreateTableCommand, GetItemCommand, PutItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { DynamoDBServer, type AttributeValue, type StreamRecord } from '../src/index.js'
 
 function getStringValue(attr: AttributeValue | undefined): string | undefined {

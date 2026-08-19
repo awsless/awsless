@@ -3,7 +3,10 @@ import { camelCase, constantCase } from 'change-case'
 export class TypeObject {
 	protected types = new Map<string, string>()
 
-	constructor(readonly level: number, readonly readonly = true) {}
+	constructor(
+		readonly level: number,
+		readonly readonly = true
+	) {}
 
 	add(name: string, type: string | TypeObject) {
 		const value = type.toString()
@@ -32,14 +35,9 @@ export class TypeObject {
 			'{',
 			...Array.from(this.types.entries()).map(([propName, type]) => {
 				// return `\t\t\t${this.readonly ? 'readonly ' : ''} ${propName}: ${type}`
-				return [
-					'\t'.repeat(this.level + 1),
-					this.readonly ? 'readonly' : '',
-					' ',
-					propName,
-					': ',
-					type,
-				].join('')
+				return ['\t'.repeat(this.level + 1), this.readonly ? 'readonly' : '', ' ', propName, ': ', type].join(
+					''
+				)
 			}),
 			`${'\t'.repeat(this.level)}}`,
 		].join('\n')

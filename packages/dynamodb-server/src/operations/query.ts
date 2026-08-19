@@ -1,7 +1,7 @@
 import { ResourceNotFoundException, ValidationException } from '../errors/index.js'
 import { applyProjection, evaluateCondition, matchesKeyCondition, parseKeyCondition } from '../expressions/index.js'
-import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { TableStore } from '../store/index.js'
+import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { AttributeMap, AttributeValue, ConsumedCapacity } from '../types.js'
 
 export interface QueryInput {
@@ -57,26 +57,23 @@ export function query(store: TableStore, input: QueryInput): QueryOutput {
 	let lastEvaluatedKey: AttributeMap | undefined
 
 	if (input.IndexName) {
-		const hashValues = Object.fromEntries(keyCondition.hashConditions.map(condition => [condition.key, condition.value]))
-		const result = table.queryIndex(
-			input.IndexName,
-			hashValues,
-			{
-				scanIndexForward: input.ScanIndexForward,
-				exclusiveStartKey: input.ExclusiveStartKey,
-			}
+		const hashValues = Object.fromEntries(
+			keyCondition.hashConditions.map(condition => [condition.key, condition.value])
 		)
+		const result = table.queryIndex(input.IndexName, hashValues, {
+			scanIndexForward: input.ScanIndexForward,
+			exclusiveStartKey: input.ExclusiveStartKey,
+		})
 		items = result.items
 		lastEvaluatedKey = result.lastEvaluatedKey
 	} else {
-		const hashValues = Object.fromEntries(keyCondition.hashConditions.map(condition => [condition.key, condition.value]))
-		const result = table.queryByHashKey(
-			hashValues,
-			{
-				scanIndexForward: input.ScanIndexForward,
-				exclusiveStartKey: input.ExclusiveStartKey,
-			}
+		const hashValues = Object.fromEntries(
+			keyCondition.hashConditions.map(condition => [condition.key, condition.value])
 		)
+		const result = table.queryByHashKey(hashValues, {
+			scanIndexForward: input.ScanIndexForward,
+			exclusiveStartKey: input.ExclusiveStartKey,
+		})
 		items = result.items
 		lastEvaluatedKey = result.lastEvaluatedKey
 	}

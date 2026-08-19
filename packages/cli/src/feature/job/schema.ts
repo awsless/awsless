@@ -96,11 +96,11 @@ const CodeSchema = z
 
 const TimeoutSchema = DurationSchema.describe('The maximum time the job is allowed to run before being stopped.')
 
-const ImageSchema = z.string().describe('The URL of the container image to use. Default: public.ecr.aws/aws-cli/aws-cli:{architecture}')
+const ImageSchema = z
+	.string()
+	.describe('The URL of the container image to use. Default: public.ecr.aws/aws-cli/aws-cli:{architecture}')
 
-const PersistentStorageSchema = z
-	.boolean()
-	.describe('Mount persistent storage for the job at a fixed internal path.')
+const PersistentStorageSchema = z.boolean().describe('Mount persistent storage for the job at a fixed internal path.')
 
 const StartupCommandSchema = z
 	.union([z.string().transform(v => [v]), z.string().array()])
@@ -117,7 +117,9 @@ const ASchema = z.object({
 	architecture: ArchitectureSchema.optional(),
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
-	timeout: TimeoutSchema.prefault('30 minutes').describe('The maximum time the job is allowed to run before being stopped. Default: 30 minutes.'),
+	timeout: TimeoutSchema.prefault('30 minutes').describe(
+		'The maximum time the job is allowed to run before being stopped. Default: 30 minutes.'
+	),
 })
 
 const JobSchema = z.union([

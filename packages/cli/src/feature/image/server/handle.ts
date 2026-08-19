@@ -1,7 +1,7 @@
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
-import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
 import { getRouteEnv, internalInvoke } from 'awsless'
+import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
 import { parsePath, supportedExtensions } from './validate'
 
 const normalizeExtension = (extension: (typeof supportedExtensions)[number]) => {

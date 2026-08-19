@@ -1,6 +1,6 @@
+import { randomUUID } from 'crypto'
 import { stringify } from '@awsless/json'
 import { formatRouteKey, formatRoutePayload } from 'awsless'
-import { randomUUID } from 'crypto'
 import { DevDispatch, DevFailureReport, DevReportFailure, DevTrace } from '../feature.js'
 
 // The bundle route of the global on-failure consumer.

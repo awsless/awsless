@@ -1,5 +1,5 @@
-import { getSession } from './get-session.js'
 import { Client } from '../client.js'
+import { getSession } from './get-session.js'
 
 export type ForgetDeviceProps = {
 	deviceKey: string

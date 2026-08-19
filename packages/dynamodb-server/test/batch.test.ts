@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
 	BatchGetItemCommand,
 	BatchWriteItemCommand,
@@ -5,7 +6,6 @@ import {
 	GetItemCommand,
 	PutItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Batch Operations', () => {

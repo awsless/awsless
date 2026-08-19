@@ -1,8 +1,8 @@
-import { aws } from '@terraforge/aws'
-import { Group } from '@terraforge/core'
 import { createHmac } from 'crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
+import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
@@ -12,9 +12,9 @@ import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { pubsubOnDev } from './dev.js'
 import { pubsubEventTypes } from './schema.js'
 import { createPubSubService, WS_PORT } from './util.js'
-import { pubsubOnDev } from './dev.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

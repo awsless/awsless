@@ -1,15 +1,15 @@
 import { Command } from 'commander'
 import { toApp } from '../../app.js'
 import { StackClient } from '../../formation/client.js'
-import { debug } from '../logger.js'
-import { layout } from '../__ui/layout/layout.js'
-import { assetBuilder } from '../__ui/complex/builder.js'
 import { cleanUp } from '../../util/cleanup.js'
-import { dialog, loadingDialog } from '../__ui/layout/dialog.js'
+import { assetBuilder } from '../__ui/complex/builder.js'
+import { runTaskGroup } from '../__ui/complex/task-group.js'
 import { templateBuilder } from '../__ui/complex/template.js'
 // import { stacksDeployer } from '../ui/complex/deployer.js'
 import { typesGenerator } from '../__ui/complex/types.js'
-import { runTaskGroup } from '../__ui/complex/task-group.js'
+import { dialog, loadingDialog } from '../__ui/layout/dialog.js'
+import { layout } from '../__ui/layout/layout.js'
+import { debug } from '../logger.js'
 
 export const status = (program: Command) => {
 	program

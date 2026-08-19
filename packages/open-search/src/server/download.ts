@@ -1,8 +1,8 @@
 import { createHash } from 'crypto'
-import decompress from 'decompress'
-import findCacheDir from 'find-cache-dir'
 import { mkdir, rename, rm, stat } from 'fs/promises'
 import { join, resolve } from 'path'
+import decompress from 'decompress'
+import findCacheDir from 'find-cache-dir'
 import { Version, VersionArgs } from './version'
 
 const getArchiveName = (version: Version): string => {

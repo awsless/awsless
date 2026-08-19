@@ -1,14 +1,14 @@
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 import { toDays } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { kebabCase } from 'change-case'
 import { glob } from 'glob'
-import { dirname, join } from 'path'
-import { fileURLToPath } from 'url'
 import { defineFeature } from '../../feature'
-import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { getFeatureFolder } from '../asset/index.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { iconOnDev } from './dev.js'
 
 export const iconFeature = defineFeature({

@@ -108,5 +108,4 @@ export const searchOnDev = async (ctx: DevContext) => {
 			channel: 'search',
 		})
 	}
-
 }

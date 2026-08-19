@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
 	CreateTableCommand,
 	PutItemCommand,
@@ -5,7 +6,6 @@ import {
 	TransactWriteItemsCommand,
 	UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Size Condition Expression', () => {

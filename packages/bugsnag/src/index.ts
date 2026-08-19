@@ -1,5 +1,5 @@
-import { Bugsnag } from './bugsnag.js'
 import { Logger, ExtraMetaData } from '@awsless/lambda'
+import { Bugsnag } from './bugsnag.js'
 
 interface BugsnagOptions {
 	apiKey?: string

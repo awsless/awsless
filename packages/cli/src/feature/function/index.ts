@@ -1,5 +1,6 @@
-import { camelCase } from 'change-case'
 import { relative } from 'path'
+import { camelCase } from 'change-case'
+import deepmerge from 'deepmerge'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -7,7 +8,6 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import { createLambdaFunction, isStandaloneFunction } from './util.js'
-import deepmerge from 'deepmerge'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
-import { Minimatch } from 'minimatch'
 import { extname } from 'path'
+import { Minimatch } from 'minimatch'
 import { Plugin, rolldown } from 'rolldown'
 import { importAsString } from 'rollup-plugin-string-import'
 import { debugError } from '../../../cli/debug.js'

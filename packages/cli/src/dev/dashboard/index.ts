@@ -1,15 +1,15 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb'
 import { randomUUID } from 'crypto'
-import { Redis } from 'ioredis'
 import { readdir, readFile, stat, writeFile } from 'fs/promises'
 import { createServer, IncomingMessage, Server } from 'http'
 import { join, relative, sep } from 'path'
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb'
+import { Redis } from 'ioredis'
 import { DevDispatch, DevResource, DevRoute } from '../../feature.js'
 import { AuthAdmin } from '../../feature/auth/dev.js'
+import { readBody, trackConnections } from '../util.js'
 import { WorkerError } from '../worker.js'
 import { dashboardHtml } from './html.js'
-import { readBody, trackConnections } from '../util.js'
 
 // The local dev dashboard: lists every resource in the app & lets you
 // invoke routes, publish topics, browse table & store data, and edit

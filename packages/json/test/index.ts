@@ -1,6 +1,6 @@
 import { BigFloat, mul } from '@awsless/big-float'
-import { parse, patch, Serializable, stringify, unpatch } from '../src'
 import { days } from '@awsless/duration'
+import { parse, patch, Serializable, stringify, unpatch } from '../src'
 
 describe('JSON', () => {
 	describe('basic', () => {

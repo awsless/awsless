@@ -162,7 +162,8 @@ export class DynamoDBServer {
 				// store, so the client works without listen() & can't hit
 				// socket level failures. External processes still reach the
 				// store over http through listen().
-				requestHandler: this.config.engine === 'memory' ? (this.createMemoryRequestHandler() as any) : undefined,
+				requestHandler:
+					this.config.engine === 'memory' ? (this.createMemoryRequestHandler() as any) : undefined,
 			})
 		}
 		return this.client

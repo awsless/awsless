@@ -1,10 +1,4 @@
-import {
-	BatchItem,
-	sendMessage,
-	sendMessageBatch,
-	SendMessageBatchOptions,
-	SendMessageOptions,
-} from '@awsless/sqs'
+import { BatchItem, sendMessage, sendMessageBatch, SendMessageBatchOptions, SendMessageOptions } from '@awsless/sqs'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName, getStack } from './util.js'

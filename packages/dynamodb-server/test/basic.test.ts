@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
 	CreateTableCommand,
 	DeleteItemCommand,
@@ -10,7 +11,6 @@ import {
 	ScanCommand,
 	UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('DynamoDB Local Server', () => {

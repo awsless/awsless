@@ -8,7 +8,10 @@ export const routeType = (route: string) => {
 
 // Map a physical resource name like "app--stack--queue--id" back to the "stack:queue:id" route key.
 export const routeFromResourceName = (name: string) => {
-	return name.slice(kebabCase(process.env.APP!).length + 2).split('--').join(':')
+	return name
+		.slice(kebabCase(process.env.APP!).length + 2)
+		.split('--')
+		.join(':')
 }
 
 // Async event handlers must throw expected errors, so failed invocations retry & reach the on-failure destination.

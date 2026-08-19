@@ -1,5 +1,5 @@
-import { ROUTE_PROPERTY } from 'awsless'
 import type { CloudWatchLogsEvent } from 'aws-lambda'
+import { ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
 import { asyncRoute, routeType } from './util.js'
 

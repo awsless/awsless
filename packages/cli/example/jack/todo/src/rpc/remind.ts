@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import { ExpectedError } from '@awsless/lambda'
 import { h, Queue, t, v } from 'awsless'
-import { randomUUID } from 'node:crypto'
 import { tasks } from '../table'
 
 export default h.func(v.object({ id: v.uuid() }), async ({ id }) => {
@@ -10,10 +10,7 @@ export default h.func(v.object({ id: v.uuid() }), async ({ id }) => {
 		throw new ExpectedError('not-found', 'Not found')
 	}
 
-	await Queue.todo.reminders(
-		{ id: task.id, name: task.name },
-		{ groupId: task.id, deduplicationId: randomUUID() }
-	)
+	await Queue.todo.reminders({ id: task.id, name: task.name }, { groupId: task.id, deduplicationId: randomUUID() })
 
 	return task
 })

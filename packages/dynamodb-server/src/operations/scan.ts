@@ -1,7 +1,7 @@
 import { ResourceNotFoundException, ValidationException } from '../errors/index.js'
 import { applyProjection, evaluateCondition } from '../expressions/index.js'
-import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { TableStore } from '../store/index.js'
+import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { AttributeMap, AttributeValue, ConsumedCapacity } from '../types.js'
 
 export interface ScanInput {

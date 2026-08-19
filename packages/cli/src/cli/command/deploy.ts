@@ -4,6 +4,7 @@ import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled, ExpectedError } from '../../error.js'
+import { withTestEnvironment } from '../../test/environment.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
 	claimDeployment,
@@ -14,7 +15,6 @@ import {
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
-import { withTestEnvironment } from '../../test/environment.js'
 import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'

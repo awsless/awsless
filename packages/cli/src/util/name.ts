@@ -1,5 +1,5 @@
-import { kebabCase } from 'change-case'
 import { createHmac } from 'crypto'
+import { kebabCase } from 'change-case'
 
 export const formatGlobalResourceName = (opt: {
 	appName: string

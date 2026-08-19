@@ -1,6 +1,6 @@
-import { WeakCache } from '../src'
 // @ts-ignore
 import gc from 'expose-gc'
+import { WeakCache } from '../src'
 
 const sleep = () => new Promise(resolve => setTimeout(resolve, 10))
 

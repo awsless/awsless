@@ -1,6 +1,6 @@
 import { minutes, toSeconds } from '@awsless/duration'
-import { DataSource, Group, Input, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { DataSource, Group, Input, Resource } from '@terraforge/core'
 import { AppConfig } from '../../config/app.js'
 
 export const createDnsValidatedCertificate = (

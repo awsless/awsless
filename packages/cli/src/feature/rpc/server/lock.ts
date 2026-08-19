@@ -1,7 +1,7 @@
+import { UUID } from 'node:crypto'
 import { ConditionalCheckFailedException, define, deleteItem, object, string, ttl, updateItem } from '@awsless/dynamodb'
 import { getRouteEnv } from 'awsless'
 import { addSeconds } from 'date-fns'
-import { UUID } from 'node:crypto'
 
 const getLockTable = () => {
 	return define(getRouteEnv('LOCK_TABLE') ?? 'lock', {

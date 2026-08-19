@@ -1,7 +1,7 @@
-import { log } from '@awsless/clui'
 import { ChildProcess, spawn } from 'child_process'
-import { glob } from 'glob'
 import { delimiter, dirname, isAbsolute, join, normalize, relative } from 'path'
+import { log } from '@awsless/clui'
+import { glob } from 'glob'
 import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { directories } from '../../util/path.js'
@@ -136,11 +136,16 @@ export const siteOnDev = async (ctx: DevContext) => {
 								// health chip goes down either way: the
 								// server is gone.
 								if (code !== null && code !== 0) {
-									log.error(`The site "${id}" dev server exited with code ${code}:\n${tail.join('\n')}`)
+									log.error(
+										`The site "${id}" dev server exited with code ${code}:\n${tail.join('\n')}`
+									)
 									sink.emit({ date: Date.now(), line: `Exited with code ${code}` })
 								}
 
-								sink.health?.('down', code !== null ? `exited with code ${code}` : `killed by ${signal}`)
+								sink.health?.(
+									'down',
+									code !== null ? `exited with code ${code}` : `killed by ${signal}`
+								)
 							})
 
 							return {

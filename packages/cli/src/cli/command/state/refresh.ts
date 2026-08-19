@@ -137,9 +137,7 @@ export const refresh = (program: Command) => {
 				}
 
 				if (skipped > 0) {
-					log.warning(
-						`Skipped ${skipped} state changes. Run again with --commit [indexes...] to apply them.`
-					)
+					log.warning(`Skipped ${skipped} state changes. Run again with --commit [indexes...] to apply them.`)
 				}
 
 				await log.task({

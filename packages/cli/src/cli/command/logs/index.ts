@@ -1,8 +1,8 @@
 import { CloudWatchLogsClient, StartLiveTailCommand } from '@aws-sdk/client-cloudwatch-logs'
 import { log } from '@awsless/clui'
+import { color as chalk } from '@awsless/clui'
 import { aws } from '@terraforge/aws'
 import { getMeta, resolveInputs } from '@terraforge/core'
-import { color as chalk } from '@awsless/clui'
 import chunk from 'chunk'
 import { Command as CliCommand } from 'commander'
 import { formatDate } from 'date-fns'
@@ -16,7 +16,10 @@ import { matchGroups, originFromLogGroup, parseLogLine } from './util.js'
 export const logs = (program: CliCommand) => {
 	program
 		.command('logs')
-		.argument('[groups...]', 'Only stream specific log groups, like "bundle", "my-stack" or "my-stack:function:name".')
+		.argument(
+			'[groups...]',
+			'Only stream specific log groups, like "bundle", "my-stack" or "my-stack:function:name".'
+		)
 		.description('Stream the latest logs from your app.')
 		.action(async (groups: string[]) => {
 			await layout(`logs`, async ({ appConfig, stackConfigs }) => {

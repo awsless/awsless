@@ -43,7 +43,9 @@ export function batchGetItem(store: TableStore, input: BatchGetItemInput): Batch
 	}
 
 	if (totalKeys > MAX_BATCH_GET_ITEMS) {
-		throw new ValidationException(`Too many items requested for the BatchGetItem call. Max is ${MAX_BATCH_GET_ITEMS}`)
+		throw new ValidationException(
+			`Too many items requested for the BatchGetItem call. Max is ${MAX_BATCH_GET_ITEMS}`
+		)
 	}
 
 	const responses: Record<string, AttributeMap[]> = {}
@@ -59,7 +61,11 @@ export function batchGetItem(store: TableStore, input: BatchGetItemInput): Batch
 
 			if (item) {
 				if (tableRequest.ProjectionExpression) {
-					item = applyProjection(item, tableRequest.ProjectionExpression, tableRequest.ExpressionAttributeNames)
+					item = applyProjection(
+						item,
+						tableRequest.ProjectionExpression,
+						tableRequest.ExpressionAttributeNames
+					)
 				}
 				items.push(item)
 				capacityUnits += 0.5

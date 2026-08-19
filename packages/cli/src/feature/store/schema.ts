@@ -6,10 +6,7 @@ import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { TaskSchema } from '../task/schema.js'
 
 const LifecycleRuleSchema = z.object({
-	prefix: z
-		.string()
-		.optional()
-		.describe('Object-key prefix this rule applies to. Omit to apply bucket-wide.'),
+	prefix: z.string().optional().describe('Object-key prefix this rule applies to. Omit to apply bucket-wide.'),
 	expiration: DurationSchema.refine(durationMin(days(1)), 'Minimum expiration is 1 day').describe(
 		'How long objects matching this rule live before S3 deletes them.'
 	),
@@ -40,7 +37,9 @@ export const StoresSchema = z
 				lifecycle: z
 					.array(LifecycleRuleSchema)
 					.optional()
-					.describe('S3 lifecycle rules for this store. Each rule expires objects matching an optional prefix.'),
+					.describe(
+						'S3 lifecycle rules for this store. Each rule expires objects matching an optional prefix.'
+					),
 				events: z
 					.object({
 						// create

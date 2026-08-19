@@ -201,10 +201,7 @@ const collectEntries = (
 			branch.properties !== undefined ||
 			branch.additionalProperties !== undefined ||
 			branch.patternProperties !== undefined
-		const isArray =
-			branchType.includes('array') ||
-			branch.items !== undefined ||
-			branch.prefixItems !== undefined
+		const isArray = branchType.includes('array') || branch.items !== undefined || branch.prefixItems !== undefined
 
 		if (isObject) {
 			for (const [property, propertySchema] of Object.entries(branch.properties ?? {})) {
@@ -214,23 +211,41 @@ const collectEntries = (
 
 			for (const [propertyPattern, propertySchema] of Object.entries(branch.patternProperties ?? {})) {
 				const path = makePatternPath(pointer, propertyPattern)
-				entries.push(...collectEntries(propertySchema, path, appendRegexPattern(pattern, propertyPattern), root))
+				entries.push(
+					...collectEntries(propertySchema, path, appendRegexPattern(pattern, propertyPattern), root)
+				)
 			}
 
 			if (branch.additionalProperties && typeof branch.additionalProperties === 'object') {
 				const segmentPattern = childSegmentPattern(branch)
 				const path = makePatternPath(pointer, segmentPattern)
-				entries.push(...collectEntries(branch.additionalProperties, path, appendRegexPattern(pattern, segmentPattern), root))
+				entries.push(
+					...collectEntries(
+						branch.additionalProperties,
+						path,
+						appendRegexPattern(pattern, segmentPattern),
+						root
+					)
+				)
 			}
 		}
 
 		if (isArray) {
 			if (Array.isArray(branch.items)) {
 				branch.items.forEach((itemSchema, index) => {
-					entries.push(...collectEntries(itemSchema, `${pointer}/${index}`, appendExactPattern(pattern, `${index}`), root))
+					entries.push(
+						...collectEntries(
+							itemSchema,
+							`${pointer}/${index}`,
+							appendExactPattern(pattern, `${index}`),
+							root
+						)
+					)
 				})
 			} else if (branch.items && typeof branch.items === 'object') {
-				entries.push(...collectEntries(branch.items, `${pointer}/\\d+`, appendRegexPattern(pattern, '\\d+'), root))
+				entries.push(
+					...collectEntries(branch.items, `${pointer}/\\d+`, appendRegexPattern(pattern, '\\d+'), root)
+				)
 				entries.push({
 					path: `${pointer}/-`,
 					pattern: makeExactPattern(`${pointer}/-`),
@@ -240,7 +255,9 @@ const collectEntries = (
 			}
 
 			for (const [index, itemSchema] of (branch.prefixItems ?? []).entries()) {
-				entries.push(...collectEntries(itemSchema, `${pointer}/${index}`, appendExactPattern(pattern, `${index}`), root))
+				entries.push(
+					...collectEntries(itemSchema, `${pointer}/${index}`, appendExactPattern(pattern, `${index}`), root)
+				)
 			}
 		}
 	}
@@ -341,7 +358,9 @@ const isSchemaMetadataPath = (entry: PointerEntry) => {
 }
 
 export const createStagePatchJsonSchema = (baseSchema: JsonSchema, title: string) => {
-	const entries = collectEntries(baseSchema).map(normalizeEntry).filter(entry => !isSchemaMetadataPath(entry))
+	const entries = collectEntries(baseSchema)
+		.map(normalizeEntry)
+		.filter(entry => !isSchemaMetadataPath(entry))
 	const standardEntries = entries.filter(entry => !entry.addOnly)
 	const addEntries = entries
 	const moveCopyEntries = standardEntries.filter(entry => entry.path !== '')

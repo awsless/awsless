@@ -1,4 +1,3 @@
-
 export const string = (path: string) => {
 	return path
 }
@@ -8,7 +7,7 @@ export const float = (path: string) => {
 		path,
 		transform(value: string) {
 			return parseFloat(value)
-		}
+		},
 	}
 }
 
@@ -17,7 +16,7 @@ export const integer = (path: string, radix = 10) => {
 		path,
 		transform(value: string) {
 			return parseInt(value, radix)
-		}
+		},
 	}
 }
 
@@ -26,7 +25,7 @@ export const array = (path: string, seperator = ',') => {
 		path,
 		transform(value: string) {
 			return value.split(seperator).map(v => v.trim())
-		}
+		},
 	}
 }
 
@@ -35,6 +34,6 @@ export const json = <T = unknown>(path: string) => {
 		path,
 		transform(value: string): T {
 			return JSON.parse(value) as T
-		}
+		},
 	}
 }

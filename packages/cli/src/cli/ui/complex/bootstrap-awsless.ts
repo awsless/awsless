@@ -1,4 +1,9 @@
-import { DescribeTableCommand, DynamoDB, ResourceNotFoundException, waitUntilTableExists } from '@aws-sdk/client-dynamodb'
+import {
+	DescribeTableCommand,
+	DynamoDB,
+	ResourceNotFoundException,
+	waitUntilTableExists,
+} from '@aws-sdk/client-dynamodb'
 import {
 	CreateBucketCommand,
 	HeadBucketCommand,

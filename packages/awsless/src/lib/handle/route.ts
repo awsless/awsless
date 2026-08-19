@@ -38,11 +38,7 @@ type Method = 'GET' | 'POST' | 'HEAD' | 'OPTIONS' | 'PUT' | 'PATCH' | 'DELETE'
 // Our own request object: the useful parts of the web Request without
 // the browser era baggage that makes no sense inside a lambda. The
 // body is already fully buffered, so reading it is synchronous.
-export class RouteRequest<
-	Params = Record<string, string>,
-	Query = Record<string, string>,
-	Data = unknown,
-> {
+export class RouteRequest<Params = Record<string, string>, Query = Record<string, string>, Data = unknown> {
 	/** The http method of the request. */
 	readonly method: Method
 

@@ -1,6 +1,6 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createS3Provider } from '../src/formation/s3'
 import { credentials, sent } from './_kit'

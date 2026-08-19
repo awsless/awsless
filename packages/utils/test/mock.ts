@@ -1,9 +1,7 @@
-
-import { mockFn, mockObjectValues, nextTick } from "../src"
+import { mockFn, mockObjectValues, nextTick } from '../src'
 
 describe('Mock', () => {
-
-	const echo = (a:string) => a
+	const echo = (a: string) => a
 
 	it('mockObjectValues', () => {
 		const result = mockObjectValues({ echo })
@@ -25,7 +23,7 @@ describe('Mock', () => {
 	})
 
 	it('should work with complex functions', async () => {
-		const complex = (a:object, b:object[]) => [ a, ...b ]
+		const complex = (a: object, b: object[]) => [a, ...b]
 
 		mockObjectValues({ complex })
 		mockFn(complex)

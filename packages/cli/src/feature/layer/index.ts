@@ -1,9 +1,9 @@
-import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
+import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { LayerProps } from './schema.js'
-import { shortId } from '../../util/id.js'
 // import { FileError } from '../../error.js'
 // import { StackConfig } from '../../config/stack.js'
 

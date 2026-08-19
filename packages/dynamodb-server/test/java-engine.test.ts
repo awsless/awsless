@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import {
 	CreateTableCommand,
 	DeleteTableCommand,
@@ -5,7 +6,6 @@ import {
 	ListTablesCommand,
 	PutItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Java DynamoDB Engine', () => {

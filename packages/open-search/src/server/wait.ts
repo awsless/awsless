@@ -1,5 +1,5 @@
 import { sleepAwait } from 'sleep-await'
-import { searchClient } from "../client"
+import { searchClient } from '../client'
 
 export const ping = async () => {
 	const client = await searchClient()

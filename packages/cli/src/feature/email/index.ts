@@ -1,5 +1,5 @@
-import { defineFeature } from '../../feature.js'
 import { createSesServer } from '../../dev/servers/ses.js'
+import { defineFeature } from '../../feature.js'
 
 export const emailFeature = defineFeature({
 	name: 'email',

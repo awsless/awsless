@@ -1,8 +1,8 @@
-import { log } from '@awsless/clui'
 import { ChildProcess, spawn } from 'child_process'
+import { dirname, join } from 'path'
+import { log } from '@awsless/clui'
 import { constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
-import { dirname, join } from 'path'
 import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
@@ -139,7 +139,11 @@ export const instanceOnDev = async (ctx: DevContext) => {
 							ctx.emitEvent(channel, { date: Date.now(), line: `Exited with code ${code}`, error: true })
 						}
 
-						ctx.reportHealth(`instance ${id}`, 'down', code !== null ? `exited with code ${code}` : `killed by ${signal}`)
+						ctx.reportHealth(
+							`instance ${id}`,
+							'down',
+							code !== null ? `exited with code ${code}` : `killed by ${signal}`
+						)
 					})
 				}
 

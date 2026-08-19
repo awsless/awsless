@@ -1,8 +1,8 @@
+import { randomUUID } from 'crypto'
 import { runTask } from '@awsless/ecs'
 import { stringify } from '@awsless/json'
 import { putObject } from '@awsless/s3'
 import { kebabCase } from 'change-case'
-import { randomUUID } from 'crypto'
 import { createProxy } from '../proxy.js'
 import { APP, bindLocalResourceName } from './util.js'
 
@@ -16,8 +16,10 @@ export const Job: JobResources = /*@__PURE__*/ createProxy(stackName => {
 		const ctx: Record<string, any> = {
 			[name]: async (payload: unknown) => {
 				const cluster = `${APP}-job`
-				if (!process.env.JOB_SUBNETS) throw new Error('JOB_SUBNETS env var is not set. Is the job feature deployed?')
-				if (!process.env.JOB_SECURITY_GROUP) throw new Error('JOB_SECURITY_GROUP env var is not set. Is the job feature deployed?')
+				if (!process.env.JOB_SUBNETS)
+					throw new Error('JOB_SUBNETS env var is not set. Is the job feature deployed?')
+				if (!process.env.JOB_SECURITY_GROUP)
+					throw new Error('JOB_SECURITY_GROUP env var is not set. Is the job feature deployed?')
 				const subnets = JSON.parse(process.env.JOB_SUBNETS)
 				const securityGroup = process.env.JOB_SECURITY_GROUP
 

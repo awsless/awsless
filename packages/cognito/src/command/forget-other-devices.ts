@@ -1,6 +1,6 @@
+import { Client } from '../client.js'
 import { forgetDevice } from './forget-device.js'
 import { listDevices } from './list-devices.js'
-import { Client } from '../client.js'
 
 export type ForgetOtherDevicesProps = {
 	deviceKey: string

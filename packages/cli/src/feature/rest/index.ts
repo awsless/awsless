@@ -1,12 +1,12 @@
-import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
-import { restOnDev } from './dev.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatFullDomainName } from '../domain/util.js'
 import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { formatFullDomainName } from '../domain/util.js'
+import { restOnDev } from './dev.js'
 
 export const restFeature = defineFeature({
 	name: 'rest',
@@ -38,9 +38,7 @@ export const restFeature = defineFeature({
 				principal: 'apigateway.amazonaws.com',
 				functionName: bundle.lambda.functionName,
 				qualifier: bundle.alias.name,
-				sourceArn: api.id.pipe(
-					id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`
-				),
+				sourceArn: api.id.pipe(id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`),
 			})
 
 			ctx.shared.add('rest', 'id', id, api.id)

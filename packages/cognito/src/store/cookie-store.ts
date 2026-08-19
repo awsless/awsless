@@ -1,5 +1,5 @@
-import { Store, StoreData } from './store'
 import cookie from 'js-cookie'
+import { Store, StoreData } from './store'
 
 const browser = typeof window !== 'undefined'
 

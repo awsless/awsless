@@ -1,11 +1,11 @@
-import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
+import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { FileError } from '../../error.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'

@@ -1,11 +1,11 @@
-import { Group } from '@terraforge/core'
+import { toGibibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { toGibibytes } from '@awsless/size'
 import { cacheOnDev } from './dev.js'
 
 const typeGenCode = `

@@ -4,22 +4,22 @@
 		{
 			"op": "replace",
 			"path": "/name",
-			"value": "app-jack-prod",
+			"value": "app-jack-prod"
 		},
 		{
 			"op": "replace",
 			"path": "/function/log/retention",
-			"value": "3 days",
+			"value": "3 days"
 		},
 		{
 			"op": "add",
 			"path": "/protect",
-			"value": true,
+			"value": true
 		},
 		{
 			"op": "add",
 			"path": "/removal",
-			"value": "retain",
-		},
-	],
+			"value": "retain"
+		}
+	]
 }

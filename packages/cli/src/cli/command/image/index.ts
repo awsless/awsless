@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-
 import { clearCache } from './clear-cache.js'
 
 const commands = [clearCache]

@@ -1,5 +1,5 @@
-import { putItem } from '@awsless/dynamodb'
 import { randomUUID } from 'node:crypto'
+import { putItem } from '@awsless/dynamodb'
 import { Todo, todoTable } from './table'
 
 export default async (event: { title: string }) => {

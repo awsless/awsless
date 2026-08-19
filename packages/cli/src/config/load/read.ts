@@ -3,8 +3,8 @@ import { basename, dirname, extname, join } from 'path'
 import { debug } from '../../cli/debug.js'
 import { color } from '../../cli/ui/style.js'
 import { FileError } from '../../error.js'
-import { StagePatchSchema, applyStagePatch } from '../stage-patch.js'
 import { fileExist } from '../../util/path.js'
+import { StagePatchSchema, applyStagePatch } from '../stage-patch.js'
 import { validateConfig } from './validate.js'
 
 export const readConfig = async (file: string) => {

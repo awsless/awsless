@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
 	CreateTableCommand,
 	GetItemCommand,
@@ -5,7 +6,6 @@ import {
 	TransactGetItemsCommand,
 	TransactWriteItemsCommand,
 } from '@aws-sdk/client-dynamodb'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Transaction Operations', () => {

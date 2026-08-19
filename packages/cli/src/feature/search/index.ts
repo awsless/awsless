@@ -1,6 +1,6 @@
+import { toGibibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
-import { toGibibytes } from '@awsless/size'
 import { defineFeature } from '../../feature.js'
 import { SearchIndex } from '../../formation/open-search.js'
 import { TypeFile } from '../../type-gen/file.js'

@@ -1,7 +1,6 @@
 import { Command } from 'commander'
-
-import { importTable } from './import.js'
 import { exportTable } from './export.js'
+import { importTable } from './import.js'
 
 const commands = [importTable, exportTable]
 

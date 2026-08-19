@@ -1,13 +1,13 @@
-import { DynamoDBServer } from '@awsless/dynamodb-server'
 import { join } from 'path'
+import { DynamoDBServer } from '@awsless/dynamodb-server'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { DevContext, DevResource, DevRoute, DevServer } from '../feature.js'
+import { directories } from '../util/path.js'
+import { ServerPool } from './pool.js'
 import { createS3Server, StoreNotificationRule } from './servers/s3.js'
 import { createSnsServer } from './servers/sns.js'
 import { createSqsServer } from './servers/sqs.js'
-import { ServerPool } from './pool.js'
-import { directories } from '../util/path.js'
 
 export type HealthEntry = {
 	id: string

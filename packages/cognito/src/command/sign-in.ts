@@ -1,12 +1,12 @@
+import { Client } from '../client.js'
+import { NewPasswordRequired } from '../error/new-password-required.js'
+import { ResponseError } from '../error/response-error.js'
+import { Unauthorized } from '../error/unauthorized.js'
 import { Device, getUserDevice, removeUserDevice, setUserDevice } from '../helper/device.js'
+import { generateSecretHash } from '../helper/secret.js'
 import { Session } from '../session.js'
 import { generateDeviceSecret, generateVerifier, srp } from '../srp.js'
 import { Token } from '../token.js'
-import { Client } from '../client.js'
-import { ResponseError } from '../error/response-error.js'
-import { NewPasswordRequired } from '../error/new-password-required.js'
-import { generateSecretHash } from '../helper/secret.js'
-import { Unauthorized } from '../error/unauthorized.js'
 
 export type SignInProps = {
 	username: string

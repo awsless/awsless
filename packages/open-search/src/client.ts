@@ -1,7 +1,7 @@
+import { Agent } from 'node:https'
 import { fromEnv } from '@aws-sdk/credential-providers'
 import { Client, ClientOptions } from '@opensearch-project/opensearch'
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
-import { Agent } from 'node:https'
 
 let mock: Client
 

@@ -1,5 +1,5 @@
-import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { gzipSync } from 'zlib'
+import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createHandler, ErrorEvent } from '../src/feature/on-error-log/server/handle'
 

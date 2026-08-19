@@ -1,14 +1,14 @@
-import { Group } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
-import { camelCase } from 'change-case'
 import { relative } from 'path'
+import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
+import { camelCase } from 'change-case'
+import { createSchedulerServer } from '../../dev/servers/scheduler.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { createSchedulerServer } from '../../dev/servers/scheduler.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'

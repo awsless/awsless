@@ -1,8 +1,8 @@
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
+import { Workspace } from '@awsless/ts-file-cache'
 import { directories } from '../util/path.js'
 import { createTimer } from '../util/timer.js'
-import { Workspace } from '@awsless/ts-file-cache'
 
 export type Cache = { version: string; data: Metadata }
 export type Metadata = Record<string, string | number | boolean> | undefined | void

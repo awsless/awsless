@@ -1,6 +1,6 @@
-import { formatRouteEnvName } from 'awsless'
 import { cp } from 'fs/promises'
 import { isAbsolute, join } from 'path'
+import { formatRouteEnvName } from 'awsless'
 import { DevContext } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'

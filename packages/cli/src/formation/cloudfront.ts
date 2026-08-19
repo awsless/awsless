@@ -1,9 +1,9 @@
+import { randomUUID } from 'crypto'
 import {
 	CloudFrontClient,
 	CreateInvalidationForDistributionTenantCommand,
 	ListDistributionTenantsCommand,
 } from '@aws-sdk/client-cloudfront'
-import { randomUUID } from 'crypto'
 
 export const createInvalidationForDistributionTenants = async (
 	client: CloudFrontClient,

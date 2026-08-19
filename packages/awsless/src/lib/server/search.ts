@@ -34,12 +34,7 @@ const compatibleTypes = (a: string, b: string) => {
 // Tests verify the code schema against the index declaration of the
 // stack file, so a drifted schema fails loud instead of relying on
 // dynamic mappings that don't exist on the deployed index.
-const assertMatchingMappings = (
-	label: string,
-	declared: SearchMapping,
-	defined: SearchMapping,
-	path = ''
-): void => {
+const assertMatchingMappings = (label: string, declared: SearchMapping, defined: SearchMapping, path = ''): void => {
 	const declaredProps = declared.properties ?? {}
 	const definedProps = defined.properties ?? {}
 
