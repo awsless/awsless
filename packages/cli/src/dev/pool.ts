@@ -10,28 +10,28 @@ type PoolEntry = {
 export type ServerPool = {
 	// Boot a server or reuse the running one when the fingerprint still
 	// matches. A changed fingerprint stops the old server first.
-	keep<T>(
+	keep: <T>(
 		key: string,
 		fingerprint: unknown,
 		boot: () => Promise<{ value: T; stop: () => void | Promise<void> }>
-	): Promise<T>
+	) => Promise<T>
 
 	// Mark a key as still in use this run, for servers that only boot
 	// later during the start phase.
-	retain(key: string): void
+	retain: (key: string) => void
 
 	// The running value of a key, when it survived from a previous run.
-	peek<T>(key: string): T | undefined
+	peek: <T>(key: string) => T | undefined
 
 	// Start a new run: claims reset, so the following sweep only sees
 	// this run's claims.
-	begin(): void
+	begin: () => void
 
 	// Stop every server that wasn't claimed this run - its resource
 	// disappeared from the config.
-	sweep(): Promise<void>
+	sweep: () => Promise<void>
 
-	stopAll(): Promise<void>
+	stopAll: () => Promise<void>
 }
 
 export const createServerPool = (): ServerPool => {
@@ -39,7 +39,7 @@ export const createServerPool = (): ServerPool => {
 	const claimed = new Set<string>()
 
 	return {
-		async keep(key, fingerprint, boot) {
+		keep: async (key, fingerprint, boot) => {
 			const print = JSON.stringify(fingerprint ?? null)
 
 			claimed.add(key)
@@ -61,16 +61,16 @@ export const createServerPool = (): ServerPool => {
 
 			return fresh.value
 		},
-		retain(key) {
+		retain: key => {
 			claimed.add(key)
 		},
-		peek(key) {
+		peek: key => {
 			return entries.get(key)?.value as never
 		},
-		begin() {
+		begin: () => {
 			claimed.clear()
 		},
-		async sweep() {
+		sweep: async () => {
 			for (const [key, entry] of [...entries]) {
 				if (!claimed.has(key)) {
 					entries.delete(key)
@@ -78,7 +78,7 @@ export const createServerPool = (): ServerPool => {
 				}
 			}
 		},
-		async stopAll() {
+		stopAll: async () => {
 			claimed.clear()
 
 			for (const [key, entry] of [...entries].reverse()) {

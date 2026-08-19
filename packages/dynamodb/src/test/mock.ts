@@ -202,12 +202,12 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(configOrServer: S
 		}
 	}
 
-	// Save original send methods before mockClient replaces them on the prototype
-	const originalDynamoDBSend = DynamoDBClient.prototype.send
-	const originalDocumentClientSend = DynamoDBDocumentClient.prototype.send
-
 	const client = server.getClient()
 	const documentClient = server.getDocumentClient()
+
+	// Bind the real send methods before mockClient replaces them on the prototype.
+	const originalDynamoDBSend = DynamoDBClient.prototype.send.bind(client)
+	const originalDocumentClientSend = DynamoDBDocumentClient.prototype.send.bind(documentClient)
 
 	const processStream = (command: any, send: <T>() => T) => {
 		if (!(configOrServer instanceof DynamoDBServer) && configOrServer.stream) {
@@ -219,13 +219,13 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(configOrServer: S
 
 	const clientSend = (command: any) => {
 		return processStream(command, () => {
-			return (originalDynamoDBSend as Function).call(client, command)
+			return originalDynamoDBSend(command) as never
 		})
 	}
 
 	const documentClientSend = (command: any) => {
 		return processStream(command, () => {
-			return (originalDocumentClientSend as Function).call(documentClient, command)
+			return originalDocumentClientSend(command) as never
 		})
 	}
 

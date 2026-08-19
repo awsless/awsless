@@ -17,9 +17,7 @@
 
 		// Style opinions this codebase deliberately doesn't follow.
 		"no-for-in-array": "off", // want able to use for .. in/of ..
-
 		"no-unmodified-loop-condition": "off", // Abort signals mutate from outside the loop.
-		"unbound-method": "off",
 		"no-unnecessary-type-arguments": "off",
 		"no-useless-concat": "off",
 		"no-array-reverse": "off",

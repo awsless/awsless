@@ -62,7 +62,7 @@ export const createDevContext = (props: {
 	const replays = new Map<string, unknown[]>()
 
 	const events = {
-		emit(channel: string, data: unknown) {
+		emit: (channel: string, data: unknown) => {
 			const replay = replays.get(channel) ?? []
 
 			replay.push(data)
@@ -74,7 +74,7 @@ export const createDevContext = (props: {
 			replays.set(channel, replay)
 			listeners.get(channel)?.forEach(listener => listener(data))
 		},
-		subscribe(channel: string, listener: (data: unknown) => void) {
+		subscribe: (channel: string, listener: (data: unknown) => void) => {
 			if (!listeners.has(channel)) {
 				listeners.set(channel, new Set())
 			}
