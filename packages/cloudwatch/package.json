@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/cloudwatch",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
