@@ -152,7 +152,7 @@ var RedisServer = class {
 	async kill() {
 		if (this.process) {
 			this.stopping = true;
-			await this.client?.disconnect();
+			this.client?.disconnect();
 			await this.process.stop();
 			this.process = void 0;
 		}

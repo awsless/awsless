@@ -67,9 +67,9 @@ type Context = {
   readonly event: unknown;
   readonly context?: Context$1;
   readonly log: Logger;
-  readonly onSuccess: (cb: (res: unknown) => void) => void;
-  readonly onFailure: (cb: (err: unknown) => void) => void;
-  readonly onFinally: (cb: () => void) => void;
+  readonly onSuccess: (cb: (res: unknown) => unknown) => void;
+  readonly onFailure: (cb: (err: unknown) => unknown) => void;
+  readonly onFinally: (cb: () => unknown) => void;
 };
 type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R;
 type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>;

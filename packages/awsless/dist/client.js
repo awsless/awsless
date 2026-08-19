@@ -29,7 +29,7 @@ const createHttpFetcher = (host, options = {}) => {
 		const response = await fetch(url, {
 			method,
 			headers,
-			body: payload,
+			...method === "GET" ? {} : { body: payload },
 			signal: AbortSignal.timeout(timeout)
 		});
 		if (!response.ok) throw new HttpError(response.status, await response.text().catch(() => ""), url.toString());

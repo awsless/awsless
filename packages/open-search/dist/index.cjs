@@ -165,30 +165,27 @@ const parseSettings = (settings) => {
 		return ["-E", `${key}=${value}`];
 	}).flat();
 };
-const launch = ({ path: path$2, host, port, version, debug, onExit: onDied, onOutput }) => {
-	return new Promise(async (resolve, reject) => {
-		const cache = (0, path.join)(path$2, "cache", String(port));
-		const cleanUp = async () => {
-			if (await exists(cache)) await (0, fs_promises.rm)(cache, { recursive: true });
-		};
-		await cleanUp();
-		const binary = (0, path.join)(path$2, "bin/opensearch");
-		const env = { ...process.env };
-		if (process.platform === "darwin") {
-			const javaHome = await findJavaHome();
-			if (!javaHome) {
-				reject(/* @__PURE__ */ new Error("No local JDK 21+ found to run OpenSearch. Install one with \"brew install openjdk\"."));
-				return;
-			}
-			env.OPENSEARCH_JAVA_HOME = javaHome;
-		}
+const launch = async ({ path: path$2, host, port, version, debug, onExit: onDied, onOutput }) => {
+	const cache = (0, path.join)(path$2, "cache", String(port));
+	const cleanUp = async () => {
+		if (await exists(cache)) await (0, fs_promises.rm)(cache, { recursive: true });
+	};
+	await cleanUp();
+	const binary = (0, path.join)(path$2, "bin/opensearch");
+	const env = { ...process.env };
+	if (process.platform === "darwin") {
+		const javaHome = await findJavaHome();
+		if (!javaHome) throw new Error("No local JDK 21+ found to run OpenSearch. Install one with \"brew install openjdk\".");
+		env.OPENSEARCH_JAVA_HOME = javaHome;
+	}
+	return new Promise((resolve, reject) => {
 		const child = (0, child_process.spawn)(binary, parseSettings(version.settings({
 			host,
 			port,
 			cache
 		})), { env });
 		const output = [];
-		const onError = (error) => fail(String(error));
+		const onError = (error) => void fail(String(error));
 		const onExit = (code) => {
 			fail(`OpenSearch exited before starting (code ${code})\n${output.join("")}`);
 		};
@@ -225,7 +222,7 @@ const launch = ({ path: path$2, host, port, version, debug, onExit: onDied, onOu
 			child.on("error", onError);
 			child.on("exit", onExit);
 		};
-		const done = async () => {
+		const done = () => {
 			off();
 			child.once("exit", (code, signal) => {
 				if (!stopping) onDied?.(code, signal);
@@ -264,7 +261,7 @@ const VERSION_3_5_0_MIN = {
 //#endregion
 //#region src/server/wait.ts
 const ping = async () => {
-	const client = await searchClient();
+	const client = searchClient();
 	try {
 		return (await client.cat.indices({ format: "json" })).statusCode === 200;
 	} catch (error) {

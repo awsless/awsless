@@ -113,7 +113,7 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 		try {
 			file = await resolveModuleImportFile(file, allowedExtensions);
 		} catch (error) {
-			throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`);
+			throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`, { cause: error });
 		}
 		const relFile = relative(workspace.cwd, file).split(sep).join("/");
 		if (hashes.has(relFile)) return;

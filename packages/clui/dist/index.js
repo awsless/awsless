@@ -267,7 +267,7 @@ const table = (props) => {
 		return 0;
 	});
 	let leftover = Math.min(maxTableSize, contentSizes.reduce((total, size) => total + size, 0));
-	while (leftover > 0) for (const x in columnSizes) {
+	while (leftover > 0) for (let x = 0; x < columnSizes.length; x++) {
 		const columnSize = columnSizes[x];
 		const contentSize = contentSizes[x];
 		if (leftover > 0 && columnSize < contentSize) {

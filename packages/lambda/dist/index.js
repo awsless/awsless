@@ -241,8 +241,8 @@ const lambda = (options) => {
 		const log = async (maybeError) => {
 			const error = normalizeError(maybeError);
 			const list = [options.logger].flat(10);
-			await Promise.all(list.map((logger) => {
-				return logger?.(error, { input: event });
+			await Promise.all(list.map(async (logger) => {
+				await logger?.(error, { input: event });
 			}));
 		};
 		const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === "test";

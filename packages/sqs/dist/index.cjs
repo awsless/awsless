@@ -45,7 +45,7 @@ const encodeAttributes = (attributes) => {
 };
 const decodeAttributes = (attributes) => {
 	const list = {};
-	for (const key in attributes) list[key] = attributes[key]?.StringValue;
+	for (const key in attributes) list[key] = attributes[key].StringValue;
 	return list;
 };
 const getQueueUrl = async (queue, client = sqsClient()) => {
