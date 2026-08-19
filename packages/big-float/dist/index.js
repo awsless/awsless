@@ -43,7 +43,7 @@ const max$1 = (...values) => {
 	});
 };
 const clamp$1 = (number, min, max) => {
-	if (gt$1(min, max)) throw new TypeError(`min ${min} bound can't be greater then the max ${max} bound`);
+	if (gt$1(min, max)) throw new TypeError(`min ${min.toString()} bound can't be greater then the max ${max.toString()} bound`);
 	return lt$1(number, min) ? min : gt$1(number, max) ? max : number;
 };
 //#endregion

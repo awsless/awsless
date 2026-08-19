@@ -182,7 +182,7 @@ export const deploy = (program: Command) => {
 					if (error instanceof Cancelled || error instanceof CancelledError) {
 						log.warning('Skipped the alert endpoint verification.')
 					} else {
-						log.warning(`Skipped the alert endpoint verification. ${error}`)
+						log.warning(`Skipped the alert endpoint verification. ${String(error)}`)
 					}
 				}
 

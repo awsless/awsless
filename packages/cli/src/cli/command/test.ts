@@ -13,7 +13,7 @@ export const test = (program: Command) => {
 		.option('-f --filters <string...>', 'Optionally filter test files')
 		.description('Test your app')
 		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
-			await layout(`test ${stacks ?? ''}`, async props => {
+			await layout(`test ${stacks?.join(' ') ?? ''}`, async props => {
 				// Tests run fully local against the auto test environment,
 				// so they never need aws credentials - the same fake
 				// account as the dev environment feeds the synth.

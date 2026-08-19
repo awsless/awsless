@@ -20,9 +20,9 @@
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off", // Test helpers belong next to the cases they run
 		"no-useless-spread": "off", // We copy a map before deleting from it while looping
-		"no-unnecessary-type-assertion": "off",
-		"no-unsafe-type-assertion": "off",
-		"restrict-template-expressions": "off",
+		"no-unnecessary-type-assertion": "off", // Removing the casts it flags breaks the build
+		"no-unsafe-type-assertion": "off", // We cast to narrow parsed strings all over the place
+		"restrict-template-expressions": "off", // Test names print bigfloats & errors, which stringify fine
 		"no-unnecessary-type-parameters": "off", // The caller picks the type, like peek<User>()
 		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings
 

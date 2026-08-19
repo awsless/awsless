@@ -58,7 +58,7 @@ export class Table<
 		const result = this.schema.walk?.(...path)
 
 		if (!result) {
-			throw new Error(`Invalid path to walk: ${path}`)
+			throw new Error(`Invalid path to walk: ${path.join('.')}`)
 		}
 
 		return result

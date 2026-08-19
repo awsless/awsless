@@ -125,7 +125,7 @@ const logTestError = (index: number, event: TestResponse, test: TestEntry, error
 	const errorMessage = [
 		color.error.bold(error.type + ':'),
 		message,
-		comment.length > 0 ? color.dim(`//${comment}`) : '',
+		comment.length > 0 ? color.dim(`//${comment.join('//')}`) : '',
 	].join(' ')
 
 	log.error(

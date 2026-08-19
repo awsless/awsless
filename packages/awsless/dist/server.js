@@ -1007,7 +1007,7 @@ const setupTestEnv = async (manifest, options) => {
 				try {
 					await flush();
 				} catch (retryError) {
-					throw new Error(`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${error}`, { cause: retryError });
+					throw new Error(`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${String(error)}`, { cause: retryError });
 				}
 			}
 		} else {

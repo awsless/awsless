@@ -53,14 +53,15 @@ export const createSsmServer = (props: { file: string }) => {
 
 				void readBody(req)
 					.then(async body => {
-						const target = req.headers['x-amz-target']
+						const header = req.headers['x-amz-target']
+						const target = Array.isArray(header) ? header[0] : header
 
 						if (target !== 'AmazonSSM.GetParameters') {
 							res.writeHead(400, { 'content-type': 'application/x-amz-json-1.1' })
 							res.end(
 								JSON.stringify({
 									__type: 'InvalidAction',
-									message: `The local dev SSM emulator only supports GetParameters, got: ${target}`,
+									message: `The local dev SSM emulator only supports GetParameters, got: ${target ?? 'nothing'}`,
 								})
 							)
 							return

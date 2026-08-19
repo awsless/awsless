@@ -46,7 +46,7 @@ export const max = (...values: IBigFloat[]): IBigFloat => {
 
 export const clamp = (number: IBigFloat, min: IBigFloat, max: IBigFloat): IBigFloat => {
 	if (gt(min, max)) {
-		throw new TypeError(`min ${min} bound can't be greater then the max ${max} bound`)
+		throw new TypeError(`min ${min.toString()} bound can't be greater then the max ${max.toString()} bound`)
 	}
 
 	return lt(number, min) ? min : gt(number, max) ? max : number

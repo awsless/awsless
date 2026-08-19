@@ -31,7 +31,7 @@ var Table = class {
 	walk(...path) {
 		if (path.length === 0) return this.schema;
 		const result = this.schema.walk?.(...path);
-		if (!result) throw new Error(`Invalid path to walk: ${path}`);
+		if (!result) throw new Error(`Invalid path to walk: ${path.join(".")}`);
 		return result;
 	}
 	marshall(item) {
