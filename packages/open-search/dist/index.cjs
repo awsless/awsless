@@ -31,8 +31,8 @@ let fs_promises = require("fs/promises");
 let path = require("path");
 let decompress = require("decompress");
 decompress = __toESM(decompress, 1);
-let find_cache_dir = require("find-cache-dir");
-find_cache_dir = __toESM(find_cache_dir, 1);
+let find_cache_directory = require("find-cache-directory");
+find_cache_directory = __toESM(find_cache_directory, 1);
 let child_process = require("child_process");
 let util = require("util");
 let sleep_await = require("sleep-await");
@@ -73,7 +73,7 @@ const getDownloadUrl = (version) => {
 	return `https://artifacts.opensearch.org/releases/core/opensearch/${version}/${getArchiveName(version)}`;
 };
 const getDownloadPath = () => {
-	return (0, path.resolve)((0, find_cache_dir.default)({
+	return (0, path.resolve)((0, find_cache_directory.default)({
 		name: "@awsless/open-search",
 		cwd: process.cwd()
 	}) || "");

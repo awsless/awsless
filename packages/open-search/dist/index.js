@@ -7,7 +7,7 @@ import { createHash } from "crypto";
 import { mkdir, rename, rm, stat } from "fs/promises";
 import { join, resolve } from "path";
 import decompress from "decompress";
-import findCacheDir from "find-cache-dir";
+import findCacheDir from "find-cache-directory";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import { sleepAwait } from "sleep-await";

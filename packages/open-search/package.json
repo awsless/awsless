@@ -36,7 +36,7 @@
 		"@types/decompress": "4.2.7",
 		"@types/find-cache-dir": "5.0.2",
 		"decompress": "4.2.1",
-		"find-cache-dir": "6.0.0",
+		"find-cache-directory": "6.0.0",
 		"sleep-await": "1.0.3"
 	},
 	"peerDependencies": {
