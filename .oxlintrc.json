@@ -19,8 +19,8 @@
 		"no-for-in-array": "off", // want able to use for .. in/of ..
 		"no-useless-concat": "off", // The bigfloat tests split their long literals
 		"no-unmodified-loop-condition": "off", // Abort signals mutate from outside the loop.
-		"no-extraneous-class": "off",
-		"no-shadow": "off",
+		"no-extraneous-class": "off", // A test needs an empty class to check instanceof
+		"no-shadow": "off", // is used
 		"no-new": "off", // Declaring a terraforge resource is the effect
 		"no-underscore-dangle": "off", // Wire fields like __type, and enum_ for reserved words
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
