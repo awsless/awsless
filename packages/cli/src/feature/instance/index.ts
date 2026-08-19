@@ -21,7 +21,7 @@ type Send<Name extends string> = {
 
 type MockHandle = (payload: unknown) => void
 type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<[unknown], unknown>
+type MockObject = Mock<(payload: unknown) => unknown>
 
 // Calling overrides the implementation & the same value works as the
 // vitest mock inside expect().
