@@ -1,11 +1,10 @@
 import { Command } from 'commander'
-
-import { set } from './set.js'
-import { get } from './get.js'
 import { del } from './delete.js'
-import { list } from './list.js'
 import { export_ } from './export.js'
+import { get } from './get.js'
 import { import_ } from './import.js'
+import { list } from './list.js'
+import { set } from './set.js'
 
 const commands = [
 	//

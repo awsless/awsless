@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-
 import { user } from './user/index.js'
 
 const commands = [user]

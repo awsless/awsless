@@ -2,8 +2,6 @@ import { CreateScheduleCommand, CreateScheduleCommandInput, SchedulerClient } fr
 import { parse } from '@awsless/json'
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
-// @ts-ignore
-import { Mock } from 'vitest'
 
 type Lambdas = {
 	[key: string]: (payload: any) => any

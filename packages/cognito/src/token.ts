@@ -1,11 +1,14 @@
-import decode from 'jwt-decode'
+import { jwtDecode } from 'jwt-decode'
 
 export class Token {
 	static fromString(token: string) {
-		return new Token(token, decode(token))
+		return new Token(token, jwtDecode(token))
 	}
 
-	constructor(private string: string, readonly payload: Record<string, string | number | undefined>) {}
+	constructor(
+		private string: string,
+		readonly payload: Record<string, string | number | undefined>
+	) {}
 
 	get expiration() {
 		return this.payload.exp as number

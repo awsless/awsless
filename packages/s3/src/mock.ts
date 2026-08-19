@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import {
 	CopyObjectCommand,
 	CopyObjectCommandInput,
@@ -12,11 +13,9 @@ import {
 	PutObjectCommandInput,
 	S3Client,
 } from '@aws-sdk/client-s3'
-import { sdkStreamMixin } from '@aws-sdk/util-stream-node'
 import { nextTick } from '@awsless/utils'
+import { sdkStreamMixin } from '@smithy/util-stream'
 import { mockClient } from 'aws-sdk-client-mock'
-import { Readable } from 'stream'
-// @ts-ignore
 import type { Mock } from 'vitest'
 import { setSignedDownloadUrlMock, setSignedUploadUrlMock } from './commands'
 import { hashSHA1 } from './hash'

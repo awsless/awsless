@@ -1,39 +1,28 @@
-import {
-	SSMClient,
-	GetParametersCommand,
-	GetParametersCommandInput,
-	PutParameterCommand,
-} from '@aws-sdk/client-ssm'
-import { mockClient } from 'aws-sdk-vitest-mock'
+import { SSMClient, GetParametersCommand, GetParametersCommandInput, PutParameterCommand } from '@aws-sdk/client-ssm'
 import { nextTick, mockFn } from '@awsless/utils'
-// @ts-ignore
-import type { Mock } from 'vitest'
+import { mockClient } from 'aws-sdk-vitest-mock'
 
 export const mockSSM = (values: Record<string, string>) => {
 	const mock = mockFn(() => {})
 
 	const client = mockClient(SSMClient)
 
-	client
-		.on(GetParametersCommand)
-		.callsFake(async (input: GetParametersCommandInput) => {
-			await nextTick(mock)
-			return {
-				Parameters: (input.Names || []).map(name => {
-					return {
-						Name: name,
-						Value: values[name] || '',
-					}
-				}),
-			}
-		})
+	client.on(GetParametersCommand).callsFake(async (input: GetParametersCommandInput) => {
+		await nextTick(mock)
+		return {
+			Parameters: (input.Names || []).map(name => {
+				return {
+					Name: name,
+					Value: values[name] || '',
+				}
+			}),
+		}
+	})
 
-	client
-		.on(PutParameterCommand)
-		.callsFake(async () => {
-			await nextTick(mock)
-			return {}
-		})
+	client.on(PutParameterCommand).callsFake(async () => {
+		await nextTick(mock)
+		return {}
+	})
 
 	beforeEach &&
 		beforeEach(() => {

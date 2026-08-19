@@ -31,7 +31,8 @@ const returnEntry = ([value, score]: (string | number | undefined)[]): SortedSet
 	parseFloat(score!.toString()),
 ]
 
-const returnSortedSet = (r: (string | number)[]) => chunk(r, 2).map(entry => returnEntry(entry))
+// RESP3 replies with [member, score] pairs.
+const returnSortedSet = (r: [string, string | number][]) => r.map(entry => returnEntry(entry))
 const returnOptionalEntry = (r: (string | number)[]) => (r.length === 0 ? undefined : returnEntry(r))
 
 /**
@@ -388,7 +389,8 @@ const formatScanResult = (result: [string, (string | number)[]]) => {
 
 	return {
 		cursor,
-		items: returnSortedSet(items),
+		// ZSCAN keeps the flat member/score list, even on RESP3.
+		items: chunk(items, 2).map(entry => returnEntry(entry)),
 	}
 }
 

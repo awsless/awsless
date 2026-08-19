@@ -84,7 +84,7 @@ export const create = (program: Command) => {
 					},
 				})
 
-				const validatePassword = (value: string) => {
+				const validatePassword = (value: string | undefined) => {
 					if (!value) {
 						return 'Required'
 					}

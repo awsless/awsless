@@ -1,5 +1,5 @@
-import { spinner } from '@clack/prompts'
 import { styleText } from 'node:util'
+import { spinner } from '@clack/prompts'
 import { ansi, color, log } from '../src'
 
 type TaskOptions<T> = {
@@ -16,8 +16,8 @@ export const task = async <T>(opts: TaskOptions<T>): Promise<T> => {
 	const spin = spinner()
 	spin.start(opts.initialMessage)
 
-	const stop = (message?: string, code?: number) => {
-		spin.stop(ansi.truncate(message ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code)
+	const stop = (message?: string) => {
+		spin.stop(ansi.truncate(message ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin))
 	}
 
 	try {
@@ -29,7 +29,7 @@ export const task = async <T>(opts: TaskOptions<T>): Promise<T> => {
 		stop(opts.successMessage)
 		return result
 	} catch (error) {
-		stop(opts.errorMessage, 2)
+		stop(opts.errorMessage)
 		throw error
 	}
 }

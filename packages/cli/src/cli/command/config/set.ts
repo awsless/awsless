@@ -34,7 +34,7 @@ export const set = (program: Command) => {
 						message: 'Enter the config value:',
 						initialValue,
 						validate(value) {
-							if (value.trim() === '') {
+							if (!value || value.trim() === '') {
 								return `Value can't be empty`
 							}
 

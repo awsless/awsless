@@ -2,7 +2,7 @@ import { InvokeCommand, InvokeCommandInput, LambdaClient, ListFunctionsCommand }
 import { parse, stringify } from '@awsless/json'
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-vitest-mock'
-import { Mock } from 'vitest'
+import type { Mock } from 'vitest'
 
 type Lambdas = {
 	[key: string]: (payload: any) => unknown

@@ -30,7 +30,7 @@ export const import_ = (program: Command) => {
 						message: 'The config values in JSON format',
 						validate: value => {
 							try {
-								JSON.parse(value)
+								JSON.parse(value ?? '')
 							} catch {
 								return 'Invalid JSON'
 							}

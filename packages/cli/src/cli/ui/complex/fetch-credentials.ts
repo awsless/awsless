@@ -33,8 +33,8 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 
 		const accessKeyId = await prompt.password({
 			message: 'Enter your AWS access key ID',
-			validate: (value: string) => {
-				if (!validateAccessKeyId(value)) {
+			validate: (value: string | undefined) => {
+				if (!value || !validateAccessKeyId(value)) {
 					return 'Invalid AWS access key ID'
 				}
 
@@ -44,8 +44,8 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 
 		const secretAccessKey = await prompt.password({
 			message: 'Enter your AWS secret access key',
-			validate: (value: string) => {
-				if (!validateSecretAccessKey(value)) {
+			validate: (value: string | undefined) => {
+				if (!value || !validateSecretAccessKey(value)) {
 					return 'Invalid AWS secret access key'
 				}
 

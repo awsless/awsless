@@ -151,7 +151,7 @@ export const update = (program: Command) => {
 					},
 				})
 
-				const validatePassword = (value: string) => {
+				const validatePassword = (value: string | undefined) => {
 					if (!value) {
 						return 'Required'
 					}
