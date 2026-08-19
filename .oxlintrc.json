@@ -15,7 +15,6 @@
 		"**/_*",
 		"old/**",
 		"packages/cli/example/**",
-		"packages/cli/layers/**",
-		"packages/code/test/data/**"
+		"packages/cli/layers/**"
 	]
 }

@@ -11,14 +11,17 @@
 	"singleAttributePerLine": false,
 	"bracketSameLine": true,
 	"jsxSingleQuote": true,
-	"sortImports": true,
-	"sortPackageJson": false,
-	"ignorePatterns": [
-		"**/dist/**",
-		"**/.awsless/**",
-		"old/**",
-		"pnpm-lock.yaml",
-		"packages/cli/layers/**",
-		"packages/code/test/data/**"
-	]
+	"sortImports": {
+		"newlinesBetween": false
+	},
+	"sortPackageJson": true,
+	"overrides": [
+		{
+			"files": ["**/*.jsonc", "**/*.json5"],
+			"options": {
+				"trailingComma": "none"
+			}
+		}
+	],
+	"ignorePatterns": ["**/dist/**", "**/.awsless/**", "old/**", "pnpm-lock.yaml", "packages/cli/layers/**"]
 }
