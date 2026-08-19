@@ -291,13 +291,13 @@ export const startDevRouter = async (props: {
 					const data: SocketData = { upstream, buffer: [] }
 
 					// Client messages queue until the upstream is open.
-					upstream.onopen = () => {
+					upstream.addEventListener('open', () => {
 						for (const message of data.buffer) {
 							upstream.send(message as string | BufferSource)
 						}
 
 						data.buffer = []
-					}
+					})
 
 					const upgraded = server.upgrade(request, {
 						data,
@@ -365,12 +365,12 @@ export const startDevRouter = async (props: {
 			open(ws) {
 				const upstream = ws.data.upstream
 
-				upstream.onmessage = event => {
+				upstream.addEventListener('message', event => {
 					ws.send(event.data as string | Uint8Array)
-				}
+				})
 
-				upstream.onclose = () => ws.close()
-				upstream.onerror = () => ws.close()
+				upstream.addEventListener('close', () => ws.close())
+				upstream.addEventListener('error', () => ws.close())
 			},
 			message(ws, message) {
 				const upstream = ws.data.upstream

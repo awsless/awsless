@@ -8,14 +8,8 @@
 		"no-explicit-any": "off",
 		"ban-ts-comment": "off",
 
-		// Used for mocks
-		"no-empty-function": ["warn", { "allow": ["arrowFunctions", "methods", "asyncMethods"] }],
-
-		// The dynamodb & redis command objects are deliberately thenable -
-		// that's the whole lazy command api.
-		"no-thenable": "off",
-
-		// Style opinions this codebase deliberately doesn't follow.
+		"no-empty-function": ["warn", { "allow": ["arrowFunctions", "methods", "asyncMethods"] }], // Used for mocks
+		"no-thenable": "off", // The dynamodb & redis command objects are deliberately thenable - that's the whole lazy command api.
 		"no-for-in-array": "off", // want able to use for .. in/of ..
 		"no-useless-concat": "off", // The bigfloat tests split their long literals
 		"no-unmodified-loop-condition": "off", // Abort signals mutate from outside the loop.
@@ -25,13 +19,7 @@
 		"no-underscore-dangle": "off", // Wire fields like __type, and enum_ for reserved words
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off", // Test helpers belong next to the cases they run
-		"prefer-add-event-listener": "off",
 		"no-useless-spread": "off", // We copy a map before deleting from it while looping
-
-		// Type-strictness noise: assertions & template stringification
-		// are used deliberately all over the schema & config internals.
-		// The unnecessary-assertion rule disagrees with tsc 7 about
-		// which assertions are load-bearing, so it can't be trusted.
 		"no-unnecessary-type-assertion": "off",
 		"no-unsafe-type-assertion": "off",
 		"restrict-template-expressions": "off",
