@@ -16,92 +16,6 @@ const setPrecision = (n) => {
 	PRECISION = n;
 };
 //#endregion
-//#region src/internal/constructors.ts
-const number = (a) => {
-	if (typeof a === "number") return a;
-	if (typeof a === "string" || typeof a === "bigint") return Number(a);
-	return a.exponent === 0 ? Number(a.coefficient) : Number(a.coefficient) * 10 ** a.exponent;
-};
-const normalize = (a) => {
-	let { coefficient, exponent } = a;
-	if (exponent !== 0) {
-		if (exponent > 0) {
-			coefficient = coefficient * 10n ** BigInt(exponent);
-			exponent = 0;
-		} else {
-			while (exponent <= -7) {
-				if (coefficient % 10000000n !== 0n) break;
-				coefficient = coefficient / 10000000n;
-				exponent += 7;
-			}
-			while (exponent < 0) {
-				if (coefficient % 10n !== 0n) break;
-				coefficient = coefficient / 10n;
-				exponent += 1;
-			}
-		}
-	}
-	return {
-		coefficient,
-		exponent
-	};
-};
-const integer$1 = (a) => {
-	const { coefficient, exponent } = a;
-	if (exponent === 0) return a;
-	if (exponent > 0) return make$1(coefficient * 10n ** BigInt(exponent), 0);
-	return make$1(coefficient / 10n ** BigInt(-exponent), 0);
-};
-const fraction$1 = (a) => {
-	return sub$1(a, integer$1(a));
-};
-const make$1 = (coefficient, exponent) => {
-	const bigfloat = {
-		coefficient,
-		exponent
-	};
-	Object.freeze(bigfloat);
-	return bigfloat;
-};
-const string$1 = (a, radix) => {
-	if (isZero$1(a)) return "0";
-	if (radix) return integer$1(a).coefficient.toString(radix);
-	a = normalize(a);
-	const isNeg = isNegative$1(a);
-	let s = (isNeg ? -a.coefficient : a.coefficient).toString();
-	if (a.exponent < 0) {
-		let point = s.length + a.exponent;
-		if (point <= 0) {
-			s = "0".repeat(1 - point) + s;
-			point = 1;
-		}
-		s = s.slice(0, point) + "." + s.slice(point);
-	} else if (a.exponent > 0) s += "0".repeat(a.exponent);
-	if (isNeg) s = "-" + s;
-	return s;
-};
-const fixed$1 = (a, decimals) => {
-	const [integer = "0", fraction = ""] = string$1(a).split(".");
-	if (decimals === 0) return integer;
-	return `${integer}.${fraction.slice(0, decimals).padEnd(decimals, "0")}`;
-};
-const scientific$1 = (a) => {
-	if (isZero$1(a)) return "0";
-	a = normalize(a);
-	const isNeg = isNegative$1(a);
-	let s = String(isNeg ? -a.coefficient : a.coefficient);
-	const e = a.exponent + s.length - 1;
-	if (s.length > 1) {
-		let fractionalPart = s.slice(1);
-		fractionalPart = fractionalPart.replace(/0+$/, "");
-		if (fractionalPart.length > 0) s = s.slice(0, 1) + "." + fractionalPart;
-		else s = s.slice(0, 1);
-	}
-	if (e !== 0) s += "e" + e;
-	if (isNeg) s = "-" + s;
-	return s;
-};
-//#endregion
 //#region src/internal/relational.ts
 const eq$1 = (comparahend, comparator) => {
 	return comparahend === comparator || isZero$1(sub$1(comparahend, comparator));
@@ -150,20 +64,99 @@ const isInteger$1 = (big) => {
 	return eq$1(big, integer$1(big));
 };
 //#endregion
+//#region src/internal/constructors.ts
+const number = (a) => {
+	if (typeof a === "number") return a;
+	if (typeof a === "string" || typeof a === "bigint") return Number(a);
+	return a.exponent === 0 ? Number(a.coefficient) : Number(a.coefficient) * 10 ** a.exponent;
+};
+const normalize = (a) => {
+	let { coefficient, exponent } = a;
+	if (exponent !== 0) {
+		if (exponent > 0) {
+			coefficient = coefficient * 10n ** BigInt(exponent);
+			exponent = 0;
+		} else {
+			while (exponent <= -7) {
+				if (coefficient % 10000000n !== 0n) break;
+				coefficient = coefficient / 10000000n;
+				exponent += 7;
+			}
+			while (exponent < 0) {
+				if (coefficient % 10n !== 0n) break;
+				coefficient = coefficient / 10n;
+				exponent += 1;
+			}
+		}
+	}
+	return make$1(coefficient, exponent);
+};
+const integer$1 = (a) => {
+	const { coefficient, exponent } = a;
+	if (exponent === 0) return a;
+	if (exponent > 0) return make$1(coefficient * 10n ** BigInt(exponent), 0);
+	return make$1(coefficient / 10n ** BigInt(-exponent), 0);
+};
+const fraction$1 = (a) => {
+	return sub$1(a, integer$1(a));
+};
+const prototype = { toString(radix) {
+	return string$1(this, radix);
+} };
+const make$1 = (coefficient, exponent) => {
+	const bigfloat = Object.create(prototype);
+	bigfloat.coefficient = coefficient;
+	bigfloat.exponent = exponent;
+	Object.freeze(bigfloat);
+	return bigfloat;
+};
+const string$1 = (a, radix) => {
+	if (isZero$1(a)) return "0";
+	if (radix) return integer$1(a).coefficient.toString(radix);
+	a = normalize(a);
+	const isNeg = isNegative$1(a);
+	let s = (isNeg ? -a.coefficient : a.coefficient).toString();
+	if (a.exponent < 0) {
+		let point = s.length + a.exponent;
+		if (point <= 0) {
+			s = "0".repeat(1 - point) + s;
+			point = 1;
+		}
+		s = s.slice(0, point) + "." + s.slice(point);
+	} else if (a.exponent > 0) s += "0".repeat(a.exponent);
+	if (isNeg) s = "-" + s;
+	return s;
+};
+const fixed$1 = (a, decimals) => {
+	const [integer = "0", fraction = ""] = string$1(a).split(".");
+	if (decimals === 0) return integer;
+	return `${integer}.${fraction.slice(0, decimals).padEnd(decimals, "0")}`;
+};
+const scientific$1 = (a) => {
+	if (isZero$1(a)) return "0";
+	a = normalize(a);
+	const isNeg = isNegative$1(a);
+	let s = String(isNeg ? -a.coefficient : a.coefficient);
+	const e = a.exponent + s.length - 1;
+	if (s.length > 1) {
+		let fractionalPart = s.slice(1);
+		fractionalPart = fractionalPart.replace(/0+$/, "");
+		if (fractionalPart.length > 0) s = s.slice(0, 1) + "." + fractionalPart;
+		else s = s.slice(0, 1);
+	}
+	if (e !== 0) s += "e" + e;
+	if (isNeg) s = "-" + s;
+	return s;
+};
+//#endregion
 //#region src/internal/parser.ts
 const parse$1 = (a) => {
-	if (typeof a === "bigint") return {
-		coefficient: a,
-		exponent: 0
-	};
+	if (typeof a === "bigint") return make$1(a, 0);
 	else if (typeof a === "string" || typeof a === "number") {
 		const parts = String(a).match(/^(-?\d+)(?:\.(\d*))?(?:e([\-\+]?\d+))?$/i);
 		if (parts) {
 			const frac = parts[2] ?? "";
-			return {
-				coefficient: BigInt(parts[1] + frac),
-				exponent: Number(parts[3] ?? 0) - frac.length
-			};
+			return make$1(BigInt(parts[1] + frac), Number(parts[3] ?? 0) - frac.length);
 		}
 	} else if (isBigFloatLike(a)) return a;
 	throw new TypeError("Invalid BigFloat");

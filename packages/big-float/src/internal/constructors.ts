@@ -43,7 +43,7 @@ export const normalize = (a: IBigFloat): IBigFloat => {
 		}
 	}
 
-	return { coefficient, exponent }
+	return make(coefficient, exponent)
 }
 
 // The integer function is like the normalize function except that it throws
@@ -71,11 +71,21 @@ export const fraction = (a: IBigFloat): IBigFloat => {
 	return sub(a, integer(a))
 }
 
+// The shared prototype gives every bigfloat a real toString, so the
+// values print as numbers instead of "[object Object]".
+const prototype = {
+	toString(this: IBigFloat, radix?: number): StringNumericLiteral {
+		return string(this, radix)
+	},
+}
+
 export const make = (coefficient: bigint, exponent: number): IBigFloat => {
-	const bigfloat = { coefficient, exponent }
+	const bigfloat = Object.create(prototype) as { coefficient: bigint; exponent: number }
+	bigfloat.coefficient = coefficient
+	bigfloat.exponent = exponent
 	Object.freeze(bigfloat)
 
-	return bigfloat
+	return bigfloat as IBigFloat
 }
 
 export const string = (a: IBigFloat, radix?: number): StringNumericLiteral => {

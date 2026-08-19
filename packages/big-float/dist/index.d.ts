@@ -2,6 +2,7 @@
 type IBigFloat = {
   readonly exponent: number;
   readonly coefficient: bigint;
+  toString(radix?: number): StringNumericLiteral;
 };
 type StringNumericLiteral = `${number}`;
 type Numeric = IBigFloat | number | bigint | StringNumericLiteral;
