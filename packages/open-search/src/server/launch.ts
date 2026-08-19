@@ -8,7 +8,7 @@ import { VersionArgs } from './version'
 const exists = async (path: string) => {
 	try {
 		await stat(path)
-	} catch (error) {
+	} catch {
 		return false
 	}
 

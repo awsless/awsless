@@ -259,7 +259,7 @@ export const createBundleWorker = (props: {
 				if (res.ok) {
 					return
 				}
-			} catch (_) {}
+			} catch {}
 
 			await new Promise(resolve => setTimeout(resolve, 50))
 		}
@@ -315,7 +315,7 @@ export const createBundleWorker = (props: {
 
 						try {
 							text = JSON.parse(raw.slice(end + 1))
-						} catch (_) {
+						} catch {
 							text = raw.slice(end + 1)
 						}
 					}

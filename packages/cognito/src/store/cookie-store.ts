@@ -24,7 +24,7 @@ export class CookieStore implements Store {
 
 		try {
 			return JSON.parse(value) as T
-		} catch (error) {
+		} catch {
 			return value as T
 		}
 	}

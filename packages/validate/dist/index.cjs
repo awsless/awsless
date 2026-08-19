@@ -54,7 +54,7 @@ const json = (schema, message = "Invalid JSON") => {
 		let result;
 		try {
 			result = (0, _awsless_json.parse)(ctx.dataset.value);
-		} catch (_error) {
+		} catch {
 			ctx.addIssue({ message });
 			return ctx.NEVER;
 		}

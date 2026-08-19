@@ -66,7 +66,7 @@ const currentCommand = async (pid: number) => {
 		const result = await promisify(execFile)('ps', ['-o', 'command=', '-p', String(pid)])
 
 		return result.stdout.trim()
-	} catch (_) {
+	} catch {
 		return undefined
 	}
 }
@@ -79,7 +79,7 @@ export const reapOrphanedDevChildren = async () => {
 
 	try {
 		stale = JSON.parse(await readFile(childrenFile(), 'utf8')) as TrackedChild[]
-	} catch (_) {
+	} catch {
 		return 0
 	}
 
@@ -109,6 +109,6 @@ process.once('exit', () => {
 	for (const child of tracked.values()) {
 		try {
 			process.kill(child.pid, 'SIGKILL')
-		} catch (_) {}
+		} catch {}
 	}
 })

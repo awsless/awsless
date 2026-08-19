@@ -54,7 +54,7 @@ const json = (schema, message = "Invalid JSON") => {
 		let result;
 		try {
 			result = parse(ctx.dataset.value);
-		} catch (_error) {
+		} catch {
 			ctx.addIssue({ message });
 			return ctx.NEVER;
 		}

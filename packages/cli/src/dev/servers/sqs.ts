@@ -166,7 +166,7 @@ export const createSqsServer = (props: {
 
 				try {
 					body = JSON.parse(input.MessageBody ?? '')
-				} catch (_) {}
+				} catch {}
 
 				reportFailure?.({
 					kind: 'queue',

@@ -31,7 +31,7 @@ export const bind = (program: Command) => {
 
 					try {
 						env = JSON.parse(await readFile(file, 'utf8'))
-					} catch (_) {
+					} catch {
 						throw new ExpectedError('No local dev environment found. Start it first with: awsless dev')
 					}
 

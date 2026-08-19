@@ -8,7 +8,7 @@ const findFile = async (files: string[]) => {
 			if (s.isFile()) {
 				return file
 			}
-		} catch (_) {
+		} catch {
 			continue
 		}
 	}

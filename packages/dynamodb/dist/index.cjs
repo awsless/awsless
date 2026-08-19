@@ -568,7 +568,7 @@ var ExpressionAttributes = class {
 		let key;
 		try {
 			key = JSON.stringify(value);
-		} catch (_) {
+		} catch {
 			key = value;
 		}
 		if (!this.#values.has(key)) this.#values.set(key, {
@@ -1140,7 +1140,7 @@ const fromCursorString = (cursorStringValue) => {
 	try {
 		const json = Buffer.from(cursorStringValue, "base64").toString("utf-8");
 		return JSON.parse(json);
-	} catch (error) {
+	} catch {
 		return;
 	}
 };

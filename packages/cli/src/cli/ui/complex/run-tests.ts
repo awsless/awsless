@@ -166,7 +166,7 @@ const formatModuleError = (error: ModuleError) => {
 	if (error.props) {
 		try {
 			extra.push(`props: ${JSON.stringify(error.props)}`)
-		} catch (_) {}
+		} catch {}
 	}
 
 	if (error.cause) {

@@ -17,7 +17,7 @@ const loadAwsless = async (): Promise<any> => {
 		if (entry) {
 			return await import(/* @vite-ignore */ pathToFileURL(join(dir, entry)).href)
 		}
-	} catch (_) {}
+	} catch {}
 
 	return import('awsless')
 }

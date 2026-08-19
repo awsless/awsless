@@ -41,7 +41,7 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 		try {
 			await stat(join(directories.root, 'node_modules', name, 'package.json'))
 			return true
-		} catch (_) {
+		} catch {
 			return false
 		}
 	}
@@ -65,7 +65,7 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 				.at(-1)
 
 			return best ? join(store, best, 'node_modules', name) : undefined
-		} catch (_) {
+		} catch {
 			return undefined
 		}
 	}
@@ -88,7 +88,7 @@ export const linkSdkPackages = async (buildDir: string, onWarn?: (message: strin
 			if (!source) {
 				try {
 					source = dirname(ownRequire.resolve(`${name}/package.json`))
-				} catch (_) {
+				} catch {
 					onWarn?.(
 						`The bundle imports "${name}", which is neither a project dependency nor shipped with the cli. Add it to your project dependencies.`
 					)

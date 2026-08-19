@@ -79,7 +79,7 @@ const loadSeed = async (stackName: string, id: string) => {
 		const items = JSON.parse(await readFile(file, 'utf8'))
 
 		return Array.isArray(items) ? items : []
-	} catch (_) {
+	} catch {
 		return []
 	}
 }

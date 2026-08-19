@@ -19,7 +19,7 @@ const readCache = async (file: string) => {
 		const value = await readFile(file, 'utf8')
 
 		return JSON.parse(value) as Cache
-	} catch (_) {
+	} catch {
 		return undefined
 	}
 }

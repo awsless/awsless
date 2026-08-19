@@ -1131,7 +1131,7 @@ const mock = {
 			if (typeof name !== "string") return;
 			try {
 				return getConfigValue(name);
-			} catch (_) {
+			} catch {
 				return;
 			}
 		},

@@ -30,7 +30,7 @@ export const createSesServer = () => {
 						let body: any = {}
 						try {
 							body = JSON.parse(raw.toString() || '{}')
-						} catch (_) {}
+						} catch {}
 
 						// Only the sesv2 SendEmail call lands in the outbox -
 						// anything else is accepted & ignored, so unrelated

@@ -16,7 +16,7 @@ export const clearDebugLog = () => {
 		mkdirSync(directories.output, { recursive: true })
 		writeFileSync(debugLogFile, '')
 		ready = true
-	} catch (_) {
+	} catch {
 		// Debug logging must never take down the cli.
 	}
 }
@@ -37,7 +37,7 @@ const write = (type: string, message: string) => {
 
 		appendFileSync(debugLogFile, `${new Date().toISOString()} [${type}] ${message}\n`)
 		sink?.(type, message)
-	} catch (_) {
+	} catch {
 		// Debug logging must never take down the cli.
 	}
 }

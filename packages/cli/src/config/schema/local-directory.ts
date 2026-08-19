@@ -8,7 +8,7 @@ export const LocalDirectorySchema = z.union([
 		try {
 			const s = await stat(path)
 			return s.isDirectory()
-		} catch (error) {
+		} catch {
 			return false
 		}
 	}, `Directory doesn't exist`),

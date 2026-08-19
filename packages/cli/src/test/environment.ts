@@ -17,7 +17,7 @@ const waitForSearch = async (port: number, timeoutMs: number) => {
 			if (res.ok) {
 				return
 			}
-		} catch (_) {}
+		} catch {}
 
 		await new Promise(resolve => setTimeout(resolve, 500))
 	}

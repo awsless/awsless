@@ -72,7 +72,7 @@ export class ExpressionAttributes {
 
 		try {
 			key = JSON.stringify(value)
-		} catch (_) {
+		} catch {
 			key = value
 		}
 

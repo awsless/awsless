@@ -20,7 +20,7 @@ const waitForHealth = async (port: number, timeoutMs: number) => {
 			if (res.ok) {
 				return
 			}
-		} catch (_) {}
+		} catch {}
 
 		await new Promise(resolve => setTimeout(resolve, 200))
 	}
@@ -155,7 +155,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 						try {
 							payload = message.payload === undefined ? undefined : JSON.parse(message.payload)
-						} catch (_) {}
+						} catch {}
 
 						ctx.emitEvent(`pubsub:${id}`, {
 							kind: 'message',
@@ -164,7 +164,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 							event: message.event,
 							payload,
 						})
-					} catch (_) {}
+					} catch {}
 				})
 
 				// Only the declared lifecycle events reach the bundle,
@@ -183,7 +183,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 					try {
 						data = record?.Message === undefined ? undefined : JSON.parse(record.Message)
-					} catch (_) {}
+					} catch {}
 
 					ctx.emitEvent(`pubsub:${id}`, {
 						kind: 'lifecycle',

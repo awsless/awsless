@@ -74,7 +74,7 @@ const findImports = async (file, code) => {
 const findFile = async (files) => {
 	for (const file of files) try {
 		if ((await (0, fs_promises.stat)(file)).isFile()) return file;
-	} catch (_) {
+	} catch {
 		continue;
 	}
 	throw new Error(`No such file: ${files.join(", ")}`);
@@ -219,7 +219,7 @@ const bun = async (cwd, lockFile) => {
 const parseJsonc = (text) => {
 	try {
 		return JSON.parse(text);
-	} catch (_) {
+	} catch {
 		return JSON.parse(stripJsoncSyntax(text));
 	}
 };
@@ -317,7 +317,7 @@ const loadPackageManager = async (search, level = 5) => {
 const fileExist = async (file) => {
 	try {
 		if ((await (0, fs_promises.lstat)(file)).isFile()) return true;
-	} catch (error) {}
+	} catch {}
 	return false;
 };
 const buildPackages = async (cwd, importers) => {

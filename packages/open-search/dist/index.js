@@ -56,7 +56,7 @@ const getDownloadPath = () => {
 const exists$1 = async (path) => {
 	try {
 		await stat(path);
-	} catch (error) {
+	} catch {
 		return false;
 	}
 	return true;
@@ -130,7 +130,7 @@ const findJavaHome = async () => {
 const exists = async (path) => {
 	try {
 		await stat(path);
-	} catch (error) {
+	} catch {
 		return false;
 	}
 	return true;
@@ -239,7 +239,7 @@ const ping = async () => {
 	const client = searchClient();
 	try {
 		return (await client.cat.indices({ format: "json" })).statusCode === 200;
-	} catch (error) {
+	} catch {
 		return false;
 	}
 };

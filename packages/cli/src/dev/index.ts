@@ -396,7 +396,7 @@ export const startDev = async (props: {
 			const inner = typeof envelope?.['$awsless-route'] === 'string' ? envelope.event : event
 
 			payload = JSON.stringify(inner) ?? ''
-		} catch (_) {}
+		} catch {}
 
 		return payload.length > 1000 ? payload.slice(0, 1000) + '\u2026' : payload
 	}

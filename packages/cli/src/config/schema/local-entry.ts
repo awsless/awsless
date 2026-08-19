@@ -8,7 +8,7 @@ export const LocalEntrySchema = z.union([
 		try {
 			const s = await stat(path)
 			return s.isFile() || s.isDirectory()
-		} catch (error) {
+		} catch {
 			return false
 		}
 	}, `File or directory doesn't exist`),

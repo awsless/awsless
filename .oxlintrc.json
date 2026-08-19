@@ -7,7 +7,6 @@
 	"rules": {
 		"no-explicit-any": "off",
 		"ban-ts-comment": "off",
-
 		"no-empty-function": ["warn", { "allow": ["arrowFunctions", "methods", "asyncMethods"] }], // Used for mocks
 		"no-thenable": "off", // The dynamodb & redis command objects are deliberately thenable - that's the whole lazy command api.
 		"no-for-in-array": "off", // want able to use for .. in/of ..
@@ -25,12 +24,8 @@
 		"restrict-template-expressions": "off", // Test names print bigfloats & errors, which stringify fine
 		"no-unnecessary-type-parameters": "off", // The caller picks the type, like peek<User>()
 		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings
-
-		// The whole-repo tsc gate already reports unused code, and the
-		// `beforeEach && beforeEach(...)` mock guards trip the
-		// expression rule.
-		"no-unused-vars": "off",
-		"no-unused-expressions": "off"
+		"no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }], // A leading _ means we skip it on purpose
+		"no-unused-expressions": "off" // The mocks guard their hooks with `beforeEach && beforeEach(...)`
 	},
 	"ignorePatterns": [
 		"**/dist/**",

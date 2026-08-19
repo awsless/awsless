@@ -40,7 +40,7 @@ const fileExist = async (file: string) => {
 		if (stat.isFile()) {
 			return true
 		}
-	} catch (error) {}
+	} catch {}
 
 	return false
 }

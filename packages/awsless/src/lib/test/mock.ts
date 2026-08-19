@@ -94,7 +94,7 @@ export const mock: TestMock = {
 
 				try {
 					return getConfigValue(name)
-				} catch (_) {
+				} catch {
 					return undefined
 				}
 			},

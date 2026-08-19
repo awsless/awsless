@@ -124,7 +124,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 				let entries
 				try {
 					entries = await readdir(dir, { withFileTypes: true })
-				} catch (_) {
+				} catch {
 					return
 				}
 
@@ -187,7 +187,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 
 			try {
 				body = await readFile(file)
-			} catch (_) {
+			} catch {
 				res.writeHead(404, { 'content-type': 'application/xml' })
 				res.end(req.method === 'HEAD' ? undefined : xmlError('NoSuchKey', `Key not found: ${key}`))
 				return

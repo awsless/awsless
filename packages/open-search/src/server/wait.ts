@@ -8,7 +8,7 @@ export const ping = async () => {
 		// so an empty index list is not a valid readiness condition.
 		const result = await client.cat.indices({ format: 'json' })
 		return result.statusCode === 200
-	} catch (error) {
+	} catch {
 		return false
 	}
 }

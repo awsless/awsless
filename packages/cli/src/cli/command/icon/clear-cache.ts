@@ -104,7 +104,7 @@ export const clearCache = (program: Command) => {
 					distributionId = await shared.entry('icon', 'distribution-id', name)
 					const entry = shared.entry('icon', 'cache', name)
 					cache = { bucket: await entry.bucket, prefix: entry.prefix }
-				} catch (_) {
+				} catch {
 					throw new ExpectedError(`The icon resource hasn't been deployed yet.`)
 				}
 

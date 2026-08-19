@@ -14,7 +14,7 @@ export const json = <T extends GenericSchema>(
 
 			try {
 				result = parse(ctx.dataset.value)
-			} catch (_error) {
+			} catch {
 				ctx.addIssue({
 					message,
 				})

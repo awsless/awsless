@@ -97,7 +97,7 @@ export const bun = async (cwd: string, lockFile: string) => {
 const parseJsonc = (text: string) => {
 	try {
 		return JSON.parse(text) as unknown
-	} catch (_) {
+	} catch {
 		return JSON.parse(stripJsoncSyntax(text)) as unknown
 	}
 }

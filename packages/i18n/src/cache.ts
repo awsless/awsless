@@ -9,7 +9,7 @@ const loadFile = async (cwd: string, fileName: string): Promise<Cache> => {
 
 	try {
 		await stat(file)
-	} catch (error) {
+	} catch {
 		return new Cache()
 	}
 

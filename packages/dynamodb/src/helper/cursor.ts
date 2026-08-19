@@ -13,7 +13,7 @@ export const fromCursorString = (cursorStringValue?: string): Record<string, Att
 		const json = buffer.toString('utf-8')
 
 		return JSON.parse(json)
-	} catch (error) {
+	} catch {
 		return
 	}
 }

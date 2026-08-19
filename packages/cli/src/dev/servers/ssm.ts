@@ -19,7 +19,7 @@ export const createSsmServer = (props: { file: string }) => {
 	const loadValues = async (): Promise<Record<string, string>> => {
 		try {
 			return JSON.parse(await readFile(props.file, 'utf8'))
-		} catch (_) {
+		} catch {
 			return {}
 		}
 	}

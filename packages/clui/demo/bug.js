@@ -1,5 +1,5 @@
 import { spinner } from '@clack/prompts'
 
-const spin = spinner()
-// spin.start('Hello')
-// spin.stop('World')
+const _spin = spinner()
+// _spin.start('Hello')
+// _spin.stop('World')

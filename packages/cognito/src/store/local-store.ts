@@ -23,7 +23,7 @@ export class LocalStore implements Store {
 
 		try {
 			return JSON.parse(value) as T
-		} catch (error) {
+		} catch {
 			return value as T
 		}
 	}
@@ -35,7 +35,7 @@ export class LocalStore implements Store {
 		if (supported) {
 			try {
 				localStorage.setItem(name, json)
-			} catch (error) {
+			} catch {
 				// storing something in localstorage can fail.
 			}
 		} else {

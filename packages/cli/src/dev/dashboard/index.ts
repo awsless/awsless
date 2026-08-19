@@ -80,7 +80,7 @@ export const createDashboardServer = (props: {
 		if (typeof origin === 'string' && origin !== 'null') {
 			try {
 				return isLocalHost(new URL(origin).host)
-			} catch (_) {
+			} catch {
 				return false
 			}
 		}
@@ -307,7 +307,7 @@ export const createDashboardServer = (props: {
 				let entries
 				try {
 					entries = await readdir(dir, { withFileTypes: true })
-				} catch (_) {
+				} catch {
 					return
 				}
 
@@ -410,7 +410,7 @@ export const createDashboardServer = (props: {
 			let values = {}
 			try {
 				values = JSON.parse(await readFile(props.configFile, 'utf8'))
-			} catch (_) {}
+			} catch {}
 
 			return {
 				status: 200,

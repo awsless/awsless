@@ -18,7 +18,7 @@ const loadFile = async (cwd, fileName) => {
 	const file = join(cwd, fileName);
 	try {
 		await stat(file);
-	} catch (error) {
+	} catch {
 		return new Cache();
 	}
 	const data = await readFile(file, "utf8");

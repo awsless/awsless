@@ -389,7 +389,7 @@ var CookieStore = class {
 		if (typeof value === "undefined") return;
 		try {
 			return JSON.parse(value);
-		} catch (error) {
+		} catch {
 			return value;
 		}
 	}
@@ -450,7 +450,7 @@ var LocalStore = class {
 		if (typeof value === "undefined" || value === null) return;
 		try {
 			return JSON.parse(value);
-		} catch (error) {
+		} catch {
 			return value;
 		}
 	}
@@ -459,7 +459,7 @@ var LocalStore = class {
 		const json = JSON.stringify(value);
 		if (supported) try {
 			localStorage.setItem(name, json);
-		} catch (error) {}
+		} catch {}
 		else this.serverSideData[name] = json;
 		return this;
 	}

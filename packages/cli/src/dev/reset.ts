@@ -85,7 +85,7 @@ export const createDataReset = (props: { pool: ServerPool; stackConfigs: StackCo
 
 						try {
 							await client.indices.delete({ index })
-						} catch (_) {}
+						} catch {}
 
 						await applySearchIndex(client, {
 							index,
@@ -110,7 +110,7 @@ export const createDataReset = (props: { pool: ServerPool; stackConfigs: StackCo
 						await rm(join(storeRoot, bucket, entry), { recursive: true, force: true })
 					}
 				}
-			} catch (_) {}
+			} catch {}
 		} finally {
 			wiping = false
 		}

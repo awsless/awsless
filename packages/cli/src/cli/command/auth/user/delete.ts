@@ -72,7 +72,7 @@ export const del = (program: Command) => {
 
 						try {
 							return await shared.entry('auth', `user-pool-id`, name)
-						} catch (_) {
+						} catch {
 							throw new ExpectedError(`The auth userpool hasn't been deployed yet.`)
 						}
 					},
