@@ -6,18 +6,19 @@
 	},
 	"rules": {
 		"no-explicit-any": "off",
-		"no-empty-function": "off",
 		"ban-ts-comment": "off",
+
+		// Used for mocks
+		"no-empty-function": ["warn", { "allow": ["arrowFunctions", "methods", "asyncMethods"] }],
 
 		// The dynamodb & redis command objects are deliberately thenable -
 		// that's the whole lazy command api.
 		"no-thenable": "off",
 
 		// Style opinions this codebase deliberately doesn't follow.
-		"no-for-in-array": "off",
-		"require-array-sort-compare": "off",
-		// Abort signals mutate from outside the loop.
-		"no-unmodified-loop-condition": "off",
+		"no-for-in-array": "off", // want able to use for .. in/of ..
+
+		"no-unmodified-loop-condition": "off", // Abort signals mutate from outside the loop.
 		"unbound-method": "off",
 		"no-unnecessary-type-arguments": "off",
 		"no-useless-concat": "off",
