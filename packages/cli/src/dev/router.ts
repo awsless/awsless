@@ -388,8 +388,11 @@ export const startDevRouter = async (props: {
 	})
 
 	return {
+		// Bun never resolves stop() once the server closed a socket
+		// itself, like when a proxied upstream dies. The port frees
+		// either way, so waiting only hangs the shutdown.
 		stop: async () => {
-			await server.stop(true)
+			void server.stop(true)
 		},
 	}
 }
