@@ -1,27 +1,27 @@
 {
 	"name": "@awsless/big-float",
 	"version": "0.1.7",
-	"license": "MIT",
-	"type": "module",
 	"description": "A tree-shakable, library for arbitrary-precision decimal arithmetic.",
 	"keywords": [
+		"arbitrary",
 		"arithmetic",
 		"bigfloat",
-		"bignumber",
 		"bigint",
-		"arbitrary",
+		"bignumber",
 		"precision"
 	],
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/awsless/awsless.git"
 	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -33,7 +33,7 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm code test",
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
 		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	}

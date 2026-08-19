@@ -1,18 +1,18 @@
 {
 	"name": "@awsless/cloudwatch",
 	"version": "0.0.1",
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
 	"license": "MIT",
-	"type": "module",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/awsless/awsless.git"
 	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -23,20 +23,20 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm code test",
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
 		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@aws-sdk/client-cloudwatch": "3.1113.0",
+		"@awsless/duration": "workspace:^",
+		"@awsless/size": "workspace:^",
+		"@awsless/utils": "workspace:^",
+		"aws-sdk-client-mock": "4.1.0",
+		"date-fns": "4.4.0"
 	},
 	"peerDependencies": {
 		"@awsless/duration": "workspace:^",
 		"@awsless/size": "workspace:^"
-	},
-	"dependencies": {
-		"@aws-sdk/client-cloudwatch": "^3.883.0",
-		"@awsless/duration": "workspace:^",
-		"@awsless/size": "workspace:^",
-		"@awsless/utils": "workspace:^",
-		"aws-sdk-client-mock": "^2.1.1",
-		"date-fns": "^4.1.0"
 	}
 }

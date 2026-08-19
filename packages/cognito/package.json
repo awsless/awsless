@@ -1,32 +1,32 @@
 {
 	"name": "@awsless/cognito",
 	"version": "0.0.4",
-	"license": "MIT",
-	"main": "./src/index.js",
-	"type": "module",
 	"description": "Lightweight AWS Cognito client for the browser.",
 	"keywords": [
 		"amazon",
+		"auth",
 		"aws",
 		"cognito",
-		"auth",
 		"identity"
 	],
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/awsless/awsless.git"
 	},
+	"type": "module",
+	"main": "./src/index.js",
 	"scripts": {
-		"test": "pnpm code test",
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
 		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@types/js-cookie": "^3.0.5",
-		"js-cookie": "^3.0.1",
-		"jwt-decode": "^3.1.2"
+		"@types/js-cookie": "3.0.6",
+		"js-cookie": "3.0.8",
+		"jwt-decode": "4.0.0"
 	},
 	"devDependencies": {
-		"cognito-srp": "^0.2.0"
+		"cognito-srp": "0.2.0"
 	}
 }

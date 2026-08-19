@@ -1,56 +1,56 @@
 {
-  "name": "@awsless/json",
-  "version": "0.0.11",
-  "license": "MIT",
-  "type": "module",
-  "keywords": [
-    "JSON",
-    "stringify",
-    "parse",
-    "BigInt",
-    "BigFloat",
-    "Map",
-    "Set",
-    "Date",
-    "NaN",
-    "Infinity",
-    "RegExp",
-    "Uint8Array",
-    "Binary",
-    "undefined",
-    "extendable"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/awsless/awsless.git"
-  },
-  "bugs": {
-    "url": "https://github.com/awsless/awsless/issues"
-  },
-  "files": [
-    "dist"
-  ],
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "test": "pnpm code test",
-    "build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
-    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
-  },
-  "peerDependencies": {
-    "@awsless/big-float": "workspace:^",
-    "@awsless/duration": "workspace:^"
-  },
-  "devDependencies": {
-    "@awsless/big-float": "workspace:^",
-    "@awsless/duration": "workspace:^"
-  }
+	"name": "@awsless/json",
+	"version": "0.0.11",
+	"keywords": [
+		"BigFloat",
+		"BigInt",
+		"Binary",
+		"Date",
+		"Infinity",
+		"JSON",
+		"Map",
+		"NaN",
+		"RegExp",
+		"Set",
+		"Uint8Array",
+		"extendable",
+		"parse",
+		"stringify",
+		"undefined"
+	],
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"devDependencies": {
+		"@awsless/big-float": "workspace:^",
+		"@awsless/duration": "workspace:^"
+	},
+	"peerDependencies": {
+		"@awsless/big-float": "workspace:^",
+		"@awsless/duration": "workspace:^"
+	}
 }

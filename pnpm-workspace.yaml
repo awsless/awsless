@@ -1,12 +1,18 @@
 minimumReleaseAge: 0
 
-# Every v4 vitest resolves to one exact version, so the chai plugin
-# registration never mixes vitest subpackage versions.
+# pnpm add saves exact versions - no ^ ranges.
+savePrefix: ''
+saveWorkspaceProtocol: rolling
+resolvePeersFromWorkspaceRoot: true
+enablePrePostScripts: true
+updateNotifier: false
+
 overrides:
-    'vitest@>=4': 4.1.11
-    # One @types/node for the whole graph, so peer-splits can't create
-    # two vitest instances that share no internal state.
+    # Other dependencies uses older verions
     '@types/node': 26.2.0
+    # @terraforge/core pins an ancient client-dynamodb whose smithy v1
+    # chain wins the hoist fallback - lift it until terraforge bumps.
+    '@aws-sdk/client-dynamodb@3.363.0': 3.1113.0
 
 strictPeerDependencies: false
 gitChecks: false

@@ -1,37 +1,45 @@
 {
-  "name": "@awsless/sns",
-  "version": "0.0.11",
-  "license": "MIT",
-  "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/awsless/awsless.git"
-  },
-  "bugs": {
-    "url": "https://github.com/awsless/awsless/issues"
-  },
-  "files": [
-    "dist"
-  ],
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "test": "pnpm code test",
-    "build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
-    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
-  },
-  "dependencies": {
-    "@aws-sdk/client-sns": "3.1023.0",
-    "@awsless/utils": "workspace:^",
-    "aws-sdk-client-mock": "^4.1.0",
-    "@smithy/types": "^4.13.1"
-  }
+	"name": "@awsless/sns",
+	"version": "0.0.11",
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@aws-sdk/client-sns": "3.1113.0",
+		"@awsless/utils": "workspace:^",
+		"@smithy/types": "4.17.2",
+		"aws-sdk-client-mock": "4.1.0"
+	},
+	"peerDependencies": {
+		"vitest": "^4"
+	},
+	"peerDependenciesMeta": {
+		"vitest": {
+			"optional": true
+		}
+	}
 }

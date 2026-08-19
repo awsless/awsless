@@ -1,18 +1,18 @@
 {
 	"name": "@awsless/validate",
 	"version": "0.2.0",
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
 	"license": "MIT",
-	"type": "module",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/awsless/awsless.git"
 	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -24,15 +24,12 @@
 		}
 	},
 	"scripts": {
-		"test": "vitest run",
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
 		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
-	"peerDependencies": {
-		"@awsless/big-float": "workspace:^",
-		"@awsless/duration": "workspace:^",
-		"@awsless/dynamodb": "workspace:^",
-		"@awsless/json": "workspace:^"
+	"dependencies": {
+		"valibot": "1.4.2"
 	},
 	"devDependencies": {
 		"@awsless/big-float": "workspace:^",
@@ -40,7 +37,10 @@
 		"@awsless/dynamodb": "workspace:^",
 		"@awsless/json": "workspace:^"
 	},
-	"dependencies": {
-		"valibot": "^1.2.0"
+	"peerDependencies": {
+		"@awsless/big-float": "workspace:^",
+		"@awsless/duration": "workspace:^",
+		"@awsless/dynamodb": "workspace:^",
+		"@awsless/json": "workspace:^"
 	}
 }

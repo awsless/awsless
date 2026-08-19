@@ -1,18 +1,18 @@
 {
 	"name": "@awsless/iot",
 	"version": "0.0.5",
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
 	"license": "MIT",
-	"type": "module",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/awsless/awsless.git"
 	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -24,17 +24,17 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm vitest run",
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
 		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
+	"dependencies": {
+		"@aws-sdk/client-iot": "3.1113.0",
+		"@aws-sdk/client-iot-data-plane": "3.1113.0",
+		"@awsless/utils": "workspace:^",
+		"aws-sdk-vitest-mock": "1.0.98"
+	},
 	"peerDependencies": {
 		"vitest": ">=4"
-	},
-	"dependencies": {
-		"@aws-sdk/client-iot": "3.1023.0",
-		"@aws-sdk/client-iot-data-plane": "3.1023.0",
-		"@awsless/utils": "workspace:^",
-		"aws-sdk-vitest-mock": "1.0.55"
 	}
 }
