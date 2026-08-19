@@ -20,4 +20,5 @@ export type Package = {
 export type Workspace = {
 	cwd: string
 	packages: Record<string, Package>
+	lockfileHash: string
 }

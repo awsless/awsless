@@ -2,7 +2,7 @@ import { readdir } from 'fs/promises'
 import { extname, resolve } from 'path'
 import { generateRecursiveFileHashes, mergeHashes } from './hash'
 import { toAbsolute } from './module'
-import { loadPackageManager } from './package-manager'
+import { loadPackageManager } from './package-manager/util'
 import { Workspace } from './types'
 
 export * from './types'
@@ -19,9 +19,13 @@ const defaultOptions = {
 	extensions: ['js', 'mjs', 'jsx', 'ts', 'mts', 'tsx'],
 }
 
+const seedHashes = (workspace: Workspace) => {
+	return new Map<string, Buffer>([['#lockfile', Buffer.from(workspace.lockfileHash, 'hex')]])
+}
+
 export const generateFileHash = async (workspace: Workspace, file: string, opts: Options = {}) => {
 	const options = { ...defaultOptions, ...opts }
-	const hashes = new Map<string, Buffer>()
+	const hashes = seedHashes(workspace)
 	const absoluteFile = toAbsolute(file)
 
 	await generateRecursiveFileHashes(workspace, absoluteFile, absoluteFile, options.extensions, hashes)
@@ -31,7 +35,7 @@ export const generateFileHash = async (workspace: Workspace, file: string, opts:
 
 export const generateFolderHash = async (workspace: Workspace, folder: string, opts: Options = {}) => {
 	const options = { ...defaultOptions, ...opts }
-	const hashes = new Map<string, Buffer>()
+	const hashes = seedHashes(workspace)
 	const absoluteFolder = toAbsolute(folder)
 	const files = await readdir(absoluteFolder, { recursive: true, withFileTypes: true })
 

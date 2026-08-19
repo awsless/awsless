@@ -6,7 +6,6 @@ import { generateFileHash } from '@awsless/ts-file-cache'
 import { Builder, getBuildPath } from '../../build/index.js'
 import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
-import { directories } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown, formatRouteModuleId } from './build/rolldown.js'
 
@@ -92,19 +91,6 @@ export default runtime.createBundle({
 ${entries.join('\n')}
 })
 `
-		// The lockfile joins the fingerprint, so dependency updates
-		// rebuild the bundle - the source files alone can't see them.
-		// A fixed priority order keeps the fingerprint stable when more
-		// than one lockfile exists.
-		let lockfile = Buffer.alloc(0)
-
-		for (const name of ['pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'package-lock.json', 'yarn.lock']) {
-			try {
-				lockfile = await readFile(join(directories.root, name))
-				break
-			} catch (_) {}
-		}
-
 		// Handlers next to the runtime are prebuilt dist/handlers files outside the ts workspace.
 		const hashes = await Promise.all([
 			readFile(runtime),
@@ -125,7 +111,9 @@ ${entries.join('\n')}
 				])
 			)
 
-		hash.update(lockfile)
+		// Dependency updates must rebuild the bundle, even when every
+		// handler is a prebuilt file outside the workspace hashes.
+		hash.update(workspace.lockfileHash)
 
 		for (const item of hashes) {
 			hash.update(item)

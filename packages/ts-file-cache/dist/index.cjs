@@ -165,23 +165,6 @@ const findDependency = (workspace, module, source) => {
 	return pkg.dependencies[module];
 };
 //#endregion
-//#region src/package-manager/importer.ts
-const buildPackages = async (cwd, importers) => {
-	const packages = {};
-	await Promise.all(Object.entries(importers).map(async ([path$4, dependencies]) => {
-		const packageJson = await (0, fs_promises.readFile)((0, path.join)(cwd, path$4, "package.json"), "utf8");
-		const packageData = JSON.parse(packageJson);
-		const entry = packageData.module ?? packageData.main;
-		packages[(0, path.join)(cwd, path$4)] = {
-			name: packageData.name,
-			path: (0, path.join)(cwd, path$4),
-			main: entry ? (0, path.join)(cwd, path$4, entry) : void 0,
-			dependencies
-		};
-	}));
-	return packages;
-};
-//#endregion
 //#region src/package-manager/bun.ts
 const bun = async (cwd, lockFile) => {
 	const data = parseJsonc(lockFile);
@@ -193,9 +176,9 @@ const bun = async (cwd, lockFile) => {
 		if (!version.startsWith("workspace:")) resolvedVersions[key] = version;
 	}
 	const workspacePaths = {};
-	for (const [path$2, workspace] of Object.entries(data.workspaces)) if (workspace.name) workspacePaths[workspace.name] = path$2;
+	for (const [path$3, workspace] of Object.entries(data.workspaces)) if (workspace.name) workspacePaths[workspace.name] = path$3;
 	const importers = {};
-	for (const [path$3, workspace] of Object.entries(data.workspaces)) {
+	for (const [path$4, workspace] of Object.entries(data.workspaces)) {
 		const deps = {
 			...workspace.devDependencies,
 			...workspace.optionalDependencies,
@@ -212,7 +195,7 @@ const bun = async (cwd, lockFile) => {
 				};
 				else dependencies[name] = {
 					type: "workspace",
-					link: (0, path.join)(cwd, path$3, target)
+					link: (0, path.join)(cwd, path$4, target)
 				};
 				continue;
 			}
@@ -226,7 +209,7 @@ const bun = async (cwd, lockFile) => {
 				version: specifier
 			};
 		}
-		importers[path$3] = dependencies;
+		importers[path$4] = dependencies;
 	}
 	return {
 		cwd,
@@ -289,7 +272,7 @@ const stripJsoncSyntax = (text) => {
 const pnpm = async (cwd, lockFile) => {
 	const data = (0, yaml.parse)(lockFile);
 	const importers = {};
-	for (const [path$1, importee] of Object.entries(data.importers)) {
+	for (const [path$2, importee] of Object.entries(data.importers)) {
 		const deps = {
 			...importee.devDependencies,
 			...importee.optionalDependencies,
@@ -298,13 +281,13 @@ const pnpm = async (cwd, lockFile) => {
 		const dependencies = {};
 		for (const [name, entry] of Object.entries(deps)) if (entry.version.startsWith("link:")) dependencies[name] = {
 			type: "workspace",
-			link: (0, path.join)(cwd, path$1, entry.version.substring(5))
+			link: (0, path.join)(cwd, path$2, entry.version.substring(5))
 		};
 		else dependencies[name] = {
 			type: "package",
 			version: entry.version
 		};
-		importers[path$1] = dependencies;
+		importers[path$2] = dependencies;
 	}
 	return {
 		cwd,
@@ -312,7 +295,7 @@ const pnpm = async (cwd, lockFile) => {
 	};
 };
 //#endregion
-//#region src/package-manager/index.ts
+//#region src/package-manager/util.ts
 const parsers = {
 	"pnpm-lock.yaml": pnpm,
 	"bun.lock": bun
@@ -321,7 +304,13 @@ const loadPackageManager = async (search, level = 5) => {
 	if (!level) throw new TypeError("No pnpm or bun lock file found");
 	for (const [lockFileName, parser] of Object.entries(parsers)) {
 		const file = (0, path.join)(search, lockFileName);
-		if (await fileExist(file)) return parser(search, await (0, fs_promises.readFile)(file, "utf8"));
+		if (await fileExist(file)) {
+			const content = await (0, fs_promises.readFile)(file, "utf8");
+			return {
+				...await parser(search, content),
+				lockfileHash: (0, crypto.createHash)("sha1").update(content).digest("hex")
+			};
+		}
 	}
 	return loadPackageManager((0, path.normalize)((0, path.join)(search, "..")), level - 1);
 };
@@ -330,6 +319,21 @@ const fileExist = async (file) => {
 		if ((await (0, fs_promises.lstat)(file)).isFile()) return true;
 	} catch (error) {}
 	return false;
+};
+const buildPackages = async (cwd, importers) => {
+	const packages = {};
+	await Promise.all(Object.entries(importers).map(async ([path$1, dependencies]) => {
+		const packageJson = await (0, fs_promises.readFile)((0, path.join)(cwd, path$1, "package.json"), "utf8");
+		const packageData = JSON.parse(packageJson);
+		const entry = packageData.module ?? packageData.main;
+		packages[(0, path.join)(cwd, path$1)] = {
+			name: packageData.name,
+			path: (0, path.join)(cwd, path$1),
+			main: entry ? (0, path.join)(cwd, path$1, entry) : void 0,
+			dependencies
+		};
+	}));
+	return packages;
 };
 //#endregion
 //#region src/index.ts
@@ -344,12 +348,15 @@ const defaultOptions = { extensions: [
 	"mts",
 	"tsx"
 ] };
+const seedHashes = (workspace) => {
+	return /* @__PURE__ */ new Map([["#lockfile", Buffer.from(workspace.lockfileHash, "hex")]]);
+};
 const generateFileHash = async (workspace, file, opts = {}) => {
 	const options = {
 		...defaultOptions,
 		...opts
 	};
-	const hashes = /* @__PURE__ */ new Map();
+	const hashes = seedHashes(workspace);
 	const absoluteFile = toAbsolute(file);
 	await generateRecursiveFileHashes(workspace, absoluteFile, absoluteFile, options.extensions, hashes);
 	return mergeHashes(hashes);
@@ -359,7 +366,7 @@ const generateFolderHash = async (workspace, folder, opts = {}) => {
 		...defaultOptions,
 		...opts
 	};
-	const hashes = /* @__PURE__ */ new Map();
+	const hashes = seedHashes(workspace);
 	const absoluteFolder = toAbsolute(folder);
 	const files = await (0, fs_promises.readdir)(absoluteFolder, {
 		recursive: true,

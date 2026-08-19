@@ -1,7 +1,7 @@
 import { join } from 'path'
 import { parse } from 'yaml'
 import { Dependency } from '../types'
-import { buildPackages } from './importer'
+import { buildPackages } from './util'
 
 type LockFileDependency = {
 	specifier: string

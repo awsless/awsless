@@ -164,23 +164,6 @@ const findDependency = (workspace, module, source) => {
 	return pkg.dependencies[module];
 };
 //#endregion
-//#region src/package-manager/importer.ts
-const buildPackages = async (cwd, importers) => {
-	const packages = {};
-	await Promise.all(Object.entries(importers).map(async ([path, dependencies]) => {
-		const packageJson = await readFile(join(cwd, path, "package.json"), "utf8");
-		const packageData = JSON.parse(packageJson);
-		const entry = packageData.module ?? packageData.main;
-		packages[join(cwd, path)] = {
-			name: packageData.name,
-			path: join(cwd, path),
-			main: entry ? join(cwd, path, entry) : void 0,
-			dependencies
-		};
-	}));
-	return packages;
-};
-//#endregion
 //#region src/package-manager/bun.ts
 const bun = async (cwd, lockFile) => {
 	const data = parseJsonc(lockFile);
@@ -311,7 +294,7 @@ const pnpm = async (cwd, lockFile) => {
 	};
 };
 //#endregion
-//#region src/package-manager/index.ts
+//#region src/package-manager/util.ts
 const parsers = {
 	"pnpm-lock.yaml": pnpm,
 	"bun.lock": bun
@@ -320,7 +303,13 @@ const loadPackageManager = async (search, level = 5) => {
 	if (!level) throw new TypeError("No pnpm or bun lock file found");
 	for (const [lockFileName, parser] of Object.entries(parsers)) {
 		const file = join(search, lockFileName);
-		if (await fileExist(file)) return parser(search, await readFile(file, "utf8"));
+		if (await fileExist(file)) {
+			const content = await readFile(file, "utf8");
+			return {
+				...await parser(search, content),
+				lockfileHash: createHash("sha1").update(content).digest("hex")
+			};
+		}
 	}
 	return loadPackageManager(normalize(join(search, "..")), level - 1);
 };
@@ -329,6 +318,21 @@ const fileExist = async (file) => {
 		if ((await lstat(file)).isFile()) return true;
 	} catch (error) {}
 	return false;
+};
+const buildPackages = async (cwd, importers) => {
+	const packages = {};
+	await Promise.all(Object.entries(importers).map(async ([path, dependencies]) => {
+		const packageJson = await readFile(join(cwd, path, "package.json"), "utf8");
+		const packageData = JSON.parse(packageJson);
+		const entry = packageData.module ?? packageData.main;
+		packages[join(cwd, path)] = {
+			name: packageData.name,
+			path: join(cwd, path),
+			main: entry ? join(cwd, path, entry) : void 0,
+			dependencies
+		};
+	}));
+	return packages;
 };
 //#endregion
 //#region src/index.ts
@@ -343,12 +347,15 @@ const defaultOptions = { extensions: [
 	"mts",
 	"tsx"
 ] };
+const seedHashes = (workspace) => {
+	return /* @__PURE__ */ new Map([["#lockfile", Buffer.from(workspace.lockfileHash, "hex")]]);
+};
 const generateFileHash = async (workspace, file, opts = {}) => {
 	const options = {
 		...defaultOptions,
 		...opts
 	};
-	const hashes = /* @__PURE__ */ new Map();
+	const hashes = seedHashes(workspace);
 	const absoluteFile = toAbsolute(file);
 	await generateRecursiveFileHashes(workspace, absoluteFile, absoluteFile, options.extensions, hashes);
 	return mergeHashes(hashes);
@@ -358,7 +365,7 @@ const generateFolderHash = async (workspace, folder, opts = {}) => {
 		...defaultOptions,
 		...opts
 	};
-	const hashes = /* @__PURE__ */ new Map();
+	const hashes = seedHashes(workspace);
 	const absoluteFolder = toAbsolute(folder);
 	const files = await readdir(absoluteFolder, {
 		recursive: true,

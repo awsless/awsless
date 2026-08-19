@@ -17,6 +17,7 @@ type Package = {
 type Workspace = {
   cwd: string;
   packages: Record<string, Package>;
+  lockfileHash: string;
 };
 //#endregion
 //#region src/index.d.ts
