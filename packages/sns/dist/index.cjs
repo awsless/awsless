@@ -1,8 +1,8 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 let _aws_sdk_client_sns = require("@aws-sdk/client-sns");
 let _awsless_utils = require("@awsless/utils");
-let aws_sdk_client_mock = require("aws-sdk-client-mock");
 let crypto = require("crypto");
+let aws_sdk_client_mock = require("aws-sdk-client-mock");
 //#region src/client.ts
 const snsClient = (0, _awsless_utils.globalClient)(() => {
 	return new _aws_sdk_client_sns.SNSClient({});

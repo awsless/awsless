@@ -1,7 +1,7 @@
 import { PublishCommand, SNSClient, SNSClient as SNSClient$1 } from "@aws-sdk/client-sns";
 import { globalClient, mockObjectValues, nextTick } from "@awsless/utils";
-import { mockClient } from "aws-sdk-client-mock";
 import { randomUUID } from "crypto";
+import { mockClient } from "aws-sdk-client-mock";
 //#region src/client.ts
 const snsClient = globalClient(() => {
 	return new SNSClient$1({});

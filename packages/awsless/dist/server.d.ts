@@ -8,7 +8,7 @@ import { PublishOptions } from "@awsless/sns";
 import { UUID } from "node:crypto";
 import { Duration } from "@awsless/duration";
 import { Mock } from "vitest";
-//#region ../../node_modules/.pnpm/valibot@1.3.1_typescript@7.0.2/node_modules/valibot/dist/index.d.mts
+//#region ../../node_modules/.pnpm/valibot@1.4.2_typescript@7.0.2/node_modules/valibot/dist/index.d.mts
 //#endregion
 //#region src/methods/fallback/fallback.d.ts
 /**
@@ -87,48 +87,6 @@ type SchemaWithPipe<TPipe$1 extends readonly [BaseSchema$1<unknown, unknown, Bas
    * @internal
    */
   readonly "~run": (dataset: UnknownDataset, config: Config$1<BaseIssue<unknown>>) => OutputDataset<InferOutput$1<LastTupleItem<TPipe$1>>, InferIssue<TPipe$1[number]>>;
-  /**
-   * The input, output and issue type.
-   *
-   * @internal
-   */
-  readonly "~types"?: {
-    readonly input: InferInput$1<FirstTupleItem<TPipe$1>>;
-    readonly output: InferOutput$1<LastTupleItem<TPipe$1>>;
-    readonly issue: InferIssue<TPipe$1[number]>;
-  } | undefined;
-};
-//#endregion
-//#region src/methods/pipe/pipeAsync.d.ts
-/**
- * Schema with pipe async type.
- */
-type SchemaWithPipeAsync<TPipe$1 extends readonly [(BaseSchema$1<unknown, unknown, BaseIssue<unknown>> | BaseSchemaAsync<unknown, unknown, BaseIssue<unknown>>), ...(PipeItem<any, unknown, BaseIssue<unknown>> | PipeItemAsync<any, unknown, BaseIssue<unknown>>)[]]> = Omit<FirstTupleItem<TPipe$1>, "async" | "pipe" | "~standard" | "~run" | "~types"> & {
-  /**
-   * The pipe items.
-   */
-  readonly pipe: TPipe$1;
-  /**
-   * Whether it's async.
-   */
-  readonly async: true;
-  /**
-   * The Standard Schema properties.
-   *
-   * @internal
-   */
-  readonly "~standard": StandardProps<InferInput$1<FirstTupleItem<TPipe$1>>, InferOutput$1<LastTupleItem<TPipe$1>>>;
-  /**
-   * Parses unknown input values.
-   *
-   * @param dataset The input dataset.
-   * @param config The configuration.
-   *
-   * @returns The output dataset.
-   *
-   * @internal
-   */
-  readonly "~run": (dataset: UnknownDataset, config: Config$1<BaseIssue<unknown>>) => Promise<OutputDataset<InferOutput$1<LastTupleItem<TPipe$1>>, InferIssue<TPipe$1[number]>>>;
   /**
    * The input, output and issue type.
    *
@@ -661,11 +619,13 @@ type OutputWithQuestionMarks<TEntries$1 extends ObjectEntries$1 | ObjectEntriesA
 /**
  * Readonly output keys type.
  */
-type ReadonlyOutputKeys<TEntries$1 extends ObjectEntries$1 | ObjectEntriesAsync> = { [TKey in keyof TEntries$1]: TEntries$1[TKey] extends SchemaWithPipe<infer TPipe> | SchemaWithPipeAsync<infer TPipe> ? ReadonlyAction<any> extends TPipe[number] ? TKey : never : never; }[keyof TEntries$1];
+type ReadonlyOutputKeys<TEntries$1 extends ObjectEntries$1 | ObjectEntriesAsync> = { [TKey in keyof TEntries$1]: TEntries$1[TKey] extends {
+  readonly pipe: readonly unknown[];
+} ? ReadonlyAction<any> extends TEntries$1[TKey]["pipe"][number] ? TKey : never : never; }[keyof TEntries$1];
 /**
  * Output with readonly type.
  */
-type OutputWithReadonly<TEntries$1 extends ObjectEntries$1 | ObjectEntriesAsync, TObject extends OutputWithQuestionMarks<TEntries$1, InferEntriesOutput<TEntries$1>>> = Readonly<TObject> & Pick<TObject, Exclude<keyof TObject, ReadonlyOutputKeys<TEntries$1>>>;
+type OutputWithReadonly<TEntries$1 extends ObjectEntries$1 | ObjectEntriesAsync, TObject extends OutputWithQuestionMarks<TEntries$1, InferEntriesOutput<TEntries$1>>> = ReadonlyOutputKeys<TEntries$1> extends never ? TObject : Readonly<TObject> & Pick<TObject, Exclude<keyof TObject, ReadonlyOutputKeys<TEntries$1>>>;
 /**
  * Infer object input type.
  */
@@ -880,17 +840,9 @@ interface Config$1<TIssue extends BaseIssue<unknown>> {
  */
 type PipeAction<TInput$1, TOutput$1, TIssue extends BaseIssue<unknown>> = BaseValidation<TInput$1, TOutput$1, TIssue> | BaseTransformation<TInput$1, TOutput$1, TIssue> | BaseMetadata<TInput$1>;
 /**
- * Pipe action async type.
- */
-type PipeActionAsync<TInput$1, TOutput$1, TIssue extends BaseIssue<unknown>> = BaseValidationAsync<TInput$1, TOutput$1, TIssue> | BaseTransformationAsync<TInput$1, TOutput$1, TIssue>;
-/**
  * Pipe item type.
  */
 type PipeItem<TInput$1, TOutput$1, TIssue extends BaseIssue<unknown>> = BaseSchema$1<TInput$1, TOutput$1, TIssue> | PipeAction<TInput$1, TOutput$1, TIssue>;
-/**
- * Pipe item async type.
- */
-type PipeItemAsync<TInput$1, TOutput$1, TIssue extends BaseIssue<unknown>> = BaseSchemaAsync<TInput$1, TOutput$1, TIssue> | PipeActionAsync<TInput$1, TOutput$1, TIssue>;
 //#endregion
 //#region src/schemas/array/types.d.ts
 /**
@@ -1643,7 +1595,9 @@ type WithQuestionMarks<TObject extends Record<string | number | symbol, unknown>
 /**
  * With readonly type.
  */
-type WithReadonly<TValue$1 extends BaseSchema$1<unknown, unknown, BaseIssue<unknown>> | BaseSchemaAsync<unknown, unknown, BaseIssue<unknown>>, TObject extends WithQuestionMarks<Record<string | number | symbol, unknown>>> = TValue$1 extends SchemaWithPipe<infer TPipe> | SchemaWithPipeAsync<infer TPipe> ? ReadonlyAction<any> extends TPipe[number] ? Readonly<TObject> : TObject : TObject;
+type WithReadonly<TValue$1 extends BaseSchema$1<unknown, unknown, BaseIssue<unknown>> | BaseSchemaAsync<unknown, unknown, BaseIssue<unknown>>, TObject extends WithQuestionMarks<Record<string | number | symbol, unknown>>> = TValue$1 extends {
+  readonly pipe: readonly unknown[];
+} ? ReadonlyAction<any> extends TValue$1["pipe"][number] ? Readonly<TObject> : TObject : TObject;
 /**
  * Infer record input type.
  */

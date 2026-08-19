@@ -5,9 +5,9 @@ let _aws_sdk_s3_presigned_post = require("@aws-sdk/s3-presigned-post");
 let _aws_sdk_s3_request_presigner = require("@aws-sdk/s3-request-presigner");
 let _awsless_duration = require("@awsless/duration");
 let _awsless_size = require("@awsless/size");
-let _aws_sdk_util_stream_node = require("@aws-sdk/util-stream-node");
-let aws_sdk_client_mock = require("aws-sdk-client-mock");
 let stream = require("stream");
+let _smithy_util_stream = require("@smithy/util-stream");
+let aws_sdk_client_mock = require("aws-sdk-client-mock");
 let crypto = require("crypto");
 //#region src/client.ts
 const s3Client = (0, _awsless_utils.globalClient)(() => {
@@ -171,7 +171,7 @@ const mockS3 = () => {
 			return {
 				Metadata: data.meta,
 				ChecksumSHA1: data.sha1,
-				Body: (0, _aws_sdk_util_stream_node.sdkStreamMixin)(stream$1)
+				Body: (0, _smithy_util_stream.sdkStreamMixin)(stream$1)
 			};
 		}
 		throw new _aws_sdk_client_s3.NoSuchKey({

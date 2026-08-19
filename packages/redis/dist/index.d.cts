@@ -16,7 +16,7 @@ declare class RedisServer {
   kill(): Promise<void>;
   getPort(): Promise<number>;
   ping(): Promise<boolean>;
-  getClient(): Promise<Cluster | Redis>;
+  getClient(): Promise<Cluster<"legacy"> | Redis<"legacy">>;
 }
 //#endregion
 //#region src/type.d.ts

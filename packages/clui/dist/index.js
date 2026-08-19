@@ -57,7 +57,7 @@ const integer = async (opts) => {
 		defaultValue: opts.defaultValue?.toString(),
 		initialValue: opts.initialValue?.toString(),
 		validate(value) {
-			if (isNaN(Number(value)) || isNaN(parseInt(value, 10)) || value.includes(".")) return "Invalid integer";
+			if (!value || isNaN(Number(value)) || isNaN(parseInt(value, 10)) || value.includes(".")) return "Invalid integer";
 		}
 	});
 	return parseInt(result, 10);
@@ -68,7 +68,7 @@ const float = async (opts) => {
 		defaultValue: opts.defaultValue?.toString(),
 		initialValue: opts.initialValue?.toString(),
 		validate(value) {
-			if (isNaN(Number(value)) || isNaN(parseFloat(value))) return "Invalid float";
+			if (!value || isNaN(Number(value)) || isNaN(parseFloat(value))) return "Invalid float";
 		}
 	});
 	return parseFloat(result);

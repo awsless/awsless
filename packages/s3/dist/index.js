@@ -4,9 +4,9 @@ import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { toSeconds } from "@awsless/duration";
 import { toBytes } from "@awsless/size";
-import { sdkStreamMixin } from "@aws-sdk/util-stream-node";
-import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "stream";
+import { sdkStreamMixin } from "@smithy/util-stream";
+import { mockClient } from "aws-sdk-client-mock";
 import { createHash } from "crypto";
 //#region src/client.ts
 const s3Client = globalClient(() => {

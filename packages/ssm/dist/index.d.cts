@@ -1,5 +1,4 @@
 import { SSMClient, SSMClient as SSMClient$1 } from "@aws-sdk/client-ssm";
-import { Mock } from "vitest";
 //#region src/client.d.ts
 declare const ssmClient: {
   (): SSMClient$1;
@@ -51,6 +50,6 @@ declare const json: <T = unknown>(path: string) => {
 };
 //#endregion
 //#region src/mock.d.ts
-declare const mockSSM: (values: Record<string, string>) => Mock<any>;
+declare const mockSSM: (values: Record<string, string>) => import("vitest").Mock<() => void>;
 //#endregion
 export { type Paths, SSMClient, array, float, integer, json, mockSSM, putParameter, ssm, ssmClient, string };

@@ -3,8 +3,8 @@ import { globalClient, mockObjectValues, nextTick } from "@awsless/utils";
 import { seconds, toSeconds } from "@awsless/duration";
 import { parse, stringify } from "@awsless/json";
 import chunk from "chunk";
-import { mockClient } from "aws-sdk-vitest-mock";
 import { randomUUID } from "crypto";
+import { mockClient } from "aws-sdk-vitest-mock";
 //#region src/client.ts
 const sqsClient = globalClient(() => {
 	return new SQSClient$1({});

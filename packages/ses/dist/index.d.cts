@@ -1,7 +1,6 @@
-import { Mock } from "vitest";
 import { SESv2Client } from "@aws-sdk/client-sesv2";
 //#region src/mock.d.ts
-declare const mockSES: (handler?: (input: unknown) => void) => Mock<(input: unknown) => void>;
+declare const mockSES: (handler?: (input: unknown) => void) => import("vitest").Mock<(input: unknown) => void>;
 //#endregion
 //#region src/client.d.ts
 declare const sesClient: {

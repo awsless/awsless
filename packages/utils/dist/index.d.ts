@@ -14,9 +14,9 @@ declare const globalClient: GlobalClient;
 //#endregion
 //#region src/mock.d.ts
 type Func = (...args: any[]) => any;
-type Result<T extends string | number | symbol> = Record<T, Mock<any, Func>>;
+type Result<T extends string | number | symbol> = Record<T, Mock<Func>>;
 declare const mockObjectValues: <T extends Record<string, Func>>(object: T) => Result<keyof T>;
-declare const mockFn: <T extends Func>(fn: T) => Mock<any>;
+declare const mockFn: <T extends Func>(fn: T) => Mock<T>;
 declare const nextTick: (fn: Func, ...args: unknown[]) => Promise<unknown>;
 //#endregion
 export { globalClient, mockFn, mockObjectValues, nextTick };

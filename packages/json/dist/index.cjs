@@ -15,11 +15,25 @@ const $bigint = {
 	stringify: (v) => v.toString()
 };
 //#endregion
+//#region src/type/binary.ts
+const $binary = {
+	is: (v) => v instanceof Uint8Array,
+	parse: (v) => Uint8Array.from(atob(v), (c) => c.charCodeAt(0)),
+	stringify: (v) => btoa(String.fromCharCode(...v))
+};
+//#endregion
 //#region src/type/date.ts
 const $date = {
 	is: (v) => v instanceof Date,
 	parse: (v) => new Date(v),
 	stringify: (v) => v.toISOString()
+};
+//#endregion
+//#region src/type/duration.ts
+const $duration = {
+	is: (v) => v instanceof _awsless_duration.Duration,
+	parse: (v) => new _awsless_duration.Duration(BigInt(v)),
+	stringify: (v) => v.value.toString()
 };
 //#endregion
 //#region src/type/infinity.ts
@@ -71,25 +85,11 @@ const $set = {
 	stringify: (v) => Array.from(v)
 };
 //#endregion
-//#region src/type/binary.ts
-const $binary = {
-	is: (v) => v instanceof Uint8Array,
-	parse: (v) => Uint8Array.from(atob(v), (c) => c.charCodeAt(0)),
-	stringify: (v) => btoa(String.fromCharCode(...v))
-};
-//#endregion
 //#region src/type/url.ts
 const $url = {
 	is: (v) => v instanceof URL,
 	parse: (v) => new URL(v),
 	stringify: (v) => v.toString()
-};
-//#endregion
-//#region src/type/duration.ts
-const $duration = {
-	is: (v) => v instanceof _awsless_duration.Duration,
-	parse: (v) => new _awsless_duration.Duration(BigInt(v)),
-	stringify: (v) => v.value.toString()
 };
 //#endregion
 //#region src/type/index.ts
@@ -175,7 +175,10 @@ const unpatch = (value, types = {}) => {
 //#endregion
 //#region src/global.ts
 const setGlobalTypes = (types) => {
+	const base = { ...baseTypes };
+	for (const key of Object.keys(baseTypes)) delete baseTypes[key];
 	Object.assign(baseTypes, types);
+	for (const [key, type] of Object.entries(base)) if (!(key in types)) baseTypes[key] = type;
 };
 //#endregion
 //#region src/safe-number/parse.ts

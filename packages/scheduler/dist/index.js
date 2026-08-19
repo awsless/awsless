@@ -1,7 +1,7 @@
+import { randomUUID } from "crypto";
 import { CreateScheduleCommand, SchedulerClient } from "@aws-sdk/client-scheduler";
 import { Duration, toSeconds } from "@awsless/duration";
 import { parse, stringify } from "@awsless/json";
-import { randomUUID } from "crypto";
 import { addSeconds } from "date-fns";
 import { globalClient, mockObjectValues, nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";

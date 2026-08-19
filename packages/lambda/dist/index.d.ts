@@ -2,6 +2,7 @@ import { LambdaClient, LambdaClient as LambdaClient$1, ListFunctionsCommandInput
 import { GenericSchema, InferInput, InferOutput } from "@awsless/validate";
 import { Context as Context$1, Context as LambdaContext } from "aws-lambda";
 import { AsyncReturnType } from "type-fest";
+import { Mock } from "vitest";
 //#region src/errors/enhanced.d.ts
 type RoutedLambdaContext = LambdaContext & {
   route?: string;
@@ -110,7 +111,7 @@ declare const lambdaClient: {
 type Lambdas = {
   [key: string]: (payload: any) => unknown;
 };
-declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: any; };
+declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<(...args: any[]) => any>; };
 //#endregion
 //#region src/lambda.d.ts
 interface Options<H extends Handler<S>, S extends Schema = undefined> {

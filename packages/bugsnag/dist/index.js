@@ -27,7 +27,7 @@ function parseV8OrIE(stackString) {
 		const location = sanitizedLine.match(/ (\((.+):(\d+):(\d+)\)$)/);
 		sanitizedLine = location ? sanitizedLine.replace(location[0], "") : sanitizedLine;
 		const tokens = sanitizedLine.split(/\s+/).slice(1);
-		const locationParts = extractLocation(location ? location[1] : tokens.pop() || "(no location)");
+		const locationParts = extractLocation(location?.[1] ?? tokens.pop() ?? "(no location)");
 		const method = tokens.join(" ") || void 0;
 		return {
 			file: ["eval", "<anonymous>"].indexOf(locationParts[0]) > -1 ? void 0 : locationParts[0],
@@ -44,7 +44,7 @@ function extractLocation(urlLike) {
 	const line = parts[2] ? parseInt(parts[2], 10) : void 0;
 	const col = parts[3] ? parseInt(parts[3], 10) : void 0;
 	return [
-		parts[1],
+		parts[1] ?? urlLike,
 		line,
 		col
 	];

@@ -1,13 +1,13 @@
+import { Agent } from "node:https";
 import { fromEnv } from "@aws-sdk/credential-providers";
 import { Client } from "@opensearch-project/opensearch";
 import { AwsSigv4Signer } from "@opensearch-project/opensearch/aws";
-import { Agent } from "node:https";
 import { requestPort } from "@heat/request-port";
 import { createHash } from "crypto";
-import decompress from "decompress";
-import findCacheDir from "find-cache-dir";
 import { mkdir, rename, rm, stat } from "fs/promises";
 import { join, resolve } from "path";
+import decompress from "decompress";
+import findCacheDir from "find-cache-dir";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import { sleepAwait } from "sleep-await";

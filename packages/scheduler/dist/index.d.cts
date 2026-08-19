@@ -21,7 +21,7 @@ declare const schedule: ({ client, name, group, payload, schedule, idempotentKey
 type Lambdas = {
   [key: string]: (payload: any) => any;
 };
-declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: any; };
+declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: import("vitest").Mock<(...args: any[]) => any>; };
 //#endregion
 //#region src/client.d.ts
 declare const schedulerClient: {

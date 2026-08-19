@@ -22,7 +22,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 }) : target, mod));
 //#endregion
 let jwt_decode = require("jwt-decode");
-jwt_decode = __toESM(jwt_decode, 1);
 let js_cookie = require("js-cookie");
 js_cookie = __toESM(js_cookie, 1);
 //#region src/error/response-error.ts
@@ -52,110 +51,6 @@ var NewPasswordRequired = class extends Error {
 		this.session = session;
 		this.userAttributes = userAttributes;
 	}
-};
-//#endregion
-//#region src/helper/crypto.ts
-const generateRandomBuffer = (numBytes) => {
-	const u8 = new Uint8Array(numBytes);
-	crypto.getRandomValues(u8);
-	return u8.buffer;
-};
-const hkdf = async (algorithm, ikm, salt, info, keylen) => {
-	const cryptoKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
-	const params = {
-		name: "HKDF",
-		hash: algorithm,
-		salt,
-		info
-	};
-	const bytes = await crypto.subtle.deriveBits(params, cryptoKey, keylen);
-	return new Uint8Array(bytes);
-};
-const hash = (algorithm, message) => {
-	return crypto.subtle.digest(algorithm, message);
-};
-const hmac = async (algorithm, message, key) => {
-	const cryptoKey = await crypto.subtle.importKey("raw", key, {
-		name: "HMAC",
-		hash: { name: algorithm }
-	}, false, ["sign"]);
-	return crypto.subtle.sign("HMAC", cryptoKey, message);
-};
-//#endregion
-//#region src/helper/encoding.ts
-const toBigInt = (buffer) => {
-	return BigInt(`0x${toHex(buffer)}`);
-};
-const toHex = (buffer) => {
-	return Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
-};
-const fromHex = (hex) => {
-	const view = new Uint8Array(hex.length / 2);
-	for (let i = 0; i < hex.length; i += 2) view[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-	return view.buffer;
-};
-function fromUtf8(str) {
-	return new TextEncoder().encode(str).buffer;
-}
-const fromBase64 = (base64) => {
-	if (typeof atob === "undefined") return Uint8Array.from(Buffer.from(base64, "base64"));
-	return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-};
-const toBase64 = (buffer) => {
-	if (typeof btoa === "undefined") return Buffer.from(buffer).toString("base64");
-	return btoa(String.fromCharCode(...new Uint8Array(buffer)));
-};
-const padHex = (bigInt) => {
-	const hashStr = bigInt.toString(16);
-	if (hashStr.length % 2 === 1) return "0" + hashStr;
-	if ("89ABCDEFabcdef".indexOf(hashStr[0]) !== -1) return "00" + hashStr;
-	return hashStr;
-};
-//#endregion
-//#region src/helper/timestamp.ts
-const WEEK_NAMES = [
-	"Sun",
-	"Mon",
-	"Tue",
-	"Wed",
-	"Thu",
-	"Fri",
-	"Sat"
-];
-const MONTH_NAMES = [
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec"
-];
-const padTime = (time) => {
-	return time < 10 ? "0" + time : time;
-};
-const createTimestamp = () => {
-	const now = /* @__PURE__ */ new Date();
-	return `${WEEK_NAMES[now.getUTCDay()]} ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCDate()} ${padTime(now.getUTCHours())}:${padTime(now.getUTCMinutes())}:${padTime(now.getUTCSeconds())} UTC ${now.getUTCFullYear()}`;
-};
-//#endregion
-//#region src/helper/buffer.ts
-const concat = (...args) => {
-	let length = 0;
-	for (var i in args) length += args[i].byteLength;
-	const joined = new Uint8Array(length);
-	let offset = 0;
-	for (var i in args) {
-		const buffer = args[i];
-		joined.set(new Uint8Array(buffer), offset);
-		offset += buffer.byteLength;
-	}
-	return joined.buffer;
 };
 //#endregion
 //#region src/helper/bigint.ts
@@ -225,6 +120,109 @@ function modPow(b, e, n) {
 	return r;
 }
 //#endregion
+//#region src/helper/buffer.ts
+const concat = (...args) => {
+	let length = 0;
+	for (const buffer of args) length += buffer.byteLength;
+	const joined = new Uint8Array(length);
+	let offset = 0;
+	for (const buffer of args) {
+		joined.set(buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer), offset);
+		offset += buffer.byteLength;
+	}
+	return joined.buffer;
+};
+//#endregion
+//#region src/helper/crypto.ts
+const generateRandomBuffer = (numBytes) => {
+	const u8 = new Uint8Array(numBytes);
+	crypto.getRandomValues(u8);
+	return u8.buffer;
+};
+const hkdf = async (algorithm, ikm, salt, info, keylen) => {
+	const cryptoKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+	const params = {
+		name: "HKDF",
+		hash: algorithm,
+		salt,
+		info
+	};
+	const bytes = await crypto.subtle.deriveBits(params, cryptoKey, keylen);
+	return new Uint8Array(bytes);
+};
+const hash = (algorithm, message) => {
+	return crypto.subtle.digest(algorithm, message);
+};
+const hmac = async (algorithm, message, key) => {
+	const cryptoKey = await crypto.subtle.importKey("raw", key, {
+		name: "HMAC",
+		hash: { name: algorithm }
+	}, false, ["sign"]);
+	return crypto.subtle.sign("HMAC", cryptoKey, message);
+};
+//#endregion
+//#region src/helper/encoding.ts
+const toBigInt = (buffer) => {
+	return BigInt(`0x${toHex(buffer)}`);
+};
+const toHex = (buffer) => {
+	return Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+const fromHex = (hex) => {
+	const view = new Uint8Array(hex.length / 2);
+	for (let i = 0; i < hex.length; i += 2) view[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+	return view.buffer;
+};
+function fromUtf8(str) {
+	return new TextEncoder().encode(str).buffer;
+}
+const fromBase64 = (base64) => {
+	if (typeof atob === "undefined") return Uint8Array.from(Buffer.from(base64, "base64"));
+	return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+};
+const toBase64 = (buffer) => {
+	if (typeof btoa === "undefined") return Buffer.from(buffer).toString("base64");
+	return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+};
+const padHex = (bigInt) => {
+	const hashStr = bigInt.toString(16);
+	if (hashStr.length % 2 === 1) return "0" + hashStr;
+	if ("89ABCDEFabcdef".indexOf(hashStr.charAt(0)) !== -1) return "00" + hashStr;
+	return hashStr;
+};
+//#endregion
+//#region src/helper/timestamp.ts
+const WEEK_NAMES = [
+	"Sun",
+	"Mon",
+	"Tue",
+	"Wed",
+	"Thu",
+	"Fri",
+	"Sat"
+];
+const MONTH_NAMES = [
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec"
+];
+const padTime = (time) => {
+	return time < 10 ? "0" + time : time;
+};
+const createTimestamp = () => {
+	const now = /* @__PURE__ */ new Date();
+	return `${WEEK_NAMES[now.getUTCDay()]} ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCDate()} ${padTime(now.getUTCHours())}:${padTime(now.getUTCMinutes())}:${padTime(now.getUTCSeconds())} UTC ${now.getUTCFullYear()}`;
+};
+//#endregion
 //#region src/srp.ts
 const ZERO = BigInt(0);
 const N = BigInt("0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D04507A33A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6BF12FFA06D98A0864D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E208E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF");
@@ -273,7 +271,7 @@ var Token = class Token {
 	string;
 	payload;
 	static fromString(token) {
-		return new Token(token, (0, jwt_decode.default)(token));
+		return new Token(token, (0, jwt_decode.jwtDecode)(token));
 	}
 	constructor(string, payload) {
 		this.string = string;

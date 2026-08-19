@@ -913,7 +913,7 @@ const returnOptionalFloat = (value) => {
 	return parseFloat(value);
 };
 const returnEntry = ([value, score]) => [value, parseFloat(score.toString())];
-const returnSortedSet = (r) => (0, chunk.default)(r, 2).map((entry) => returnEntry(entry));
+const returnSortedSet = (r) => r.map((entry) => returnEntry(entry));
 const returnOptionalEntry = (r) => r.length === 0 ? void 0 : returnEntry(r);
 /**
 * Add one or more scored values to a sorted set.
@@ -1060,7 +1060,7 @@ const formatScanResult = (result) => {
 	const { cursor, items } = returnScanResult(result);
 	return {
 		cursor,
-		items: returnSortedSet(items)
+		items: (0, chunk.default)(items, 2).map((entry) => returnEntry(entry))
 	};
 };
 /**

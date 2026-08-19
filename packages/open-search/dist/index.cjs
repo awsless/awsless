@@ -21,18 +21,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 	enumerable: true
 }) : target, mod));
 //#endregion
+let node_https = require("node:https");
 let _aws_sdk_credential_providers = require("@aws-sdk/credential-providers");
 let _opensearch_project_opensearch = require("@opensearch-project/opensearch");
 let _opensearch_project_opensearch_aws = require("@opensearch-project/opensearch/aws");
-let node_https = require("node:https");
 let _heat_request_port = require("@heat/request-port");
 let crypto = require("crypto");
+let fs_promises = require("fs/promises");
+let path = require("path");
 let decompress = require("decompress");
 decompress = __toESM(decompress, 1);
 let find_cache_dir = require("find-cache-dir");
 find_cache_dir = __toESM(find_cache_dir, 1);
-let fs_promises = require("fs/promises");
-let path = require("path");
 let child_process = require("child_process");
 let util = require("util");
 let sleep_await = require("sleep-await");

@@ -2,8 +2,8 @@ import { S3Client, S3Client as S3Client$1, StorageClass, StorageClass as Storage
 import { PresignedPost } from "@aws-sdk/s3-presigned-post";
 import { Duration } from "@awsless/duration";
 import { Size } from "@awsless/size";
-import { SdkStream } from "@smithy/types";
 import { Readable } from "stream";
+import { SdkStream } from "@smithy/types";
 import { Mock } from "vitest";
 //#region src/client.d.ts
 declare const s3Client: {

@@ -27,8 +27,8 @@ let _awsless_duration = require("@awsless/duration");
 let _awsless_json = require("@awsless/json");
 let chunk = require("chunk");
 chunk = __toESM(chunk, 1);
-let aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 let crypto = require("crypto");
+let aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 //#region src/client.ts
 const sqsClient = (0, _awsless_utils.globalClient)(() => {
 	return new _aws_sdk_client_sqs.SQSClient({});

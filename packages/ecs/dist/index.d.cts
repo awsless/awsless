@@ -1,4 +1,5 @@
 import { ECSClient, ECSClient as ECSClient$1 } from "@aws-sdk/client-ecs";
+import { Mock } from "vitest";
 //#region src/client.d.ts
 declare const ecsClient: {
   (): ECSClient$1;
@@ -24,6 +25,6 @@ declare const runTask: ({ client, cluster, taskDefinition, subnets, securityGrou
 type Tasks = {
   [key: string]: (payload: any) => unknown;
 };
-declare const mockEcs: <T extends Tasks>(tasks: T) => { [P in keyof T]: any; };
+declare const mockEcs: <T extends Tasks>(tasks: T) => { [P in keyof T]: Mock<(...args: any[]) => any>; };
 //#endregion
 export { ECSClient, type RunTaskOptions, ecsClient, mockEcs, runTask };

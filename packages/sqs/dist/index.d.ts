@@ -77,6 +77,6 @@ declare function subscribe({ client, queue, maxMessages, waitTime, visibilityTim
 type Queues = {
   [key: string]: (payload: unknown) => unknown;
 };
-declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: any; };
+declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: import("vitest").Mock<(...args: any[]) => any>; };
 //#endregion
 export { type BatchItem, SQSClient, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, deleteMessageBatch, getCachedQueueUrl, getQueueUrl, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };
