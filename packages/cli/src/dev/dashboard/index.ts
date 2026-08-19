@@ -216,7 +216,8 @@ export const createDashboardServer = (props: {
 				throw new Error(
 					`Scanning "${name}" via ${props.env.AWS_ENDPOINT_URL_DYNAMODB ?? 'no dynamodb endpoint'} failed: ${
 						error instanceof Error ? error.message : String(error)
-					}`
+					}`,
+					{ cause: error }
 				)
 			}
 		}

@@ -61,7 +61,7 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 				await Bun.secrets.set({
 					service: 'awsless',
 					name: profile,
-					value: `${accessKeyId!}:${secretAccessKey!}`,
+					value: `${accessKeyId}:${secretAccessKey}`,
 				})
 			},
 		})
@@ -69,7 +69,7 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 		credentialsString = `${accessKeyId}:${secretAccessKey}`
 	}
 
-	const credentials = credentialsString!.split(':')
+	const credentials = credentialsString.split(':')
 
 	if (
 		credentials.length !== 2 ||

@@ -175,7 +175,7 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 					hash: entry.hash,
 					sort: entry.sort,
 					schema: object({}, any()),
-				} as never),
+				}),
 				async payload => {
 					const consumer = await options.importFile(entry.file)
 					await consumer.default(payload)
@@ -261,9 +261,10 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 
 				try {
 					await flush()
-				} catch (_) {
+				} catch (retryError) {
 					throw new Error(
-						`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${error}`
+						`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${error}`,
+						{ cause: retryError }
 					)
 				}
 			}

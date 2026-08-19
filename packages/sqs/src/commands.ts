@@ -30,7 +30,7 @@ const encodeAttributes = (attributes: Attributes) => {
 const decodeAttributes = (attributes?: Record<string, MessageAttributeValue>) => {
 	const list: Attributes = {}
 	for (const key in attributes) {
-		list[key] = attributes[key]?.StringValue!
+		list[key] = attributes[key]!.StringValue!
 	}
 
 	return list
@@ -229,6 +229,7 @@ export async function* subscribe({
 			console.error(
 				JSON.stringify({
 					message: 'Error polling queue',
+					// oxlint-disable-next-line no-misused-spread
 					error: error instanceof Error ? { ...error, name: error.name, message: error.message } : error,
 				})
 			)
@@ -249,7 +250,7 @@ export async function* subscribe({
 				parsed.push({
 					record: {
 						payload: parse(message.Body!),
-						attributes: decodeAttributes(message.MessageAttributes) as Record<string, string>,
+						attributes: decodeAttributes(message.MessageAttributes),
 					},
 					receiptHandle: message.ReceiptHandle!,
 				})

@@ -100,7 +100,7 @@ export const getDomainNameById = (config: AppConfig, id: string) => {
 
 	if (id in domains) {
 		if (domains[id]) {
-			return domains[id]!.domain
+			return domains[id].domain
 		}
 	}
 

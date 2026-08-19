@@ -473,7 +473,7 @@ export const createSqsServer = (props: {
 				server!.listen(port, '127.0.0.1', () => resolve())
 			})
 
-			boundPort = (server!.address() as { port: number }).port
+			boundPort = (server.address() as { port: number }).port
 
 			return boundPort
 		},

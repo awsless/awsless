@@ -38,7 +38,7 @@ describe('Lambda Mock', () => {
 			})
 		)
 
-		expect(JSON.parse(new TextDecoder().decode(result.Payload!))).toBe('Hello')
+		expect(JSON.parse(new TextDecoder().decode(result.Payload))).toBe('Hello')
 		expect(lambda.echo).toBeCalledTimes(1)
 	})
 

@@ -78,7 +78,8 @@ export const createNameServersProvider = ({ credentials, region }: ProviderProps
 							'',
 							color.warning(`Set expected nameservers:`),
 							...nameServers.map(n => color.normal(n)),
-						].join('\n')
+						].join('\n'),
+						{ cause: error }
 					)
 				}
 

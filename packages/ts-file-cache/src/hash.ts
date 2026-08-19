@@ -17,7 +17,7 @@ export const generateRecursiveFileHashes = async (
 		try {
 			file = await resolveModuleImportFile(file, allowedExtensions)
 		} catch (error) {
-			throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`)
+			throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`, { cause: error })
 		}
 
 		// Posix separators keep the hash identical across platforms.

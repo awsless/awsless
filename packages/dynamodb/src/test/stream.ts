@@ -258,7 +258,7 @@ const pipeToTable = async <Command extends { input: { TableName?: string } }>({
 		listeners.map(stream => {
 			return emit(stream, [
 				{
-					Keys: table.marshall(key)!,
+					Keys: table.marshall(key),
 					OldImage: image1 ? table.marshall(image1) : undefined,
 					NewImage: image2 ? table.marshall(image2) : undefined,
 				},

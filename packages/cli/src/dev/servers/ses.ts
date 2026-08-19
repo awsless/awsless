@@ -68,7 +68,7 @@ export const createSesServer = () => {
 				server!.listen(port, '127.0.0.1', () => resolve())
 			})
 
-			return (server!.address() as { port: number }).port
+			return (server.address() as { port: number }).port
 		},
 		stop() {
 			return closeServer?.() ?? Promise.resolve()

@@ -35,7 +35,7 @@ class MemoryStore {
 			this.store[name] = {}
 		}
 
-		return this.store[name]!
+		return this.store[name]
 	}
 
 	get(bucket: string, key: string) {
@@ -117,7 +117,7 @@ export const mockS3 = (): Mock => {
 	s3ClientMock.on(CopyObjectCommand).callsFake(async (input: CopyObjectCommandInput) => {
 		await nextTick(fn)
 		const [_, SourceBucket, ...Path] = input.CopySource!.split('/')
-		const SourceKey = Path!.join('/')
+		const SourceKey = Path.join('/')
 		const data = store.get(SourceBucket!, SourceKey)
 
 		if (data) {

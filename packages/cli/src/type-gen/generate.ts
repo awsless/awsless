@@ -9,8 +9,8 @@ export const generateTypes = async (props: { appConfig: AppConfig; stackConfigs:
 	const files: string[] = []
 
 	await Promise.all(
-		features.map(feature => {
-			return feature.onTypeGen?.({
+		features.map(async feature => {
+			await feature.onTypeGen?.({
 				...props,
 				async write(file, data, include = false) {
 					const code = data?.toString('utf8')

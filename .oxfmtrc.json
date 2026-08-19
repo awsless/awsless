@@ -23,5 +23,5 @@
 			}
 		}
 	],
-	"ignorePatterns": ["**/dist/**", "**/.awsless/**", "old/**", "pnpm-lock.yaml", "packages/cli/layers/**"]
+	"ignorePatterns": ["**/dist/**", "**/.awsless/**", "**/old/**", "pnpm-lock.yaml", "packages/cli/layers/**"]
 }

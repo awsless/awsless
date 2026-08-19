@@ -78,7 +78,7 @@ export const createHttpFetcher = (host: string, options: HttpFetcherOptions = {}
 		const response = await fetch(url, {
 			method,
 			headers,
-			body: payload,
+			...(method === 'GET' ? {} : { body: payload }),
 			signal: AbortSignal.timeout(timeout),
 		})
 

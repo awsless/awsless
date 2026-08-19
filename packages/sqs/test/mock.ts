@@ -86,7 +86,7 @@ describe('Mock', () => {
 		await client.send(
 			new DeleteMessageCommand({
 				QueueUrl: 'service__echo',
-				ReceiptHandle: result.Messages?.[0]?.ReceiptHandle!,
+				ReceiptHandle: result.Messages![0]!.ReceiptHandle!,
 			})
 		)
 

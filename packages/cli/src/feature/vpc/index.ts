@@ -92,8 +92,8 @@ export const vpcFeature = defineFeature({
 			const type = _type as 'private' | 'public'
 			const subnetIds = subnetIdsByType[type]
 
-			for (const i in zones) {
-				const index = Number(i) + 1
+			for (const [i, zone] of zones.entries()) {
+				const index = i + 1
 				const id = `${type}-${index}`
 				const subnet = new aws.Subnet(group, id, {
 					tags: {
@@ -102,7 +102,7 @@ export const vpcFeature = defineFeature({
 					vpcId: vpc.id,
 					cidrBlock: `10.0.${block}.0/20`,
 					mapPublicIpOnLaunch: type === 'public',
-					availabilityZone: ctx.appConfig.region + zones[i],
+					availabilityZone: ctx.appConfig.region + zone,
 					ipv6CidrBlock: vpc.ipv6CidrBlock.pipe((value: string) => {
 						const cidrParts = value.split('::')
 						const cidrBlock = cidrParts[0]?.substring(0, cidrParts[0].length - 1)

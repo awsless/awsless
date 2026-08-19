@@ -63,8 +63,8 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			const list = [options.logger].flat(10) as Array<Logger | undefined>
 
 			await Promise.all(
-				list.map(logger => {
-					return logger?.(error, {
+				list.map(async logger => {
+					await logger?.(error, {
 						input: event,
 					})
 				})
@@ -73,9 +73,9 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 
 		const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === 'test'
 
-		const successCallbacks: Array<(res: unknown) => void> = []
-		const failureCallbacks: Array<(err: unknown) => void> = []
-		const finallyCallbacks: Array<() => void> = []
+		const successCallbacks: Array<(res: unknown) => unknown> = []
+		const failureCallbacks: Array<(err: unknown) => unknown> = []
+		const finallyCallbacks: Array<() => unknown> = []
 
 		try {
 			const warmUpEvent = getWarmUpEvent(event)

@@ -79,7 +79,7 @@ export const update = (program: Command) => {
 						await workspace.hydrate(app)
 
 						try {
-							return await shared.entry('auth', `user-pool-id`, name!)
+							return await shared.entry('auth', `user-pool-id`, name)
 						} catch (_) {
 							throw new ExpectedError(`The auth userpool hasn't been deployed yet.`)
 						}

@@ -12,9 +12,9 @@ export type Context = {
 	readonly event: unknown
 	readonly context?: LambdaContext
 	readonly log: Logger
-	readonly onSuccess: (cb: (res: unknown) => void) => void
-	readonly onFailure: (cb: (err: unknown) => void) => void
-	readonly onFinally: (cb: () => void) => void
+	readonly onSuccess: (cb: (res: unknown) => unknown) => void
+	readonly onFailure: (cb: (err: unknown) => unknown) => void
+	readonly onFinally: (cb: () => unknown) => void
 }
 
 export type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R

@@ -102,7 +102,7 @@ export const bind = (program: Command) => {
 					configs.CONFIGS = configList.join(',')
 				}
 
-				if (configList.length ?? 0 > 0) {
+				if (configList.length > 0) {
 					log.note('Bind Config', configList.map(v => color.label(constantCase(v))).join('\n'))
 					// note(wrap(configList.map(v => color.label(constantCase(v)))), 'Bind Config')
 				}

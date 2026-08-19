@@ -61,9 +61,7 @@ class MessageStore {
 
 	deleteMessage(queueUrl: string, receiptHandle: string) {
 		if (this.queues[queueUrl]) {
-			this.queues[queueUrl] = this.queues[queueUrl]!.filter(
-				entry => entry.message.ReceiptHandle !== receiptHandle
-			)
+			this.queues[queueUrl] = this.queues[queueUrl].filter(entry => entry.message.ReceiptHandle !== receiptHandle)
 		}
 	}
 

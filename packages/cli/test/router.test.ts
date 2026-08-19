@@ -36,6 +36,7 @@ const evaluate = (code: string, values: Map<string, string>) => {
 		kvs: () => ({ get }),
 		updateRequestOrigin: vi.fn(),
 	}
+	// oxlint-disable-next-line no-implied-eval
 	const handler = new Function('cf', `${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`)(
 		cf
 	) as (event: { request: Request }) => Promise<Request | Response>

@@ -161,7 +161,7 @@ const singleStringEqualsCondition = (statement: PolicyStatement) => {
 	}
 
 	if (Array.isArray(value) && value.every(entry => typeof entry === 'string')) {
-		return { key, values: value as string[] }
+		return { key, values: value }
 	}
 
 	return

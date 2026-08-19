@@ -104,7 +104,7 @@ describe('Lambda', () => {
 		const f2 = lambda({ handle: _ => {} })
 		const f3 = lambda({ schema: string(), handle: () => {} })
 		const f4 = lambda({ schema: string(), handle: value => value })
-		const f5 = lambda({ handle: () => (true ? '1' : undefined) })
+		const f5 = lambda({ handle: () => '1' as '1' | undefined })
 		const f6 = lambda({ handle: () => new Date() })
 		const f7 = lambda({ handle: () => [1, undefined] })
 

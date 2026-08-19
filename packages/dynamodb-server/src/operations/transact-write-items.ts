@@ -254,7 +254,7 @@ function validateTransactionItem(
 			return {
 				Code: 'ConditionalCheckFailed',
 				Message: error.message,
-				Item: error.Item as AttributeMap | undefined,
+				Item: error.Item,
 			}
 		}
 		return {

@@ -323,7 +323,7 @@ export const createAuthAdmin = (props: {
 				)
 			} catch (error) {
 				if (error instanceof UsernameExistsException) {
-					throw new Error('The user already exists')
+					throw new Error('The user already exists', { cause: error })
 				}
 
 				throw error
@@ -377,7 +377,7 @@ export const createAuthAdmin = (props: {
 				oldGroups = await listUserGroups(pool.userPoolId, input.username)
 			} catch (error) {
 				if (error instanceof UserNotFoundException) {
-					throw new Error('The user does not exist')
+					throw new Error('The user does not exist', { cause: error })
 				}
 
 				throw error

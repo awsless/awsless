@@ -112,7 +112,7 @@ function tokenize(expression: string): Token[] {
 
 			const upper = word.toUpperCase()
 			if (keywords[upper]) {
-				tokens.push({ type: keywords[upper]!, value: upper })
+				tokens.push({ type: keywords[upper], value: upper })
 			} else if (functions.includes(word)) {
 				tokens.push({ type: 'FUNCTION', value: word })
 			} else {

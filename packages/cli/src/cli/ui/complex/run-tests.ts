@@ -170,7 +170,7 @@ const formatModuleError = (error: ModuleError) => {
 
 	if (error.cause) {
 		try {
-			extra.push(`cause: ${JSON.stringify(error.cause, Object.getOwnPropertyNames(error.cause as object))}`)
+			extra.push(`cause: ${JSON.stringify(error.cause, Object.getOwnPropertyNames(error.cause))}`)
 		} catch (_) {
 			extra.push(`cause: ${String(error.cause)}`)
 		}

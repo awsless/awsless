@@ -20,10 +20,10 @@ describe('HTTP client', () => {
 
 		const [url, init] = fetch.mock.calls[0]!
 		const payload = JSON.stringify(body)
-		const headers = init!.headers as Headers
+		const headers = init.headers as Headers
 
 		expect(url.toString()).toBe('https://example.com/api/items')
-		expect(init!.body).toBe(payload)
+		expect(init.body).toBe(payload)
 		expect(headers.get('x-amz-content-sha256')).toBe(createHash('sha256').update(payload).digest('hex'))
 	})
 
@@ -38,9 +38,9 @@ describe('HTTP client', () => {
 		})
 
 		const [, init] = fetch.mock.calls[0]!
-		const headers = init!.headers as Headers
+		const headers = init.headers as Headers
 
-		expect(init!.body).toBeUndefined()
+		expect(init.body).toBeUndefined()
 		expect(headers.get('x-amz-content-sha256')).toBe(createHash('sha256').update('').digest('hex'))
 	})
 

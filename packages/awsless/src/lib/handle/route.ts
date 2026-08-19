@@ -238,7 +238,7 @@ const routeSchema = <P extends RouteSchemaProps>(props: P): RouteSchema<P> => {
 		transform(extractParts),
 		partsSchema(props),
 		transform((parts: Parts<P>) => buildRequest(props, parts))
-	) as RouteSchema<P>
+	)
 }
 
 // ------------------------------------------------------------------
@@ -352,7 +352,7 @@ export function route(
 			}
 		}
 
-		return result as RouteEntryResult
+		return result
 	}
 }
 

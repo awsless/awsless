@@ -2,7 +2,7 @@ import { sleepAwait } from 'sleep-await'
 import { searchClient } from '../client'
 
 export const ping = async () => {
-	const client = await searchClient()
+	const client = searchClient()
 	try {
 		// The bundle's plugins create their own system indices at startup,
 		// so an empty index list is not a valid readiness condition.

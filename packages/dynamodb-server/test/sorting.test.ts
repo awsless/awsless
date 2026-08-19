@@ -299,7 +299,7 @@ describe('Sorting', () => {
 			const results: string[][] = []
 			for (let i = 0; i < 3; i++) {
 				const result = await client.send(new ScanCommand({ TableName: 'ScanSortTest' }))
-				results.push(result.Items?.map(item => item.id?.S!) || [])
+				results.push(result.Items?.map(item => item.id!.S!) || [])
 			}
 
 			// All scans should return the same order

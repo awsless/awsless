@@ -40,7 +40,7 @@ type Options = {
 	onOutput?: (line: string) => void
 }
 
-export const launch = ({
+export const launch = async ({
 	path,
 	host,
 	port,
@@ -49,46 +49,44 @@ export const launch = ({
 	onExit: onDied,
 	onOutput,
 }: Options): Promise<() => Promise<void>> => {
-	return new Promise(async (resolve, reject) => {
-		const cache = join(path, 'cache', String(port))
+	const cache = join(path, 'cache', String(port))
 
-		const cleanUp = async () => {
-			if (await exists(cache)) {
-				await rm(cache, {
-					recursive: true,
-				})
-			}
+	const cleanUp = async () => {
+		if (await exists(cache)) {
+			await rm(cache, {
+				recursive: true,
+			})
+		}
+	}
+
+	await cleanUp()
+
+	// The min distribution needs a local JDK 21+, which we resolve
+	// ourselves because an unset or stale JAVA_HOME would otherwise
+	// break the boot.
+	const binary = join(path, 'bin/opensearch')
+
+	const env = { ...process.env }
+
+	// The tarball only bundles a Linux JDK, so macOS needs a local one.
+	if (process.platform === 'darwin') {
+		const javaHome = await findJavaHome()
+
+		if (!javaHome) {
+			throw new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".')
 		}
 
-		await cleanUp()
+		env.OPENSEARCH_JAVA_HOME = javaHome
+	}
 
-		// The min distribution needs a local JDK 21+, which we resolve
-		// ourselves because an unset or stale JAVA_HOME would otherwise
-		// break the boot.
-		const binary = join(path, 'bin/opensearch')
-
-		const env = { ...process.env }
-
-		// The tarball only bundles a Linux JDK, so macOS needs a local one.
-		if (process.platform === 'darwin') {
-			const javaHome = await findJavaHome()
-
-			if (!javaHome) {
-				// A throw would only reject the discarded async executor.
-				reject(new Error('No local JDK 21+ found to run OpenSearch. Install one with "brew install openjdk".'))
-				return
-			}
-
-			env.OPENSEARCH_JAVA_HOME = javaHome
-		}
-
+	return new Promise((resolve, reject) => {
 		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })), { env })
 
 		const output: string[] = []
 
-		const onError = (error: string) => fail(String(error))
+		const onError = (error: string) => void fail(String(error))
 		const onExit = (code: number | null) => {
-			fail(`OpenSearch exited before starting (code ${code})\n${output.join('')}`)
+			void fail(`OpenSearch exited before starting (code ${code})\n${output.join('')}`)
 		}
 		const onMessage = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
@@ -143,7 +141,7 @@ export const launch = ({
 			child.on('exit', onExit)
 		}
 
-		const done = async () => {
+		const done = () => {
 			off()
 
 			// The startup listeners are gone - from here an exit is a

@@ -14,5 +14,5 @@ export const format = (size: Size): SizeFormat => {
 
 	const rounded = Math.round(value * 100) / 100
 
-	return `${rounded} ${UNITS[index]!}` as SizeFormat
+	return `${rounded} ${UNITS[index]!}`
 }

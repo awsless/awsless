@@ -171,7 +171,7 @@ const server = Bun.serve({
 const relay = startRelay(server)
 
 process.on('SIGTERM', async () => {
-	server.stop()
+	await server.stop()
 	await relay.stop()
 	process.exit(0)
 })

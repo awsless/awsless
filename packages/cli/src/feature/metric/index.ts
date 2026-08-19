@@ -96,10 +96,10 @@ export const metricFeature = defineFeature({
 
 			ctx.addEnv(`METRIC_${constantCase(ctx.stack.name)}_${constantCase(id)}`, props.type)
 
-			for (const alarmId in props.alarms ?? []) {
+			for (const [index, alarmProps] of (props.alarms ?? []).entries()) {
+				const alarmId = String(index)
 				const alarmGroup = new Group(group, 'alarm', alarmId)
 				const alarmName = kebabCase(`${id}-${alarmId}`)
-				const alarmProps = props.alarms![alarmId]!
 
 				let alarmAction: Output<string>
 				let invokesBundle = false

@@ -110,7 +110,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			],
 		})
 
-		let icon = data as string
+		let icon = data
 
 		if (config.symbols) {
 			const symbols = svgstore()

@@ -65,7 +65,7 @@ export class Table<
 	}
 
 	marshall(item: Partial<Schema[symbol]['Type']>) {
-		return this.schema.marshall(item, [])!.M as Record<string, AttributeValue>
+		return this.schema.marshall(item, []).M as Record<string, AttributeValue>
 	}
 
 	unmarshall(item: any, projection?: string[]): Schema[symbol]['Type'] {

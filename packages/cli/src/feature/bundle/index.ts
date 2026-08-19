@@ -364,7 +364,7 @@ export const bundleFeature = defineFeature({
 
 		let logGroup: aws.cloudwatch.LogGroup | undefined
 
-		if (defaults.log.retention!.value > 0n) {
+		if (defaults.log.retention.value > 0n) {
 			logGroup = new aws.cloudwatch.LogGroup(
 				group,
 				'log',

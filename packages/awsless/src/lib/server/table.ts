@@ -67,7 +67,7 @@ export const Table: TableResources = /*@__PURE__*/ createProxy(stack => {
 					sort: keys.sort,
 					indexes: keys.indexes,
 					schema,
-				} as never)
+				})
 			},
 		}
 	})

@@ -38,7 +38,7 @@ export const registerBundleFunction = (
 	bundle.addHandler({
 		routeKey,
 		file: props.code.file,
-		exportName: parseExportName(props.handler ?? ctx.appConfig.function.handler!),
+		exportName: parseExportName(props.handler ?? ctx.appConfig.function.handler),
 		external: props.code.external,
 		importAsString: props.code.importAsString,
 		moduleSideEffects: props.code.moduleSideEffects,

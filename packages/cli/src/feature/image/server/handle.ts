@@ -22,9 +22,9 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			return { statusCode: 404 }
 		}
 
-		const originalPath = request.output.originalPath!
-		const preset = request.output.preset!
-		const extension = request.output.extension!
+		const originalPath = request.output.originalPath
+		const preset = request.output.preset
+		const extension = request.output.extension
 
 		// ----------------------------------------
 		// Get cached image from s3
@@ -124,7 +124,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 				fit: presetConfig.fit,
 				position: presetConfig.position,
 			})
-			[normalizeExtension(extension)]({ ...extensionConfig, quality: presetConfig.quality })
+			.toFormat(normalizeExtension(extension), { ...extensionConfig, quality: presetConfig.quality })
 			.toBuffer()
 
 		// ----------------------------------------

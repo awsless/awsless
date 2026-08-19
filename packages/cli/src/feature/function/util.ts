@@ -145,7 +145,7 @@ export const registerFunctionBuild = (
 		wrapper?: string
 	}
 ) => {
-	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler!)
+	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler)
 
 	ctx.registerBuild('function', name, async (build, { workspace }) => {
 		const fingerprint = createHash('sha1')
@@ -627,7 +627,7 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	// ------------------------------------------------------------
 	// Logging
 
-	if (props.log.retention!.value > 0n) {
+	if (props.log.retention.value > 0n) {
 		const logGroup = new aws.cloudwatch.LogGroup(
 			group,
 			'log',

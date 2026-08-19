@@ -562,7 +562,8 @@ export const promoteDeployment = async (props: {
 		if (failures.length > 0) {
 			throw new AggregateError(
 				[error, ...failures],
-				`Deployment promotion failed and couldn't be fully reverted.`
+				`Deployment promotion failed and couldn't be fully reverted.`,
+				{ cause: error }
 			)
 		}
 

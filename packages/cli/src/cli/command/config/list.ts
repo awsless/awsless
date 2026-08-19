@@ -35,7 +35,7 @@ export const list = (program: Command) => {
 
 				const requiredValues = [...configs].map(key => {
 					if (typeof values[key] !== 'undefined') {
-						return [chalk.magenta(key), values[key]!]
+						return [chalk.magenta(key), values[key]]
 					} else {
 						return [chalk.magenta(key), color.warning('(empty)')]
 					}

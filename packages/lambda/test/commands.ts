@@ -71,7 +71,7 @@ describe('Lambda', () => {
 		const f1 = lambda({ handle: () => {} })
 		const f2 = lambda({ handle: input => input })
 		const f3 = lambda({ handle: () => 1 })
-		const f4 = lambda({ handle: () => (true ? 1 : undefined) })
+		const f4 = lambda({ handle: () => 1 as 1 | undefined })
 		const f5 = lambda({ handle: () => new Date() })
 
 		const i1 = await invoke<typeof f1>({ name: 'noop' })

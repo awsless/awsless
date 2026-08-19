@@ -218,7 +218,7 @@ export const table = (props: { head: string[]; body: (string | number | boolean)
 	)
 
 	while (leftover > 0) {
-		for (const x in columnSizes) {
+		for (let x = 0; x < columnSizes.length; x++) {
 			const columnSize = columnSizes[x]!
 			const contentSize = contentSizes[x]!
 

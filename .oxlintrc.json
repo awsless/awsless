@@ -7,13 +7,60 @@
 	"rules": {
 		"no-explicit-any": "off",
 		"no-empty-function": "off",
-		"ban-ts-comment": "off"
+		"ban-ts-comment": "off",
+
+		// The dynamodb & redis command objects are deliberately thenable -
+		// that's the whole lazy command api.
+		"no-thenable": "off",
+
+		// Style opinions this codebase deliberately doesn't follow.
+		"no-for-in-array": "off",
+		"require-array-sort-compare": "off",
+		// Abort signals mutate from outside the loop.
+		"no-unmodified-loop-condition": "off",
+		"unbound-method": "off",
+		"no-unnecessary-type-arguments": "off",
+		"no-useless-concat": "off",
+		"no-array-reverse": "off",
+		"no-extraneous-class": "off",
+		"no-shadow": "off",
+		"no-new": "off",
+		"no-underscore-dangle": "off",
+		"consistent-return": "off",
+		"consistent-function-scoping": "off",
+		"no-array-sort": "off",
+		"prefer-add-event-listener": "off",
+		"no-unneeded-ternary": "off",
+		"no-useless-escape": "off",
+		"no-useless-spread": "off",
+		"no-useless-fallback-in-spread": "off",
+
+		// Type-strictness noise: assertions & template stringification
+		// are used deliberately all over the schema & config internals.
+		// The unnecessary-assertion rule disagrees with tsc 7 about
+		// which assertions are load-bearing, so it can't be trusted.
+		"no-unnecessary-type-assertion": "off",
+		"no-unsafe-type-assertion": "off",
+		"no-base-to-string": "off",
+		"restrict-template-expressions": "off",
+		"no-unnecessary-type-parameters": "off",
+		"no-unnecessary-type-conversion": "off",
+		"no-unnecessary-type-constraint": "off",
+		"no-unnecessary-boolean-literal-compare": "off",
+		"no-redundant-type-constituents": "off",
+		"no-duplicate-type-constituents": "off",
+
+		// The whole-repo tsc gate already reports unused code, and the
+		// `beforeEach && beforeEach(...)` mock guards trip the
+		// expression rule.
+		"no-unused-vars": "off",
+		"no-unused-expressions": "off"
 	},
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/.awsless/**",
 		"**/_*",
-		"old/**",
+		"**/old/**",
 		"packages/cli/example/**",
 		"packages/cli/layers/**"
 	]
