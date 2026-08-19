@@ -23,19 +23,19 @@ const compileField = (field: ShorthandField): Record<string, unknown> => {
 	// [{ ... }] - an array of objects, indexed as a nested field so
 	// queries match within one element.
 	if (Array.isArray(field)) {
-		return { type: 'nested', properties: compileFields(field[0] as Record<string, unknown>) }
+		return { type: 'nested', properties: compileFields(field[0]) }
 	}
 
 	if (typeof field === 'object' && field !== null) {
 		// { $type: ... } - a raw field definition passed through as-is.
 		if ('$type' in field) {
-			const { $type, ...rest } = field as Record<string, unknown>
+			const { $type, ...rest } = field
 
 			return { type: $type, ...rest }
 		}
 
 		// { ... } - an object field with sub fields.
-		return { properties: compileFields(field as Record<string, unknown>) }
+		return { properties: compileFields(field) }
 	}
 
 	throw new Error(`Invalid search schema field: ${JSON.stringify(field)}`)

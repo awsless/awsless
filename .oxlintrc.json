@@ -26,7 +26,7 @@
 		"no-new": "off", // Declaring a terraforge resource is the effect
 		"no-underscore-dangle": "off", // Wire fields like __type, and enum_ for reserved words
 		"consistent-return": "off", // Doesn't allow return, should be return undefined
-		"consistent-function-scoping": "off",
+		"consistent-function-scoping": "off", // Test helpers belong next to the cases they run
 		"prefer-add-event-listener": "off",
 		"no-unneeded-ternary": "off",
 		"no-useless-spread": "off", // We copy a map before deleting from it while looping
