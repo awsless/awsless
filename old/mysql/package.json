@@ -1,0 +1,41 @@
+{
+	"name": "@awsless/mysql",
+	"version": "0.0.5",
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"test": "pnpm vitest run",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@heat/request-port": "0.0.1",
+		"@types/decompress": "4.2.7",
+		"@types/find-cache-dir": "3.2.1",
+		"decompress": "4.2.1",
+		"find-cache-dir": "4.0.0",
+		"kysely": "0.25.0",
+		"mysql2": "3.20.0",
+		"sleep-await": "1.0.3"
+	}
+}
