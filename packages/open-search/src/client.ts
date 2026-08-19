@@ -15,11 +15,10 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 	const scheme = process.env.AWSLESS_ENV === 'local' ? 'http://' : 'https://'
 	const node = options.node ?? scheme + process.env.SEARCH_DOMAIN
 
-	// The node option also accepts object & array forms - resolve the
-	// first entry's url to detect the protocol, instead of stringifying
-	// an object into "[object Object]".
+	// The node option also accepts object & array forms - the first
+	// entry's url detects the protocol.
 	const first = Array.isArray(node) ? node[0] : node
-	const nodeUrl = typeof first === 'string' ? first : String((first as { url?: unknown } | undefined)?.url ?? '')
+	const nodeUrl = typeof first === 'string' ? first : (first?.url.href ?? '')
 
 	return new Client({
 		node,

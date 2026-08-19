@@ -316,7 +316,7 @@ const variant = (key, options) => createSchema({
 		const type = output.M[key];
 		if (!type || !type.S) throw new TypeError(`Missing variant key: ${key}`);
 		const variant = options[type.S];
-		if (!variant) throw new TypeError(`Unknown variant: ${type}`);
+		if (!variant) throw new TypeError(`Unknown variant: ${type.S}`);
 		return {
 			...variant.unmarshall(output, path),
 			[key]: type.S

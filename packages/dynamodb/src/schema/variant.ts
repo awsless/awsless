@@ -32,7 +32,7 @@ type Options<T extends string> = Record<
 
 // 			const variant = options[type]
 // 			if (!variant) {
-// 				throw new TypeError(`Unknown variant: ${type}`)
+// 				throw new TypeError(`Unknown variant: ${type.S}`)
 // 			}
 
 // 			return {
@@ -50,7 +50,7 @@ type Options<T extends string> = Record<
 
 // 			const variant = options[type.S]
 // 			if (!variant) {
-// 				throw new TypeError(`Unknown variant: ${type}`)
+// 				throw new TypeError(`Unknown variant: ${type.S}`)
 // 			}
 
 // 			return {
@@ -96,7 +96,7 @@ export const variant = <K extends string, O extends Options<K>>(key: K, options:
 
 			const variant = options[type.S]
 			if (!variant) {
-				throw new TypeError(`Unknown variant: ${type}`)
+				throw new TypeError(`Unknown variant: ${type.S}`)
 			}
 
 			return {

@@ -245,10 +245,10 @@ export const createFargateTask = (
 			containerDefinitions: new Output<string>(variableDeps, async (resolve: (value: string) => void) => {
 				const data = await resolveInputs(variables)
 
-				const { s3Bucket, s3Key } = await resolveInputs({
+				const { s3Bucket, s3Key } = (await resolveInputs({
 					s3Bucket: code.bucket,
 					s3Key: code.key,
-				})
+				})) as unknown as { s3Bucket: string; s3Key: string }
 
 				resolve(
 					JSON.stringify([

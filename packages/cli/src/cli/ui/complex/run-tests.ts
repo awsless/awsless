@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { inspect } from 'util'
 import { log } from '@awsless/clui'
 // import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
 // import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
@@ -169,11 +170,8 @@ const formatModuleError = (error: ModuleError) => {
 	}
 
 	if (error.cause) {
-		try {
-			extra.push(`cause: ${JSON.stringify(error.cause, Object.getOwnPropertyNames(error.cause))}`)
-		} catch (_) {
-			extra.push(`cause: ${String(error.cause)}`)
-		}
+		// Inspect never throws & renders circulars, unlike JSON.stringify.
+		extra.push(`cause: ${inspect(error.cause)}`)
 	}
 
 	return [error.message, syscall && `(${syscall})`, ...extra, '\n', error.stack ?? '(no stack captured)']

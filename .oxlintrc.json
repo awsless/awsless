@@ -26,7 +26,7 @@
 		"no-shadow": "off",
 		"no-new": "off",
 		"no-underscore-dangle": "off",
-		"consistent-return": "off",
+		"consistent-return": "off", // Doesn't allow return, should be return undefined
 		"consistent-function-scoping": "off",
 		"no-array-sort": "off",
 		"prefer-add-event-listener": "off",
@@ -41,7 +41,6 @@
 		// which assertions are load-bearing, so it can't be trusted.
 		"no-unnecessary-type-assertion": "off",
 		"no-unsafe-type-assertion": "off",
-		"no-base-to-string": "off",
 		"restrict-template-expressions": "off",
 		"no-unnecessary-type-parameters": "off",
 		"no-unnecessary-type-conversion": "off",
