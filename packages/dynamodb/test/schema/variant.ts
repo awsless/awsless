@@ -51,7 +51,16 @@ describe('variant', () => {
 			| undefined
 			| {
 					id: number
-					list: Array<{ type: 'one'; foo: number } | { type: 'two'; bar: number }>
+					list: Array<
+						| {
+								type: 'one'
+								foo: number
+						  }
+						| {
+								type: 'two'
+								bar: number
+						  }
+					>
 			  }
 		>()
 

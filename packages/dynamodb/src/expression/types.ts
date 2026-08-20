@@ -86,7 +86,7 @@ export type AppendFunction<T extends any[] | undefined, I = NonNullable<T>[numbe
 	 * Append one or more elements to the end of the array.
 	 * @param {...NonNullable<T>} values - The elements to append to the array.
 	 */
-	append(...values: [I, ...I[]]): Fluent
+	append(...values: I[]): Fluent
 	append(value: Path<AttributeType, I>): Fluent
 }
 
@@ -95,7 +95,7 @@ export type PrependFunction<T extends any[] | undefined, I = NonNullable<T>[numb
 	 * Prepend one or more elements to the start of the array.
 	 * @param {...NonNullable<T>} values - The elements to append to the array.
 	 */
-	prepend(...values: [I, ...I[]]): Fluent
+	prepend(...values: I[]): Fluent
 	prepend(value: Path<AttributeType, I>): Fluent
 }
 
@@ -126,7 +126,7 @@ export type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullabl
 	 * Add elements to a Set.
 	 * @param {...V} values - The elements to add to the Set.
 	 */
-	add(...values: [V, ...V[]]): Fluent
+	add(...values: V[]): Fluent
 	add(value: Path<A, T>): Fluent
 }
 
@@ -135,7 +135,7 @@ export type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNull
 	 * Remove elements from a Set.
 	 * @param {...V} values - The elements to remove to the Set.
 	 */
-	remove(...values: [V, ...V[]]): Fluent
+	remove(...values: V[]): Fluent
 	remove(value: Path<A, T>): Fluent
 }
 
@@ -256,8 +256,8 @@ export type InFunction<A extends AttributeType, T, V = NonNullable<T>> = {
 	 * Can contain up to 100 values.
 	 * @param values - A non-empty list of values or attribute references to compare against.
 	 */
-	in(values: [V, ...V[]]): Fluent
-	in(values: [V | Path<A>, ...(V | Path<A>)[]]): Fluent
+	in(values: V[]): Fluent
+	in(values: (V | Path<A>)[]): Fluent
 }
 
 export type StartsWithFunction = {

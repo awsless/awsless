@@ -35,13 +35,18 @@ export const dev = (program: Command) => {
 				// via redis-memory-server) that exit the process straight
 				// from their own signal handlers, killing the graceful
 				// stop. The dev command owns shutdown, so it claims the
-				// signals after every start.
+				// signals before the first start (a ctrl-c during a long
+				// boot must still stop gracefully instead of stranding the
+				// already started children) & again after every start, to
+				// evict the library handlers.
 				const claimSignals = () => {
 					process.removeAllListeners('SIGINT')
 					process.removeAllListeners('SIGTERM')
 					process.once('SIGINT', () => resolveShutdown())
 					process.once('SIGTERM', () => resolveShutdown())
 				}
+
+				claimSignals()
 
 				const start = async (appConfig = props.appConfig, stackConfigs = props.stackConfigs) => {
 					// During the boot every progress message updates the
@@ -104,7 +109,14 @@ export const dev = (program: Command) => {
 					claimSignals()
 				}
 
-				await start()
+				try {
+					await start()
+				} catch (error) {
+					// A failed first boot must never strand the heavy pooled
+					// servers it already started (opensearch, redis, dynamo).
+					await pool.stopAll().catch(() => {})
+					throw error
+				}
 
 				// Config restarts run strictly one at a time: two quick saves
 				// would otherwise stop & start concurrently against the same

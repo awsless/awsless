@@ -4,7 +4,7 @@ import { log } from '@awsless/clui'
 import { constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { spawnDevChild } from '../../dev/children.js'
-import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
+import { findFreePort, stopChild, stripAnsi, watchdogPath } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
@@ -21,7 +21,11 @@ import { binPath } from '../site/dev.js'
 // process.env.PORT ?? 80.
 export const instanceOnDev = async (ctx: DevContext) => {
 	const instances = ctx.stackConfigs.flatMap(stackConfig => {
-		return Object.entries(stackConfig.instances ?? {}).map(([id, props]) => ({ stackConfig, id, props }))
+		return Object.entries(stackConfig.instances ?? {}).map(([id, props]) => ({
+			stackConfig,
+			id,
+			props,
+		}))
 	})
 
 	if (instances.length === 0) {
@@ -89,8 +93,10 @@ export const instanceOnDev = async (ctx: DevContext) => {
 
 					// The program runs on bun straight from source, like the
 					// deployed executable that bun compiled. It sees the full
-					// local environment plus its production only vars.
-					child = spawnDevChild('bun', [file], {
+					// local environment plus its production only vars. The
+					// watchdog preload exits it when the dev server dies
+					// without a graceful stop.
+					child = spawnDevChild('bun', ['-r', watchdogPath(), file], {
 						cwd,
 						stdio: ['ignore', 'pipe', 'pipe'],
 						env: {
@@ -137,7 +143,11 @@ export const instanceOnDev = async (ctx: DevContext) => {
 						// either way: the program is gone.
 						if (code !== null && code !== 0) {
 							log.error(`The instance "${id}" exited with code ${code}:\n${tail.join('\n')}`)
-							ctx.emitEvent(channel, { date: Date.now(), line: `Exited with code ${code}`, error: true })
+							ctx.emitEvent(channel, {
+								date: Date.now(),
+								line: `Exited with code ${code}`,
+								error: true,
+							})
 						}
 
 						ctx.reportHealth(

@@ -18,8 +18,16 @@ describe('object', () => {
 		hash: 'id',
 		schema: object({
 			id: uuid(),
-			objectRest: object({ id: string() }, number()),
-			object: object({ id: string(), opt: optional(string()) }),
+			objectRest: object(
+				{
+					id: string(),
+				},
+				number()
+			),
+			object: object({
+				id: string(),
+				opt: optional(string()),
+			}),
 		}),
 	})
 

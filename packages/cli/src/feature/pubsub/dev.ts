@@ -5,7 +5,7 @@ import { formatRouteEnvName } from 'awsless'
 import { Redis } from 'ioredis'
 import { spawnDevChild } from '../../dev/children.js'
 import { createSnsServer } from '../../dev/servers/sns.js'
-import { findFreePort, stopChild } from '../../dev/util.js'
+import { findFreePort, stopChild, watchdogPath } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { formatRouteKey } from '../bundle/util.js'
@@ -59,7 +59,10 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 			await redis.start()
 			await redis.ping()
 
-			const redisSink: { health?: (status: 'up' | 'down', detail?: string) => void; crashed?: string } = {}
+			const redisSink: {
+				health?: (status: 'up' | 'down', detail?: string) => void
+				crashed?: string
+			} = {}
 
 			redis.onExit((code, signal) => {
 				redisSink.crashed = code !== null ? `exited with code ${code}` : `killed by ${signal}`
@@ -150,7 +153,11 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 
 				feed.on('message', (_channel, json) => {
 					try {
-						const message = JSON.parse(json) as { topic?: string; event?: string; payload?: string }
+						const message = JSON.parse(json) as {
+							topic?: string
+							event?: string
+							payload?: string
+						}
 						let payload: unknown = message.payload
 
 						try {
@@ -173,7 +180,10 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 				sns.connect(async event => {
 					const records = event as {
 						Records?: {
-							Sns?: { Message?: string; MessageAttributes?: Record<string, { Value?: string }> }
+							Sns?: {
+								Message?: string
+								MessageAttributes?: Record<string, { Value?: string }>
+							}
 						}[]
 					}
 					const record = records.Records?.[0]?.Sns
@@ -204,7 +214,10 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 				// from the pool with stable ports. The health sink swaps
 				// every run, since each run builds a fresh registry.
 				const ws = await ctx.keep(`pubsub-ws:${id}`, { wsPort, redisPort, snsPort }, async () => {
-					const sink: { health?: (status: 'up' | 'down', detail?: string) => void; stopping: boolean } = {
+					const sink: {
+						health?: (status: 'up' | 'down', detail?: string) => void
+						stopping: boolean
+					} = {
 						stopping: false,
 					}
 
@@ -215,7 +228,9 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 					// child never snapshots & restores the tty termios on
 					// exit (which would re-apply the boot spinner's raw
 					// mode & kill ctrl-c).
-					const child = spawnDevChild(process.execPath, [runtime], {
+					// The watchdog preload exits the server when the dev
+					// process dies without a graceful stop.
+					const child = spawnDevChild(process.execPath, ['-r', watchdogPath(), runtime], {
 						stdio: ['ignore', 'ignore', 'pipe'],
 						env: {
 							PATH: process.env.PATH,

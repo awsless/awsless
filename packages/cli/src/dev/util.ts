@@ -2,12 +2,36 @@ import { ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { IncomingMessage, Server } from 'http'
 import { createServer, Socket } from 'net'
+import { join } from 'path'
 import { DevTrace } from '../feature.js'
+import { directories } from '../util/path.js'
 import { killTree } from './children.js'
 
 // The fake account every fully-local environment synthesizes with -
 // the dev environment & the test runner share it.
 export const LOCAL_ACCOUNT_ID = '000000000000'
+
+// A tiny preload for every long lived child (instances, the pubsub ws
+// server): when the dev server dies without a graceful stop (a crash,
+// kill -9), the child gets reparented & exits on its own - the pid
+// file reaper only runs on the next boot, while the watchdog cleans
+// up even when dev is never started again. Loaded with -r, which both
+// node & bun understand.
+export const WATCHDOG_FILE = 'parent-watchdog.cjs'
+
+export const WATCHDOG_SOURCE = `const parent = process.ppid
+setInterval(() => {
+	// A parent of 1 means the child is already reparented - either the
+	// dev server died, or it was gone before this preload even ran.
+	if (process.ppid !== parent || parent === 1) {
+		process.exit(0)
+	}
+}, 2000).unref()
+`
+
+export const watchdogPath = () => {
+	return join(directories.output, 'local', WATCHDOG_FILE)
+}
 
 // The request header carrying the active trace out of the bundle
 // worker into the local emulators, as "traceId:spanId". The worker

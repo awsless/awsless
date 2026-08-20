@@ -25,7 +25,7 @@ import { linkSdkPackages } from './sdk.js'
 import { createSeedRunner } from './seed.js'
 import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
-import { formatTraceHeader, LOCAL_ACCOUNT_ID, traceId } from './util.js'
+import { formatTraceHeader, LOCAL_ACCOUNT_ID, traceId, watchdogPath, WATCHDOG_SOURCE } from './util.js'
 import { createBundleWorker } from './worker.js'
 
 export type DevInstance = {
@@ -95,6 +95,11 @@ export const startDev = async (props: {
 	// the local config values.
 	await mkdir(join(directories.output, 'local'), { recursive: true })
 
+	// The parent watchdog preload for long lived children: a child that
+	// outlives a hard-killed dev server exits on its own, without
+	// waiting for the next boot's pid file reaper.
+	await writeFile(watchdogPath(), WATCHDOG_SOURCE)
+
 	// Every configured router runs as its own local server, like every
 	// router is its own domain in production. The dashboard takes the
 	// base port, the routers follow it in config order.
@@ -110,15 +115,29 @@ export const startDev = async (props: {
 	const firstBoot = props.pool.peek('session') === undefined
 
 	props.pool.begin()
-	await props.pool.keep('session', null, async () => ({ value: true, stop: () => {} }))
+	await props.pool.keep('session', null, async () => ({
+		value: true,
+		stop: () => {},
+	}))
 
-	const dev = createDevContext({ appConfig, stackConfigs, appId, routerPorts, log, pool: props.pool })
+	const dev = createDevContext({
+		appConfig,
+		stackConfigs,
+		appId,
+		routerPorts,
+		log,
+		pool: props.pool,
+	})
 
 	// The dev server's own debug stream (build timings, sdk links, seed
 	// output) feeds the dashboard's Logs page alongside the worker
 	// output - set per run, so restarts never stack listeners.
 	setDebugSink((type, message) => {
-		dev.events.emit('debug', { date: Date.now(), line: message, error: type === 'error' })
+		dev.events.emit('debug', {
+			date: Date.now(),
+			line: message,
+			error: type === 'error',
+		})
 	})
 
 	const bundleName = getBundleFunctionName(appConfig.name)
@@ -127,7 +146,10 @@ export const startDev = async (props: {
 	// The first run may download local servers like opensearch or redis,
 	// which the feature hooks report through the boot task spinner.
 	const { env, lambda } = await phase(
-		{ start: 'Preparing the local resources...', done: 'Prepared the local resources' },
+		{
+			start: 'Preparing the local resources...',
+			done: 'Prepared the local resources',
+		},
 		async detail => {
 			const timings: [string, number][] = []
 
@@ -156,7 +178,9 @@ export const startDev = async (props: {
 			// instead of silently reaching the real aws with fake credentials.
 			// Emulated services win via their service specific endpoint vars.
 			const blocked = await props.pool.keep('blocked', null, async () => {
-				const server = createBlockedServer({ onLog: message => debug(message) })
+				const server = createBlockedServer({
+					onLog: message => debug(message),
+				})
 				const port = await server.listen()
 
 				return { value: { server, port }, stop: () => server.stop() }
@@ -217,7 +241,9 @@ export const startDev = async (props: {
 		let changed = false
 
 		for (const builder of sorted) {
-			const meta = await build(builder.type, builder.name, builder.builder, { workspace })
+			const meta = await build(builder.type, builder.name, builder.builder, {
+				workspace,
+			})
 
 			if (!meta?.cached) {
 				changed = true
@@ -411,7 +437,10 @@ export const startDev = async (props: {
 		// Every dispatch is one span of a trace. A dispatch caused by a
 		// running handler (a queue send, a task invoke) joins its caller's
 		// trace as a child span - everything else starts a new trace.
-		const trace: DevTrace = { traceId: parent?.traceId ?? traceId(), spanId: traceId() }
+		const trace: DevTrace = {
+			traceId: parent?.traceId ?? traceId(),
+			spanId: traceId(),
+		}
 
 		try {
 			const result = await worker.dispatch(event, formatTraceHeader(trace))
@@ -485,36 +514,48 @@ export const startDev = async (props: {
 	// always up by then.
 	lambda.connect(dispatch, reportFailure)
 
-	await phase({ start: 'Starting the local servers...', done: 'Started the local servers' }, async detail => {
-		const timings: [string, number][] = []
+	await phase(
+		{
+			start: 'Starting the local servers...',
+			done: 'Started the local servers',
+		},
+		async detail => {
+			const timings: [string, number][] = []
 
-		for (const server of dev.servers) {
-			const started = Date.now()
-			await server.start({ dispatch, log, reportFailure, env })
-			timings.push([server.name, Date.now() - started])
+			for (const server of dev.servers) {
+				const started = Date.now()
+				await server.start({ dispatch, log, reportFailure, env })
+				timings.push([server.name, Date.now() - started])
+			}
+
+			detail(breakdown(timings))
 		}
-
-		detail(breakdown(timings))
-	})
+	)
 
 	// A worker that fails to boot must never take down the dev server:
 	// the router, dashboard & watcher stay up, and the next invoke
 	// rebuilds & retries.
-	await phase({ start: 'Starting the bundle worker...', done: 'Started the bundle worker' }, async detail => {
-		try {
-			await worker.start()
-			dev.context.reportHealth('workers', 'up', String(worker.size()))
-		} catch (error) {
-			// The failure marks the phase line instead of a false
-			// "started" - the dev server stays up & the next invoke
-			// rebuilds & retries.
-			detail('FAILED - the next invoke retries')
-			log(`The bundle worker failed to start: ${error instanceof Error ? error.message : String(error)}`)
-			dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
-			dirty = true
-			restartNeeded = true
+	await phase(
+		{
+			start: 'Starting the bundle worker...',
+			done: 'Started the bundle worker',
+		},
+		async detail => {
+			try {
+				await worker.start()
+				dev.context.reportHealth('workers', 'up', String(worker.size()))
+			} catch (error) {
+				// The failure marks the phase line instead of a false
+				// "started" - the dev server stays up & the next invoke
+				// rebuilds & retries.
+				detail('FAILED - the next invoke retries')
+				log(`The bundle worker failed to start: ${error instanceof Error ? error.message : String(error)}`)
+				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
+				dirty = true
+				restartNeeded = true
+			}
 		}
-	})
+	)
 
 	// The app seed file runs on the first boot of the session, against
 	// the fully wired environment - the dashboard reseed button runs

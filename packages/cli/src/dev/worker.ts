@@ -58,6 +58,16 @@ import { format } from 'node:util'
 let handler
 let getCurrentRoute = () => undefined
 
+// A dev server dying without a graceful stop (a crash, kill -9) can
+// never ask its workers to exit - so the worker watches for the
+// reparenting & exits on its own instead of lingering forever.
+const parentPid = process.ppid
+setInterval(() => {
+	if (process.ppid !== parentPid || parentPid === 1) {
+		process.exit(0)
+	}
+}, 2000).unref()
+
 // The trace of the running invocation, set per dispatch by the dev
 // server. The async context keeps it accurate under concurrent
 // requests, exactly like the route context.
