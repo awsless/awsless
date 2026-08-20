@@ -1,20 +1,21 @@
-// import commonjs from '@rollup/plugin-commonjs'
-// import json from '@rollup/plugin-json'
-// import nodeResolve from '@rollup/plugin-node-resolve'
 import { dirname, join } from 'path'
-// import { swc } from 'rollup-plugin-swc3'
 import { fileURLToPath } from 'url'
 import { configDefaults } from 'vitest/config'
 import { Reporter, RunnerTask, startVitest } from 'vitest/node'
 import { hoistConfigPlugin } from './hoist-config.js'
 
-class NullReporter implements Reporter {}
-
-export const startTest = async (props: {
+export type ProjectTest = {
+	name: string
 	dir: string
-	filters: string[]
 	env?: Record<string, string>
-}): Promise<TestResponse> => {
+}
+
+export const startProjectsTest = async (props: {
+	projects: ProjectTest[]
+	filters: string[]
+	workers?: number
+	onFileFinished?: () => void
+}): Promise<Map<string, TestResponse>> => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
 	const startTime = process.hrtime.bigint()
 
@@ -26,118 +27,107 @@ export const startTest = async (props: {
 	// Bracket access on purpose: Bun.build inlines the dot access as a
 	// "development" literal at bundle time, which breaks the restore.
 	const nodeEnv = process.env['NODE_ENV']
+	const timezone = process.env['TZ']
+
+	// Dates must behave identically everywhere, and a runtime TZ change
+	// inside a bun worker thread is ignored - so the workers inherit
+	// UTC from this process at spawn instead.
+	process.env['TZ'] = 'UTC'
+
 	const restoreNodeEnv = () => {
 		if (nodeEnv === undefined) {
 			delete process.env['NODE_ENV']
 		} else {
 			process.env['NODE_ENV'] = nodeEnv
 		}
+
+		if (timezone === undefined) {
+			delete process.env['TZ']
+		} else {
+			process.env['TZ'] = timezone
+		}
 	}
 
+	const progressReporter: Reporter = {
+		onTestModuleEnd() {
+			props.onFileFinished?.()
+		},
+	}
+
+	// Surfaces the raw vitest output for debugging the runner itself.
+	const debug = process.env.AWSLESS_TEST_DEBUG === '1'
+
+	// Every stack becomes a project in one instance, so the startup
+	// cost is paid once instead of per stack.
 	const vitest = await startVitest(
 		'test',
 		props.filters,
 		{
-			// name: config.name,
 			watch: false,
 			ui: false,
-			silent: true,
-			dir: props.dir,
-			include: ['**/*.{js,jsx,ts,tsx}'],
-			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
-			globals: true,
-			reporters: [new NullReporter()],
-			// isolate: false,
-			// typecheck: {
-			// 	enabled: true,
-			// 	only: false,
-			// 	exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
-			// 	include: ['**/*.{js,jsx,ts,tsx}'],
-			// 	checker: 'tsc',
-			// },
-			// reporters: 'json',
-			// typecheck: {
-			// 	checker: 'tsc',
-			// 	enabled: true,
-			// },
-			env: props.env,
+			silent: !debug,
+			reporters: debug ? ['default'] : [progressReporter],
+			maxWorkers: props.workers,
+			pool: (process.env.AWSLESS_TEST_POOL as 'forks' | 'threads' | undefined) ?? 'forks',
 
-			setupFiles: [
-				//
-				join(__dirname, 'test-global-setup.js'),
-			],
-
-			// globalSetup: [
-			// 	//
-			// 	join(__dirname, 'test-global-setup.js'),
-			// ],
-
-			// env: {
-			// 	TZ: 'UTC',
-			// },
-			// typecheck: {
-			// 	enabled: true,
-			// 	// ignoreSourceErrors: false,
-			// 	// checker: 'tsc',
-			// 	// include: ['**/*.{js,jsx,ts,tsx}'],
-			// 	// only: true,
-			// 	// allowJs: true,
-			// },
-			// outputFile: {
-			// 	json: './.awsless/test/output.json',
-			// },
+			projects: props.projects.map(project => ({
+				// Project configs don't inherit the root vite plugins.
+				plugins: [
+					// Hoists top level mock.config calls above the imports,
+					// like vitest does for vi.mock.
+					hoistConfigPlugin(),
+				],
+				test: {
+					name: project.name,
+					dir: project.dir,
+					include: ['**/*.{js,jsx,ts,tsx}'],
+					exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
+					globals: true,
+					env: project.env,
+					setupFiles: [join(__dirname, 'test-global-setup.js')],
+				},
+			})),
 		},
 		{
-			logLevel: 'silent',
-			plugins: [
-				// Hoists top level mock.config calls above the imports,
-				// like vitest does for vi.mock.
-				hoistConfigPlugin(),
-				// // @ts-ignore
-				// commonjs({ sourceMap: true }),
-				// // @ts-ignore
-				// nodeResolve({ preferBuiltins: true }),
-				// swc({
-				// 	jsc: {
-				// 		// baseUrl: dirname(input),
-				// 		minify: { sourceMap: true },
-				// 	},
-				// 	sourceMaps: true,
-				// }),
-				// // @ts-ignore
-				// json(),
-			],
+			logLevel: debug ? 'info' : 'silent',
 		}
 	).finally(restoreNodeEnv)
 
-	let skipped = 0
-	let passed = 0
-	let failed = 0
-
 	const duration = startTime - process.hrtime.bigint()
-	const errors: ModuleError[] = []
-	const tests: TestEntry[] = []
-	const modules = vitest.state.getTestModules()
+	const responses = new Map<string, TestResponse>()
 
-	// console.log(vitest.
+	for (const project of props.projects) {
+		responses.set(project.name, {
+			tests: [],
+			errors: [],
+			passed: 0,
+			failed: 0,
+			skipped: 0,
+			duration,
+		})
+	}
 
-	for (const module of modules) {
+	for (const module of vitest.state.getTestModules()) {
+		const response = responses.get(module.project.name)
+
+		if (!response) {
+			continue
+		}
+
 		for (const test of module.children.allTests()) {
 			const result = test.result()
-
-			// console.log(result)
 
 			switch (result.state) {
 				case 'pending':
 					break
 				case 'skipped':
-					skipped++
+					response.skipped++
 					break
 				case 'passed':
-					passed++
+					response.passed++
 					break
 				case 'failed':
-					failed++
+					response.failed++
 					break
 			}
 
@@ -148,7 +138,7 @@ export const startTest = async (props: {
 				errors: [],
 			}
 
-			tests.push(entry)
+			response.tests.push(entry)
 
 			if ('task' in test) {
 				const task: RunnerTask = test.task as RunnerTask
@@ -194,7 +184,7 @@ export const startTest = async (props: {
 				...rest
 			} = error as Record<string, unknown>
 
-			errors.push({
+			response.errors.push({
 				type: error.name,
 				message: error.message,
 				location: stack ? { line: stack.line, column: stack.column } : undefined,
@@ -211,14 +201,7 @@ export const startTest = async (props: {
 
 	await vitest.close()
 
-	return {
-		tests,
-		errors,
-		passed,
-		failed,
-		skipped,
-		duration,
-	}
+	return responses
 }
 
 export type ModuleError = {
@@ -269,14 +252,4 @@ export type TestResponse = {
 	duration: bigint
 	errors: ModuleError[]
 	tests: TestEntry[]
-	// logs: string[]
 }
-
-// type StoredState = {
-// 	fingerprint: string
-// 	duration: number
-// 	errors: TestError[]
-// 	passed: number
-// 	failed: number
-// 	logs: string[]
-// }

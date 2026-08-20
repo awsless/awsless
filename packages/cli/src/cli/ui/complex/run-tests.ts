@@ -1,18 +1,18 @@
 import { createHash } from 'crypto'
-import { mkdir, readFile, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { mkdir, readdir, readFile, writeFile } from 'fs/promises'
+import { availableParallelism } from 'os'
+import { join, relative, sep } from 'path'
 import { inspect } from 'util'
 import { log } from '@awsless/clui'
 // import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
 // import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
 import { parse, stringify } from '@awsless/json'
-import { generateFileHash, generateFolderHash, loadWorkspace, Workspace } from '@awsless/ts-file-cache'
+import { generateFileHash, generateFolderHash, loadWorkspace } from '@awsless/ts-file-cache'
 import type { TestManifest } from 'awsless'
 // import hrtime from 'pretty-hrtime'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
-import { ExpectedError } from '../../../error.js'
-import { ModuleError, startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
+import { ModuleError, startProjectsTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { debug } from '../../debug.js'
 import { color, icon } from '../style.js'
@@ -179,133 +179,57 @@ const formatModuleError = (error: ModuleError) => {
 		.join(' ')
 }
 
-export const runTest = async (
-	stack: string,
-	dir: string,
-	filters: string[],
-	workspace: Workspace,
-	opts: {
-		showLogs: boolean
-		env?: Record<string, string>
-		// Extra fingerprint material beyond the test folder, like the
-		// manifest & the handler files it loads dynamically.
-		fingerprint?: string
+// Mirrors the vitest include/exclude rules: any js/ts file counts,
+// except underscore prefixed files & folders.
+const containsTestFiles = async (dir: string) => {
+	let entries
+
+	try {
+		entries = await readdir(dir, { recursive: true, withFileTypes: true })
+	} catch {
+		return false
 	}
-) => {
-	await mkdir(directories.test, { recursive: true })
 
-	const file = join(directories.test, `${stack}.json`)
-	const fingerprint = (await generateFolderHash(workspace, dir)) + (opts.fingerprint ?? '')
-
-	if (!process.env.NO_CACHE) {
-		const exists = await fileExist(file)
-
-		if (exists) {
-			const raw = await readFile(file, { encoding: 'utf8' })
-			const data = parse(raw) as StoredState
-
-			if (data.fingerprint === fingerprint) {
-				log.step(
-					formatResult({
-						stack,
-						cached: true,
-						event: data,
-					})
-				)
-
-				if (opts.showLogs) {
-					logTestLogs(data)
-				}
-
-				logTestErrors(data)
-
-				return data.failed === 0
-			}
+	return entries.some(entry => {
+		if (!entry.isFile() || !/\.(js|jsx|ts|tsx)$/.test(entry.name)) {
+			return false
 		}
-	}
 
-	const result = await log.task({
-		initialMessage: `Run tests for the ${color.info(stack)} stack`,
-		errorMessage: `Running tests for the ${color.info(stack)} stack failed`,
-		async task(ctx) {
-			// A loaded machine can refuse or time out a local resource
-			// server connection for a moment, killing an arbitrary stack
-			// mid-run with a bare system error. Those clear within a tick,
-			// so a run that failed on nothing but system errors gets one
-			// retry instead of failing the whole run.
-			const transient = (error: ModuleError) =>
-				['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].includes(error.code ?? '') ||
-				['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].some(code => error.message.includes(code))
+		const relativePath = relative(dir, join(entry.parentPath, entry.name))
 
-			let result = await startTest({
-				dir,
-				filters,
-				env: opts.env,
-			})
-
-			if (result.errors.length > 0 && result.errors.every(transient)) {
-				for (const error of result.errors) {
-					debug(`Transient module error in ${stack} tests, retrying once: ${formatModuleError(error)}`)
-				}
-
-				await new Promise(resolve => setTimeout(resolve, 1000))
-
-				result = await startTest({
-					dir,
-					filters,
-					env: opts.env,
-				})
-			}
-
-			if (result.errors.length > 0) {
-				// Module errors carry no test file context, so keep the
-				// error type - a bare system error message like
-				// "ECONNREFUSED" is unfindable on its own. The terminal
-				// only shows the message, so the full stack goes to the
-				// debug log.
-				for (const error of result.errors) {
-					debug(`Module error in ${stack} tests: ${formatModuleError(error)}`)
-				}
-
-				throw result.errors.map(
-					error =>
-						new ExpectedError(
-							error.type && error.type !== 'Error' ? `${error.type}: ${error.message}` : error.message
-						)
-				)
-			}
-
-			ctx.updateSuccessMessage(
-				formatResult({
-					stack,
-					cached: false,
-					event: result,
-				})
-			)
-
-			return result
-		},
+		return relativePath.split(sep).every(segment => !segment.startsWith('_'))
 	})
+}
 
-	if (opts.showLogs) {
-		logTestLogs(result)
+const readCachedResult = async (file: string, fingerprint: string) => {
+	if (process.env.NO_CACHE) {
+		return
 	}
 
-	logTestErrors(result)
+	const exists = await fileExist(file)
 
-	await writeFile(
-		file,
-		stringify({
-			...result,
-			fingerprint,
-		})
-	)
+	if (!exists) {
+		return
+	}
 
-	// console.log(result)
-	// console.log(result.errors.length === 0 && result.failed === 0)
+	const raw = await readFile(file, { encoding: 'utf8' })
+	const data = parse(raw) as StoredState
 
-	return result.errors.length === 0 && result.failed === 0
+	if (data.fingerprint === fingerprint) {
+		return data
+	}
+
+	return
 }
+
+// A loaded machine can refuse or time out a local resource
+// server connection for a moment, killing an arbitrary stack
+// mid-run with a bare system error. Those clear within a tick,
+// so a stack that failed on nothing but system errors gets one
+// retry instead of failing the whole run.
+const transient = (error: ModuleError) =>
+	['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].includes(error.code ?? '') ||
+	['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].some(code => error.message.includes(code))
 
 export const runTests = async (
 	tests: TestCase[],
@@ -315,6 +239,9 @@ export const runTests = async (
 		showLogs: boolean
 		env?: Record<string, string>
 		manifest?: TestManifest
+		// Boots the shared resource servers, called before the first
+		// uncached stack runs - a fully cached run skips them.
+		ensureReady?: () => Promise<void>
 	}
 ) => {
 	const workspace = await loadWorkspace(directories.root)
@@ -337,30 +264,233 @@ export const runTests = async (
 		manifestFingerprint = createHash('sha1').update(JSON.stringify(stable)).update(hashes.join(',')).digest('hex')
 	}
 
-	for (const test of tests) {
-		if (stackFilters && stackFilters.length > 0) {
-			const found = stackFilters.find(f => wildstring.match(f, test.stackName))
+	await mkdir(directories.test, { recursive: true })
 
-			if (!found) {
-				continue
-			}
+	type PendingTest = {
+		// The vitest project name - unique even when a stack has
+		// multiple test folders.
+		name: string
+		stack: string
+		dir: string
+		file: string
+		fingerprint: string
+		env?: Record<string, string>
+	}
+
+	const pending: PendingTest[] = []
+
+	const selected = tests.filter(test => {
+		if (stackFilters && stackFilters.length > 0) {
+			return stackFilters.some(f => wildstring.match(f, test.stackName))
 		}
 
-		for (const path of test.paths) {
-			const result = await runTest(test.name, path, testFilters, workspace, {
-				showLogs: opts.showLogs,
-				fingerprint: manifestFingerprint,
+		return true
+	})
+
+	// The folder hashes only read files, so every stack hashes at once.
+	const fingerprints = new Map(
+		await Promise.all(
+			selected.flatMap(test =>
+				test.paths.map(async dir => {
+					const fingerprint = (await generateFolderHash(workspace, dir)) + manifestFingerprint
+
+					return [dir, fingerprint] as const
+				})
+			)
+		)
+	)
+
+	for (const test of selected) {
+		for (const [index, dir] of test.paths.entries()) {
+			// A declared test folder without any test files passes like it
+			// always did - the zero-test guard below is for runs where
+			// collection silently broke, not for empty folders.
+			if (!(await containsTestFiles(dir))) {
+				continue
+			}
+
+			const file = join(directories.test, `${test.name}.json`)
+			const fingerprint = fingerprints.get(dir)!
+			const cached = await readCachedResult(file, fingerprint)
+
+			if (cached) {
+				log.step(formatResult({ stack: test.name, cached: true, event: cached }))
+
+				if (opts.showLogs) {
+					logTestLogs(cached)
+				}
+
+				logTestErrors(cached)
+
+				if (cached.failed > 0) {
+					return false
+				}
+
+				continue
+			}
+
+			pending.push({
+				name: test.paths.length > 1 ? `${test.name}:${index}` : test.name,
+				stack: test.name,
+				dir,
+				file,
+				fingerprint,
 				env: {
 					...opts.env,
 					STACK: test.stackName,
 				},
 			})
-
-			if (!result) {
-				return false
-			}
 		}
 	}
 
-	return true
+	if (pending.length === 0) {
+		return true
+	}
+	await opts.ensureReady?.()
+
+	// The main process mostly waits during the run, so the worker pool
+	// gets every core.
+	const workers = Math.max(1, Number(process.env.AWSLESS_TEST_CONCURRENCY) || availableParallelism())
+
+	let results!: Map<string, TestResponse>
+
+	await log.task({
+		initialMessage:
+			pending.length === 1
+				? `Run tests for the ${color.info(pending[0]!.stack)} stack`
+				: `Run tests for ${pending.length} stacks`,
+		errorMessage: `Running tests failed`,
+		async task(ctx) {
+			let finished = 0
+
+			const run = (entries: PendingTest[]) => {
+				return startProjectsTest({
+					projects: entries.map(entry => ({ name: entry.name, dir: entry.dir, env: entry.env })),
+					filters: testFilters,
+					workers,
+					onFileFinished() {
+						finished++
+						ctx.updateMessage(
+							`Run tests for ${pending.length} stacks ${color.dim(`(${finished} files done)`)}`
+						)
+					},
+				})
+			}
+
+			results = await run(pending)
+
+			const retries = pending.filter(entry => {
+				const result = results.get(entry.name)
+
+				return result && result.errors.length > 0 && result.errors.every(transient)
+			})
+
+			if (retries.length > 0) {
+				for (const entry of retries) {
+					for (const error of results.get(entry.name)!.errors) {
+						debug(
+							`Transient module error in ${entry.stack} tests, retrying once: ${formatModuleError(error)}`
+						)
+					}
+				}
+
+				await new Promise(resolve => setTimeout(resolve, 1000))
+
+				const retried = await run(retries)
+
+				for (const [name, result] of retried) {
+					results.set(name, result)
+				}
+			}
+
+			const failed = pending.filter(entry => {
+				const result = results.get(entry.name)
+
+				return !result || result.errors.length > 0 || result.failed > 0
+			}).length
+
+			ctx.updateSuccessMessage(
+				failed === 0
+					? `Tested ${pending.length} ${pending.length === 1 ? 'stack' : 'stacks'}`
+					: `Tested ${pending.length} ${pending.length === 1 ? 'stack' : 'stacks'} ${color.error(`(${failed} failed)`)}`
+			)
+		},
+	})
+
+	let passed = true
+
+	for (const entry of pending) {
+		const result = results.get(entry.name)
+
+		if (!result) {
+			passed = false
+			continue
+		}
+
+		if (result.errors.length > 0) {
+			passed = false
+
+			// Module errors carry no test file context, so keep the
+			// error type - a bare system error message like
+			// "ECONNREFUSED" is unfindable on its own. The terminal
+			// only shows the message, so the full stack goes to the
+			// debug log.
+			for (const error of result.errors) {
+				debug(`Module error in ${entry.stack} tests: ${formatModuleError(error)}`)
+
+				log.error(
+					[
+						color.error.inverse.bold(` FAIL `),
+						color.dim(icon.arrow.right),
+						color.info(entry.stack),
+						color.dim(icon.arrow.right),
+						error.type && error.type !== 'Error' ? `${error.type}: ${error.message}` : error.message,
+					].join(' ')
+				)
+			}
+
+			continue
+		}
+
+		// A registered test folder that produced zero tests means the run
+		// silently broke, not that the stack passed - unless the user
+		// filtered the tests down themselves.
+		if (result.tests.length === 0 && testFilters.length === 0) {
+			passed = false
+
+			log.error(
+				[
+					color.error.inverse.bold(` FAIL `),
+					color.dim(icon.arrow.right),
+					color.info(entry.stack),
+					color.dim(icon.arrow.right),
+					'No tests ran for this stack.',
+				].join(' ')
+			)
+
+			continue
+		}
+
+		log.step(formatResult({ stack: entry.stack, cached: false, event: result }))
+
+		if (opts.showLogs) {
+			logTestLogs(result)
+		}
+
+		logTestErrors(result)
+
+		if (result.failed > 0) {
+			passed = false
+		}
+
+		await writeFile(
+			entry.file,
+			stringify({
+				...result,
+				fingerprint: entry.fingerprint,
+			})
+		)
+	}
+
+	return passed
 }

@@ -62,6 +62,7 @@ export type TestManifest = {
         };
     };
 };
+type ImportFile = (file: string) => Promise<any>;
 export declare const mockBaselines: Map<Mock, (...args: unknown[]) => unknown>;
 export declare const mockState: {
     inTest: boolean;
@@ -78,5 +79,6 @@ export declare const testRegistry: {
     instances: Record<string, Mock>;
 };
 export declare const setupTestEnv: (manifest: TestManifest, options: {
-    importFile: (file: string) => Promise<any>;
+    importFile: ImportFile;
 }) => Promise<void>;
+export {};

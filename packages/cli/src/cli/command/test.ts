@@ -28,10 +28,11 @@ export const test = (program: Command) => {
 				const passed = await withTestEnvironment(
 					props.appConfig,
 					props.stackConfigs,
-					({ manifest, manifestFile }) => {
+					({ manifest, manifestFile, ensureReady }) => {
 						return runTests(tests, stacks, options?.filters, {
 							showLogs: true,
 							manifest,
+							ensureReady,
 							env: {
 								APP: props.appConfig.name,
 								APP_ID: appId,

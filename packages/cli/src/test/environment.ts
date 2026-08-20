@@ -33,7 +33,7 @@ const waitForSearch = async (port: number, timeoutMs: number) => {
 export const withTestEnvironment = async (
 	appConfig: AppConfig,
 	stackConfigs: StackConfig[],
-	run: (props: { manifest: TestManifest; manifestFile: string }) => Promise<boolean>
+	run: (props: { manifest: TestManifest; manifestFile: string; ensureReady: () => Promise<void> }) => Promise<boolean>
 ) => {
 	// The manifest lets the vitest setup materialize the whole
 	// app: every table, real handler & test config value.
@@ -47,44 +47,53 @@ export const withTestEnvironment = async (
 	// stream consumers settle inside the write calls.
 	let redis: RedisServer | undefined
 	let killSearch: (() => Promise<void>) | undefined
+	let booting: Promise<void> | undefined
 
-	manifest.servers = {}
+	// The boots are deferred until a stack actually misses the test
+	// cache, so a fully cached run never pays for them.
+	const ensureReady = () => {
+		booting ??= (async () => {
+			manifest.servers = {}
 
-	// The boots live inside the try: a launched server whose
+			if (manifest.searches.length > 0) {
+				const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
+
+				const port = await findFreePort()
+				const path = await download(VERSION_3_5_0_MIN)
+
+				killSearch = await launch({
+					path,
+					port,
+					host: 'localhost',
+					version: VERSION_3_5_0_MIN,
+					debug: false,
+				})
+
+				await waitForSearch(port, 60_000)
+
+				manifest.servers.search = { domain: `localhost:${port}` }
+			}
+
+			if (manifest.caches.length > 0) {
+				redis = new RedisServer()
+				// Every vitest worker isolates into its own database.
+				await redis.start(undefined, undefined, ['--databases', '256'])
+				await redis.ping()
+
+				manifest.servers.redis = { host: '127.0.0.1', port: await redis.getPort() }
+			}
+
+			await mkdir(join(directories.output, 'test'), { recursive: true })
+			await writeFile(manifestFile, JSON.stringify(manifest))
+		})()
+
+		return booting
+	}
+
+	// The teardown lives in the finally: a launched server whose
 	// readiness check fails must still tear down.
 	try {
-		if (manifest.searches.length > 0) {
-			const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
-
-			const port = await findFreePort()
-			const path = await download(VERSION_3_5_0_MIN)
-
-			killSearch = await launch({
-				path,
-				port,
-				host: 'localhost',
-				version: VERSION_3_5_0_MIN,
-				debug: false,
-			})
-
-			await waitForSearch(port, 60_000)
-
-			manifest.servers.search = { domain: `localhost:${port}` }
-		}
-
-		if (manifest.caches.length > 0) {
-			redis = new RedisServer()
-			// Every vitest worker isolates into its own database.
-			await redis.start(undefined, undefined, ['--databases', '256'])
-			await redis.ping()
-
-			manifest.servers.redis = { host: '127.0.0.1', port: await redis.getPort() }
-		}
-
-		await mkdir(join(directories.output, 'test'), { recursive: true })
-		await writeFile(manifestFile, JSON.stringify(manifest))
-
-		return await run({ manifest, manifestFile })
+		return await run({ manifest, manifestFile, ensureReady })
 	} finally {
 		await redis?.kill()
 		await killSearch?.()

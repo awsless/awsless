@@ -2420,6 +2420,7 @@ type TestManifest = {
     };
   };
 };
+type ImportFile = (file: string) => Promise<any>;
 declare const mockBaselines: Map<Mock, (...args: unknown[]) => unknown>;
 declare const mockState: {
   inTest: boolean;
@@ -2436,7 +2437,7 @@ declare const testRegistry: {
   instances: Record<string, Mock>;
 };
 declare const setupTestEnv: (manifest: TestManifest, options: {
-  importFile: (file: string) => Promise<any>;
+  importFile: ImportFile;
 }) => Promise<void>;
 //#endregion
 //#region src/lib/server/alert.d.ts

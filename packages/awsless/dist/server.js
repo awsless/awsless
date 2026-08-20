@@ -908,6 +908,35 @@ const testRegistry = {
 	jobs: {},
 	instances: {}
 };
+const setupTestEnv = async (manifest, options) => {
+	const [dynamodb, lambda, s3, scheduler, sns, sqs, cloudwatch, ecs, ses] = await Promise.all([
+		import("@awsless/dynamodb"),
+		import("@awsless/lambda"),
+		import("@awsless/s3"),
+		import("@awsless/scheduler"),
+		import("@awsless/sns"),
+		import("@awsless/sqs"),
+		import("@awsless/cloudwatch"),
+		import("@awsless/ecs"),
+		import("@awsless/ses")
+	]);
+	cloudwatch.mockCloudWatch();
+	hookTestCleanup();
+	compareBigFloatsByValue();
+	applyTestConfigValues(manifest);
+	materializeTables(manifest, options.importFile, dynamodb);
+	await createSearchIndexes(manifest);
+	s3.mockS3();
+	await redirectCacheClients(manifest);
+	const spies = registerResourceSpies(manifest, options.importFile);
+	lambda.mockLambda(spies.lambdas);
+	scheduler.mockScheduler(spies.tasks);
+	sqs.mockSQS(spies.queues);
+	sns.mockSNS(spies.topics);
+	ecs.mockEcs(spies.jobs);
+	recordEmails(ses.mockSES);
+	resetSpiesBetweenTests();
+};
 const realHandler = (importFile, file) => {
 	let cached;
 	return vi.fn((payload) => {
@@ -919,157 +948,160 @@ const realHandler = (importFile, file) => {
 		return cached.then((handle) => handle(payload));
 	});
 };
-const setupTestEnv = async (manifest, options) => {
-	const [{ mockDynamoDB, streamTable, define, object, any }, { mockLambda }, { mockS3 }, { mockScheduler }, { mockSNS }, { mockSQS }, { mockCloudWatch }, { mockEcs }, { mockSES }] = await Promise.all([
-		import("@awsless/dynamodb"),
-		import("@awsless/lambda"),
-		import("@awsless/s3"),
-		import("@awsless/scheduler"),
-		import("@awsless/sns"),
-		import("@awsless/sqs"),
-		import("@awsless/cloudwatch"),
-		import("@awsless/ecs"),
-		import("@awsless/ses")
-	]);
-	mockCloudWatch();
-	hookTestCleanup();
+const compareBigFloatsByValue = () => {
 	const isBigFloat = (value) => typeof value === "object" && value !== null && typeof value.coefficient === "bigint" && typeof value.exponent === "number";
 	expect.addEqualityTesters([function(a, b) {
 		if (isBigFloat(a) && isBigFloat(b)) return a.toString() === b.toString();
 	}]);
+};
+const applyTestConfigValues = (manifest) => {
 	for (const [name, value] of Object.entries(manifest.configs)) setConfigValue(name, value);
-	if (manifest.tables.length > 0) {
-		const app = process.env.APP;
-		mockDynamoDB({
-			tables: manifest.tables.map((table) => ({
-				...table,
-				TableName: table.TableName.replace(`${manifest.app}--`, `${app}--`)
-			})),
-			stream: (manifest.streams ?? []).map((entry) => {
-				return streamTable(define(getTableName(entry.id, entry.stack), {
-					hash: entry.hash,
-					sort: entry.sort,
-					schema: object({}, any())
-				}), async (payload) => {
-					await (await options.importFile(entry.file)).default(payload);
-				});
+};
+const materializeTables = (manifest, importFile, dynamodb) => {
+	if (manifest.tables.length === 0) return;
+	const app = process.env.APP;
+	const tables = manifest.tables.map((table) => ({
+		...table,
+		TableName: table.TableName.replace(`${manifest.app}--`, `${app}--`)
+	}));
+	const streams = (manifest.streams ?? []).map((entry) => {
+		return dynamodb.streamTable(dynamodb.define(getTableName(entry.id, entry.stack), {
+			hash: entry.hash,
+			sort: entry.sort,
+			schema: dynamodb.object({}, dynamodb.any())
+		}), async (payload) => {
+			await (await importFile(entry.file)).default(payload);
+		});
+	});
+	dynamodb.mockDynamoDB({
+		tables,
+		stream: streams
+	});
+};
+const createSearchIndexes = async (manifest) => {
+	const domain = manifest.servers?.search?.domain;
+	if (!domain) return;
+	for (const entry of manifest.searches ?? []) {
+		const { name } = getSearchProps(entry.id, entry.stack);
+		process.env[`SEARCH_MAPPINGS_${name}`] = JSON.stringify(entry.mappings);
+		const result = await fetch(`http://${domain}/${name}`, {
+			method: "PUT",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				mappings: entry.mappings,
+				settings: entry.settings
 			})
 		});
+		if (!result.ok) throw new Error(`Failed to create the search index "${name}": ${await result.text()}`);
 	}
-	if (manifest.servers?.search) {
-		const domain = manifest.servers.search.domain;
-		for (const entry of manifest.searches ?? []) {
-			const { name } = getSearchProps(entry.id, entry.stack);
-			process.env[`SEARCH_MAPPINGS_${name}`] = JSON.stringify(entry.mappings);
-			const result = await fetch(`http://${domain}/${name}`, {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					mappings: entry.mappings,
-					settings: entry.settings
-				})
-			});
-			if (!result.ok) throw new Error(`Failed to create the search index "${name}": ${await result.text()}`);
+};
+const redirectCacheClients = async (manifest) => {
+	if ((manifest.caches ?? []).length === 0) return;
+	const shared = manifest.servers?.redis;
+	if (!shared) {
+		const { mockRedis } = await import("@awsless/redis");
+		mockRedis();
+		return;
+	}
+	const { createIoRedisClient, overrideOptions } = await import("@awsless/redis");
+	const db = ((parseInt(process.env.AWSLESS_TEST_REDIS_DB_OFFSET ?? "0", 10) || 0) + (parseInt(process.env.VITEST_POOL_ID ?? "1", 10) || 1)) % 256;
+	overrideOptions({
+		host: shared.host,
+		port: shared.port,
+		db,
+		cluster: false,
+		tls: void 0,
+		maxRetriesPerRequest: 20,
+		connectTimeout: 1e4,
+		retryStrategy: (times) => times > 20 ? null : Math.min(times * 250, 2e3)
+	});
+	const flush = async () => {
+		const client = createIoRedisClient({
+			host: shared.host,
+			port: shared.port,
+			db
+		});
+		try {
+			await client.send("FLUSHDB", []);
+		} finally {
+			await client.destroy();
+		}
+	};
+	try {
+		await flush();
+	} catch (error) {
+		await new Promise((resolve) => setTimeout(resolve, 1e3));
+		try {
+			await flush();
+		} catch (retryError) {
+			throw new Error(`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${String(error)}`, { cause: retryError });
 		}
 	}
-	mockS3();
-	if ((manifest.caches ?? []).length > 0) {
-		const shared = manifest.servers?.redis;
-		if (shared) {
-			const { createIoRedisClient, overrideOptions } = await import("@awsless/redis");
-			const db = (parseInt(process.env.VITEST_POOL_ID ?? "1", 10) || 1) % 256;
-			overrideOptions({
-				host: shared.host,
-				port: shared.port,
-				db,
-				cluster: false,
-				tls: void 0,
-				maxRetriesPerRequest: 20,
-				connectTimeout: 1e4,
-				retryStrategy: (times) => times > 20 ? null : Math.min(times * 250, 2e3)
-			});
-			const flush = async () => {
-				const client = createIoRedisClient({
-					host: shared.host,
-					port: shared.port,
-					db
-				});
-				try {
-					await client.send("FLUSHDB", []);
-				} finally {
-					await client.destroy();
-				}
-			};
-			try {
-				await flush();
-			} catch (error) {
-				await new Promise((resolve) => setTimeout(resolve, 1e3));
-				try {
-					await flush();
-				} catch (retryError) {
-					throw new Error(`The shared test redis server at ${shared.host}:${shared.port} is unreachable: ${String(error)}`, { cause: retryError });
-				}
-			}
-		} else {
-			const { mockRedis } = await import("@awsless/redis");
-			mockRedis();
-		}
-	}
-	const lambdas = {};
-	const tasks = {};
-	const queues = {};
-	const topics = {};
+};
+const registerResourceSpies = (manifest, importFile) => {
+	const spies = {
+		lambdas: {},
+		tasks: {},
+		queues: {},
+		topics: {},
+		jobs: {}
+	};
 	for (const entry of manifest.functions) {
-		const spy = realHandler(options.importFile, entry.file);
-		testRegistry.functions[getFunctionName(entry.id, entry.stack)] = spy;
-		lambdas[getFunctionName(entry.id, entry.stack)] = spy;
+		const name = getFunctionName(entry.id, entry.stack);
+		const spy = realHandler(importFile, entry.file);
+		testRegistry.functions[name] = spy;
+		spies.lambdas[name] = spy;
 	}
 	for (const entry of manifest.tasks) {
-		const spy = realHandler(options.importFile, entry.file);
-		testRegistry.tasks[getTaskName(entry.id, entry.stack)] = spy;
-		lambdas[getTaskName(entry.id, entry.stack)] = spy;
-		tasks[getTaskName(entry.id, entry.stack)] = spy;
+		const name = getTaskName(entry.id, entry.stack);
+		const spy = realHandler(importFile, entry.file);
+		testRegistry.tasks[name] = spy;
+		spies.lambdas[name] = spy;
+		spies.tasks[name] = spy;
 	}
 	for (const id of manifest.pubsub) {
+		const name = getPubSubPublisherName(id);
 		const spy = vi.fn(() => {});
-		testRegistry.pubsub[getPubSubPublisherName(id)] = spy;
-		lambdas[getPubSubPublisherName(id)] = spy;
+		testRegistry.pubsub[name] = spy;
+		spies.lambdas[name] = spy;
 	}
 	for (const entry of manifest.queues) {
-		const spy = entry.file ? realHandler(options.importFile, entry.file) : vi.fn(() => {});
-		testRegistry.queues[getQueueName(entry.id, entry.stack)] = spy;
-		queues[getQueueName(entry.id, entry.stack)] = spy;
+		const name = getQueueName(entry.id, entry.stack);
+		const spy = entry.file ? realHandler(importFile, entry.file) : vi.fn(() => {});
+		testRegistry.queues[name] = spy;
+		spies.queues[name] = spy;
 	}
 	for (const id of manifest.topics) {
+		const name = getTopicName(id);
 		const spy = vi.fn(() => {});
-		testRegistry.topics[getTopicName(id)] = spy;
-		topics[getTopicName(id)] = spy;
+		testRegistry.topics[name] = spy;
+		spies.topics[name] = spy;
 	}
 	for (const id of manifest.alerts ?? []) {
+		const name = getAlertName(id);
 		const spy = vi.fn(() => {});
-		testRegistry.alerts[getAlertName(id)] = spy;
-		topics[getAlertName(id)] = spy;
+		testRegistry.alerts[name] = spy;
+		spies.topics[name] = spy;
 	}
 	for (const entry of manifest.instances ?? []) {
+		const name = getInstanceQueueName(entry.id, entry.stack);
 		const spy = vi.fn(() => {});
-		testRegistry.instances[getInstanceQueueName(entry.id, entry.stack)] = spy;
-		queues[getInstanceQueueName(entry.id, entry.stack)] = spy;
+		testRegistry.instances[name] = spy;
+		spies.queues[name] = spy;
 	}
-	const jobs = {};
 	if ((manifest.jobs ?? []).length > 0) {
 		process.env.JOB_SUBNETS ??= JSON.stringify(["subnet-local"]);
 		process.env.JOB_SECURITY_GROUP ??= "sg-local";
 	}
 	for (const entry of manifest.jobs ?? []) {
+		const name = getJobName(entry.id, entry.stack);
 		const spy = vi.fn(() => {});
-		testRegistry.jobs[getJobName(entry.id, entry.stack)] = spy;
-		jobs[getJobName(entry.id, entry.stack)] = spy;
+		testRegistry.jobs[name] = spy;
+		spies.jobs[name] = spy;
 	}
-	mockLambda(lambdas);
-	mockScheduler(tasks);
-	mockSQS(queues);
-	mockSNS(topics);
-	mockEcs(jobs);
+	return spies;
+};
+const recordEmails = (mockSES) => {
 	testRegistry.emails.send = vi.fn(() => {});
 	mockSES((input) => {
 		const email = input;
@@ -1080,6 +1112,8 @@ const setupTestEnv = async (manifest, options) => {
 			html: email.Content?.Simple?.Body?.Html?.Data
 		});
 	});
+};
+const resetSpiesBetweenTests = () => {
 	beforeEach(() => {
 		mockState.inTest = true;
 		for (const registry of Object.values(testRegistry)) for (const spy of Object.values(registry)) {

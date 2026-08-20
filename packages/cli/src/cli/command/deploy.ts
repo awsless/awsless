@@ -98,19 +98,24 @@ export const deploy = (program: Command) => {
 				// Building stack assets & run tests
 
 				if (!options.skipTests) {
-					const passed = await withTestEnvironment(appConfig, stackConfigs, ({ manifest, manifestFile }) => {
-						return runTests(tests, [], [], {
-							showLogs: false,
-							manifest,
-							env: {
-								APP: appConfig.name,
-								APP_ID: appId,
-								AWS_REGION: appConfig.region,
-								AWS_ACCOUNT_ID: accountId,
-								AWSLESS_TEST_MANIFEST: manifestFile,
-							},
-						})
-					})
+					const passed = await withTestEnvironment(
+						appConfig,
+						stackConfigs,
+						({ manifest, manifestFile, ensureReady }) => {
+							return runTests(tests, [], [], {
+								showLogs: false,
+								manifest,
+								ensureReady,
+								env: {
+									APP: appConfig.name,
+									APP_ID: appId,
+									AWS_REGION: appConfig.region,
+									AWS_ACCOUNT_ID: accountId,
+									AWSLESS_TEST_MANIFEST: manifestFile,
+								},
+							})
+						}
+					)
 
 					if (!passed) {
 						throw new ExpectedError('Tests failed.')
