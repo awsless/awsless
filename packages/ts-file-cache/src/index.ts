@@ -11,6 +11,18 @@ export const loadWorkspace = async (search: string): Promise<Workspace> => {
 	return loadPackageManager(toAbsolute(search))
 }
 
+// For code living outside the workspace, like a prebuilt runtime,
+// whose imports still resolve against the workspace root.
+export const generateDependencyHash = (workspace: Workspace, name: string) => {
+	const dependency = workspace.packages[workspace.cwd]?.dependencies[name]
+
+	if (dependency?.type === 'package') {
+		return dependency.treeHash
+	}
+
+	return
+}
+
 type Options = {
 	extensions?: string[]
 }

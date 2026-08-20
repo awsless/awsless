@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { generateFileHash } from '@awsless/ts-file-cache'
+import { generateDependencyHash, generateFileHash } from '@awsless/ts-file-cache'
 import { Builder, getBuildPath } from '../../build/index.js'
 import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
@@ -111,23 +111,10 @@ ${entries.join('\n')}
 				])
 			)
 
-		// The prebuilt runtime resolves its awsless imports from the
-		// project's node_modules, outside the workspace hashes - their
-		// subtree hashes must rebuild the bundle without dragging in
-		// unrelated lockfile changes.
-		const root = workspace.packages[workspace.cwd]
-		const runtimeDeps = Object.keys(root?.dependencies ?? {})
-			.filter(name => name === 'awsless' || name.startsWith('@awsless/'))
-			.toSorted()
-
-		for (const name of runtimeDeps) {
-			const dependency = root!.dependencies[name]!
-
-			if (dependency.type === 'package') {
-				hash.update(name)
-				hash.update(dependency.treeHash)
-			}
-		}
+		// The prebuilt runtime imports the awsless package from the
+		// project's node_modules, outside the workspace hashes - its
+		// subtree hash covers everything the runtime can pull in.
+		hash.update(generateDependencyHash(workspace, 'awsless') ?? '')
 
 		for (const item of hashes) {
 			hash.update(item)

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { generateFileHash } from '../src'
+import { generateDependencyHash, generateFileHash, loadWorkspace } from '../src'
 import { pnpm } from '../src/package-manager/pnpm'
 
 const sha1 = (content: string) => createHash('sha1').update(content).digest('hex')
@@ -15,6 +15,13 @@ describe('PNPM', () => {
 		expect(workspace.cwd).toBe(cwd)
 		expect(workspace.packages).toBeDefined()
 		expect(Object.values(workspace.packages).find(p => p.name === '@awsless/ts-file-cache')).toBeDefined()
+	})
+
+	it('should expose the subtree hash of a root dependency', async () => {
+		const workspace = await loadWorkspace(join(__dirname, '_fixture/pnpm'))
+
+		expect(generateDependencyHash(workspace, 'typescript')).toMatch(/^[0-9a-f]{40}$/)
+		expect(generateDependencyHash(workspace, 'unknown')).toBeUndefined()
 	})
 
 	describe('per package cache busting', () => {

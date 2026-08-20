@@ -23,10 +23,11 @@ type Workspace = {
 //#endregion
 //#region src/index.d.ts
 declare const loadWorkspace: (search: string) => Promise<Workspace>;
+declare const generateDependencyHash: (workspace: Workspace, name: string) => string | undefined;
 type Options = {
   extensions?: string[];
 };
 declare const generateFileHash: (workspace: Workspace, file: string, opts?: Options) => Promise<string>;
 declare const generateFolderHash: (workspace: Workspace, folder: string, opts?: Options) => Promise<string>;
 //#endregion
-export { Dependency, Package, PackageDependency, Workspace, WorkspaceDependency, generateFileHash, generateFolderHash, loadWorkspace };
+export { Dependency, Package, PackageDependency, Workspace, WorkspaceDependency, generateDependencyHash, generateFileHash, generateFolderHash, loadWorkspace };

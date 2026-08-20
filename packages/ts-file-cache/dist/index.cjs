@@ -335,6 +335,10 @@ const buildPackages = async (cwd, importers) => {
 const loadWorkspace = async (search) => {
 	return loadPackageManager(toAbsolute(search));
 };
+const generateDependencyHash = (workspace, name) => {
+	const dependency = workspace.packages[workspace.cwd]?.dependencies[name];
+	if (dependency?.type === "package") return dependency.treeHash;
+};
 const defaultOptions = { extensions: [
 	"js",
 	"mjs",
@@ -371,6 +375,7 @@ const generateFolderHash = async (workspace, folder, opts = {}) => {
 	return mergeHashes(hashes);
 };
 //#endregion
+exports.generateDependencyHash = generateDependencyHash;
 exports.generateFileHash = generateFileHash;
 exports.generateFolderHash = generateFolderHash;
 exports.loadWorkspace = loadWorkspace;
