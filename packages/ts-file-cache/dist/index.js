@@ -83,10 +83,9 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 		return;
 	}
 	const module = getPackageName(file);
-	if (hashes.has(module)) return;
 	const dependency = findDependency(workspace, module, sourceFile);
 	if (dependency) {
-		if (dependency.type === "package") hashes.set(module, Buffer.from(`${module}:${dependency.version}`, "utf8"));
+		if (dependency.type === "package") hashes.set(`${module}@${dependency.version}`, Buffer.from(dependency.treeHash, "hex"));
 		else {
 			const localPackage = workspace.packages[dependency.link];
 			if (!localPackage) throw new Error(`Can't find the local workspace package for: ${file}`);
@@ -121,7 +120,7 @@ const findDependency = (workspace, module, source) => {
 };
 //#endregion
 //#region src/package-manager/bun.ts
-const bun = async (cwd, lockFile) => {
+const bun = async (cwd, lockFile, lockfileHash) => {
 	const data = parseJsonc(lockFile);
 	const resolvedVersions = {};
 	for (const [key, entry] of Object.entries(data.packages ?? {})) {
@@ -157,11 +156,13 @@ const bun = async (cwd, lockFile) => {
 			const version = resolvedVersions[name] ?? resolvedVersions[`${workspace.name}/${name}`];
 			if (version) dependencies[name] = {
 				type: "package",
-				version
+				version,
+				treeHash: lockfileHash
 			};
 			else dependencies[name] = {
 				type: "package",
-				version: specifier
+				version: specifier,
+				treeHash: lockfileHash
 			};
 		}
 		importers[path] = dependencies;
@@ -224,8 +225,9 @@ const stripJsoncSyntax = (text) => {
 };
 //#endregion
 //#region src/package-manager/pnpm.ts
-const pnpm = async (cwd, lockFile) => {
+const pnpm = async (cwd, lockFile, lockfileHash) => {
 	const data = parse(lockFile);
+	const treeHash = createTreeHasher(data, lockfileHash);
 	const importers = {};
 	for (const [path, importee] of Object.entries(data.importers)) {
 		const deps = {
@@ -240,13 +242,49 @@ const pnpm = async (cwd, lockFile) => {
 		};
 		else dependencies[name] = {
 			type: "package",
-			version: entry.version
+			version: entry.version,
+			treeHash: treeHash(`${name}@${entry.version}`)
 		};
 		importers[path] = dependencies;
 	}
 	return {
 		cwd,
 		packages: await buildPackages(cwd, importers)
+	};
+};
+const createTreeHasher = (data, lockfileHash) => {
+	if (!data.snapshots) return () => lockfileHash;
+	const graph = {};
+	for (const [key, entry] of Object.entries(data.snapshots)) {
+		const deps = {
+			...entry.dependencies,
+			...entry.optionalDependencies
+		};
+		const children = [];
+		for (const [name, version] of Object.entries(deps)) if (!version.startsWith("link:")) children.push(`${name}@${version}`);
+		graph[key] = children;
+	}
+	const hashed = /* @__PURE__ */ new Map();
+	return (key) => {
+		const cached = hashed.get(key);
+		if (cached) return cached;
+		const reachable = /* @__PURE__ */ new Set([key]);
+		const queue = [key];
+		while (queue.length > 0) {
+			const current = queue.pop();
+			for (const child of graph[current] ?? []) if (!reachable.has(child)) {
+				reachable.add(child);
+				queue.push(child);
+			}
+		}
+		const hash = createHash("sha1");
+		for (const entry of Array.from(reachable).toSorted()) {
+			hash.update(entry);
+			hash.update("\n");
+		}
+		const digest = hash.digest("hex");
+		hashed.set(key, digest);
+		return digest;
 	};
 };
 //#endregion
@@ -261,9 +299,10 @@ const loadPackageManager = async (search, level = 5) => {
 		const file = join(search, lockFileName);
 		if (await fileExist(file)) {
 			const content = await readFile(file, "utf8");
+			const lockfileHash = createHash("sha1").update(content).digest("hex");
 			return {
-				...await parser(search, content),
-				lockfileHash: createHash("sha1").update(content).digest("hex")
+				...await parser(search, content, lockfileHash),
+				lockfileHash
 			};
 		}
 	}
@@ -303,15 +342,12 @@ const defaultOptions = { extensions: [
 	"mts",
 	"tsx"
 ] };
-const seedHashes = (workspace) => {
-	return /* @__PURE__ */ new Map([["#lockfile", Buffer.from(workspace.lockfileHash, "hex")]]);
-};
 const generateFileHash = async (workspace, file, opts = {}) => {
 	const options = {
 		...defaultOptions,
 		...opts
 	};
-	const hashes = seedHashes(workspace);
+	const hashes = /* @__PURE__ */ new Map();
 	const absoluteFile = toAbsolute(file);
 	await generateRecursiveFileHashes(workspace, absoluteFile, absoluteFile, options.extensions, hashes);
 	return mergeHashes(hashes);
@@ -321,7 +357,7 @@ const generateFolderHash = async (workspace, folder, opts = {}) => {
 		...defaultOptions,
 		...opts
 	};
-	const hashes = seedHashes(workspace);
+	const hashes = /* @__PURE__ */ new Map();
 	const absoluteFolder = toAbsolute(folder);
 	const files = await readdir(absoluteFolder, {
 		recursive: true,

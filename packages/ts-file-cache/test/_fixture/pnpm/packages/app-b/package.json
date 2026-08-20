@@ -1,0 +1,8 @@
+{
+	"name": "@fixture/app-b",
+	"main": "_index.ts",
+	"dependencies": {
+		"@fixture/lib": "workspace:*",
+		"beta": "^2.0.0"
+	}
+}

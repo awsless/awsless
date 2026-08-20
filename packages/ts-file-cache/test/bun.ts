@@ -16,6 +16,7 @@ describe('Bun', () => {
 		expect(app!.dependencies['yaml']).toStrictEqual({
 			type: 'package',
 			version: '2.9.0',
+			treeHash: workspace.lockfileHash,
 		})
 		expect(app!.dependencies['@fixture/lib']).toStrictEqual({
 			type: 'workspace',

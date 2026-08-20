@@ -47,16 +47,14 @@ export const generateRecursiveFileHashes = async (
 	}
 
 	const module = getPackageName(file)
-
-	if (hashes.has(module)) {
-		return
-	}
-
 	const dependency = findDependency(workspace, module, sourceFile)
 
 	if (dependency) {
 		if (dependency.type === 'package') {
-			hashes.set(module, Buffer.from(`${module}:${dependency.version}`, 'utf8'))
+			// Versioned keys let two workspace packages depend on
+			// different versions of the same module without the first
+			// one hashed shadowing the other.
+			hashes.set(`${module}@${dependency.version}`, Buffer.from(dependency.treeHash, 'hex'))
 		} else {
 			// The lockfile link points at the exact package directory,
 			// which stays unambiguous even with duplicate package names.

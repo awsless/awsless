@@ -15,7 +15,7 @@ type LockFile = {
 	packages?: Record<string, [string, ...unknown[]]>
 }
 
-export const bun = async (cwd: string, lockFile: string) => {
+export const bun = async (cwd: string, lockFile: string, lockfileHash: string) => {
 	const data = parseJsonc(lockFile) as LockFile
 
 	// The resolution entry is formatted as "name@version".
@@ -69,15 +69,19 @@ export const bun = async (cwd: string, lockFile: string) => {
 			// "importer-name/dependency-name" style key.
 			const version = resolvedVersions[name] ?? resolvedVersions[`${workspace.name}/${name}`]
 
+			// The bun lock file has no resolved dependency graph to walk,
+			// so the whole lockfile hash stands in for the subtree.
 			if (version) {
 				dependencies[name] = {
 					type: 'package',
 					version,
+					treeHash: lockfileHash,
 				}
 			} else {
 				dependencies[name] = {
 					type: 'package',
 					version: specifier,
+					treeHash: lockfileHash,
 				}
 			}
 		}

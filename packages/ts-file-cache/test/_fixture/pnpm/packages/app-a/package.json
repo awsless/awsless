@@ -1,0 +1,7 @@
+{
+	"name": "@fixture/app-a",
+	"main": "_index.ts",
+	"dependencies": {
+		"alpha": "^1.0.0"
+	}
+}

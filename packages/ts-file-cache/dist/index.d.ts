@@ -2,6 +2,7 @@
 type PackageDependency = {
   type: 'package';
   version: string;
+  treeHash: string;
 };
 type WorkspaceDependency = {
   type: 'workspace';

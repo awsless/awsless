@@ -1,6 +1,12 @@
 export type PackageDependency = {
 	type: 'package'
 	version: string
+
+	// One hash pinning the dependency's whole resolved subtree, so
+	// transitive updates bust the cache without involving the parts of
+	// the lockfile this dependency can't reach. Package managers
+	// without a resolved graph fall back to the whole lockfile hash.
+	treeHash: string
 }
 
 export type WorkspaceDependency = {

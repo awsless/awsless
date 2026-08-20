@@ -1,8 +1,8 @@
 import { generateFileHash, generateFolderHash, loadWorkspace } from '../src'
 import { Workspace } from '../src/types'
 
-// Hashes include the lockfile, so exact pins would break on every
-// dependency change - assert behavior instead.
+// Hashes include dependency versions, so exact pins would break on
+// every dependency change - assert behavior instead.
 describe('Hash', () => {
 	let workspace: Workspace
 	let fileHash: string
@@ -44,10 +44,9 @@ describe('Hash', () => {
 		expect(hash).toBe(fileHash)
 	})
 
-	it('should react to lockfile changes', async () => {
+	it('should ignore lockfile changes outside every dependency subtree', async () => {
 		const changed = await generateFileHash({ ...workspace, lockfileHash: '0'.repeat(40) }, './src/index.ts')
 
-		expect(changed).toMatch(/^[0-9a-f]{40}$/)
-		expect(changed).not.toBe(fileHash)
+		expect(changed).toBe(fileHash)
 	})
 })

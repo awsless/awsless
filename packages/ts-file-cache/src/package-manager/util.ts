@@ -20,13 +20,11 @@ export const loadPackageManager = async (search: string, level = 5): Promise<Wor
 
 		if (await fileExist(file)) {
 			const content = await readFile(file, 'utf8')
+			const lockfileHash = createHash('sha1').update(content).digest('hex')
 
-			// The lockfile pins the whole dependency graph, so its hash
-			// lets file hashes react to transitive dependency updates
-			// the import graph alone can't see.
 			return {
-				...(await parser(search, content)),
-				lockfileHash: createHash('sha1').update(content).digest('hex'),
+				...(await parser(search, content, lockfileHash)),
+				lockfileHash,
 			}
 		}
 	}
