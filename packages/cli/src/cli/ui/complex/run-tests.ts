@@ -181,16 +181,16 @@ const formatModuleError = (error: ModuleError) => {
 
 // Mirrors the vitest include/exclude rules: any js/ts file counts,
 // except underscore prefixed files & folders.
-const containsTestFiles = async (dir: string) => {
+const countTestFiles = async (dir: string) => {
 	let entries
 
 	try {
 		entries = await readdir(dir, { recursive: true, withFileTypes: true })
 	} catch {
-		return false
+		return 0
 	}
 
-	return entries.some(entry => {
+	return entries.filter(entry => {
 		if (!entry.isFile() || !/\.(js|jsx|ts|tsx)$/.test(entry.name)) {
 			return false
 		}
@@ -198,7 +198,7 @@ const containsTestFiles = async (dir: string) => {
 		const relativePath = relative(dir, join(entry.parentPath, entry.name))
 
 		return relativePath.split(sep).every(segment => !segment.startsWith('_'))
-	})
+	}).length
 }
 
 const readCachedResult = async (file: string, fingerprint: string) => {
@@ -273,6 +273,7 @@ export const runTests = async (
 		stack: string
 		dir: string
 		file: string
+		files: number
 		fingerprint: string
 		env?: Record<string, string>
 	}
@@ -305,7 +306,9 @@ export const runTests = async (
 			// A declared test folder without any test files passes like it
 			// always did - the zero-test guard below is for runs where
 			// collection silently broke, not for empty folders.
-			if (!(await containsTestFiles(dir))) {
+			const files = await countTestFiles(dir)
+
+			if (files === 0) {
 				continue
 			}
 
@@ -334,6 +337,7 @@ export const runTests = async (
 				stack: test.name,
 				dir,
 				file,
+				files,
 				fingerprint,
 				env: {
 					...opts.env,
@@ -361,18 +365,33 @@ export const runTests = async (
 				: `Run tests for ${pending.length} stacks`,
 		errorMessage: `Running tests failed`,
 		async task(ctx) {
-			let finished = 0
+			// A stack counts as done when its last test file finishes.
+			// Test file filters make the expected counts unreachable, so
+			// filtered runs report finished files instead.
+			const expectedFiles = new Map(pending.map(entry => [entry.name, entry.files]))
+			const finishedFiles = new Map<string, number>()
+			const finishedStacks = new Set<string>()
 
 			const run = (entries: PendingTest[]) => {
 				return startProjectsTest({
 					projects: entries.map(entry => ({ name: entry.name, dir: entry.dir, env: entry.env })),
 					filters: testFilters,
 					workers,
-					onFileFinished() {
-						finished++
-						ctx.updateMessage(
-							`Run tests for ${pending.length} stacks ${color.dim(`(${finished} files done)`)}`
-						)
+					onFileFinished(project) {
+						const count = (finishedFiles.get(project) ?? 0) + 1
+
+						finishedFiles.set(project, count)
+
+						if (count >= (expectedFiles.get(project) ?? Infinity)) {
+							finishedStacks.add(project)
+						}
+
+						const progress =
+							testFilters.length > 0
+								? `${[...finishedFiles.values()].reduce((sum, value) => sum + value, 0)} files done`
+								: `${finishedStacks.size}/${pending.length} stacks done`
+
+						ctx.updateMessage(`Run tests for ${pending.length} stacks ${color.dim(`(${progress})`)}`)
 					},
 				})
 			}

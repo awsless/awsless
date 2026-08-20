@@ -14,7 +14,7 @@ export const startProjectsTest = async (props: {
 	projects: ProjectTest[]
 	filters: string[]
 	workers?: number
-	onFileFinished?: () => void
+	onFileFinished?: (project: string) => void
 }): Promise<Map<string, TestResponse>> => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
 	const startTime = process.hrtime.bigint()
@@ -49,8 +49,8 @@ export const startProjectsTest = async (props: {
 	}
 
 	const progressReporter: Reporter = {
-		onTestModuleEnd() {
-			props.onFileFinished?.()
+		onTestModuleEnd(module) {
+			props.onFileFinished?.(module.project.name)
 		},
 	}
 
