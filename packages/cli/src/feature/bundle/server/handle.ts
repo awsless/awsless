@@ -101,10 +101,8 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
-			// Lambda's JSON logging turns console.trace into a structured
-			// TRACE entry, but plain node prints a full stack - so the
-			// local dev worker skips the route tracing.
-			if (process.env.AWSLESS_ENV !== 'local') {
+			// Only trace inside a real lambda, where AWS_EXECUTION_ENV is defined
+			if (process.env.AWS_EXECUTION_ENV) {
 				console.trace(`Bundle route: ${match.key}`)
 			}
 

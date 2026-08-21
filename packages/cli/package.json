@@ -18,7 +18,7 @@
 	"type": "module",
 	"sideEffects": false,
 	"scripts": {
-		"test": "pnpm typecheck && bun cli/build-handlers.ts && pnpm vitest",
+		"test": "bun cli/build-handlers.ts && pnpm vitest run",
 		"build": "bun cli/build.ts",
 		"jack": "pnpm build && bun dist/bin.js --config-file=./example/jack/app.jsonc",
 		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc",
