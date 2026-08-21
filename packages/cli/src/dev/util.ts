@@ -20,13 +20,21 @@ export const LOCAL_ACCOUNT_ID = '000000000000'
 export const WATCHDOG_FILE = 'parent-watchdog.cjs'
 
 export const WATCHDOG_SOURCE = `const parent = process.ppid
-setInterval(() => {
-	// A parent of 1 means the child is already reparented - either the
-	// dev server died, or it was gone before this preload even ran.
-	if (process.ppid !== parent || parent === 1) {
+const timer = setInterval(() => {
+	// Probing the parent instead of watching process.ppid: bun caches
+	// the ppid at startup, so a reparenting is invisible there.
+	try {
+		process.kill(parent, 0)
+	} catch (_) {
 		process.exit(0)
 	}
-}, 2000).unref()
+}, 2000)
+
+// An unref'd timer never fires on bun, so only node children get the
+// unref that lets them exit naturally.
+if (typeof Bun === 'undefined') {
+	timer.unref()
+}
 `
 
 export const watchdogPath = () => {

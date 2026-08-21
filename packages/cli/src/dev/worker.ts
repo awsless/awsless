@@ -59,11 +59,14 @@ let handler
 let getCurrentRoute = () => undefined
 
 // A dev server dying without a graceful stop (a crash, kill -9) can
-// never ask its workers to exit - so the worker watches for the
-// reparenting & exits on its own instead of lingering forever.
+// never ask its workers to exit - so the worker probes the parent &
+// exits on its own instead of lingering forever. Probing instead of
+// watching process.ppid, which bun caches at startup.
 const parentPid = process.ppid
 setInterval(() => {
-	if (process.ppid !== parentPid || parentPid === 1) {
+	try {
+		process.kill(parentPid, 0)
+	} catch (_) {
 		process.exit(0)
 	}
 }, 2000).unref()
