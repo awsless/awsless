@@ -22,7 +22,7 @@ export type FailureEvent = {
 	id: string
 
 	/** The moment the failure happened. */
-	date: Date | string
+	date: Date
 
 	/** The kind of consumer that failed, like "queue" or "dynamodb-stream". */
 	type: string

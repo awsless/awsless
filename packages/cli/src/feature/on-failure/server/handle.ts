@@ -1,4 +1,4 @@
-import { parse, patch } from '@awsless/json'
+import { parse, patch, unpatch } from '@awsless/json'
 import { deleteObject, getObject } from '@awsless/s3'
 import { S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
 import { ROUTE_PROPERTY } from 'awsless'
@@ -14,9 +14,10 @@ import { getFailureSource, isDynamoDBFailureEvent, logicalResourceName } from '.
 
 type Consumer = (event: FailureEvent) => Promise<unknown>
 
-// A consumer failure throws here & the failure object stays in the
-// bucket for the sqs retry.
 export const createHandler = (consumer: Consumer) => {
+	// Mimic a real invocation payload
+	const invoke: Consumer = event => consumer(unpatch(event))
+
 	return async (event: S3CreateEvent | SQSEvent) => {
 		if (!Array.isArray(event.Records)) {
 			throw new TypeError(`Unknown Event Type: ${JSON.stringify(event)}`)
@@ -24,7 +25,7 @@ export const createHandler = (consumer: Consumer) => {
 
 		await Promise.all(
 			event.Records.map(record => {
-				return unknownRecord(record, consumer)
+				return unknownRecord(record, invoke)
 			})
 		)
 	}

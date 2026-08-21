@@ -1,3 +1,4 @@
+import { patch } from '@awsless/json'
 import { mockS3, getObject, putObject } from '@awsless/s3'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createHandler } from '../src/feature/on-failure/server/handle'
@@ -11,8 +12,10 @@ describe('on failure handler', () => {
 
 	mockS3()
 
+	// The deployed consumer is a lambda() handler that revives the json
+	// codec markers, so the collected events mirror what it receives.
 	const handle = createHandler(event => {
-		events.push(event)
+		events.push(patch(event))
 
 		if (consumerError) {
 			return Promise.reject(consumerError)
@@ -82,7 +85,6 @@ describe('on failure handler', () => {
 				id: 'request-id',
 				function: { name: 'test-app--function--bundle' },
 				payload: { hello: 'world' },
-				source: undefined,
 				error: {
 					type: 'Error',
 					message: 'failed',
@@ -192,11 +194,7 @@ describe('on failure handler', () => {
 				id: 'message-id',
 				date: new Date('2026-01-01T00:00:00.000Z'),
 				payload: { task: 'failed' },
-				source: undefined,
-				queue: {
-					name: undefined,
-					url: undefined,
-				},
+				queue: {},
 			},
 		])
 	})
