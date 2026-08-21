@@ -9,5 +9,68 @@
 			"command": "./node_modules/.bin/oxfmt",
 			"arguments": ["--stdin-filepath", "{buffer_path}"]
 		}
+	},
+
+	"languages": {
+		"TypeScript": {
+			"language_servers": ["typescript-ls", "oxlint", "oxfmt"],
+			"formatter": {
+				"language_server": {
+					"name": "oxfmt"
+				}
+			},
+			"code_actions_on_format": {
+				"source.fixAll.oxc": true
+			}
+		},
+		"TSX": {
+			"language_servers": ["typescript-ls", "oxlint", "oxfmt"],
+			"formatter": {
+				"language_server": {
+					"name": "oxfmt"
+				}
+			},
+			"code_actions_on_format": {
+				"source.fixAll.oxc": true
+			}
+		},
+		"JavaScript": {
+			"language_servers": ["typescript-ls", "oxlint", "oxfmt"],
+			"formatter": {
+				"language_server": {
+					"name": "oxfmt"
+				}
+			},
+			"code_actions_on_format": {
+				"source.fixAll.oxc": true
+			}
+		},
+		"Svelte": {
+			"language_servers": ["svelte-language-server", "oxlint", "oxfmt"],
+			"formatter": {
+				"language_server": {
+					"name": "oxfmt"
+				}
+			},
+			"code_actions_on_format": {
+				"source.fixAll.oxc": true
+			}
+		},
+		"JSON": {
+			"language_servers": ["json-language-server", "oxfmt"],
+			"formatter": {
+				"language_server": {
+					"name": "oxfmt"
+				}
+			}
+		},
+		"JSONC": {
+			"language_servers": ["json-language-server", "oxfmt"],
+			"formatter": {
+				"language_server": {
+					"name": "oxfmt"
+				}
+			}
+		}
 	}
 }

@@ -24,7 +24,22 @@
 		"restrict-template-expressions": "off", // Test names print bigfloats & errors, which stringify fine
 		"no-unnecessary-type-parameters": "off", // The caller picks the type, like peek<User>()
 		"no-redundant-type-constituents": "off", // A plain string already covers Numeric's number strings
-		"no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }], // A leading _ means we skip it on purpose
+		"no-unused-vars": [
+			"warn",
+			{
+				"fix": {
+					"imports": "safe-fix",
+					"variables": "off"
+				},
+				"varsIgnorePattern": "^_",
+				"args": "all",
+				"argsIgnorePattern": "^_",
+				"caughtErrors": "all",
+				"caughtErrorsIgnorePattern": "^_",
+				"destructuredArrayIgnorePattern": "^_",
+				"ignoreRestSiblings": true
+			}
+		], // A leading _ means we skip it on purpose
 		"no-unused-expressions": "off" // The mocks guard their hooks with `beforeEach && beforeEach(...)`
 	},
 	"ignorePatterns": [
