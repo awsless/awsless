@@ -229,7 +229,7 @@ type AppendFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
    * Append one or more elements to the end of the array.
    * @param {...NonNullable<T>} values - The elements to append to the array.
    */
-  append(...values: [I, ...I[]]): Fluent;
+  append(...values: I[]): Fluent;
   append(value: Path<AttributeType, I>): Fluent;
 };
 type PrependFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
@@ -237,7 +237,7 @@ type PrependFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = 
    * Prepend one or more elements to the start of the array.
    * @param {...NonNullable<T>} values - The elements to append to the array.
    */
-  prepend(...values: [I, ...I[]]): Fluent;
+  prepend(...values: I[]): Fluent;
   prepend(value: Path<AttributeType, I>): Fluent;
 };
 type IncrementFunction<T, V = NonNullable<T>> = {
@@ -264,7 +264,7 @@ type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> 
    * Add elements to a Set.
    * @param {...V} values - The elements to add to the Set.
    */
-  add(...values: [V, ...V[]]): Fluent;
+  add(...values: V[]): Fluent;
   add(value: Path<A, T>): Fluent;
 };
 type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
@@ -272,7 +272,7 @@ type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>
    * Remove elements from a Set.
    * @param {...V} values - The elements to remove to the Set.
    */
-  remove(...values: [V, ...V[]]): Fluent;
+  remove(...values: V[]): Fluent;
   remove(value: Path<A, T>): Fluent;
 };
 type AndFunction = {
@@ -374,8 +374,8 @@ type InFunction<A extends AttributeType, T, V = NonNullable<T>> = {
    * Can contain up to 100 values.
    * @param values - A non-empty list of values or attribute references to compare against.
    */
-  in(values: [V, ...V[]]): Fluent;
-  in(values: [V | Path<A>, ...(V | Path<A>)[]]): Fluent;
+  in(values: V[]): Fluent;
+  in(values: (V | Path<A>)[]): Fluent;
 };
 type StartsWithFunction = {
   /**

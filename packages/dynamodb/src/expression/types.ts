@@ -124,7 +124,7 @@ type InnerSetValue<T> = T extends Set<infer R> ? R : never
 export type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
 	/**
 	 * Add elements to a Set.
-	 * @param {...V} values - The elements to add to the Set.
+	 * @param {...V[]} values - The elements to add to the Set.
 	 */
 	add(...values: V[]): Fluent
 	add(value: Path<A, T>): Fluent
@@ -133,7 +133,7 @@ export type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullabl
 export type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
 	/**
 	 * Remove elements from a Set.
-	 * @param {...V} values - The elements to remove to the Set.
+	 * @param {...V[]} values - The elements to remove to the Set.
 	 */
 	remove(...values: V[]): Fluent
 	remove(value: Path<A, T>): Fluent
