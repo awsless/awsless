@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 export const ResourceIdSchema = z
 	.string()
-	.min(3)
+	.min(2)
 	.max(24)
 	.regex(/^[a-z0-9-]+$/i, 'Invalid resource ID')
 	.transform(value => kebabCase(value))

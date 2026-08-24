@@ -94,7 +94,7 @@ declare const define: <Schema extends GenericMapSchema, Hash extends Extract<key
 //#region src/types/key.d.ts
 type Key$1<T extends AnyTable, K extends keyof Infer<T> | (keyof Infer<T>)[]> = K extends keyof Infer<T> ? Required<Record<K, Infer<T>[K]>> : K extends (keyof Infer<T>)[] ? { [P in K[number]]: Required<Infer<T>[P]>; } : never;
 type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? Key$1<T, T['indexes'][I]['hash']> : Key$1<T, T['hash']>;
-type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key$1<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key$1<T, T['sort']> : {};
+type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string | string[] ? Key$1<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key$1<T, T['sort']> : {};
 type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
 type QueryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & Partial<SortKey<T, I>>;
 //#endregion
@@ -262,7 +262,7 @@ type InnerSetValue<T> = T extends Set<infer R> ? R : never;
 type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
   /**
    * Add elements to a Set.
-   * @param {...V} values - The elements to add to the Set.
+   * @param {...V[]} values - The elements to add to the Set.
    */
   add(...values: V[]): Fluent;
   add(value: Path<A, T>): Fluent;
@@ -270,7 +270,7 @@ type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> 
 type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
   /**
    * Remove elements from a Set.
-   * @param {...V} values - The elements to remove to the Set.
+   * @param {...V[]} values - The elements to remove to the Set.
    */
   remove(...values: V[]): Fluent;
   remove(value: Path<A, T>): Fluent;

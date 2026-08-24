@@ -74,6 +74,22 @@ describe('multi key GSI', () => {
 		)
 	})
 
+	it('multi sort key query with the sort keys in the key', async () => {
+		const result = await query(
+			table,
+			{
+				id,
+				slug,
+				createdAt,
+			},
+			{
+				index: 'sort',
+			}
+		)
+
+		expect(result.items).toHaveLength(1)
+	})
+
 	it('multi hash & sort key query', async () => {
 		await query(
 			table,

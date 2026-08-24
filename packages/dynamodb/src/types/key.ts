@@ -14,7 +14,8 @@ export type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = un
 
 export type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> =
 	I extends IndexNames<T>
-		? T['indexes'][I]['sort'] extends string
+		? // Index sorts can be a single key or an array of keys.
+			T['indexes'][I]['sort'] extends string | string[]
 			? Key<T, T['indexes'][I]['sort']>
 			: {}
 		: T['sort'] extends string
