@@ -152,7 +152,8 @@ export const searchFeature = defineFeature({
 		const access = new aws.opensearchserverless.AccessPolicy(group, 'access', {
 			name,
 			type: 'data',
-			policy: accessRole.arn.pipe(arn => dataAccessPolicy([arn])),
+			// The account root gives the aws console access to browse the data.
+			policy: accessRole.arn.pipe(arn => dataAccessPolicy([arn, `arn:aws:iam::${ctx.accountId}:root`])),
 		})
 
 		// The function roles only exist after every stack has synthed.
