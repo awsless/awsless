@@ -14,6 +14,7 @@ import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { formatPolicyDocument } from '../../util/policy.js'
+import { deployFunctionSourcemaps } from '../function/util.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
@@ -282,6 +283,12 @@ export const bundleFeature = defineFeature({
 		const lambda = new aws.lambda.Function(group, 'function', lambdaProps, {
 			dependsOn: [vpcPolicy],
 			import: ctx.import ? name : undefined,
+		})
+
+		deployFunctionSourcemaps(group, ctx, {
+			name,
+			buildType: 'bundle',
+			version: lambda.version,
 		})
 
 		// ------------------------------------------------------

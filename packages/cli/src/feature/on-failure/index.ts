@@ -6,7 +6,12 @@ import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createLambdaFunctionFromZip, registerFunctionBuild } from '../function/util.js'
+import {
+	addEnvWithoutConfigs,
+	createLambdaFunctionFromZip,
+	deployFunctionSourcemaps,
+	registerFunctionBuild,
+} from '../function/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
@@ -290,10 +295,17 @@ export const onFailureFeature = defineFeature({
 			},
 		})
 
-		// The consumer runs with the same env & permissions it had
-		// inside the bundle.
-		ctx.onEnv(build.addEnv)
-		ctx.onBind(build.addEnv)
+		deployFunctionSourcemaps(group, ctx, {
+			name,
+			version: handler.lambda.version,
+		})
+
+		// The same env & permissions the consumer had inside the bundle,
+		// minus the config preload.
+		const addEnv = addEnvWithoutConfigs(build)
+
+		ctx.onEnv(addEnv)
+		ctx.onBind(addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
 
 		// Deny calling other functions to stop circular loop problems,

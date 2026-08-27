@@ -42,7 +42,7 @@ describe('config', () => {
 		const { Config } = await import('../src/lib/server/config')
 
 		expect(ssm).not.toHaveBeenCalled()
-		expect(() => (Config as any).SECRET).toThrow(`The "SECRET" config value hasn't been set yet.`)
+		expect(() => (Config as any).SECRET).toThrow(`The "SECRET" config value isn't available`)
 	})
 
 	it('skips the fetch in test mode & allows mock values', async () => {

@@ -27,7 +27,14 @@ export const enhanceError = (
 		cause,
 	})
 
-	// error.cause = cause
+	// The cause stays the face of the error: its name & its stack, set
+	// non-enumerable so the log serializer never spreads them.
+	Object.defineProperty(error, 'name', { value: cause.name, writable: true, configurable: true })
+
+	if (cause.stack) {
+		Object.defineProperty(error, 'stack', { value: cause.stack, writable: true, configurable: true })
+	}
+
 	error.input = schema ? applyRedaction(schema, input) : input
 
 	if (context) {

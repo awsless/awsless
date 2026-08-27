@@ -48,8 +48,8 @@ export type HttpFetcherOptions = {
 };
 export declare const createHttpFetcher: (host: string, options?: HttpFetcherOptions) => HttpFetcher;
 export declare const createHttpClient: <S extends Schema>(fetcher: HttpFetcher) => {
-    fetch: <M extends keyof S, P extends keyof S[M]>(method: M, routeKey: Extract<P, string>, props?: Props<GetRoute<S, M, P>>) => Promise<GetRoute<S, M, P>['response']>;
-    get<P extends keyof S['GET']>(routeKey: Extract<P, string>, props?: Props<GetRoute<S, 'GET', P>>): Promise<GetRoute<S, "GET", P>["response"]>;
-    post<P extends keyof S['POST']>(routeKey: Extract<P, string>, props?: Props<GetRoute<S, 'POST', P>>): Promise<GetRoute<S, "POST", P>["response"]>;
+    fetch: <M extends keyof S, P extends keyof S[M]>(method: M, routeKey: Extract<P, string>, props?: Props<GetRoute<S, M, P>>) => Promise<GetRoute<S, M, P>["response"]>;
+    get<P_1 extends keyof S["GET"]>(routeKey: Extract<P_1, string>, props?: Props<GetRoute<S, "GET", P_1>>): Promise<GetRoute<S, "GET", P_1>["response"]>;
+    post<P_1 extends keyof S["POST"]>(routeKey: Extract<P_1, string>, props?: Props<GetRoute<S, "POST", P_1>>): Promise<GetRoute<S, "POST", P_1>["response"]>;
 };
 export {};

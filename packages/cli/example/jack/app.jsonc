@@ -6,7 +6,7 @@
 	// "protect": true,
 	//
 
-	"configs": ["admin-secret", "max-tasks", "max-profit", "google-long-secret-key-for-testing", "google-another"],
+	"configs": ["admin-secret", "max-tasks"],
 	"seed": "./todo/seed.ts",
 	"test": {
 		"configs": {
@@ -16,6 +16,7 @@
 	},
 
 	"onFailure": "./on-failure.ts",
+	"onErrorLog": "./on-error-log.ts",
 	"domains": {
 		"main": {
 			"domain": "awsless.com"

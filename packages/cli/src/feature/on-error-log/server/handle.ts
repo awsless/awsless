@@ -16,6 +16,8 @@ import {
 	uuid,
 } from '@awsless/validate'
 import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
+import { formatSourcemapVersionKey } from '../keys.js'
+import { createSymbolicator, SourcemapLoaders } from './sourcemap.js'
 
 // Runtime error log (thrown by function code)
 const RuntimeErrorSchema = object({
@@ -50,6 +52,9 @@ const SystemErrorSchema = object({
 
 const EventSchema = object({
 	logGroup: string(),
+	// The stream name carries the version ("...[42]abc"), which picks
+	// the sourcemaps of exactly the code that errored.
+	logStream: optional(string()),
 	logEvents: array(
 		object({
 			id: string(),
@@ -77,10 +82,57 @@ export type ErrorEvent = ErrorLog & {
 	date: Date
 }
 
+// Resolve a version's map prefix & its maps with plain s3 reads.
+// Loaded lazily, so the module import never needs aws.
+const createAwsLoaders = async (): Promise<SourcemapLoaders> => {
+	const { GetObjectCommand, S3Client } = await import('@aws-sdk/client-s3')
+
+	const s3 = new S3Client({})
+	const bucket = process.env.SOURCEMAP_BUCKET!
+
+	// Resolving undefined means "definitively absent" & caches, while a
+	// throw (a throttle, a network blip) evicts & retries on the next
+	// error - so only not-found answers stick.
+	const read = async (key: string) => {
+		try {
+			const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
+
+			return result.Body?.transformToString()
+		} catch (error) {
+			if ((error as Error).name === 'NoSuchKey' || (error as Error).name === 'NotFound') {
+				return undefined
+			}
+
+			throw error
+		}
+	}
+
+	return {
+		loadPrefix(functionName, version) {
+			return read(formatSourcemapVersionKey(functionName, version))
+		},
+		loadMap(key) {
+			return read(key)
+		},
+	}
+}
+
 // The handler runs in its own stand-alone lambda whose log group is
 // never subscribed to the error logs, so an error produced by the
 // consumer can never be consumed again & loop forever.
-export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>) => {
+export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>, loaders?: SourcemapLoaders) => {
+	// Only exists when the deploy wired a sourcemap bucket - and stays
+	// warm across invocations for its caches.
+	let symbolicator: ReturnType<typeof createSymbolicator> | undefined
+
+	const getSymbolicator = async () => {
+		if (!symbolicator && (loaders || process.env.SOURCEMAP_BUCKET)) {
+			symbolicator = createSymbolicator(loaders ?? (await createAwsLoaders()))
+		}
+
+		return symbolicator
+	}
+
 	return async (event: CloudWatchLogsEvent, context: Context) => {
 		try {
 			const payload = Buffer.from(event.awslogs.data, 'base64')
@@ -94,11 +146,55 @@ export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>)
 
 			const origin = result.output.logGroup.split('/').pop()!
 
+			// Without the version the maps of another deploy could
+			// mislabel every frame, so mapping just skips.
+			const version = result.output.logStream?.match(/\[([^\]]+)\]/)?.[1]
+
 			for (const logEvent of result.output.logEvents) {
 				const error = parseError(logEvent.message, origin)
 
 				if (!error) {
 					continue
+				}
+
+				// Map the minified stack & message back to the original
+				// source. Strictly best-effort & time-boxed: any failure
+				// or slow fetch delivers the raw error unchanged.
+				if (error.stackTrace?.length && version) {
+					try {
+						const mapper = await getSymbolicator()
+
+						if (mapper) {
+							const mapped = await Promise.race([
+								mapper({
+									functionName: origin,
+									version,
+									type: error.type,
+									message: error.message,
+									stackTrace: error.stackTrace,
+								}),
+								new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 3_000)),
+							])
+
+							if (mapped) {
+								// An unchanged stack means pure passthrough - the
+								// header then carries no better information.
+								const didMap = mapped.stackTrace !== error.stackTrace
+
+								error.message = mapped.message
+								error.stackTrace = mapped.stackTrace
+
+								// Old runtimes log the wrapper's minified class as
+								// the type while the stack header keeps the real
+								// one - but a plausible type never gets replaced.
+								const header = mapped.stackTrace?.[0]?.match(/^([A-Z][\w$]*Error): /)
+
+								if (didMap && header && !/Error$/.test(error.type)) {
+									error.type = header[1]!
+								}
+							}
+						}
+					} catch {}
 				}
 
 				// A hung consumer is abandoned right before the invocation
@@ -145,6 +241,9 @@ const parseError = (message: string, origin: string): ErrorLog | undefined => {
 			origin = extra.route
 			delete extra.route
 		}
+
+		// The error's own name property duplicates errorType.
+		delete (extra as Record<string, unknown>).name
 
 		const hash = createHash('sha256').update([origin, errorType, errorMessage, stackTrace].join('-')).digest('hex')
 

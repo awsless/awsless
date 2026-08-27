@@ -6,7 +6,13 @@ import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createLambdaFunctionFromZip, registerFunctionBuild } from '../function/util.js'
+import {
+	addEnvWithoutConfigs,
+	createLambdaFunctionFromZip,
+	deployFunctionSourcemaps,
+	registerFunctionBuild,
+} from '../function/util.js'
+import { SOURCEMAP_ROOT } from './keys.js'
 
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
@@ -67,10 +73,43 @@ export const onErrorLogFeature = defineFeature({
 			},
 		})
 
-		// The consumer runs with the same env & permissions it had inside the bundle.
-		ctx.onEnv(build.addEnv)
-		ctx.onBind(build.addEnv)
+		deployFunctionSourcemaps(group, ctx, {
+			name,
+			version: handler.lambda.version,
+		})
+
+		// The same env & permissions the consumer had inside the bundle,
+		// minus the config preload.
+		const addEnv = addEnvWithoutConfigs(build)
+
+		ctx.onEnv(addEnv)
+		ctx.onBind(addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
+
+		// The handler maps minified stack traces back to the original
+		// source: the version index object in the asset bucket names the
+		// erroring version's sourcemap prefix & the maps live next to it.
+		const bucket = ctx.shared.get('asset', 'bucket')
+
+		build.addEnv('SOURCEMAP_BUCKET', bucket.name)
+
+		handler.addPermission(
+			{
+				actions: ['s3:GetObject'],
+				resources: [$interpolate`${bucket.arn}/${SOURCEMAP_ROOT}*`],
+			},
+			// Without ListBucket a missing key answers 403 instead of
+			// 404, so the handler could never cache "no maps uploaded".
+			{
+				actions: ['s3:ListBucket'],
+				resources: [bucket.arn],
+				conditions: {
+					StringLike: {
+						's3:prefix': `${SOURCEMAP_ROOT}*`,
+					},
+				},
+			}
+		)
 
 		// Deny calling other functions to stop circular loop problems,
 		// while sns:Publish stays open so the consumer can alert.

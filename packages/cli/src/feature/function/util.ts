@@ -13,6 +13,7 @@ import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
+import { SourcemapDeployment } from '../../formation/s3.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
@@ -272,6 +273,51 @@ export default (event, context) => {
 	}
 }
 
+// The failure plane never preloads configs, so a drifted config value
+// can't kill error reporting at init.
+export const addEnvWithoutConfigs = (build: { addEnv: (name: string, value: Input<string>) => void }) => {
+	return (name: string, value: Input<string>) => {
+		if (name !== 'CONFIGS') {
+			build.addEnv(name, value)
+		}
+	}
+}
+
+// Upload a build's sourcemaps plus a version index object, so the
+// on-error-log handler finds the erroring version's maps with plain
+// s3 reads. Without an onErrorLog consumer nothing ever reads them.
+export const deployFunctionSourcemaps = (
+	group: Group,
+	ctx: StackContext | AppContext,
+	props: {
+		name: string
+		buildType?: 'bundle' | 'function'
+		// The published version ("$LATEST" for an unpublished lambda,
+		// whose index simply tracks the newest deploy).
+		version: Input<string>
+	}
+) => {
+	if (!ctx.appConfig.onErrorLog) {
+		return
+	}
+
+	const buildType = props.buildType ?? 'function'
+
+	// The pure build hash, without the env: an env-only change never
+	// re-uploads or re-keys the maps.
+	const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
+		resolve((await readFile(getBuildPath(buildType, props.name, 'HASH'), 'utf8')).trim())
+	})
+
+	new SourcemapDeployment(group, 'sourcemaps', {
+		bucket: ctx.shared.get('asset', 'bucket').name,
+		name: props.name,
+		hash: buildHash,
+		source: relativePath(getBuildPath(buildType, props.name, 'files')),
+		version: props.version,
+	})
+}
+
 // Deploy a stack function as its own stand-alone lambda, like the old
 // awsless did for every function. Callers invoke it directly by name, so
 // it deploys in place & doesn't participate in blue-green deployments.
@@ -479,6 +525,11 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			import: ctx.import ? name : undefined,
 		}
 	)
+
+	deployFunctionSourcemaps(group, ctx, {
+		name,
+		version: lambda.version,
+	})
 
 	// ------------------------------------------------------------
 	// Every deployment tags the published version with its id alias &

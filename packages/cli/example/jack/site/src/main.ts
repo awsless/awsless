@@ -6,13 +6,23 @@ type Task = { id: string; name: string; done: boolean }
 const secret = 'secret'
 
 const rpc = async <T>(name: string, payload?: Record<string, unknown>): Promise<T> => {
+	const body = JSON.stringify([payload ? { name, payload } : { name }])
+
+	// CloudFront signs the origin request to the lambda url with OAC,
+	// but never hashes the body itself - a POST must carry its own
+	// payload hash, or the signature check rejects the request.
+	const bytes = new TextEncoder().encode(body)
+	const hash = await crypto.subtle.digest('SHA-256', bytes)
+	const contentSha256 = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
+
 	const response = await fetch('/api', {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
+			'x-amz-content-sha256': contentSha256,
 			authentication: secret,
 		},
-		body: JSON.stringify([payload ? { name, payload } : { name }]),
+		body,
 	})
 
 	const [result] = await response.json()
@@ -37,6 +47,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 		<input id="search" placeholder="Search tasks…" autocomplete="off" />
 		<ul id="list"></ul>
 		<footer id="stats"></footer>
+		<button id="break" type="button">Break something</button>
 	</main>
 `
 
@@ -122,6 +133,13 @@ search.addEventListener('input', () => {
 		matches = result ? [result.name] : []
 		render()
 	}, 300)
+})
+
+// The break button calls a function that always throws deep inside a
+// helper - watch the on-error-log consumer's log group receive the
+// error with its stack trace mapped back to the original source.
+document.querySelector<HTMLButtonElement>('#break')!.addEventListener('click', async () => {
+	await rpc('breakTask').catch(error => console.log('breakTask failed as intended:', error))
 })
 
 load()

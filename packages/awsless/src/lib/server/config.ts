@@ -32,6 +32,13 @@ export const getConfigValue = (name: string) => {
 	const value = data[key]
 
 	if (typeof value === 'undefined') {
+		// The failure plane runs without any config access on purpose.
+		if (!IS_TEST && !process.env.CONFIGS) {
+			throw new Error(
+				`The "${name}" config value isn't available: this lambda loads no configs at all - the on-failure & on-error-log consumers run config free, so a broken config can never take down error reporting. Pass the value through a plain environment variable instead.`
+			)
+		}
+
 		throw new Error(
 			`The "${name}" config value hasn't been set yet. ${
 				IS_TEST

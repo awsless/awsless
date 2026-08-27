@@ -28,6 +28,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/signature-v4-crt": "3.1113.0",
+		"@jridgewell/trace-mapping": "0.3.31",
 		"rolldown": "1.2.4",
 		"vitest": "4.1.11"
 	},
