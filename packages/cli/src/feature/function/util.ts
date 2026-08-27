@@ -418,6 +418,8 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 		ctx.onPermission(addPermission)
 	}
 
+	ctx.shared.add('function', 'role', name, role)
+
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',

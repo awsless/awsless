@@ -16,13 +16,13 @@ import { BigFloat, parse } from "@awsless/big-float";
 let mock;
 const searchClient = (options = {}, service = "es") => {
 	if (mock) return mock;
-	const scheme = process.env.AWSLESS_ENV === "local" ? "http://" : "https://";
-	const node = options.node ?? scheme + process.env.SEARCH_DOMAIN;
+	const node = options.node ?? process.env.SEARCH_DOMAIN;
+	if (!node) throw new Error("No search domain - set the SEARCH_DOMAIN env or pass the node option.");
 	const first = Array.isArray(node) ? node[0] : node;
 	const nodeUrl = typeof first === "string" ? first : first?.url.href ?? "";
 	return new Client({
 		node,
-		requestTimeout: 5e3,
+		requestTimeout: isServerlessEndpoint(nodeUrl) ? 3e4 : 5e3,
 		agent: nodeUrl.startsWith("https") ? () => new Agent({ keepAlive: false }) : void 0,
 		...AwsSigv4Signer({
 			region: process.env.AWS_REGION,
@@ -34,6 +34,12 @@ const searchClient = (options = {}, service = "es") => {
 };
 const mockClient = (host, port) => {
 	mock = new Client({ node: `http://${host}:${port}` });
+};
+const isServerlessEndpoint = (endpoint) => {
+	return endpoint?.includes(".aoss.") ?? false;
+};
+const isServerless = (client) => {
+	return isServerlessEndpoint(client.connectionPool.connections[0]?.url.href);
 };
 //#endregion
 //#region src/server/download.ts
@@ -316,8 +322,9 @@ const bulkUpdateItem = (table, id, item) => {
 };
 const bulk = async ({ items, client, refresh = true }) => {
 	if (items.length === 0) return;
-	const response = await (client ?? items[0].table.client()).bulk({
-		refresh,
+	const openSearchClient = client ?? items[0].table.client();
+	const response = await openSearchClient.bulk({
+		refresh: isServerless(openSearchClient) ? void 0 : refresh,
 		body: items.map((entry) => {
 			const body = [{ [entry.action]: {
 				_id: entry.id,
@@ -405,33 +412,36 @@ const search = async (table, { query, aggs, limit = 10, offset, cursor, sort, tr
 //#endregion
 //#region src/ops/index-item.ts
 const indexItem = async (table, id, item, { refresh = true } = {}) => {
-	await table.client().index({
+	const client = table.client();
+	await client.index({
 		index: table.index,
 		id,
-		refresh,
+		refresh: isServerless(client) ? void 0 : refresh,
 		body: table.schema.encode(item)
 	});
 };
 //#endregion
 //#region src/ops/delete-item.ts
 const deleteItem = async (table, id, { refresh = true } = {}) => {
-	await table.client().delete({
+	const client = table.client();
+	await client.delete({
 		index: table.index,
 		id,
-		refresh
+		refresh: isServerless(client) ? void 0 : refresh
 	});
 };
 //#endregion
 //#region src/ops/update-item.ts
 const updateItem = async (table, id, item, { refresh = true } = {}) => {
-	await table.client().update({
+	const client = table.client();
+	await client.update({
 		index: table.index,
 		id,
 		body: {
 			doc: table.schema.encode(item),
 			doc_as_upsert: true
 		},
-		refresh
+		refresh: isServerless(client) ? void 0 : refresh
 	});
 };
 //#endregion
@@ -540,4 +550,4 @@ const uuid = (props = {}) => new Schema((value) => value, (value) => value, {
 	...props
 });
 //#endregion
-export { BulkError, BulkItemError, VERSION_3_5_0_MIN, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { BulkError, BulkItemError, VERSION_3_5_0_MIN, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, isServerlessEndpoint, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

@@ -1,7 +1,7 @@
 export type { Types } from '@opensearch-project/opensearch'
 export type { AnySchema, Schema, SchemaProps, Mapping } from './schema/schema'
 
-export { searchClient } from './client'
+export { searchClient, isServerlessEndpoint } from './client'
 
 // mock
 export { mockOpenSearch } from './mock'

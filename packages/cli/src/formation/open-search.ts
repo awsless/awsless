@@ -1,3 +1,5 @@
+import { fromTemporaryCredentials } from '@aws-sdk/credential-providers'
+import { isServerlessEndpoint } from '@awsless/open-search'
 import { Client } from '@opensearch-project/opensearch'
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
@@ -7,6 +9,7 @@ import { Credentials } from '../util/aws'
 
 type SearchIndexInput = {
 	endpoint: Input<string>
+	role?: Input<string> | undefined
 	index: Input<string>
 	mappings: Input<string>
 	settings: Input<string>
@@ -14,6 +17,7 @@ type SearchIndexInput = {
 
 type SearchIndexOutput = {
 	endpoint: Output<string>
+	role?: Output<string>
 	index: Output<string>
 	mappings: Output<string>
 	settings: Output<string>
@@ -31,6 +35,7 @@ type ProviderProps = {
 
 const inputSchema = z.object({
 	endpoint: z.string(),
+	role: z.string().optional(),
 	index: z.string(),
 	mappings: z.string(),
 	settings: z.string(),
@@ -68,13 +73,19 @@ export const applySearchIndex = async (
 }
 
 export const createOpenSearchProvider = ({ credentials, region }: ProviderProps) => {
-	const getClient = (endpoint: string) => {
+	const getClient = (endpoint: string, role?: string) => {
 		return new Client({
-			node: `https://${endpoint}`,
+			node: URL.canParse(endpoint) ? endpoint : `https://${endpoint}`,
 			...AwsSigv4Signer({
 				region,
-				service: 'es',
-				getCredentials: credentials,
+				service: isServerlessEndpoint(endpoint) ? 'aoss' : 'es',
+				// Serverless collection endpoints need aoss signing, & data access goes through the search access role.
+				getCredentials: role
+					? fromTemporaryCredentials({
+							params: { RoleArn: role, RoleSessionName: 'awsless-search-index' },
+							masterCredentials: credentials,
+						})
+					: credentials,
 			}),
 		})
 	}
@@ -82,7 +93,7 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 	const apply = async (state: unknown) => {
 		const props = inputSchema.parse(state)
 
-		await applySearchIndex(getClient(props.endpoint), {
+		await applySearchIndex(getClient(props.endpoint, props.role), {
 			index: props.index,
 			mappings: JSON.parse(props.mappings),
 			settings: JSON.parse(props.settings),
@@ -102,34 +113,21 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 			// An index can't move to another domain in place, so an endpoint
 			// or name change replaces it - drop on the old domain, recreate
 			// on the new one. Mapping & settings changes stay updates.
-			// Endpoints compare without their trailing dot: state written
-			// before the dot was stripped must never read as a new domain.
 			async planResourceChange(props) {
 				const prior = props.priorState as { endpoint?: string; index?: string } | null
 				const proposed = props.proposedState as { endpoint?: string; index?: string } | null
-				const host = (endpoint?: string) => endpoint?.replace(/\.$/, '')
 
 				return {
 					state: props.proposedState,
 					requiresReplacement:
-						!!prior &&
-						(host(prior.endpoint) !== host(proposed?.endpoint) || prior.index !== proposed?.index),
+						!!prior && (prior.endpoint !== proposed?.endpoint || prior.index !== proposed?.index),
 				}
 			},
-			// Removing the resource drops the index & its data. The app's
-			// retain removal policy skips this through the resource's
-			// retainOnDelete flag, like the domain itself.
+			// Removing the resource drops the index & its data.
 			async deleteResource(props) {
 				const state = inputSchema.parse(props.state)
 
-				// Old state may carry the endpoint with its trailing dot,
-				// which breaks the client's tls hostname check.
-				await getClient(state.endpoint.replace(/\.$/, '')).indices.delete(
-					{ index: state.index },
-					// An already missing index (or a manually deleted
-					// domain) shouldn't fail the removal.
-					{ ignore: [404] }
-				)
+				await getClient(state.endpoint, state.role).indices.delete({ index: state.index }, { ignore: [404] })
 			},
 		},
 	})

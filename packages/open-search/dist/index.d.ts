@@ -26,6 +26,7 @@ declare class Schema<Encoded, Input, Output> {
 //#endregion
 //#region src/client.d.ts
 declare const searchClient: (options?: ClientOptions, service?: 'es' | 'aoss') => Client;
+declare const isServerlessEndpoint: (endpoint?: string) => boolean;
 //#endregion
 //#region src/server/launch.d.ts
 type Settings = Record<string, string | number | boolean>;
@@ -201,4 +202,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 //#region src/schema/uuid.d.ts
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 //#endregion
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, type Schema, type SchemaProps, type Table, type Types, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, type Schema, type SchemaProps, type Table, type Types, VERSION_3_5_0_MIN, type VersionArgs, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, isServerlessEndpoint, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
