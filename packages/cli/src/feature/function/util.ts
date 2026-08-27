@@ -13,6 +13,7 @@ import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
+import { SourcemapDeployment } from '../../formation/s3.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
@@ -265,11 +266,44 @@ export default (event, context) => {
 		resolve(createHash('sha1').update(buildHash).update(envFile).digest('hex'))
 	})
 
+	// The pure build hash, without the env: the sourcemaps of a build
+	// key on it, so an env-only change never re-uploads or re-keys them.
+	const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
+		resolve((await readFile(getBuildPath('function', name, 'HASH'), 'utf8')).trim())
+	})
+
 	return {
 		zipFile,
 		sourceHash,
+		buildHash,
+		filesDir: getBuildPath('function', name, 'files'),
 		addEnv,
 	}
+}
+
+// The sourcemaps of a lambda build upload next to the code, keyed by
+// name & build hash - together with an index object mapping the
+// published lambda version to that prefix, so the on-error-log handler
+// finds the exact maps of the version that errored with plain s3 reads.
+export const deployFunctionSourcemaps = (
+	group: Group,
+	ctx: StackContext | AppContext,
+	props: {
+		name: string
+		buildHash: Input<string>
+		filesDir: string
+		// The published version of the deployed lambda ("$LATEST" for an
+		// unpublished one, whose index simply tracks the newest deploy).
+		version: Input<string>
+	}
+) => {
+	new SourcemapDeployment(group, 'sourcemaps', {
+		bucket: ctx.shared.get('asset', 'bucket').name,
+		name: props.name,
+		hash: props.buildHash,
+		source: relativePath(props.filesDir),
+		version: props.version,
+	})
 }
 
 // Deploy a stack function as its own stand-alone lambda, like the old
@@ -477,6 +511,13 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 			import: ctx.import ? name : undefined,
 		}
 	)
+
+	deployFunctionSourcemaps(group, ctx, {
+		name,
+		buildHash: build.buildHash,
+		filesDir: build.filesDir,
+		version: lambda.version,
+	})
 
 	// ------------------------------------------------------------
 	// Every deployment tags the published version with its id alias &

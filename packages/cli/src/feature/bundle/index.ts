@@ -14,6 +14,7 @@ import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { formatPolicyDocument } from '../../util/policy.js'
+import { deployFunctionSourcemaps } from '../function/util.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
@@ -282,6 +283,19 @@ export const bundleFeature = defineFeature({
 		const lambda = new aws.lambda.Function(group, 'function', lambdaProps, {
 			dependsOn: [vpcPolicy],
 			import: ctx.import ? name : undefined,
+		})
+
+		// The pure build hash, without the env: the sourcemaps key on it,
+		// so an env-only change never re-uploads or re-keys them.
+		const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
+			resolve((await readFile(getBuildPath('bundle', name, 'HASH'), 'utf8')).trim())
+		})
+
+		deployFunctionSourcemaps(group, ctx, {
+			name,
+			buildHash,
+			filesDir: getBuildPath('bundle', name, 'files'),
+			version: lambda.version,
 		})
 
 		// ------------------------------------------------------

@@ -150,7 +150,7 @@ describe('RPC server', () => {
 			try {
 				const result = await invoke([{ name: '$allowedFunctions' }], 'shared-token')
 
-				expect(result.statusCode).toBe(405)
+				expect(result.statusCode).toBe(401)
 			} finally {
 				process.env.AWSLESS_ROUTE = serverRoute
 			}

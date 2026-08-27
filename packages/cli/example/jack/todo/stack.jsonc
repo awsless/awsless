@@ -9,6 +9,7 @@
 			"toggleTask": "./src/rpc/toggle.ts",
 			"searchTasks": "./src/rpc/search.ts",
 			"remindTask": "./src/rpc/remind.ts",
+			"breakTask": "./src/rpc/break.ts",
 			"tasksStats": "./src/rpc/stats.ts",
 			"tasks": "./src/rpc/list.ts"
 		}

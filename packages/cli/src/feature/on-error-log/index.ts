@@ -6,7 +6,7 @@ import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createLambdaFunctionFromZip, registerFunctionBuild } from '../function/util.js'
+import { createLambdaFunctionFromZip, deployFunctionSourcemaps, registerFunctionBuild } from '../function/util.js'
 
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
@@ -67,10 +67,41 @@ export const onErrorLogFeature = defineFeature({
 			},
 		})
 
-		// The consumer runs with the same env & permissions it had inside the bundle.
-		ctx.onEnv(build.addEnv)
-		ctx.onBind(build.addEnv)
+		deployFunctionSourcemaps(group, ctx, {
+			name,
+			buildHash: build.buildHash,
+			filesDir: build.filesDir,
+			version: handler.lambda.version,
+		})
+
+		// The consumer runs with the same env & permissions it had inside
+		// the bundle - except the CONFIGS list: without it the runtime
+		// skips the ssm config preload entirely, so a missing or drifted
+		// config value can never kill this lambda's init - the very moment
+		// it has to report errors. A consumer reading Config anyway gets
+		// the clear "hasn't been set yet" error per read, caught by the
+		// consumer failure guard.
+		const addEnv = (name: string, value: Parameters<typeof build.addEnv>[1]) => {
+			if (name !== 'CONFIGS') {
+				build.addEnv(name, value)
+			}
+		}
+
+		ctx.onEnv(addEnv)
+		ctx.onBind(addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
+
+		// The handler maps minified stack traces back to the original
+		// source: the version index object in the asset bucket names the
+		// erroring version's sourcemap prefix & the maps live next to it.
+		const bucket = ctx.shared.get('asset', 'bucket')
+
+		build.addEnv('SOURCEMAP_BUCKET', bucket.name)
+
+		handler.addPermission({
+			actions: ['s3:GetObject'],
+			resources: [$interpolate`${bucket.arn}/sourcemaps/*`],
+		})
 
 		// Deny calling other functions to stop circular loop problems,
 		// while sns:Publish stays open so the consumer can alert.

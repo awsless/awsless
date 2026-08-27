@@ -117,6 +117,9 @@ importers:
       '@aws-sdk/signature-v4-crt':
         specifier: 3.1113.0
         version: 3.1113.0(debug@4.4.3(supports-color@8.1.1))
+      '@jridgewell/trace-mapping':
+        specifier: 0.3.31
+        version: 0.3.31
       rolldown:
         specifier: 1.2.4
         version: 1.2.4

@@ -28,6 +28,45 @@ export const SiteDeployment = createCustomResourceClass<SiteDeploymentInput, Sit
 	'site-deployment'
 )
 
+type SourcemapDeploymentInput = {
+	bucket: Input<string>
+	name: Input<string>
+	hash: Input<string>
+	source: Input<string>
+	version: Input<string>
+}
+
+type SourcemapDeploymentOutput = {
+	bucket: Output<string>
+	name: Output<string>
+	hash: Output<string>
+	source: Output<string>
+	version: Output<string>
+}
+
+// Uploads the sourcemaps of a lambda build, keyed by function name &
+// build hash - plus a tiny index object mapping the published lambda
+// version to that prefix. The on-error-log handler resolves an error's
+// version to its maps through the index & fetches them at error time,
+// all through plain s3 reads.
+export const SourcemapDeployment = createCustomResourceClass<SourcemapDeploymentInput, SourcemapDeploymentOutput>(
+	's3',
+	'sourcemap-deployment'
+)
+
+// The bucket prefix a build's sourcemaps upload under - shared between
+// the uploader & the version index that points the error-log handler
+// at a deployed version's maps.
+export const formatSourcemapPrefix = (name: string, hash: string) => {
+	return `sourcemaps/${name}/${hash}/`
+}
+
+// The index object a deploy writes for each published version. A build
+// hash is hex, so the "versions" segment can never collide with one.
+export const formatSourcemapVersionKey = (name: string, version: string) => {
+	return `sourcemaps/${name}/versions/${version}`
+}
+
 type ProviderProps = {
 	credentials: Credentials
 	region: Region
@@ -63,6 +102,46 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 		)
 	}
 
+	const sourcemapSchema = z.object({
+		bucket: z.string(),
+		name: z.string(),
+		hash: z.string(),
+		source: z.string(),
+		version: z.string(),
+	})
+
+	const uploadSourcemaps = async (state: z.output<typeof sourcemapSchema>) => {
+		const files = glob.sync('**/*.map', { cwd: state.source, nodir: true })
+		const limit = promiseLimit(16)
+		const prefix = formatSourcemapPrefix(state.name, state.hash)
+
+		await Promise.all(
+			files.map(file =>
+				limit(async () => {
+					await client.send(
+						new PutObjectCommand({
+							Bucket: state.bucket,
+							Key: posix.join(prefix, file),
+							Body: await readFile(join(state.source, file)),
+							ContentType: 'application/json',
+						})
+					)
+				})
+			)
+		)
+
+		// The version index: reading it is the only lookup the error-log
+		// handler needs to find the maps of the version that errored.
+		await client.send(
+			new PutObjectCommand({
+				Bucket: state.bucket,
+				Key: formatSourcemapVersionKey(state.name, state.version),
+				Body: prefix,
+				ContentType: 'text/plain',
+			})
+		)
+	}
+
 	return createCustomProvider('s3', {
 		'site-deployment': {
 			async createResource(props) {
@@ -88,6 +167,33 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 			},
 
 			// Uploaded versions are never deleted so older deployments stay rollbackable.
+		},
+		'sourcemap-deployment': {
+			async createResource(props) {
+				const state = sourcemapSchema.parse(props.state)
+
+				await uploadSourcemaps(state)
+
+				return state
+			},
+			async updateResource(props) {
+				const prior = sourcemapSchema.parse(props.priorState)
+				const proposed = sourcemapSchema.parse(props.proposedState)
+
+				if (
+					prior.bucket !== proposed.bucket ||
+					prior.name !== proposed.name ||
+					prior.hash !== proposed.hash ||
+					prior.version !== proposed.version
+				) {
+					await uploadSourcemaps(proposed)
+				}
+
+				return proposed
+			},
+
+			// Old maps are never deleted: an aliased version can keep
+			// erroring long after later deploys & must stay mappable.
 		},
 	})
 }

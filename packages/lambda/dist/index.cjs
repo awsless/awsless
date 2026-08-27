@@ -96,6 +96,8 @@ var EnhandedError = class extends Error {
 const enhanceError = (maybeError, schema, input, context) => {
 	const cause = normalizeError(maybeError);
 	const error = new EnhandedError(cause.message, { cause });
+	error.name = cause.name;
+	if (cause.stack) error.stack = cause.stack;
 	error.input = schema ? (0, _awsless_validate.applyRedaction)(schema, input) : input;
 	if (context) {
 		if (typeof context.route === "string") error.route = context.route;

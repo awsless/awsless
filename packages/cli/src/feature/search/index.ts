@@ -109,14 +109,20 @@ export const searchFeature = defineFeature({
 			}
 		)
 
-		ctx.addEnv('SEARCH_DOMAIN', openSearch.endpointV2)
+		// The api returns the dual-stack endpoint as a dns name with a
+		// trailing dot. Node sends no SNI for a dotted host, so the shared
+		// aws frontend answers with the wrong certificate & every https
+		// call fails - the dot must never reach a client.
+		const endpoint = openSearch.endpointV2.pipe(value => value.replace(/\.$/, ''))
+
+		ctx.addEnv('SEARCH_DOMAIN', endpoint)
 
 		ctx.addPermission({
 			actions: ['es:ESHttp*'],
 			resources: [openSearch.arn.pipe(arn => `${arn}/*`)],
 		})
 
-		ctx.shared.set('search', 'endpoint', openSearch.endpointV2)
+		ctx.shared.set('search', 'endpoint', endpoint)
 	},
 	onStack(ctx) {
 		const indexes = Object.entries(ctx.stackConfig.searchs ?? {})
