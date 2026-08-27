@@ -69,7 +69,7 @@ export declare const error: <H extends Handler<ErrorSchema>>(handle: H) => (even
     hash: string;
     requestId: string;
     origin: string;
-    level: "error" | "fatal" | "warn";
+    level: "warn" | "error" | "fatal";
     type: string;
     message: string;
     stackTrace?: string[] | undefined;

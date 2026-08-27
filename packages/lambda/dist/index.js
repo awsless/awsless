@@ -95,8 +95,16 @@ var EnhandedError = class extends Error {
 const enhanceError = (maybeError, schema, input, context) => {
 	const cause = normalizeError(maybeError);
 	const error = new EnhandedError(cause.message, { cause });
-	error.name = cause.name;
-	if (cause.stack) error.stack = cause.stack;
+	Object.defineProperty(error, "name", {
+		value: cause.name,
+		writable: true,
+		configurable: true
+	});
+	if (cause.stack) Object.defineProperty(error, "stack", {
+		value: cause.stack,
+		writable: true,
+		configurable: true
+	});
 	error.input = schema ? applyRedaction(schema, input) : input;
 	if (context) {
 		if (typeof context.route === "string") error.route = context.route;

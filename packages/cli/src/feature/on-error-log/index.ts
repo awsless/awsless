@@ -6,7 +6,13 @@ import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createLambdaFunctionFromZip, deployFunctionSourcemaps, registerFunctionBuild } from '../function/util.js'
+import {
+	addEnvWithoutConfigs,
+	createLambdaFunctionFromZip,
+	deployFunctionSourcemaps,
+	registerFunctionBuild,
+} from '../function/util.js'
+import { SOURCEMAP_ROOT } from './keys.js'
 
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
@@ -69,23 +75,12 @@ export const onErrorLogFeature = defineFeature({
 
 		deployFunctionSourcemaps(group, ctx, {
 			name,
-			buildHash: build.buildHash,
-			filesDir: build.filesDir,
 			version: handler.lambda.version,
 		})
 
-		// The consumer runs with the same env & permissions it had inside
-		// the bundle - except the CONFIGS list: without it the runtime
-		// skips the ssm config preload entirely, so a missing or drifted
-		// config value can never kill this lambda's init - the very moment
-		// it has to report errors. A consumer reading Config anyway gets
-		// the clear "hasn't been set yet" error per read, caught by the
-		// consumer failure guard.
-		const addEnv = (name: string, value: Parameters<typeof build.addEnv>[1]) => {
-			if (name !== 'CONFIGS') {
-				build.addEnv(name, value)
-			}
-		}
+		// The same env & permissions the consumer had inside the bundle,
+		// minus the config preload.
+		const addEnv = addEnvWithoutConfigs(build)
 
 		ctx.onEnv(addEnv)
 		ctx.onBind(addEnv)
@@ -98,10 +93,23 @@ export const onErrorLogFeature = defineFeature({
 
 		build.addEnv('SOURCEMAP_BUCKET', bucket.name)
 
-		handler.addPermission({
-			actions: ['s3:GetObject'],
-			resources: [$interpolate`${bucket.arn}/sourcemaps/*`],
-		})
+		handler.addPermission(
+			{
+				actions: ['s3:GetObject'],
+				resources: [$interpolate`${bucket.arn}/${SOURCEMAP_ROOT}*`],
+			},
+			// Without ListBucket a missing key answers 403 instead of
+			// 404, so the handler could never cache "no maps uploaded".
+			{
+				actions: ['s3:ListBucket'],
+				resources: [bucket.arn],
+				conditions: {
+					StringLike: {
+						's3:prefix': `${SOURCEMAP_ROOT}*`,
+					},
+				},
+			}
+		)
 
 		// Deny calling other functions to stop circular loop problems,
 		// while sns:Publish stays open so the consumer can alert.

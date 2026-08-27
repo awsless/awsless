@@ -10,5 +10,7 @@ type ImageHandler = (event: ImageEvent, context: Parameters<Handler>[1]) => Imag
 export declare const image: <H extends ImageHandler>(handle: H) => (event: {
     path: string;
 }, context?: import("aws-lambda").Context) => Promise<string | undefined>;
-export declare const icon: typeof image;
+export declare const icon: <H extends ImageHandler>(handle: H) => (event: {
+    path: string;
+}, context?: import("aws-lambda").Context) => Promise<string | undefined>;
 export {};

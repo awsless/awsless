@@ -27,14 +27,12 @@ export const enhanceError = (
 		cause,
 	})
 
-	// The wrapper only adds context - the identity of the error stays
-	// the cause's: its name, so logs never show the wrapper's minified
-	// class name as the error type, and its stack, so the logged frames
-	// point at the code that actually threw instead of this constructor.
-	error.name = cause.name
+	// The cause stays the face of the error: its name & its stack, set
+	// non-enumerable so the log serializer never spreads them.
+	Object.defineProperty(error, 'name', { value: cause.name, writable: true, configurable: true })
 
 	if (cause.stack) {
-		error.stack = cause.stack
+		Object.defineProperty(error, 'stack', { value: cause.stack, writable: true, configurable: true })
 	}
 
 	error.input = schema ? applyRedaction(schema, input) : input

@@ -285,16 +285,9 @@ export const bundleFeature = defineFeature({
 			import: ctx.import ? name : undefined,
 		})
 
-		// The pure build hash, without the env: the sourcemaps key on it,
-		// so an env-only change never re-uploads or re-keys them.
-		const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
-			resolve((await readFile(getBuildPath('bundle', name, 'HASH'), 'utf8')).trim())
-		})
-
 		deployFunctionSourcemaps(group, ctx, {
 			name,
-			buildHash,
-			filesDir: getBuildPath('bundle', name, 'files'),
+			buildType: 'bundle',
 			version: lambda.version,
 		})
 

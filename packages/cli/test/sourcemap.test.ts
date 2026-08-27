@@ -161,4 +161,55 @@ describe('sourcemap symbolication', () => {
 
 		expect(result.message).toBe('n is not a function')
 	})
+
+	it('maps anonymous async frames', async () => {
+		const { symbolicate } = create()
+		const result = await symbolicate({
+			...error,
+			stackTrace: ['    at async file:///var/task/index.mjs:1:86'],
+		})
+
+		expect(result.stackTrace).toStrictEqual(['    at async entry.ts:3:22'])
+	})
+
+	it('degrades per frame when one map fetch rejects', async () => {
+		const loadPrefix = vi.fn(async () => PREFIX)
+		const loadMap = vi.fn(async (key: string) => {
+			if (key === `${PREFIX}index.mjs.map`) {
+				return map
+			}
+
+			throw new Error('AccessDenied')
+		})
+		const symbolicate = createSymbolicator({ loadPrefix, loadMap })
+
+		const result = await symbolicate({
+			...error,
+			stackTrace: [
+				'    at broken (file:///var/task/other-chunk.mjs:1:10)',
+				'    at t (file:///var/task/index.mjs:1:70)',
+			],
+		})
+
+		// The rejecting chunk passes through raw, the healthy one maps.
+		expect(result.stackTrace).toStrictEqual([
+			'    at broken (file:///var/task/other-chunk.mjs:1:10)',
+			'    at t (src/tasks/create.ts:12:9)',
+		])
+	})
+
+	it('never rewrites user-thrown messages that look like engine templates', async () => {
+		const { symbolicate } = create()
+		const result = await symbolicate({ ...error, type: 'Error', message: 'id is not defined' })
+
+		expect(result.message).toBe('id is not defined')
+	})
+
+	it('rewrites the message when the recorded type is minified but the header is an engine error', async () => {
+		const { symbolicate } = create()
+		const result = await symbolicate({ ...error, type: 'pn' })
+
+		expect(result.message).toBe('applyLimit is not a function')
+		expect(result.stackTrace?.[0]).toBe('TypeError: applyLimit is not a function')
+	})
 })

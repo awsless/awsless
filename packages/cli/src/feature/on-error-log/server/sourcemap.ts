@@ -7,8 +7,8 @@ import { originalPositionFor, sourceContentFor, TraceMap } from '@jridgewell/tra
 // break error delivery.
 
 export type SourcemapLoaders = {
-	// The sourcemap prefix baked into the erroring function version's
-	// env, resolved through GetFunctionConfiguration.
+	// The sourcemap prefix of a deployed version, read from the version
+	// index object the deploy wrote next to the maps.
 	loadPrefix: (functionName: string, version: string) => Promise<string | undefined>
 	// The raw sourcemap json for a bucket key.
 	loadMap: (key: string) => Promise<string | undefined>
@@ -17,7 +17,7 @@ export type SourcemapLoaders = {
 // Stack frames the lambda runtime emits, covering both the cjs & esm
 // path shapes: "at fn (/var/task/chunk.mjs:1:2)", "at /var/task/...",
 // & "at fn (file:///var/task/chunk.mjs:1:2)".
-const FRAME = /^(\s*at\s+)(?:(.*?)\s+\()?(?:file:\/\/)?\/var\/task\/([^\s:)]+):(\d+):(\d+)(\)?)\s*$/
+const FRAME = /^(\s*at\s+(?:async\s+)?)(?:(.*?)\s+\()?(?:file:\/\/)?\/var\/task\/([^\s:)]+):(\d+):(\d+)(\)?)\s*$/
 
 // The error message templates where the engine names a minified
 // identifier - the only message shapes worth rewriting. Everything
@@ -46,11 +46,8 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 		}
 	}
 
-	// Only found prefixes cache. A missing index can be transient (the
-	// deploy writes it moments after a version goes live) & a rejection
-	// (a throttle, a network blip) always is - both evict themselves, so
-	// the next error simply retries instead of permanently disabling
-	// mapping for a version in a warm container.
+	// Only found prefixes cache: a missing index can be a deploy still
+	// uploading & a rejection a blip, so both evict themselves & retry.
 	const prefixFor = (functionName: string, version: string) => {
 		const key = `${functionName}:${version}`
 
@@ -110,13 +107,29 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 		'case',
 		'try',
 		'catch',
+		'finally',
 		'in',
 		'of',
+		'import',
+		'export',
+		'default',
+		'extends',
+		'static',
+		'break',
+		'continue',
+		'debugger',
+		'instanceof',
+		'null',
+		'true',
+		'false',
+		'undefined',
+		'get',
+		'set',
 	])
 
 	const identifierAt = (
 		map: TraceMap,
-		position: { source: string; line: number; column: number; name: string | null }
+		position: { source: string; line: number; column: number | null; name: string | null }
 	) => {
 		if (position.name) {
 			return position.name
@@ -124,7 +137,7 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 
 		const content = sourceContentFor(map, position.source)
 		const line = content?.split('\n')[position.line - 1]
-		const token = line?.slice(position.column).match(/^[A-Za-z_$][\w$]*/)?.[0]
+		const token = line?.slice(position.column ?? 0).match(/^[A-Za-z_$][\w$]*/)?.[0]
 
 		return token && !KEYWORDS.has(token) ? token : undefined
 	}
@@ -146,6 +159,7 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 	return async (error: {
 		functionName: string
 		version: string
+		type?: string
 		message: string
 		stackTrace?: string[]
 	}): Promise<{ message: string; stackTrace?: string[] }> => {
@@ -162,6 +176,8 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 				return passthrough
 			}
 
+			// Each frame degrades alone: a failed map fetch must never
+			// discard the successful mappings of the other frames.
 			const resolved = await Promise.all(
 				error.stackTrace.map(async (line): Promise<ResolvedFrame | undefined> => {
 					const match = FRAME.exec(line)
@@ -171,7 +187,7 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 					}
 
 					const [, at, caller, file, lineNo, columnNo] = match
-					const map = await mapFor(`${prefix}${file}.map`)
+					const map = await mapFor(`${prefix}${file}.map`).catch(() => undefined)
 
 					if (!map) {
 						return undefined
@@ -193,7 +209,7 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 						at: at!,
 						caller,
 						location: `${source}:${position.line}:${(position.column ?? 0) + 1}`,
-						callee: identifierAt(map, position as never),
+						callee: identifierAt(map, { ...position, source: position.source, line: position.line }),
 					}
 				})
 			)
@@ -217,8 +233,16 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 			// "x is not a function" style messages name the token at the
 			// top frame's call site - when it mapped, the message follows
 			// it & stays consistent with the rewritten stack.
+			// Only the engine mints these template messages - a user-thrown
+			// message that merely looks like one must never be rewritten.
+			// The recorded type can be a minified wrapper class, so the
+			// stack header decides when the record's type isn't plausible.
+			const headerType = error.stackTrace[0]?.match(/^([A-Z][\w$]*Error): /)?.[1]
+			const type = error.type === undefined || /Error$/.test(error.type) ? error.type : headerType
+			const engineError = type === undefined || type === 'TypeError' || type === 'ReferenceError'
+
 			let message = error.message
-			const template = MESSAGE_TEMPLATES.exec(message)
+			const template = engineError ? MESSAGE_TEMPLATES.exec(message) : null
 
 			// Only the very first stack frame is the throw site - a frame
 			// further down names some caller, never the token the engine

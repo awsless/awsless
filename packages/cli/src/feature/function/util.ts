@@ -266,42 +266,54 @@ export default (event, context) => {
 		resolve(createHash('sha1').update(buildHash).update(envFile).digest('hex'))
 	})
 
-	// The pure build hash, without the env: the sourcemaps of a build
-	// key on it, so an env-only change never re-uploads or re-keys them.
-	const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
-		resolve((await readFile(getBuildPath('function', name, 'HASH'), 'utf8')).trim())
-	})
-
 	return {
 		zipFile,
 		sourceHash,
-		buildHash,
-		filesDir: getBuildPath('function', name, 'files'),
 		addEnv,
 	}
 }
 
-// The sourcemaps of a lambda build upload next to the code, keyed by
-// name & build hash - together with an index object mapping the
-// published lambda version to that prefix, so the on-error-log handler
-// finds the exact maps of the version that errored with plain s3 reads.
+// The failure plane never preloads configs, so a drifted config value
+// can't kill error reporting at init.
+export const addEnvWithoutConfigs = (build: { addEnv: (name: string, value: Input<string>) => void }) => {
+	return (name: string, value: Input<string>) => {
+		if (name !== 'CONFIGS') {
+			build.addEnv(name, value)
+		}
+	}
+}
+
+// Upload a build's sourcemaps plus a version index object, so the
+// on-error-log handler finds the erroring version's maps with plain
+// s3 reads. Without an onErrorLog consumer nothing ever reads them.
 export const deployFunctionSourcemaps = (
 	group: Group,
 	ctx: StackContext | AppContext,
 	props: {
 		name: string
-		buildHash: Input<string>
-		filesDir: string
-		// The published version of the deployed lambda ("$LATEST" for an
-		// unpublished one, whose index simply tracks the newest deploy).
+		buildType?: 'bundle' | 'function'
+		// The published version ("$LATEST" for an unpublished lambda,
+		// whose index simply tracks the newest deploy).
 		version: Input<string>
 	}
 ) => {
+	if (!ctx.appConfig.onErrorLog) {
+		return
+	}
+
+	const buildType = props.buildType ?? 'function'
+
+	// The pure build hash, without the env: an env-only change never
+	// re-uploads or re-keys the maps.
+	const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
+		resolve((await readFile(getBuildPath(buildType, props.name, 'HASH'), 'utf8')).trim())
+	})
+
 	new SourcemapDeployment(group, 'sourcemaps', {
 		bucket: ctx.shared.get('asset', 'bucket').name,
 		name: props.name,
-		hash: props.buildHash,
-		source: relativePath(props.filesDir),
+		hash: buildHash,
+		source: relativePath(getBuildPath(buildType, props.name, 'files')),
 		version: props.version,
 	})
 }
@@ -514,8 +526,6 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 
 	deployFunctionSourcemaps(group, ctx, {
 		name,
-		buildHash: build.buildHash,
-		filesDir: build.filesDir,
 		version: lambda.version,
 	})
 

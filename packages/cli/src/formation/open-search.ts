@@ -102,14 +102,18 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 			// An index can't move to another domain in place, so an endpoint
 			// or name change replaces it - drop on the old domain, recreate
 			// on the new one. Mapping & settings changes stay updates.
+			// Endpoints compare without their trailing dot: state written
+			// before the dot was stripped must never read as a new domain.
 			async planResourceChange(props) {
 				const prior = props.priorState as { endpoint?: string; index?: string } | null
 				const proposed = props.proposedState as { endpoint?: string; index?: string } | null
+				const host = (endpoint?: string) => endpoint?.replace(/\.$/, '')
 
 				return {
 					state: props.proposedState,
 					requiresReplacement:
-						!!prior && (prior.endpoint !== proposed?.endpoint || prior.index !== proposed?.index),
+						!!prior &&
+						(host(prior.endpoint) !== host(proposed?.endpoint) || prior.index !== proposed?.index),
 				}
 			},
 			// Removing the resource drops the index & its data. The app's
@@ -118,7 +122,9 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 			async deleteResource(props) {
 				const state = inputSchema.parse(props.state)
 
-				await getClient(state.endpoint).indices.delete(
+				// Old state may carry the endpoint with its trailing dot,
+				// which breaks the client's tls hostname check.
+				await getClient(state.endpoint.replace(/\.$/, '')).indices.delete(
 					{ index: state.index },
 					// An already missing index (or a manually deleted
 					// domain) shouldn't fail the removal.

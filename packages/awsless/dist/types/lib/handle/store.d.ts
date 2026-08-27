@@ -49,10 +49,10 @@ type StoreSchema = GenericSchema<InferInput<typeof storeNotificationSchema>, Sto
 export declare const event: <H extends Handler<StoreSchema>>(handle: H) => (event: {
     bucket: string;
     key: string;
-}[] | {
+} | {
     bucket: string;
     key: string;
-} | {
+}[] | {
     Records: {
         s3: {
             bucket: {

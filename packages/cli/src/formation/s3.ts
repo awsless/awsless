@@ -6,6 +6,7 @@ import { glob } from 'glob'
 import promiseLimit from 'p-limit'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
+import { formatSourcemapPrefix, formatSourcemapVersionKey } from '../feature/on-error-log/keys.js'
 import { Credentials } from '../util/aws'
 import { getCacheControl, getContentType } from '../util/content.js'
 
@@ -44,28 +45,12 @@ type SourcemapDeploymentOutput = {
 	version: Output<string>
 }
 
-// Uploads the sourcemaps of a lambda build, keyed by function name &
-// build hash - plus a tiny index object mapping the published lambda
-// version to that prefix. The on-error-log handler resolves an error's
-// version to its maps through the index & fetches them at error time,
-// all through plain s3 reads.
+// Uploads a lambda build's sourcemaps plus a version index object, so
+// the error-log handler can find the erroring version's maps.
 export const SourcemapDeployment = createCustomResourceClass<SourcemapDeploymentInput, SourcemapDeploymentOutput>(
 	's3',
 	'sourcemap-deployment'
 )
-
-// The bucket prefix a build's sourcemaps upload under - shared between
-// the uploader & the version index that points the error-log handler
-// at a deployed version's maps.
-export const formatSourcemapPrefix = (name: string, hash: string) => {
-	return `sourcemaps/${name}/${hash}/`
-}
-
-// The index object a deploy writes for each published version. A build
-// hash is hex, so the "versions" segment can never collide with one.
-export const formatSourcemapVersionKey = (name: string, version: string) => {
-	return `sourcemaps/${name}/versions/${version}`
-}
 
 type ProviderProps = {
 	credentials: Credentials
@@ -110,6 +95,19 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 		version: z.string(),
 	})
 
+	// The version index: reading it is the only lookup the error-log
+	// handler needs to find the maps of the version that errored.
+	const uploadSourcemapIndex = async (state: z.output<typeof sourcemapSchema>) => {
+		await client.send(
+			new PutObjectCommand({
+				Bucket: state.bucket,
+				Key: formatSourcemapVersionKey(state.name, state.version),
+				Body: formatSourcemapPrefix(state.name, state.hash),
+				ContentType: 'text/plain',
+			})
+		)
+	}
+
 	const uploadSourcemaps = async (state: z.output<typeof sourcemapSchema>) => {
 		const files = glob.sync('**/*.map', { cwd: state.source, nodir: true })
 		const limit = promiseLimit(16)
@@ -130,16 +128,7 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 			)
 		)
 
-		// The version index: reading it is the only lookup the error-log
-		// handler needs to find the maps of the version that errored.
-		await client.send(
-			new PutObjectCommand({
-				Bucket: state.bucket,
-				Key: formatSourcemapVersionKey(state.name, state.version),
-				Body: prefix,
-				ContentType: 'text/plain',
-			})
-		)
+		await uploadSourcemapIndex(state)
 	}
 
 	return createCustomProvider('s3', {
@@ -180,13 +169,15 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 				const prior = sourcemapSchema.parse(props.priorState)
 				const proposed = sourcemapSchema.parse(props.proposedState)
 
-				if (
-					prior.bucket !== proposed.bucket ||
-					prior.name !== proposed.name ||
-					prior.hash !== proposed.hash ||
-					prior.version !== proposed.version
-				) {
+				const rekeyed =
+					prior.bucket !== proposed.bucket || prior.name !== proposed.name || prior.hash !== proposed.hash
+
+				// The maps live under an immutable hash prefix - a deploy
+				// that only published a new version needs just the index.
+				if (rekeyed) {
 					await uploadSourcemaps(proposed)
+				} else if (prior.version !== proposed.version) {
+					await uploadSourcemapIndex(proposed)
 				}
 
 				return proposed

@@ -16,6 +16,7 @@ import {
 	uuid,
 } from '@awsless/validate'
 import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
+import { formatSourcemapVersionKey } from '../keys.js'
 import { createSymbolicator, SourcemapLoaders } from './sourcemap.js'
 
 // Runtime error log (thrown by function code)
@@ -51,9 +52,8 @@ const SystemErrorSchema = object({
 
 const EventSchema = object({
 	logGroup: string(),
-	// The stream name carries the lambda version that produced the
-	// logs, like "2026/08/21/[42]abcdef..." - the version picks the
-	// sourcemaps of exactly the code that errored.
+	// The stream name carries the version ("...[42]abc"), which picks
+	// the sourcemaps of exactly the code that errored.
 	logStream: optional(string()),
 	logEvents: array(
 		object({
@@ -82,11 +82,8 @@ export type ErrorEvent = ErrorLog & {
 	date: Date
 }
 
-// The sourcemap loaders against the asset bucket: a tiny index object
-// maps the erroring version to its map prefix & the maps live next to
-// it - plain s3 reads all the way, with no throttled control plane
-// apis in the path. Loaded lazily, so the module import never needs
-// aws.
+// Resolve a version's map prefix & its maps with plain s3 reads.
+// Loaded lazily, so the module import never needs aws.
 const createAwsLoaders = async (): Promise<SourcemapLoaders> => {
 	const { GetObjectCommand, S3Client } = await import('@aws-sdk/client-s3')
 
@@ -112,7 +109,7 @@ const createAwsLoaders = async (): Promise<SourcemapLoaders> => {
 
 	return {
 		loadPrefix(functionName, version) {
-			return read(`sourcemaps/${functionName}/versions/${version}`)
+			return read(formatSourcemapVersionKey(functionName, version))
 		},
 		loadMap(key) {
 			return read(key)
@@ -124,16 +121,16 @@ const createAwsLoaders = async (): Promise<SourcemapLoaders> => {
 // never subscribed to the error logs, so an error produced by the
 // consumer can never be consumed again & loop forever.
 export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>, loaders?: SourcemapLoaders) => {
-	// Symbolication only exists when the deploy wired a sourcemap
-	// bucket - and stays warm across invocations for its caches.
-	let symbolicate: ReturnType<typeof createSymbolicator> | undefined
+	// Only exists when the deploy wired a sourcemap bucket - and stays
+	// warm across invocations for its caches.
+	let symbolicator: ReturnType<typeof createSymbolicator> | undefined
 
 	const getSymbolicator = async () => {
-		if (!symbolicate && (loaders || process.env.SOURCEMAP_BUCKET)) {
-			symbolicate = createSymbolicator(loaders ?? (await createAwsLoaders()))
+		if (!symbolicator && (loaders || process.env.SOURCEMAP_BUCKET)) {
+			symbolicator = createSymbolicator(loaders ?? (await createAwsLoaders()))
 		}
 
-		return symbolicate
+		return symbolicator
 	}
 
 	return async (event: CloudWatchLogsEvent, context: Context) => {
@@ -149,10 +146,8 @@ export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>,
 
 			const origin = result.output.logGroup.split('/').pop()!
 
-			// The version of the code that produced the logs, off the
-			// stream name - without it the maps of another deploy could
+			// Without the version the maps of another deploy could
 			// mislabel every frame, so mapping just skips.
-			const functionName = origin
 			const version = result.output.logStream?.match(/\[([^\]]+)\]/)?.[1]
 
 			for (const logEvent of result.output.logEvents) {
@@ -171,20 +166,30 @@ export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>,
 
 						if (mapper) {
 							const mapped = await Promise.race([
-								mapper({ functionName, version, message: error.message, stackTrace: error.stackTrace }),
+								mapper({
+									functionName: origin,
+									version,
+									type: error.type,
+									message: error.message,
+									stackTrace: error.stackTrace,
+								}),
 								new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 3_000)),
 							])
 
 							if (mapped) {
+								// An unchanged stack means pure passthrough - the
+								// header then carries no better information.
+								const didMap = mapped.stackTrace !== error.stackTrace
+
 								error.message = mapped.message
 								error.stackTrace = mapped.stackTrace
 
-								// A wrapped error can log the wrapper's minified
-								// class as its type, while the stack header line
-								// still carries the real one.
+								// Old runtimes log the wrapper's minified class as
+								// the type while the stack header keeps the real
+								// one - but a plausible type never gets replaced.
 								const header = mapped.stackTrace?.[0]?.match(/^([A-Z][\w$]*Error): /)
 
-								if (header && header[1] !== error.type) {
+								if (didMap && header && !/Error$/.test(error.type)) {
 									error.type = header[1]!
 								}
 							}
@@ -236,6 +241,9 @@ const parseError = (message: string, origin: string): ErrorLog | undefined => {
 			origin = extra.route
 			delete extra.route
 		}
+
+		// The error's own name property duplicates errorType.
+		delete (extra as Record<string, unknown>).name
 
 		const hash = createHash('sha256').update([origin, errorType, errorMessage, stackTrace].join('-')).digest('hex')
 
