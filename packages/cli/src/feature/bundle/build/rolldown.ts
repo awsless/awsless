@@ -89,31 +89,39 @@ export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps)
 	})
 
 	const extension = format === 'esm' ? 'mjs' : 'js'
-	const result = await bundle.generate({
-		format,
-		sourcemap: 'hidden',
-		exports: 'auto',
-		minify,
-		entryFileNames: `index.${extension}`,
 
-		// No chunk grouping: importing anything from a chunk executes the
-		// whole file, so merging all shared modules into one chunk would make
-		// every cold start parse & run the shared code of every route.
+	let result
+	try {
+		result = await bundle.generate({
+			format,
+			sourcemap: 'hidden',
+			exports: 'auto',
+			minify,
+			entryFileNames: `index.${extension}`,
 
-		// Handler chunks are named after their route key, with the ":"
-		// separator swapped for "--" to keep the file name portable.
-		chunkFileNames: chunk => {
-			const encodedRouteKey = chunk.facadeModuleId?.split(ROUTE_MODULE_QUERY)[1]
+			// No chunk grouping: importing anything from a chunk executes the
+			// whole file, so merging all shared modules into one chunk would make
+			// every cold start parse & run the shared code of every route.
 
-			if (!encodedRouteKey) {
-				return `[name].${extension}`
-			}
+			// Handler chunks are named after their route key, with the ":"
+			// separator swapped for "--" to keep the file name portable.
+			chunkFileNames: chunk => {
+				const encodedRouteKey = chunk.facadeModuleId?.split(ROUTE_MODULE_QUERY)[1]
 
-			const routeKey = decodeURIComponent(encodedRouteKey)
+				if (!encodedRouteKey) {
+					return `[name].${extension}`
+				}
 
-			return `${routeKey.replaceAll(':', '--')}.${extension}`
-		},
-	})
+				const routeKey = decodeURIComponent(encodedRouteKey)
+
+				return `${routeKey.replaceAll(':', '--')}.${extension}`
+			},
+		})
+	} finally {
+		// An unclosed bundle keeps its native threads & memory alive -
+		// the dev server rebuilds on every save & leaked hundreds of MB.
+		await bundle.close()
+	}
 
 	// -------------------------------------------------
 	// Generate output
