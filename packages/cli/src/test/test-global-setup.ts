@@ -45,7 +45,7 @@ if (manifestFile) {
 	process.env.AWS_SECRET_ACCESS_KEY ??= 'local'
 
 	if (manifest.servers?.search) {
-		process.env.SEARCH_DOMAIN = manifest.servers.search.domain
+		process.env.SEARCH_ENDPOINT = manifest.servers.search.endpoint
 	}
 
 	// The table key envs must exist before any test file import, so

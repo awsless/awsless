@@ -10,12 +10,12 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 		return mock
 	}
 
-	// The search domain env is a full url, scheme included - the local
+	// The search endpoint env is a full url, scheme included - the local
 	// dev & test servers run plain http, deployed collections https.
-	const node = options.node ?? process.env.SEARCH_DOMAIN
+	const node = options.node ?? process.env.SEARCH_ENDPOINT
 
 	if (!node) {
-		throw new Error('No search domain - set the SEARCH_DOMAIN env or pass the node option.')
+		throw new Error('No search endpoint - set the SEARCH_ENDPOINT env or pass the node option.')
 	}
 
 	// The node option also accepts object & array forms - the first

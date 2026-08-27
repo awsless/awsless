@@ -58,7 +58,7 @@ export type TestManifest = {
             port: number;
         };
         search?: {
-            domain: string;
+            endpoint: string;
         };
     };
 };

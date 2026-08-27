@@ -50,7 +50,7 @@ export type TestManifest = {
 	// run - test files namespace into them instead of booting their own.
 	servers?: {
 		redis?: { host: string; port: number }
-		search?: { domain: string }
+		search?: { endpoint: string }
 	}
 }
 
@@ -216,9 +216,9 @@ const materializeTables = (
 // The declared search indexes exist on the shared run-wide search
 // server before any test runs, namespaced by the app prefix.
 const createSearchIndexes = async (manifest: TestManifest) => {
-	const domain = manifest.servers?.search?.domain
+	const endpoint = manifest.servers?.search?.endpoint
 
-	if (!domain) {
+	if (!endpoint) {
 		return
 	}
 
@@ -229,7 +229,7 @@ const createSearchIndexes = async (manifest: TestManifest) => {
 		// schema against the stack file.
 		process.env[`SEARCH_MAPPINGS_${name}`] = JSON.stringify(entry.mappings)
 
-		const result = await fetch(`http://${domain}/${name}`, {
+		const result = await fetch(`${endpoint}/${name}`, {
 			method: 'PUT',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ mappings: entry.mappings, settings: entry.settings }),

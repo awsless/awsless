@@ -87,7 +87,7 @@ export const searchOnDev = async (ctx: DevContext) => {
 
 	// One local domain backs every index, exactly like the one shared
 	// domain in production.
-	ctx.addEnv('SEARCH_DOMAIN', `http://localhost:${port}`)
+	ctx.addEnv('SEARCH_ENDPOINT', `http://localhost:${port}`)
 
 	const client = new Client({ node: `http://localhost:${port}` })
 

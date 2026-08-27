@@ -13,7 +13,7 @@ import { AnySchema, Table } from '@awsless/open-search'
 
 type SearchIndex = {
 	readonly name: string
-	readonly domain: string
+	readonly endpoint: string
 	readonly define: <S extends AnySchema>(schema: S) => Table<string, S>
 }
 `
@@ -208,7 +208,7 @@ export const searchFeature = defineFeature({
 
 		const endpoint = collection.collectionEndpoint
 
-		ctx.addEnv('SEARCH_DOMAIN', endpoint)
+		ctx.addEnv('SEARCH_ENDPOINT', endpoint)
 
 		ctx.addPermission({
 			actions: ['aoss:APIAccessAll'],

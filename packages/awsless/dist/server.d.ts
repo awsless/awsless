@@ -2416,7 +2416,7 @@ type TestManifest = {
       port: number;
     };
     search?: {
-      domain: string;
+      endpoint: string;
     };
   };
 };
@@ -2559,7 +2559,7 @@ declare const Queue: QueueResources;
 //#endregion
 //#region src/lib/server/search.d.ts
 declare const getSearchProps: (name: string, stack?: string) => {
-  readonly domain: string | undefined;
+  readonly endpoint: string | undefined;
   readonly name: string;
 };
 interface SearchResources {}

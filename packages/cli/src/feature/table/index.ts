@@ -13,6 +13,10 @@ import { formatTableKeys } from './util.js'
 
 const tableTypeGenCode = `
 import { GenericMapSchema, Table as DynamoTable } from '@awsless/dynamodb'
+
+// Intersecting the key literals with the schema key space keeps them
+// provable inside the generic table type parameters.
+type TableKey<S extends GenericMapSchema, K> = Extract<keyof S[symbol]['Type'], string> & K
 `
 
 export const tableFeature = defineFeature({
@@ -23,6 +27,12 @@ export const tableFeature = defineFeature({
 		const resources = new TypeObject(1)
 
 		const typeValue = (value: unknown): string => JSON.stringify(value)
+
+		const keyValue = (value: string | string[]): string => {
+			return Array.isArray(value)
+				? `[${value.map(key => keyValue(key)).join(', ')}]`
+				: `TableKey<S, ${typeValue(value)}>`
+		}
 
 		for (const stack of ctx.stackConfigs) {
 			const list = new TypeObject(2)
@@ -36,16 +46,16 @@ export const tableFeature = defineFeature({
 
 				// The generated define only takes the runtime schema - the
 				// hash, sort & index literals come from the stack config.
-				const sort = props.sort ? typeValue(props.sort) : 'undefined'
+				const sort = props.sort ? keyValue(props.sort) : 'undefined'
 				const indexes =
 					props.indexes && Object.keys(props.indexes).length > 0
 						? `{ ${Object.entries(props.indexes)
 								.map(([indexName, index]) => {
-									const indexSort = index.sort ? `; sort: ${typeValue(index.sort)}` : ''
+									const indexSort = index.sort ? `; sort: ${keyValue(index.sort)}` : ''
 
 									// Quoted, since index names like "log-level" are not
 									// valid bare object keys.
-									return `'${indexName}': { hash: ${typeValue(index.hash)}${indexSort} }`
+									return `'${indexName}': { hash: ${keyValue(index.hash)}${indexSort} }`
 								})
 								.join('; ')} }`
 						: 'undefined'
@@ -54,7 +64,7 @@ export const tableFeature = defineFeature({
 					name,
 					`{
 			readonly name: '${tableName}'
-			readonly define: <S extends GenericMapSchema>(schema: S) => DynamoTable<S, ${typeValue(props.hash)}, ${sort}, ${indexes}>
+			readonly define: <S extends GenericMapSchema>(schema: S) => DynamoTable<S, ${keyValue(props.hash)}, ${sort}, ${indexes}>
 		}`
 				)
 			}

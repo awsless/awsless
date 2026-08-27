@@ -10,7 +10,7 @@ import { APP, getStack, IS_TEST } from './util.js'
 // search server.
 export const getSearchProps = (name: string, stack: string = getStack()) => {
 	return {
-		domain: process.env.SEARCH_DOMAIN,
+		endpoint: process.env.SEARCH_ENDPOINT,
 		name: IS_TEST ? `${kebabCase(APP)}--${kebabCase(stack)}--${name}` : `${kebabCase(stack)}--${name}`,
 	} as const
 }
@@ -80,12 +80,12 @@ export interface SearchResources {}
 
 export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
-		const { domain, name: index } = getSearchProps(name, stack)
+		const { endpoint, name: index } = getSearchProps(name, stack)
 		let client: any
 
 		return {
 			name: index,
-			domain,
+			endpoint,
 			define(schema: AnySchema) {
 				if (IS_TEST) {
 					const declared = process.env[`SEARCH_MAPPINGS_${index}`]
@@ -98,7 +98,7 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 				return define(index, schema, () => {
 					if (!client) {
 						// Serverless collection endpoints need aoss signing.
-						client = searchClient({ node: domain }, isServerlessEndpoint(domain) ? 'aoss' : 'es')
+						client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? 'aoss' : 'es')
 					}
 					return client
 				})

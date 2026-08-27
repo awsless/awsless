@@ -16,8 +16,8 @@ import { BigFloat, parse } from "@awsless/big-float";
 let mock;
 const searchClient = (options = {}, service = "es") => {
 	if (mock) return mock;
-	const node = options.node ?? process.env.SEARCH_DOMAIN;
-	if (!node) throw new Error("No search domain - set the SEARCH_DOMAIN env or pass the node option.");
+	const node = options.node ?? process.env.SEARCH_ENDPOINT;
+	if (!node) throw new Error("No search endpoint - set the SEARCH_ENDPOINT env or pass the node option.");
 	const first = Array.isArray(node) ? node[0] : node;
 	const nodeUrl = typeof first === "string" ? first : first?.url.href ?? "";
 	return new Client({

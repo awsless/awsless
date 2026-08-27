@@ -795,7 +795,7 @@ const Topic = /*@__PURE__*/ createProxy((name) => {
 //#region src/lib/server/search.ts
 const getSearchProps = (name, stack = getStack()) => {
 	return {
-		domain: process.env.SEARCH_DOMAIN,
+		endpoint: process.env.SEARCH_ENDPOINT,
 		name: IS_TEST ? `${kebabCase(APP)}--${kebabCase(stack)}--${name}` : `${kebabCase(stack)}--${name}`
 	};
 };
@@ -829,18 +829,18 @@ const assertMatchingMappings = (label, declared, defined, path = "") => {
 };
 const Search = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
-		const { domain, name: index } = getSearchProps(name, stack);
+		const { endpoint, name: index } = getSearchProps(name, stack);
 		let client;
 		return {
 			name: index,
-			domain,
+			endpoint,
 			define(schema) {
 				if (IS_TEST) {
 					const declared = process.env[`SEARCH_MAPPINGS_${index}`];
 					if (declared) assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
 				}
 				return define(index, schema, () => {
-					if (!client) client = searchClient({ node: domain }, isServerlessEndpoint(domain) ? "aoss" : "es");
+					if (!client) client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? "aoss" : "es");
 					return client;
 				});
 			}
@@ -982,12 +982,12 @@ const materializeTables = (manifest, importFile, dynamodb) => {
 	});
 };
 const createSearchIndexes = async (manifest) => {
-	const domain = manifest.servers?.search?.domain;
-	if (!domain) return;
+	const endpoint = manifest.servers?.search?.endpoint;
+	if (!endpoint) return;
 	for (const entry of manifest.searches ?? []) {
 		const { name } = getSearchProps(entry.id, entry.stack);
 		process.env[`SEARCH_MAPPINGS_${name}`] = JSON.stringify(entry.mappings);
-		const result = await fetch(`http://${domain}/${name}`, {
+		const result = await fetch(`${endpoint}/${name}`, {
 			method: "PUT",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({

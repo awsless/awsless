@@ -71,7 +71,7 @@ export const withTestEnvironment = async (
 
 				await waitForSearch(port, 60_000)
 
-				manifest.servers.search = { domain: `http://localhost:${port}` }
+				manifest.servers.search = { endpoint: `http://localhost:${port}` }
 			}
 
 			if (manifest.caches.length > 0) {
