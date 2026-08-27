@@ -1,6 +1,5 @@
-import { toGibibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
-import { Group } from '@terraforge/core'
+import { findInputDeps, Group, Output, resolveInputs } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { SearchIndex } from '../../formation/open-search.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -42,9 +41,9 @@ export const searchFeature = defineFeature({
 		await ctx.write('search.d.ts', gen, true)
 	},
 	onApp(ctx) {
-		// Every search index in the app shares one OpenSearch domain,
-		// like every table shares dynamodb. The domain only exists when
-		// at least one stack declares an index.
+		// Every search index in the app shares one OpenSearch Serverless
+		// collection, like every table shares dynamodb. The collection
+		// only exists when at least one stack declares an index.
 		const hasIndexes = ctx.stackConfigs.some(stack => {
 			return Object.keys(stack.searchs ?? {}).length > 0
 		})
@@ -56,67 +55,169 @@ export const searchFeature = defineFeature({
 		const group = new Group(ctx.base, 'search', 'main')
 		const name = `${ctx.app.name}-${shortId([ctx.app.name, 'search', 'main'].join('--'))}`
 		const props = ctx.appConfig.search
+		// const retainOnDelete = ctx.appConfig.removal === 'retain'
 
-		const openSearch = new aws.opensearch.Domain(
+		// The deploy assumes this role to manage the indexes, so
+		// deployers only need sts:AssumeRole instead of a principal
+		// entry in the data access policy.
+		const accessRole = new aws.iam.Role(
 			group,
-			'domain',
+			'access-role',
 			{
-				domainName: name,
-				engineVersion: `OpenSearch_${props.version}`,
-				ipAddressType: 'dualstack',
-				clusterConfig: {
-					instanceType: `${props.type}.search`,
-					instanceCount: props.count,
-				},
-				ebsOptions: {
-					ebsEnabled: true,
-					volumeSize: toGibibytes(props.storage),
-					volumeType: 'gp2',
-				},
-				domainEndpointOptions: {
-					enforceHttps: true,
-				},
-				softwareUpdateOptions: {
-					autoSoftwareUpdateEnabled: true,
-				},
-				nodeToNodeEncryption: {
-					enabled: false,
-				},
-				encryptAtRest: {
-					enabled: false,
-				},
-				accessPolicies: JSON.stringify({
+				name: `${name}-search-access`,
+				description: `Search data access ${ctx.app.name}`,
+				assumeRolePolicy: JSON.stringify({
 					Version: '2012-10-17',
 					Statement: [
 						{
 							Effect: 'Allow',
-							Action: 'es:*',
-							Principal: { AWS: '*' },
-							Resource: [`arn:aws:es:${ctx.appConfig.region}:${ctx.accountId}:domain/${name}/*`],
-							Condition: {
-								StringLike: {
-									'AWS:PrincipalArn': `this-will-never-work`,
-								},
+							Action: 'sts:AssumeRole',
+							Principal: {
+								AWS: `arn:aws:iam::${ctx.accountId}:root`,
 							},
 						},
 					],
 				}),
+				inlinePolicy: [
+					{
+						name: 'search-access',
+						policy: JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Effect: 'Allow',
+									Action: ['aoss:APIAccessAll'],
+									Resource: [`arn:aws:aoss:${ctx.appConfig.region}:${ctx.accountId}:collection/*`],
+								},
+							],
+						}),
+					},
+				],
 			},
 			{
-				retainOnDelete: ctx.appConfig.removal === 'retain',
-				import: ctx.import ? name : undefined,
-				replaceOnChanges: ['engineVersion', 'domainName'],
+				replaceOnChanges: ['name'],
 			}
 		)
 
-		ctx.addEnv('SEARCH_DOMAIN', openSearch.endpointV2)
-
-		ctx.addPermission({
-			actions: ['es:ESHttp*'],
-			resources: [openSearch.arn.pipe(arn => `${arn}/*`)],
+		const encryption = new aws.opensearchserverless.SecurityPolicy(group, 'encryption', {
+			name,
+			type: 'encryption',
+			policy: JSON.stringify({
+				Rules: [
+					{
+						ResourceType: 'collection',
+						Resource: [`collection/${name}`],
+					},
+				],
+				AWSOwnedKey: true,
+			}),
 		})
 
-		ctx.shared.set('search', 'endpoint', openSearch.endpointV2)
+		const network = new aws.opensearchserverless.SecurityPolicy(group, 'network', {
+			name,
+			type: 'network',
+			policy: JSON.stringify([
+				{
+					Rules: [
+						{
+							ResourceType: 'collection',
+							Resource: [`collection/${name}`],
+						},
+					],
+					AllowFromPublic: true,
+				},
+			]),
+		})
+
+		// Resources that have access to opensearch
+		const principals = () => [accessRole, ...ctx.shared.list('function', 'role')]
+
+		// The standalone function roles only exist after every stack has synthed.
+		const principalDeps: Set<any> = new Set()
+		ctx.onReady(() => {
+			for (const dep of findInputDeps(principals().map(role => role.arn))) {
+				principalDeps.add(dep)
+			}
+		})
+
+		const access = new aws.opensearchserverless.AccessPolicy(group, 'access', {
+			name,
+			type: 'data',
+			policy: new Output(principalDeps, async (resolve: (value: string) => void) => {
+				const roleArns = (await resolveInputs(principals().map(role => role.arn))) as unknown as string[]
+
+				resolve(
+					JSON.stringify([
+						{
+							Rules: [
+								{
+									ResourceType: 'collection',
+									Resource: [`collection/${name}`],
+									Permission: ['aoss:*'],
+								},
+								{
+									ResourceType: 'index',
+									Resource: [`index/${name}/*`],
+									Permission: ['aoss:*'],
+								},
+							],
+							Principal: [...roleArns, `arn:aws:iam::${ctx.accountId}:root`],
+						},
+					])
+				)
+			}),
+		})
+
+		// A nextgen collection group scales to zero when idle, unlike
+		// the classic generation with its always-on capacity floor.
+		const collectionGroup = new aws.opensearchserverless.CollectionGroup(
+			group,
+			'group',
+			{
+				name,
+				generation: 'NEXTGEN',
+				standbyReplicas: 'ENABLED',
+				capacityLimits: [
+					{
+						minSearchCapacityInOcu: props.capacity.search.min,
+						maxSearchCapacityInOcu: props.capacity.search.max,
+						minIndexingCapacityInOcu: props.capacity.indexing.min,
+						maxIndexingCapacityInOcu: props.capacity.indexing.max,
+					},
+				],
+			},
+			{
+				// retainOnDelete,
+				replaceOnChanges: ['name', 'generation'],
+			}
+		)
+
+		const collection = new aws.opensearchserverless.Collection(
+			group,
+			'collection',
+			{
+				name,
+				type: 'SEARCH',
+				collectionGroupName: collectionGroup.name,
+			},
+			{
+				// retainOnDelete,
+				dependsOn: [encryption, network, access],
+				replaceOnChanges: ['name', 'collectionGroupName'],
+			}
+		)
+
+		const endpoint = collection.collectionEndpoint
+
+		ctx.addEnv('SEARCH_DOMAIN', endpoint)
+
+		ctx.addPermission({
+			actions: ['aoss:APIAccessAll'],
+			resources: [collection.arn],
+		})
+
+		ctx.shared.set('search', 'endpoint', endpoint)
+		ctx.shared.set('search', 'accessRole', accessRole)
 	},
 	onStack(ctx) {
 		const indexes = Object.entries(ctx.stackConfig.searchs ?? {})
@@ -126,6 +227,7 @@ export const searchFeature = defineFeature({
 		}
 
 		const endpoint = ctx.shared.get('search', 'endpoint')
+		const accessRole = ctx.shared.get('search', 'accessRole')
 
 		// The indexes are managed like tables: the deploy creates missing
 		// indexes & applies the mappings, with the physical name prefixed
@@ -138,13 +240,15 @@ export const searchFeature = defineFeature({
 				'index',
 				{
 					endpoint,
+					role: accessRole.arn,
 					index: formatSearchIndexName(ctx.stackConfig.name, id),
 					mappings: JSON.stringify(resolveSearchMappings(props) ?? {}),
 					settings: JSON.stringify(props.settings ?? {}),
 				},
 				{
-					retainOnDelete: ctx.appConfig.removal === 'retain',
+					// retainOnDelete: ctx.appConfig.removal === 'retain',
 					replaceOnChanges: ['endpoint', 'index'],
+					dependsOn: [accessRole],
 				}
 			)
 		}

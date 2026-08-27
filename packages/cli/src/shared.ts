@@ -71,10 +71,15 @@ type SharedState = {
 
 	search: {
 		endpoint: Output<string>
+		accessRole: aws.iam.Role
 	}
 }
 
 type SharedEntries = {
+	function: {
+		role: aws.iam.Role
+	}
+
 	domain: {
 		'zone-id': Output<string>
 		'certificate-arn': Output<string>
@@ -170,6 +175,12 @@ export class SharedData {
 		}
 
 		return value
+	}
+
+	list<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(feature: F, name: K): SharedEntries[F][K][] {
+		const key = `${feature}/${name.toString()}`
+
+		return [...(this.entries.get(key)?.values() ?? [])]
 	}
 
 	add<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(

@@ -10,10 +10,9 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 		return mock
 	}
 
-	// The local dev server runs plain http - the scheme follows the
-	// environment, like the aws sdk clients do through AWS_ENDPOINT_URL.
-	const scheme = process.env.AWSLESS_ENV === 'local' ? 'http://' : 'https://'
-	const node = options.node ?? scheme + process.env.SEARCH_DOMAIN
+	// The search domain env is a full url, scheme included - the local
+	// dev & test servers run plain http, deployed collections https.
+	const node = options.node ?? process.env.SEARCH_DOMAIN ?? ''
 
 	// The node option also accepts object & array forms - the first
 	// entry's url detects the protocol.
@@ -44,4 +43,10 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 
 export const mockClient = (host: string, port: number) => {
 	mock = new Client({ node: `http://${host}:${port}` })
+}
+
+export const isServerless = (client: Client): boolean => {
+	const url = client.connectionPool.connections[0]?.url.href ?? ''
+
+	return url.includes('.aoss.')
 }

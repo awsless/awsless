@@ -1,70 +1,43 @@
-import { gibibytes } from '@awsless/size'
 import { z } from 'zod'
-import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 
-const VersionSchema = z
-	.union([
-		//
-		z.enum(['3.7', '3.5', '3.3', '3.1', '2.19', '2.17', '2.15', '2.13', '2.11', '2.9', '2.7', '2.5', '2.3', '1.3']),
-		z.string(),
-	])
-	.describe('Specify the OpenSearch engine version.')
+// The capacity steps that aws accepts.
+const ocuCounts = [0, 2, 4, 8, 16, 32, 48, 64, 80, 96]
 
-const TypeSchema = z
-	.union([
-		z.enum([
-			't3.small',
-			't3.medium',
-			'm3.medium',
-			'm3.large',
-			'm3.xlarge',
-			'm3.2xlarge',
-			'm4.large',
-			'm4.xlarge',
-			'm4.2xlarge',
-			'm4.4xlarge',
-			'm4.10xlarge',
-			'm5.large',
-			'm5.xlarge',
-			'm5.2xlarge',
-			'm5.4xlarge',
-			'm5.12xlarge',
-			'm5.24xlarge',
-			'r5.large',
-			'r5.xlarge',
-			'r5.2xlarge',
-			'r5.4xlarge',
-			'r5.12xlarge',
-			'r5.24xlarge',
-			'c5.large',
-			'c5.xlarge',
-			'c5.2xlarge',
-			'c5.4xlarge',
-			'c5.9xlarge',
-			'c5.18xlarge',
-		]),
-		z.string(),
-	])
-	.describe('Instance type of data nodes in the cluster.')
+const OcuCountSchema = z
+	.number()
+	.refine(value => ocuCounts.includes(value), 'Capacity must be 0, 2, 4, 8, or a multiple of 16 up to 96.')
 
-const CountSchema = z.number().int().min(1).max(10).describe('Number of instances in the cluster.')
+const OcuLimitSchema = z
+	.object({
+		min: OcuCountSchema.default(0).describe(
+			'The minimum capacity in OCUs. A value above 0 keeps warm capacity & avoids cold starts.'
+		),
+		max: OcuCountSchema.refine(value => value > 0, 'The maximum capacity can not be 0.')
+			.default(96)
+			.describe('The maximum capacity in OCUs, capping the cost.'),
+	})
+	.strict()
+	.refine(limit => limit.min <= limit.max, 'The minimum capacity can not exceed the maximum.')
+	.prefault({})
 
-const StorageSizeSchema = SizeSchema.refine(sizeMin(gibibytes(10)), 'Minimum storage size is 10 GB')
-	.refine(sizeMax(gibibytes(100)), 'Maximum storage size is 100 GB')
-	.describe('The storage size of every data node in the cluster.')
-
-// The one shared OpenSearch domain of the app, created as soon as any
-// stack declares a search index.
+// The one shared OpenSearch Serverless collection of the app, created
+// as soon as any stack declares a search index.
 export const SearchDefaultSchema = z
 	.object({
-		type: TypeSchema.default('t3.small'),
-		count: CountSchema.default(1),
-		version: VersionSchema.default('3.7'),
-		storage: StorageSizeSchema.prefault('10 GB'),
+		capacity: z
+			.object({
+				search: OcuLimitSchema.describe('The capacity limits for search requests.'),
+				indexing: OcuLimitSchema.describe('The capacity limits for indexing requests.'),
+			})
+			.strict()
+			.prefault({})
+			.describe('The capacity limits of the collection, in OpenSearch Compute Units (OCUs).'),
 	})
 	.strict()
 	.prefault({})
-	.describe('Configure the shared OpenSearch domain that backs every search index in your app.')
+	.describe(
+		'Configure the shared OpenSearch Serverless collection that backs every search index in your app. By default the collection scales to zero when idle.'
+	)
 
 const IndexNameSchema = z
 	.string()

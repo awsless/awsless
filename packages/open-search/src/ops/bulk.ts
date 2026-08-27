@@ -1,4 +1,5 @@
 import { Client } from '@opensearch-project/opensearch'
+import { isServerless } from '../client'
 import { AnyTable } from '../table'
 
 export const bulkDeleteItem = <T extends AnyTable>(table: T, id: string) => {
@@ -62,7 +63,8 @@ export const bulk = async ({ items, client, refresh = true }: BulkOptions) => {
 	const openSearchClient = client ?? items[0]!.table.client()
 
 	const response = await openSearchClient.bulk({
-		refresh,
+		// Serverless collections reject the refresh parameter.
+		refresh: isServerless(openSearchClient) ? undefined : refresh,
 		body: items
 			.map(entry => {
 				const body = [

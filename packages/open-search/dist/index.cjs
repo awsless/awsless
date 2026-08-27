@@ -41,8 +41,7 @@ let _awsless_big_float = require("@awsless/big-float");
 let mock;
 const searchClient = (options = {}, service = "es") => {
 	if (mock) return mock;
-	const scheme = process.env.AWSLESS_ENV === "local" ? "http://" : "https://";
-	const node = options.node ?? scheme + process.env.SEARCH_DOMAIN;
+	const node = options.node ?? process.env.SEARCH_DOMAIN ?? "";
 	const first = Array.isArray(node) ? node[0] : node;
 	const nodeUrl = typeof first === "string" ? first : first?.url.href ?? "";
 	return new _opensearch_project_opensearch.Client({
@@ -59,6 +58,9 @@ const searchClient = (options = {}, service = "es") => {
 };
 const mockClient = (host, port) => {
 	mock = new _opensearch_project_opensearch.Client({ node: `http://${host}:${port}` });
+};
+const isServerless = (client) => {
+	return (client.connectionPool.connections[0]?.url.href ?? "").includes(".aoss.");
 };
 //#endregion
 //#region src/server/download.ts
@@ -341,8 +343,9 @@ const bulkUpdateItem = (table, id, item) => {
 };
 const bulk = async ({ items, client, refresh = true }) => {
 	if (items.length === 0) return;
-	const response = await (client ?? items[0].table.client()).bulk({
-		refresh,
+	const openSearchClient = client ?? items[0].table.client();
+	const response = await openSearchClient.bulk({
+		refresh: isServerless(openSearchClient) ? void 0 : refresh,
 		body: items.map((entry) => {
 			const body = [{ [entry.action]: {
 				_id: entry.id,
@@ -430,33 +433,36 @@ const search = async (table, { query, aggs, limit = 10, offset, cursor, sort, tr
 //#endregion
 //#region src/ops/index-item.ts
 const indexItem = async (table, id, item, { refresh = true } = {}) => {
-	await table.client().index({
+	const client = table.client();
+	await client.index({
 		index: table.index,
 		id,
-		refresh,
+		refresh: isServerless(client) ? void 0 : refresh,
 		body: table.schema.encode(item)
 	});
 };
 //#endregion
 //#region src/ops/delete-item.ts
 const deleteItem = async (table, id, { refresh = true } = {}) => {
-	await table.client().delete({
+	const client = table.client();
+	await client.delete({
 		index: table.index,
 		id,
-		refresh
+		refresh: isServerless(client) ? void 0 : refresh
 	});
 };
 //#endregion
 //#region src/ops/update-item.ts
 const updateItem = async (table, id, item, { refresh = true } = {}) => {
-	await table.client().update({
+	const client = table.client();
+	await client.update({
 		index: table.index,
 		id,
 		body: {
 			doc: table.schema.encode(item),
 			doc_as_upsert: true
 		},
-		refresh
+		refresh: isServerless(client) ? void 0 : refresh
 	});
 };
 //#endregion

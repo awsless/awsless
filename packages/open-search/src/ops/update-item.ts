@@ -1,3 +1,4 @@
+import { isServerless } from '../client'
 import { AnyTable } from '../table'
 
 type Options = {
@@ -10,13 +11,16 @@ export const updateItem = async <T extends AnyTable>(
 	item: Partial<T['schema']['INPUT']>,
 	{ refresh = true }: Options = {}
 ) => {
-	await table.client().update({
+	const client = table.client()
+
+	await client.update({
 		index: table.index,
 		id,
 		body: {
 			doc: table.schema.encode(item),
 			doc_as_upsert: true,
 		},
-		refresh,
+		// Serverless collections reject the refresh parameter.
+		refresh: isServerless(client) ? undefined : refresh,
 	})
 }

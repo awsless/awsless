@@ -837,7 +837,7 @@ const Search = /*@__PURE__*/ createProxy((stack) => {
 					if (declared) assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
 				}
 				return define(index, schema, () => {
-					if (!client) client = searchClient({ node: `${IS_LOCAL || IS_TEST ? "http" : "https"}://${domain}` }, "es");
+					if (!client) client = searchClient({ node: domain }, domain?.includes(".aoss.") ? "aoss" : "es");
 					return client;
 				});
 			}
