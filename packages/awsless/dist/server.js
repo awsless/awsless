@@ -1,7 +1,7 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.js";
 import { t as createProxy } from "./proxy-HAezNYiX.js";
 import * as s from "@awsless/open-search";
-import { define, searchClient } from "@awsless/open-search";
+import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search";
 import * as t from "@awsless/dynamodb";
 import { define as define$1 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
@@ -837,7 +837,7 @@ const Search = /*@__PURE__*/ createProxy((stack) => {
 					if (declared) assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
 				}
 				return define(index, schema, () => {
-					if (!client) client = searchClient({ node: domain }, domain?.includes(".aoss.") ? "aoss" : "es");
+					if (!client) client = searchClient({ node: domain }, isServerlessEndpoint(domain) ? "aoss" : "es");
 					return client;
 				});
 			}

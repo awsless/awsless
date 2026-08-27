@@ -1,5 +1,5 @@
 import { aws } from '@terraforge/aws'
-import { findInputDeps, Group, Output, resolveInputs } from '@terraforge/core'
+import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { SearchIndex } from '../../formation/open-search.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -129,47 +129,46 @@ export const searchFeature = defineFeature({
 			]),
 		})
 
-		// Resources that have access to opensearch
-		const principals = () => [accessRole, ...ctx.shared.list('function', 'role')]
-
-		// The standalone function roles only exist after every stack has synthed.
-		const principalDeps: Set<any> = new Set()
-		ctx.onReady(() => {
-			for (const dep of findInputDeps(principals().map(role => role.arn))) {
-				principalDeps.add(dep)
-			}
-		})
+		const dataAccessPolicy = (principals: string[]) => {
+			return JSON.stringify([
+				{
+					Rules: [
+						{
+							ResourceType: 'collection',
+							Resource: [`collection/${name}`],
+							Permission: ['aoss:*'],
+						},
+						{
+							ResourceType: 'index',
+							Resource: [`index/${name}/*`],
+							Permission: ['aoss:*'],
+						},
+					],
+					Principal: principals,
+				},
+			])
+		}
 
 		const access = new aws.opensearchserverless.AccessPolicy(group, 'access', {
 			name,
 			type: 'data',
-			policy: new Output(principalDeps, async (resolve: (value: string) => void) => {
-				const roleArns = (await resolveInputs(principals().map(role => role.arn))) as unknown as string[]
+			policy: accessRole.arn.pipe(arn => dataAccessPolicy([arn])),
+		})
 
-				resolve(
-					JSON.stringify([
-						{
-							Rules: [
-								{
-									ResourceType: 'collection',
-									Resource: [`collection/${name}`],
-									Permission: ['aoss:*'],
-								},
-								{
-									ResourceType: 'index',
-									Resource: [`index/${name}/*`],
-									Permission: ['aoss:*'],
-								},
-							],
-							Principal: [...roleArns, `arn:aws:iam::${ctx.accountId}:root`],
-						},
-					])
-				)
-			}),
+		// The function roles only exist after every stack has synthed.
+		ctx.onReady(() => {
+			const roles = ctx.shared.list('function', 'role')
+
+			new aws.opensearchserverless.AccessPolicy(group, 'access-functions', {
+				name: `${name}-functions`,
+				type: 'data',
+				policy: $combine(...roles.map(role => role.arn)).pipe(dataAccessPolicy),
+			})
 		})
 
 		// A nextgen collection group scales to zero when idle, unlike
 		// the classic generation with its always-on capacity floor.
+		// Nextgen requires standby replicas to be enabled.
 		const collectionGroup = new aws.opensearchserverless.CollectionGroup(
 			group,
 			'group',
@@ -248,7 +247,6 @@ export const searchFeature = defineFeature({
 				{
 					// retainOnDelete: ctx.appConfig.removal === 'retain',
 					replaceOnChanges: ['endpoint', 'index'],
-					dependsOn: [accessRole],
 				}
 			)
 		}

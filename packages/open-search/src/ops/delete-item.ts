@@ -11,7 +11,6 @@ export const deleteItem = async <T extends AnyTable>(table: T, id: string, { ref
 	await client.delete({
 		index: table.index,
 		id,
-		// Serverless collections reject the refresh parameter.
 		refresh: isServerless(client) ? undefined : refresh,
 	})
 }

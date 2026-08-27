@@ -12,7 +12,11 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 
 	// The search domain env is a full url, scheme included - the local
 	// dev & test servers run plain http, deployed collections https.
-	const node = options.node ?? process.env.SEARCH_DOMAIN ?? ''
+	const node = options.node ?? process.env.SEARCH_DOMAIN
+
+	if (!node) {
+		throw new Error('No search domain - set the SEARCH_DOMAIN env or pass the node option.')
+	}
 
 	// The node option also accepts object & array forms - the first
 	// entry's url detects the protocol.
@@ -21,11 +25,8 @@ export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss'
 
 	return new Client({
 		node,
-		// Fail fast inside a lambda instead of the 30s default, & skip
-		// socket reuse since frozen sandboxes hold dead sockets.
-		// Both can be overridden through the options. The local dev &
-		// test servers run plain http, where an https agent won't fly.
-		requestTimeout: 5000,
+		// Serverless endpoints can have coldstarst > 10s
+		requestTimeout: isServerlessEndpoint(nodeUrl) ? 30_000 : 5000,
 		agent: nodeUrl.startsWith('https')
 			? () =>
 					new Agent({
@@ -45,8 +46,11 @@ export const mockClient = (host: string, port: number) => {
 	mock = new Client({ node: `http://${host}:${port}` })
 }
 
-export const isServerless = (client: Client): boolean => {
-	const url = client.connectionPool.connections[0]?.url.href ?? ''
+// Serverless collection endpoints carry the aoss service subdomain.
+export const isServerlessEndpoint = (endpoint?: string): boolean => {
+	return endpoint?.includes('.aoss.') ?? false
+}
 
-	return url.includes('.aoss.')
+export const isServerless = (client: Client): boolean => {
+	return isServerlessEndpoint(client.connectionPool.connections[0]?.url.href)
 }

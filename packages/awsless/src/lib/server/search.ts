@@ -1,4 +1,4 @@
-import { AnySchema, define, searchClient } from '@awsless/open-search'
+import { AnySchema, define, isServerlessEndpoint, searchClient } from '@awsless/open-search'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { APP, getStack, IS_TEST } from './util.js'
@@ -97,11 +97,8 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 
 				return define(index, schema, () => {
 					if (!client) {
-						client = searchClient(
-							{ node: domain },
-							// Serverless collection endpoints need aoss signing.
-							domain?.includes('.aoss.') ? 'aoss' : 'es'
-						)
+						// Serverless collection endpoints need aoss signing.
+						client = searchClient({ node: domain }, isServerlessEndpoint(domain) ? 'aoss' : 'es')
 					}
 					return client
 				})

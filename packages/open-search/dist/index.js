@@ -16,12 +16,13 @@ import { BigFloat, parse } from "@awsless/big-float";
 let mock;
 const searchClient = (options = {}, service = "es") => {
 	if (mock) return mock;
-	const node = options.node ?? process.env.SEARCH_DOMAIN ?? "";
+	const node = options.node ?? process.env.SEARCH_DOMAIN;
+	if (!node) throw new Error("No search domain - set the SEARCH_DOMAIN env or pass the node option.");
 	const first = Array.isArray(node) ? node[0] : node;
 	const nodeUrl = typeof first === "string" ? first : first?.url.href ?? "";
 	return new Client({
 		node,
-		requestTimeout: 5e3,
+		requestTimeout: isServerlessEndpoint(nodeUrl) ? 3e4 : 5e3,
 		agent: nodeUrl.startsWith("https") ? () => new Agent({ keepAlive: false }) : void 0,
 		...AwsSigv4Signer({
 			region: process.env.AWS_REGION,
@@ -34,8 +35,11 @@ const searchClient = (options = {}, service = "es") => {
 const mockClient = (host, port) => {
 	mock = new Client({ node: `http://${host}:${port}` });
 };
+const isServerlessEndpoint = (endpoint) => {
+	return endpoint?.includes(".aoss.") ?? false;
+};
 const isServerless = (client) => {
-	return (client.connectionPool.connections[0]?.url.href ?? "").includes(".aoss.");
+	return isServerlessEndpoint(client.connectionPool.connections[0]?.url.href);
 };
 //#endregion
 //#region src/server/download.ts
@@ -546,4 +550,4 @@ const uuid = (props = {}) => new Schema((value) => value, (value) => value, {
 	...props
 });
 //#endregion
-export { BulkError, BulkItemError, VERSION_3_5_0_MIN, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };
+export { BulkError, BulkItemError, VERSION_3_5_0_MIN, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, download, indexItem, isServerlessEndpoint, launch, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

@@ -1,4 +1,5 @@
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers'
+import { isServerlessEndpoint } from '@awsless/open-search'
 import { Client } from '@opensearch-project/opensearch'
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
@@ -16,6 +17,7 @@ type SearchIndexInput = {
 
 type SearchIndexOutput = {
 	endpoint: Output<string>
+	role?: Output<string>
 	index: Output<string>
 	mappings: Output<string>
 	settings: Output<string>
@@ -76,7 +78,7 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 			node: URL.canParse(endpoint) ? endpoint : `https://${endpoint}`,
 			...AwsSigv4Signer({
 				region,
-				service: endpoint.includes('.aoss.') ? 'aoss' : 'es',
+				service: isServerlessEndpoint(endpoint) ? 'aoss' : 'es',
 				// Serverless collection endpoints need aoss signing, & data access goes through the search access role.
 				getCredentials: role
 					? fromTemporaryCredentials({
@@ -121,9 +123,7 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 						!!prior && (prior.endpoint !== proposed?.endpoint || prior.index !== proposed?.index),
 				}
 			},
-			// Removing the resource drops the index & its data. The app's
-			// retain removal policy skips this through the resource's
-			// retainOnDelete flag, like the domain itself.
+			// Removing the resource drops the index & its data.
 			async deleteResource(props) {
 				const state = inputSchema.parse(props.state)
 
