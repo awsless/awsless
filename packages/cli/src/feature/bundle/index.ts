@@ -417,6 +417,7 @@ export const bundleFeature = defineFeature({
 		// Every feature defines the permissions for its own resources.
 		ctx.onPermission(addPermission)
 
+		ctx.shared.add('function', 'role', 'bundle', role)
 		ctx.shared.set('bundle', 'main', {
 			lambda,
 			alias,

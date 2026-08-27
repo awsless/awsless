@@ -30,6 +30,11 @@ const renderPage = (greeting: string, todos: Todo[]) => `<!doctype html>
 		<ul>
 			${todos.map(renderTodo).join('')}
 		</ul>
+		<form id="search">
+			<input name="query" placeholder="Search todos" />
+			<button>Search</button>
+		</form>
+		<ul id="results"></ul>
 		<script>
 			const rpc = async (name, payload) => {
 				const body = JSON.stringify([{ name, payload }])
@@ -63,6 +68,24 @@ const renderPage = (greeting: string, todos: Todo[]) => `<!doctype html>
 				if (title) {
 					await rpc('addTodo', { title })
 					location.reload()
+				}
+			})
+
+			document.querySelector('#search').addEventListener('submit', async event => {
+				event.preventDefault()
+				const query = event.target.query.value.trim()
+
+				if (query) {
+					const items = await rpc('findTodos', { query })
+					document.querySelector('#results').innerHTML = items.length
+						? items
+								.map(item => {
+									const title = document.createElement('span')
+									title.textContent = item.title
+									return '<li>' + (item.done ? '<s>' + title.innerHTML + '</s>' : title.innerHTML) + '</li>'
+								})
+								.join('')
+						: '<li>No matches</li>'
 				}
 			})
 

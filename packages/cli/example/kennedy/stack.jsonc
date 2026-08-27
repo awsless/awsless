@@ -7,12 +7,21 @@
 			"hash": "id"
 		}
 	},
+	"searchs": {
+		"todos": {
+			"schema": {
+				"title": "text",
+				"done": "boolean"
+			}
+		}
+	},
 	"functions": {
 		"list": "./todo/list.ts"
 	},
 	"rpc": {
 		"api": {
 			"addTodo": "./todo/add.ts",
+			"findTodos": "./todo/find.ts",
 			"toggleTodo": "./todo/toggle.ts",
 			"removeTodo": "./todo/remove.ts"
 		}

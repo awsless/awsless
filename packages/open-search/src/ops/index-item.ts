@@ -1,3 +1,4 @@
+import { isServerless } from '../client'
 import { AnyTable } from '../table'
 
 type Options = {
@@ -10,10 +11,12 @@ export const indexItem = async <T extends AnyTable>(
 	item: T['schema']['INPUT'],
 	{ refresh = true }: Options = {}
 ) => {
-	await table.client().index({
+	const client = table.client()
+
+	await client.index({
 		index: table.index,
 		id,
-		refresh,
+		refresh: isServerless(client) ? undefined : refresh,
 		body: table.schema.encode(item),
 	})
 }

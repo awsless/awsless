@@ -1,7 +1,7 @@
-import { AnySchema, define, searchClient } from '@awsless/open-search'
+import { AnySchema, define, isServerlessEndpoint, searchClient } from '@awsless/open-search'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { APP, getStack, IS_LOCAL, IS_TEST } from './util.js'
+import { APP, getStack, IS_TEST } from './util.js'
 
 // The physical name of a search index inside the shared domain: the
 // index name prefixed with its stack. Must stay in sync with
@@ -96,9 +96,9 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 				}
 
 				return define(index, schema, () => {
-					// The local dev & test search servers run without tls.
 					if (!client) {
-						client = searchClient({ node: `${IS_LOCAL || IS_TEST ? 'http' : 'https'}://${domain}` }, 'es')
+						// Serverless collection endpoints need aoss signing.
+						client = searchClient({ node: domain }, isServerlessEndpoint(domain) ? 'aoss' : 'es')
 					}
 					return client
 				})

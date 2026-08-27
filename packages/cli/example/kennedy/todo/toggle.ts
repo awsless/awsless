@@ -1,4 +1,6 @@
 import { getItem, putItem } from '@awsless/dynamodb'
+import { s } from 'awsless'
+import { todoSearch } from './search'
 import { Todo, todoTable } from './table'
 
 export default async (event: { id: string }) => {
@@ -14,6 +16,7 @@ export default async (event: { id: string }) => {
 	}
 
 	await putItem(todoTable, updated)
+	await s.indexItem(todoSearch, updated.id, { title: updated.title, done: updated.done })
 
 	return updated
 }
