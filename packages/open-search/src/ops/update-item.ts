@@ -20,7 +20,6 @@ export const updateItem = async <T extends AnyTable>(
 			doc: table.schema.encode(item),
 			doc_as_upsert: true,
 		},
-		// Serverless collections reject the refresh parameter.
 		refresh: isServerless(client) ? undefined : refresh,
 	})
 }

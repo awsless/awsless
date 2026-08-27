@@ -41,12 +41,13 @@ let _awsless_big_float = require("@awsless/big-float");
 let mock;
 const searchClient = (options = {}, service = "es") => {
 	if (mock) return mock;
-	const node = options.node ?? process.env.SEARCH_DOMAIN ?? "";
+	const node = options.node ?? process.env.SEARCH_DOMAIN;
+	if (!node) throw new Error("No search domain - set the SEARCH_DOMAIN env or pass the node option.");
 	const first = Array.isArray(node) ? node[0] : node;
 	const nodeUrl = typeof first === "string" ? first : first?.url.href ?? "";
 	return new _opensearch_project_opensearch.Client({
 		node,
-		requestTimeout: 5e3,
+		requestTimeout: isServerlessEndpoint(nodeUrl) ? 3e4 : 5e3,
 		agent: nodeUrl.startsWith("https") ? () => new node_https.Agent({ keepAlive: false }) : void 0,
 		...(0, _opensearch_project_opensearch_aws.AwsSigv4Signer)({
 			region: process.env.AWS_REGION,
@@ -59,8 +60,11 @@ const searchClient = (options = {}, service = "es") => {
 const mockClient = (host, port) => {
 	mock = new _opensearch_project_opensearch.Client({ node: `http://${host}:${port}` });
 };
+const isServerlessEndpoint = (endpoint) => {
+	return endpoint?.includes(".aoss.") ?? false;
+};
 const isServerless = (client) => {
-	return (client.connectionPool.connections[0]?.url.href ?? "").includes(".aoss.");
+	return isServerlessEndpoint(client.connectionPool.connections[0]?.url.href);
 };
 //#endregion
 //#region src/server/download.ts
@@ -590,6 +594,7 @@ exports.deleteIndex = deleteIndex;
 exports.deleteItem = deleteItem;
 exports.download = download;
 exports.indexItem = indexItem;
+exports.isServerlessEndpoint = isServerlessEndpoint;
 exports.launch = launch;
 exports.mockOpenSearch = mockOpenSearch;
 exports.number = number;

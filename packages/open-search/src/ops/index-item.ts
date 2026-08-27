@@ -16,7 +16,6 @@ export const indexItem = async <T extends AnyTable>(
 	await client.index({
 		index: table.index,
 		id,
-		// Serverless collections reject the refresh parameter.
 		refresh: isServerless(client) ? undefined : refresh,
 		body: table.schema.encode(item),
 	})

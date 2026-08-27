@@ -63,7 +63,6 @@ export const bulk = async ({ items, client, refresh = true }: BulkOptions) => {
 	const openSearchClient = client ?? items[0]!.table.client()
 
 	const response = await openSearchClient.bulk({
-		// Serverless collections reject the refresh parameter.
 		refresh: isServerless(openSearchClient) ? undefined : refresh,
 		body: items
 			.map(entry => {
