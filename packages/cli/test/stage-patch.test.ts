@@ -214,5 +214,18 @@ describe('stage patch schema generation', () => {
 				type: 'string',
 			})
 		)
+
+		const pathMatchers = (replaceOperation?.properties?.path?.oneOf ?? []) as JsonSchema[]
+		const matchesPath = (path: string) => {
+			return pathMatchers.some(
+				matcher =>
+					matcher.const === path ||
+					(typeof matcher.pattern === 'string' && new RegExp(matcher.pattern).test(path))
+			)
+		}
+
+		expect(matchesPath('/domains/main/domain')).toBe(true)
+		expect(matchesPath('/router/casino/basicAuth')).toBe(true)
+		expect(matchesPath('/domains/main/unknown')).toBe(false)
 	})
 })

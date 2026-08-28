@@ -144,15 +144,21 @@ const listBranches = (schema: JsonSchema) => {
 	return groups.flatMap(group => group!)
 }
 
+// Record keys are validated with anchored regexes, but anchors embedded
+// inside a composed pointer regex can never match.
+const dynamicSegmentPattern = (keyPattern: string) => {
+	return keyPattern.replace(/^\^/, '').replace(/\$$/, '')
+}
+
 const childSegmentPattern = (schema: JsonSchema) => {
 	const propertyNameSchema = schema.propertyNames
 	if (propertyNameSchema && typeof propertyNameSchema.pattern === 'string') {
-		return propertyNameSchema.pattern
+		return dynamicSegmentPattern(propertyNameSchema.pattern)
 	}
 
 	const firstPattern = Object.keys(schema.patternProperties ?? {})[0]
 	if (firstPattern) {
-		return firstPattern
+		return dynamicSegmentPattern(firstPattern)
 	}
 
 	return '[^/]+'
@@ -210,9 +216,10 @@ const collectEntries = (
 			}
 
 			for (const [propertyPattern, propertySchema] of Object.entries(branch.patternProperties ?? {})) {
-				const path = makePatternPath(pointer, propertyPattern)
+				const segmentPattern = dynamicSegmentPattern(propertyPattern)
+				const path = makePatternPath(pointer, segmentPattern)
 				entries.push(
-					...collectEntries(propertySchema, path, appendRegexPattern(pattern, propertyPattern), root)
+					...collectEntries(propertySchema, path, appendRegexPattern(pattern, segmentPattern), root)
 				)
 			}
 
