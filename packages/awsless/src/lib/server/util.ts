@@ -28,7 +28,9 @@ export const formatResourceName = (opt: {
 	return [
 		//
 		opt.prefix,
-		APP,
+		// Read lazily: the CLI `run` command imports this module before it
+		// knows the app config, then sets process.env.APP afterwards.
+		process.env.APP,
 		opt.stackName,
 		opt.resourceType,
 		opt.resourceName,
