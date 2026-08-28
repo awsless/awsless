@@ -28,6 +28,15 @@ const handlers: {
 	// The pubsub server runs as a bun executable on fargate, so its
 	// bundle is fully self-contained.
 	{ name: 'pubsub-server', entry: 'src/feature/pubsub/server/index.ts', external: [], target: 'bun' },
+
+	// The rolldown build child of the dev server - rolldown stays
+	// external, its native binding loads from the cli's node_modules.
+	{
+		name: 'rolldown-worker',
+		entry: 'src/feature/bundle/build/rolldown-worker.ts',
+		external: ['rolldown'],
+		target: 'bun',
+	},
 ]
 
 for (const { name, entry, ...options } of handlers) {
