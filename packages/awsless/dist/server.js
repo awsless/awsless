@@ -449,7 +449,7 @@ const getStack = () => getRoute()?.split(":")[0] ?? STACK;
 const formatResourceName = (opt) => {
 	return [
 		opt.prefix,
-		APP,
+		process.env.APP,
 		opt.stackName,
 		opt.resourceType,
 		opt.resourceName,
