@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CachesSchema } from '../feature/cache/schema.js'
 import { CommandsSchema } from '../feature/command/schema.js'
 import { CronsSchema } from '../feature/cron/schema/index.js'
+import { StackDnsSchema } from '../feature/domain/schema.js'
 // import { StreamsSchema } from '../feature/__stream/schema.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
 import { IconsSchema } from '../feature/icon/schema.js'
@@ -37,6 +38,7 @@ export const StackSchema = z
 		$schema: z.string().optional(),
 		name: NameSchema,
 		routes: RoutesSchema,
+		dns: StackDnsSchema,
 
 		commands: CommandsSchema,
 

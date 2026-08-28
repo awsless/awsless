@@ -139,11 +139,13 @@ const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: 
 
 	const cookie = request.headers.get('cookie')
 
-	// Only a present textual content type marks the body as text -
-	// bytes without one must survive as base64 instead of corrupting
-	// through a utf-8 decode.
+	// Only a present textual content type marks the body as text - and only
+	// when the bytes survive a utf-8 round trip: some clients post binary
+	// payloads under a textual content type & those must pass as base64
+	// instead of corrupting through the decode.
 	const contentType = request.headers.get('content-type')
-	const textual = typeof contentType === 'string' && isTextualBody(contentType)
+	const textual =
+		typeof contentType === 'string' && isTextualBody(contentType) && Buffer.from(body.toString()).equals(body)
 	const now = new Date()
 
 	return {

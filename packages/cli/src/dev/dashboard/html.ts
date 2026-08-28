@@ -927,6 +927,65 @@ const findRouteResource = route => {
 	return undefined
 }
 
+// ------------------------------------------------------------------
+// Live events: every feed on a page shares one EventSource. The
+// browser only allows 6 connections per origin, so a stream per feed
+// would lock up the whole dashboard after a couple of open tabs.
+
+const events = (() => {
+	const handlers = new Map()
+	let source
+	let scheduled = false
+
+	const sync = () => {
+		const channels = Array.from(handlers.keys()).sort().join(',')
+
+		if (source && source.channels === channels) {
+			return
+		}
+
+		source?.close()
+		source = undefined
+
+		if (!channels) {
+			return
+		}
+
+		source = new EventSource('/api/events?channels=' + encodeURIComponent(channels))
+		source.channels = channels
+		source.onmessage = message => {
+			try {
+				const { channel, data } = JSON.parse(message.data)
+				handlers.get(channel)?.forEach(handler => handler(data))
+			} catch (_) {}
+		}
+	}
+
+	// A render pass tears feeds down & builds new ones in one go - the
+	// microtask collapses that churn into a single reconnect.
+	const schedule = () => {
+		if (scheduled) return
+		scheduled = true
+		queueMicrotask(() => {
+			scheduled = false
+			sync()
+		})
+	}
+
+	return (channel, handler) => {
+		let set = handlers.get(channel)
+		if (!set) handlers.set(channel, (set = new Set()))
+		set.add(handler)
+		schedule()
+
+		return () => {
+			set.delete(handler)
+			if (set.size === 0) handlers.delete(channel)
+			schedule()
+		}
+	}
+})()
+
 // A route tag that links through to its resource, shared by the log
 // feeds & the activity feed.
 const routeTag = route => {
@@ -948,11 +1007,7 @@ const attachLogFeed = (main, channel, route, title = 'Logs') => {
 	const feed = $('div', { className: 'logs' }, $('p', { className: 'empty' }, 'Waiting for output...'))
 	main.append(feed)
 
-	const source = new EventSource('/api/events?channel=' + encodeURIComponent(channel))
-
-	source.onmessage = message => {
-		const data = JSON.parse(message.data)
-
+	return events(channel, data => {
 		// A route filter shows only the lines of one resource, like the
 		// function panel showing its own console output.
 		if (route && data.route !== route) {
@@ -988,9 +1043,7 @@ const attachLogFeed = (main, channel, route, title = 'Logs') => {
 		}
 
 		feed.scrollTop = feed.scrollHeight
-	}
-
-	return () => source.close()
+	})
 }
 
 // ------------------------------------------------------------------
@@ -1007,11 +1060,7 @@ const showEventsFeed = channel => {
 	aside.hidden = false
 	feed.innerHTML = '<p class="empty">Waiting for events...</p>'
 
-	const source = new EventSource('/api/events?channel=' + encodeURIComponent(channel))
-
-	source.onmessage = message => {
-		const data = JSON.parse(message.data)
-
+	const unsubscribe = events(channel, data => {
 		feed.querySelector('.empty')?.remove()
 		feed.prepend($('div', { className: 'event' }, [
 			$('div', { className: 'head' }, [
@@ -1028,10 +1077,10 @@ const showEventsFeed = channel => {
 		while (feed.children.length > 25) {
 			feed.lastChild.remove()
 		}
-	}
+	})
 
 	return () => {
-		source.close()
+		unsubscribe()
 		aside.hidden = true
 		document.body.classList.remove('with-events')
 	}
@@ -1895,12 +1944,7 @@ const renderHome = main => {
 
 	for (const entry of state.health ?? []) renderChip(entry)
 
-	const healthSource = new EventSource('/api/events?channel=health')
-	healthSource.onmessage = message => {
-		try {
-			renderChip(JSON.parse(message.data))
-		} catch (_) {}
-	}
+	const unsubHealth = events('health', renderChip)
 
 	if ((state.health ?? []).length > 0) {
 		main.append(chips)
@@ -1963,12 +2007,7 @@ const renderHome = main => {
 		}
 	}
 
-	const problemSource = new EventSource('/api/events?channel=problems')
-	problemSource.onmessage = message => {
-		try {
-			problemRow(JSON.parse(message.data))
-		} catch (_) {}
-	}
+	const unsubProblems = events('problems', problemRow)
 
 	// ----------------------------------------------------------------
 	// Activity: every dispatch through the bundle, newest first.
@@ -2118,12 +2157,7 @@ const renderHome = main => {
 		activityFeed.scrollTop = activityFeed.scrollHeight
 	}
 
-	const activitySource = new EventSource('/api/events?channel=activity')
-	activitySource.onmessage = message => {
-		try {
-			activityRow(JSON.parse(message.data))
-		} catch (_) {}
-	}
+	const unsubActivity = events('activity', activityRow)
 
 	// ----------------------------------------------------------------
 	// Logs: the handlers' own console output, live - the full feed
@@ -2134,9 +2168,9 @@ const renderHome = main => {
 	cleanupPanel = () => {
 		clearInterval(uptimeTimer)
 		closeTrace()
-		healthSource.close()
-		problemSource.close()
-		activitySource.close()
+		unsubHealth()
+		unsubProblems()
+		unsubActivity()
 		logsFeed?.()
 	}
 }

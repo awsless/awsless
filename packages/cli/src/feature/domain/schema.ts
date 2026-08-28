@@ -20,6 +20,13 @@ const RecordsSchema = z
 	.array()
 	.describe('One or more values that correspond with the value that you specified for the Type property.')
 
+const DnsRecordSchema = z.object({
+	name: DomainNameSchema.optional(),
+	type: DNSTypeSchema,
+	ttl: TTLSchema,
+	records: RecordsSchema,
+})
+
 /** Define the domains for your application.
  * @example
  * {
@@ -41,17 +48,26 @@ export const DomainsDefaultSchema = z
 		ResourceIdSchema,
 		z.object({
 			domain: DomainNameSchema.describe('Define the domain name'),
-			dns: z
-				.object({
-					name: DomainNameSchema.optional(),
-					type: DNSTypeSchema,
-					ttl: TTLSchema,
-					records: RecordsSchema,
-				})
-				.array()
-				.optional()
-				.describe('Define the domain dns records'),
+			dns: DnsRecordSchema.array().optional().describe('Define the domain dns records'),
 		})
 	)
 	.optional()
 	.describe('Define the domains for your application.')
+
+/** Define extra dns records on the app's domains from a stack.
+ * @example
+ * {
+ *   dns: {
+ *     DOMAIN_ID: [{
+ *       name: 'chat',
+ *       type: 'CNAME',
+ *       ttl: '5 minutes',
+ *       records: [ 'target.example.com' ]
+ *     }]
+ *   }
+ * }
+ */
+export const StackDnsSchema = z
+	.record(ResourceIdSchema, DnsRecordSchema.array().describe('The dns records to add to the domain.'))
+	.optional()
+	.describe('Define extra dns records on domains from the app config.')

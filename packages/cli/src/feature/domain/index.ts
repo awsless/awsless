@@ -1,13 +1,115 @@
 import { minutes, toSeconds } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
+import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { NsCheck } from '../../formation/ns-check.js'
-import { createDnsValidatedCertificate } from './util.js'
+import { createDnsValidatedCertificate, formatFullDomainName } from './util.js'
 // import { formatGlobalResourceName } from '../../util/name.js'
 
 export const domainFeature = defineFeature({
 	name: 'domain',
+	onValidate(ctx) {
+		const domains = ctx.appConfig.domains ?? {}
+
+		// Route53 keeps one record set per name & type, so the same pair
+		// defined twice - across stacks or against the app config - would
+		// silently fight over it. Names normalize to a fqdn, so "www" &
+		// "www.example.com" count as the same record.
+		const fqdn = (name: string | undefined, domain: string) => {
+			const clean = (name ?? domain).replace(/\.$/, '')
+
+			return clean === domain || clean.endsWith(`.${domain}`) ? clean : `${clean}.${domain}`
+		}
+
+		const seen = new Map<string, string>()
+
+		// The records other features create on the domains, derived from
+		// the same config they synth from. Token-based names (dkim, cert
+		// validation) can't be predicted here & can't realistically clash.
+		for (const [id, props] of Object.entries(domains)) {
+			seen.set(`${id}:_amazonses.${props.domain}:TXT`, 'the mail verification of the domain')
+			seen.set(`${id}:mail.${props.domain}:MX`, 'the mail setup of the domain')
+			seen.set(`${id}:mail.${props.domain}:TXT`, 'the mail setup of the domain')
+			seen.set(`${id}:_dmarc.${props.domain}:TXT`, 'the mail setup of the domain')
+		}
+
+		for (const [routerId, router] of Object.entries(ctx.appConfig.router ?? {})) {
+			if (!router.domain) {
+				continue
+			}
+
+			const names = [formatFullDomainName(ctx.appConfig, router.domain, router.subDomain)]
+
+			if (router.redirectWww) {
+				names.push(`www.${names[0]}`)
+			}
+
+			for (const name of names) {
+				seen.set(`${router.domain}:${name}:A`, `the "${routerId}" router`)
+				seen.set(`${router.domain}:${name}:AAAA`, `the "${routerId}" router`)
+			}
+		}
+
+		for (const [id, props] of Object.entries(domains)) {
+			for (const record of props.dns ?? []) {
+				seen.set(`${id}:${fqdn(record.name, props.domain)}:${record.type}`, 'the app config')
+			}
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, records] of Object.entries(stack.dns ?? {})) {
+				const domain = domains[id]
+
+				if (!domain) {
+					throw new FileError(stack.file, `Dns records for a non existent domain "${id}"`)
+				}
+
+				for (const record of records) {
+					const name = fqdn(record.name, domain.domain)
+					const key = `${id}:${name}:${record.type}`
+					const owner = seen.get(key)
+
+					if (owner) {
+						throw new FileError(
+							stack.file,
+							`Conflicting dns record "${name} ${record.type}" on domain "${id}" - already defined in ${owner}`
+						)
+					}
+
+					seen.set(key, `"${stack.file}"`)
+				}
+			}
+		}
+	},
+	onStack(ctx) {
+		const entries = Object.entries(ctx.stackConfig.dns ?? {})
+
+		for (const [id, records] of entries) {
+			const group = new Group(ctx.stack, 'dns', id)
+			const domain = ctx.appConfig.domains![id]!.domain
+			const zoneId = ctx.shared.entry('domain', 'zone-id', id)
+
+			for (const record of records) {
+				const name = record.name ?? domain
+
+				new aws.route53.Record(
+					group,
+					`${name}-${record.type}`,
+					{
+						zoneId,
+						name,
+						ttl: toSeconds(record.ttl),
+						type: record.type,
+						records: record.records,
+					},
+					{
+						replaceOnChanges: ['name', 'type', 'zoneId'],
+					}
+				)
+			}
+		}
+	},
 	onApp(ctx) {
 		const domains = Object.entries(ctx.appConfig.domains ?? {})
 

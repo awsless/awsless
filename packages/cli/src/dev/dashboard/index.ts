@@ -425,8 +425,10 @@ export const createDashboardServer = (props: {
 	}
 
 	// Live resource events stream to the dashboard as server sent
-	// events, one connection per open panel.
-	const streamEvents = (req: IncomingMessage, res: import('http').ServerResponse, channel: string) => {
+	// events. One connection carries every channel of a page - the
+	// browser only allows 6 connections per origin, so a stream per
+	// panel would starve the page after a couple of open tabs.
+	const streamEvents = (req: IncomingMessage, res: import('http').ServerResponse, channels: string[]) => {
 		res.writeHead(200, {
 			'content-type': 'text/event-stream',
 			'cache-control': 'no-cache',
@@ -435,15 +437,20 @@ export const createDashboardServer = (props: {
 
 		res.write(':connected\n\n')
 
-		const unsubscribe = props.events.subscribe(channel, data => {
-			res.write(`data: ${JSON.stringify(data)}\n\n`)
-		})
+		const unsubscribes = channels.map(channel =>
+			props.events.subscribe(channel, data => {
+				res.write(`data: ${JSON.stringify({ channel, data })}\n\n`)
+			})
+		)
 
 		const heartbeat = setInterval(() => res.write(':heartbeat\n\n'), 15_000)
 
 		req.on('close', () => {
 			clearInterval(heartbeat)
-			unsubscribe()
+
+			for (const unsubscribe of unsubscribes) {
+				unsubscribe()
+			}
 		})
 	}
 
@@ -456,7 +463,7 @@ export const createDashboardServer = (props: {
 				const url = new URL(req.url ?? '/', 'http://localhost')
 
 				if (url.pathname === '/api/events') {
-					streamEvents(req, res, url.searchParams.get('channel') ?? '')
+					streamEvents(req, res, (url.searchParams.get('channels') ?? '').split(',').filter(Boolean))
 					return
 				}
 
