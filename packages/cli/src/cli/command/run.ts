@@ -1,5 +1,6 @@
 import { prompt } from '@awsless/clui'
 import { DynamoDBClient, dynamoDBClient } from '@awsless/dynamodb'
+import { constantCase } from 'change-case'
 import { iotClient, IoTDataPlaneClient } from '@awsless/iot'
 import { LambdaClient, lambdaClient } from '@awsless/lambda'
 import { S3Client, s3Client } from '@awsless/s3'
@@ -9,6 +10,7 @@ import { Command as CliCommand } from 'commander'
 import { createApp } from '../../app.js'
 import { Command, CommandHandler } from '../../command.js'
 import { ExpectedError } from '../../error.js'
+import { formatTableKeys } from '../../feature/table/util.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 // import { task } from '../ui/util.js'
@@ -69,6 +71,16 @@ export const run = (program: CliCommand) => {
 				process.env.APP_ID = appId
 				process.env.AWS_REGION = region
 				process.env.AWS_ACCOUNT_ID = accountId
+
+				// Commands import app code that may define tables, which
+				// resolve their keys from TABLE_<STACK>_<ID>_KEYS envs.
+				for (const stack of stackConfigs) {
+					for (const [id, props] of Object.entries(stack.tables ?? {})) {
+						process.env[`TABLE_${constantCase(stack.name)}_${constantCase(id)}_KEYS`] = JSON.stringify(
+							formatTableKeys(props)
+						)
+					}
+				}
 
 				// ---------------------------------------------------
 				// Import the command
