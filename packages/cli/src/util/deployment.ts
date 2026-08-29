@@ -29,6 +29,7 @@ import {
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
 import { currentBranch, currentCommit, currentCommitMessage, isCommitMerged } from './git.js'
+import { createKvsClient } from './kvs.js'
 import {
 	deleteLambdaAlias,
 	getLambdaAlias,
@@ -577,7 +578,7 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 	const accountId = await getAccountId(credentials, region)
 	const appId = generateGlobalAppId({ accountId, region, appName: props.appConfig.name })
 	const cloudfront = new CloudFrontClient({ credentials, region: 'us-east-1' })
-	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
+	const kvs = createKvsClient({ credentials, region })
 	const lambda = new LambdaClient({ credentials, region })
 	const dynamo = new DynamoDBClient({ credentials, region })
 	const functionName = getBundleFunctionName(props.appConfig.name)

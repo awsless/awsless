@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { readdir, readFile, rm, writeFile } from 'fs/promises'
+import { readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { days, Duration, seconds, toDays, toSeconds } from '@awsless/duration'
@@ -23,7 +23,7 @@ import { formatPolicyDocument } from '../../util/policy.js'
 import { configParameterPrefix } from '../../util/ssm.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
-import { zipFiles } from '../bundle/build/zip.js'
+import { zipFiles, zipWithEnvFile } from '../bundle/build/zip.js'
 import { PolicyStatement } from '../bundle/policy.js'
 import { parseExportName } from '../bundle/util.js'
 import { filterPattern } from '../on-error-log/util.js'
@@ -148,10 +148,17 @@ export const registerFunctionBuild = (
 ) => {
 	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler)
 
+	// The code archive is only needed for deploys - dev rebuilds skip
+	// the compression to keep reloads fast.
+	const zip = !ctx.dev
+
 	ctx.registerBuild('function', name, async (build, { workspace }) => {
 		const fingerprint = createHash('sha1')
 			.update(await generateFileHash(workspace, props.code.file))
 			.update(props.wrapper ? await readFile(props.wrapper) : '')
+			// The trailing number versions the build output format - bump it
+			// when the written artifacts change, so stale caches missing the
+			// new artifacts rebuild.
 			.update(
 				JSON.stringify([
 					//
@@ -161,6 +168,8 @@ export const registerFunctionBuild = (
 					props.code.importAsString,
 					props.code.moduleSideEffects,
 					props.external,
+					zip,
+					2,
 				])
 			)
 			.digest('hex')
@@ -218,8 +227,15 @@ export default (event, context) => {
 			// Clear out the stale chunks from the previous build.
 			await rm(getBuildPath('function', name, 'files'), { recursive: true, force: true })
 
+			// The code archive is compressed here, in the cached build phase -
+			// the deploy-time resolve only injects the env file into it.
+			const archive = zip
+				? await zipFiles(result.files.map(file => ({ name: file.name, code: file.code })))
+				: undefined
+
 			await Promise.all([
 				write('HASH', result.hash),
+				archive && write('code.zip', archive),
 				...result.files.map(file => write(`files/${file.name}`, file.code)),
 				...result.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
 			])
@@ -254,12 +270,11 @@ export default (event, context) => {
 		const envFile = `export default ${JSON.stringify(sorted, undefined, '\t')}
 `
 
-		const dir = getBuildPath('function', name, 'files')
-		const files = await readdir(dir)
-		const archive = await zipFiles([
-			...files.filter(file => !file.endsWith('.map')).map(file => ({ name: file, path: join(dir, file) })),
-			{ name: 'awsless-env.mjs', code: Buffer.from(envFile, 'utf8') },
-		])
+		// The code was already compressed in the build phase - only the
+		// env file gets injected here, so the resolve stays fast enough
+		// for the resolve watchdog.
+		const prebuilt = await readFile(getBuildPath('function', name, 'code.zip'))
+		const archive = await zipWithEnvFile(prebuilt, Buffer.from(envFile, 'utf8'))
 
 		await writeFile(zipFile, archive)
 

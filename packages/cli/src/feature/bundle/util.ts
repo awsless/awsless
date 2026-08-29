@@ -8,6 +8,7 @@ import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown, formatRouteModuleId } from './build/rolldown.js'
+import { zipFiles } from './build/zip.js'
 
 // The route protocol strings live in the awsless lib, shared with the handlers.
 export { formatRouteKey, ROUTE_HEADER } from 'awsless'
@@ -52,6 +53,10 @@ export const buildBundle = (props: {
 	minify?: boolean
 	external?: string[]
 	handlers: BundleHandler[]
+
+	// The code archive is only needed for deploys - dev rebuilds skip
+	// the compression to keep reloads fast.
+	zip?: boolean
 
 	// Overwrite the bundle runtime location for testing purposes.
 	runtime?: string
@@ -103,11 +108,16 @@ ${entries.join('\n')}
 
 		const hash = createHash('sha1')
 			.update(entry)
+			// The trailing number versions the build output format - bump it
+			// when the written artifacts change, so stale caches missing the
+			// new artifacts rebuild.
 			.update(
 				JSON.stringify([
 					props.external,
 					props.minify,
 					handlers.map(h => [h.external, h.importAsString, h.moduleSideEffects]),
+					props.zip ?? false,
+					2,
 				])
 			)
 
@@ -147,8 +157,15 @@ ${entries.join('\n')}
 			// Clear out the stale chunks from the previous build.
 			await rm(getBuildPath('bundle', props.name, 'files'), { recursive: true, force: true })
 
+			// The code archive is compressed here, in the cached build phase -
+			// the deploy-time resolve only injects the env file into it.
+			const archive = props.zip
+				? await zipFiles(bundle.files.map(file => ({ name: file.name, code: file.code })))
+				: undefined
+
 			await Promise.all([
 				write('HASH', bundle.hash),
+				archive && write('code.zip', archive),
 				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
 				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
 			])

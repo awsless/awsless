@@ -12,8 +12,7 @@ import chunk from 'chunk'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials, isError } from '../util/aws'
-
-import '@aws-sdk/signature-v4-crt'
+import { createKvsClient } from '../util/kvs'
 
 // ------------------------------------------------------------
 // Each router keeps its staged route tables and active pointer in one store:
@@ -190,7 +189,7 @@ type ProviderProps = {
 }
 
 export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderProps) => {
-	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
+	const kvs = createKvsClient({ credentials, region })
 
 	return createCustomProvider('cloudfront-kvs', {
 		// Backwards compatibility for old states, can be removed later.

@@ -463,7 +463,18 @@ export const createDashboardServer = (props: {
 				const url = new URL(req.url ?? '/', 'http://localhost')
 
 				if (url.pathname === '/api/events') {
-					streamEvents(req, res, (url.searchParams.get('channels') ?? '').split(',').filter(Boolean))
+					const channels = (url.searchParams.get('channels') ?? '').split(',').filter(Boolean)
+
+					// A stale pre-upgrade page asking for nothing would hold a
+					// connection slot forever - a 204 tells its EventSource to
+					// stop reconnecting for good.
+					if (channels.length === 0) {
+						res.writeHead(204)
+						res.end()
+						return
+					}
+
+					streamEvents(req, res, channels)
 					return
 				}
 

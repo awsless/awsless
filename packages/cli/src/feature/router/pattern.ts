@@ -26,6 +26,16 @@ export const compileRoutePattern = (pattern: string): CompiledRoutePattern => {
 		throw new ExpectedError(`Route pattern "${pattern}" must start with a slash (/)`)
 	}
 
+	// Reject unsupported brace syntax early - a {name+} style pattern would
+	// otherwise silently compile into an unreachable static route key.
+	for (const brace of pattern.match(/\{[^}]*\}?/g) ?? []) {
+		if (!/^\{[a-zA-Z_][a-zA-Z0-9_]*\}$/.test(brace)) {
+			throw new ExpectedError(
+				`Route pattern "${pattern}" contains unsupported param syntax "${brace}". Use {name} for a single path segment or * for a wildcard.`
+			)
+		}
+	}
+
 	// Catch-all route.
 	if (pattern === '/*') {
 		return { key: pattern }

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/cli",
-	"version": "0.1.33",
+	"version": "0.1.36",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -27,7 +27,7 @@
 		"types": "bun dist/bin.js types --config-file=./example/jack/app.jsonc && bun dist/bin.js types --config-file=./example/kennedy/app.jsonc"
 	},
 	"dependencies": {
-		"@aws-sdk/signature-v4-crt": "3.1113.0",
+		"@aws-sdk/signature-v4a": "3.1111.0",
 		"@jridgewell/trace-mapping": "0.3.31",
 		"rolldown": "1.2.4",
 		"vitest": "4.1.11"

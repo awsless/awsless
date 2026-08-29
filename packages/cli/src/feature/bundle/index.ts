@@ -1,6 +1,5 @@
 import { createHash } from 'crypto'
-import { readdir, readFile, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { readFile, writeFile } from 'fs/promises'
 import { toDays, toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
@@ -17,7 +16,7 @@ import { formatPolicyDocument } from '../../util/policy.js'
 import { deployFunctionSourcemaps } from '../function/util.js'
 import { filterPattern } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
-import { zipFiles } from './build/zip.js'
+import { zipWithEnvFile } from './build/zip.js'
 import { PolicyStatement } from './policy.js'
 import { buildBundle, BundleHandler } from './util.js'
 
@@ -98,6 +97,7 @@ export const bundleFeature = defineFeature({
 				// The local dev bundle skips minification - it only costs
 				// reload time & garbles stack traces.
 				minify: ctx.dev ? false : defaults.minify,
+				zip: !ctx.dev,
 				external: [...(defaults.external ?? []), ...layerPackages],
 			})
 		)
@@ -112,12 +112,11 @@ export const bundleFeature = defineFeature({
 			const envFile = `export default ${JSON.stringify(sorted, undefined, '\t')}
 `
 
-			const dir = getBuildPath('bundle', name, 'files')
-			const files = await readdir(dir)
-			const archive = await zipFiles([
-				...files.filter(file => !file.endsWith('.map')).map(file => ({ name: file, path: join(dir, file) })),
-				{ name: 'awsless-env.mjs', code: Buffer.from(envFile, 'utf8') },
-			])
+			// The code was already compressed in the build phase - only the
+			// env file gets injected here, so the resolve stays fast enough
+			// for the resolve watchdog.
+			const prebuilt = await readFile(getBuildPath('bundle', name, 'code.zip'))
+			const archive = await zipWithEnvFile(prebuilt, Buffer.from(envFile, 'utf8'))
 
 			await writeFile(getBuildPath('bundle', name, 'bundle.zip'), archive)
 

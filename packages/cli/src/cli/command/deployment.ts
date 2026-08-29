@@ -1,5 +1,4 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
-import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { LambdaClient } from '@aws-sdk/client-lambda'
 import { S3Client } from '@aws-sdk/client-s3'
 import { log } from '@awsless/clui'
@@ -8,6 +7,7 @@ import { Command } from 'commander'
 import { AppConfig } from '../../config/app.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { Deployment, listDeployments, readLiveDeploymentId } from '../../util/deployment.js'
+import { createKvsClient } from '../../util/kvs.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
@@ -22,7 +22,7 @@ export const createClients = async (appConfig: AppConfig) => {
 		functionName: getBundleFunctionName(appConfig.name),
 		dynamo: new DynamoDBClient({ credentials, region }),
 		lambda: new LambdaClient({ credentials, region }),
-		kvs: new CloudFrontKeyValueStoreClient({ credentials, region }),
+		kvs: createKvsClient({ credentials, region }),
 		cloudfront: new CloudFrontClient({ credentials, region: 'us-east-1' }),
 		s3: new S3Client({ credentials, region }),
 	}
