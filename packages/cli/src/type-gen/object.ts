@@ -34,7 +34,6 @@ export class TypeObject {
 		return [
 			'{',
 			...Array.from(this.types.entries()).map(([propName, type]) => {
-				// return `\t\t\t${this.readonly ? 'readonly ' : ''} ${propName}: ${type}`
 				return ['\t'.repeat(this.level + 1), this.readonly ? 'readonly' : '', ' ', propName, ': ', type].join(
 					''
 				)

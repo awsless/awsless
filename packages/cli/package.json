@@ -16,19 +16,17 @@
 		"dist"
 	],
 	"type": "module",
-	"sideEffects": false,
 	"scripts": {
 		"test": "bun cli/build-handlers.ts && pnpm vitest run",
 		"build": "bun cli/build.ts",
 		"jack": "pnpm build && bun dist/bin.js --config-file=./example/jack/app.jsonc",
 		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi",
+		"prepublishOnly": "pnpm test && pnpm build",
 		"typecheck": "tsc --noEmit",
 		"types": "bun dist/bin.js types --config-file=./example/jack/app.jsonc && bun dist/bin.js types --config-file=./example/kennedy/app.jsonc"
 	},
 	"dependencies": {
 		"@aws-sdk/signature-v4-crt": "3.1113.0",
-		"@jridgewell/trace-mapping": "0.3.31",
 		"rolldown": "1.2.4",
 		"vitest": "4.1.11"
 	},
@@ -67,6 +65,7 @@
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
 		"@clack/prompts": "1.7.0",
+		"@jridgewell/trace-mapping": "0.3.31",
 		"@opensearch-project/opensearch": "3.6.0",
 		"@terraforge/aws": "6.53.0",
 		"@terraforge/core": "0.0.45",
@@ -100,17 +99,16 @@
 		"pretty-hrtime": "1.0.3",
 		"rollup-plugin-string-import": "1.2.6",
 		"sharp": "0.35.3",
-		"stay-awake": "0.0.3",
 		"svgo": "4.0.2",
 		"svgstore": "3.0.1",
 		"tree-kill": "1.2.2",
 		"type-fest": "5.8.0",
-		"vite": "8.2.1",
 		"wildstring": "1.0.9",
 		"wrap-ansi": "10.0.1",
 		"zod": "4.4.3"
 	},
 	"peerDependencies": {
+		"@aws-sdk/client-cloudfront": "3.1113.0",
 		"@aws-sdk/client-cloudfront-keyvaluestore": "3.1113.0",
 		"@aws-sdk/client-cloudwatch-logs": "3.1113.0",
 		"@aws-sdk/client-cognito-identity-provider": "3.1113.0",
@@ -124,7 +122,6 @@
 		"@aws-sdk/client-sts": "3.1113.0",
 		"@aws-sdk/credential-providers": "3.1113.0",
 		"@aws-sdk/lib-dynamodb": "3.1113.0",
-		"@awsless/big-float": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",
 		"@awsless/dynamodb-server": "workspace:^",

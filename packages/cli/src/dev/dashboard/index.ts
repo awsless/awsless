@@ -65,7 +65,19 @@ export const createDashboardServer = (props: {
 	// carry no Origin & stay allowed, and the Host check stops dns
 	// rebinding.
 	const isLocalHost = (value: string | undefined) => {
-		const host = value?.split(':')[0]?.toLowerCase()
+		if (!value) {
+			return false
+		}
+
+		let host = value.toLowerCase()
+
+		// A bracketed ipv6 host carries its port after the bracket, while
+		// a bare one (from a non-browser client) never has a port at all.
+		if (host.startsWith('[')) {
+			host = host.slice(0, host.indexOf(']') + 1)
+		} else if (host.split(':').length === 2) {
+			host = host.split(':')[0]!
+		}
 
 		return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
 	}
@@ -118,7 +130,11 @@ export const createDashboardServer = (props: {
 
 			// The replacement is a function, so $-patterns inside the
 			// state json can never expand as replacement patterns.
-			return { status: 200, body: dashboardHtml.replace('__STATE__', () => state), type: 'text/html' }
+			return {
+				status: 200,
+				body: dashboardHtml.replace('__STATE__', () => state),
+				type: 'text/html; charset=utf-8',
+			}
 		}
 
 		if (url.pathname === '/api/invoke' && req.method === 'POST') {
@@ -425,8 +441,10 @@ export const createDashboardServer = (props: {
 	}
 
 	// Live resource events stream to the dashboard as server sent
-	// events, one connection per open panel.
-	const streamEvents = (req: IncomingMessage, res: import('http').ServerResponse, channel: string) => {
+	// events: one connection per open view, carrying every channel the
+	// view shows, since browsers cap the connections per host. Every
+	// message names its channel.
+	const streamEvents = (req: IncomingMessage, res: import('http').ServerResponse, channels: string[]) => {
 		res.writeHead(200, {
 			'content-type': 'text/event-stream',
 			'cache-control': 'no-cache',
@@ -435,15 +453,20 @@ export const createDashboardServer = (props: {
 
 		res.write(':connected\n\n')
 
-		const unsubscribe = props.events.subscribe(channel, data => {
-			res.write(`data: ${JSON.stringify(data)}\n\n`)
-		})
+		const unsubscribes = channels.map(channel =>
+			props.events.subscribe(channel, data => {
+				res.write(`data: ${JSON.stringify({ channel, data })}\n\n`)
+			})
+		)
 
 		const heartbeat = setInterval(() => res.write(':heartbeat\n\n'), 15_000)
 
 		req.on('close', () => {
 			clearInterval(heartbeat)
-			unsubscribe()
+
+			for (const unsubscribe of unsubscribes) {
+				unsubscribe()
+			}
 		})
 	}
 
@@ -451,12 +474,21 @@ export const createDashboardServer = (props: {
 		connect(dispatchFn: DevDispatch) {
 			dispatch = dispatchFn
 		},
+		// Resolves with the bound port, so a listen on port 0 is usable.
 		async listen(port: number) {
 			server = createServer((req, res) => {
 				const url = new URL(req.url ?? '/', 'http://localhost')
 
 				if (url.pathname === '/api/events') {
-					streamEvents(req, res, url.searchParams.get('channel') ?? '')
+					// The stream leaks handler output & activity, so it gets
+					// the same origin check as everything else.
+					if (!allowed(req)) {
+						res.writeHead(403, { 'content-type': 'application/json' })
+						res.end(JSON.stringify({ error: 'Cross-origin requests are not allowed.' }))
+						return
+					}
+
+					streamEvents(req, res, url.searchParams.getAll('channel'))
 					return
 				}
 
@@ -486,6 +518,8 @@ export const createDashboardServer = (props: {
 				closeServer = trackConnections(server!)
 				server!.listen(port, '127.0.0.1', () => resolve())
 			})
+
+			return (server.address() as { port: number }).port
 		},
 		stop() {
 			// The scan client holds a keep-alive connection to the local

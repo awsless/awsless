@@ -1,7 +1,7 @@
 import { AnySchema, define, isServerlessEndpoint, searchClient } from '@awsless/open-search'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { APP, getStack, IS_TEST } from './util.js'
+import { getApp, getStack, IS_TEST } from './util.js'
 
 // The physical name of a search index inside the shared domain: the
 // index name prefixed with its stack. Must stay in sync with
@@ -11,7 +11,7 @@ import { APP, getStack, IS_TEST } from './util.js'
 export const getSearchProps = (name: string, stack: string = getStack()) => {
 	return {
 		endpoint: process.env.SEARCH_ENDPOINT,
-		name: IS_TEST ? `${kebabCase(APP)}--${kebabCase(stack)}--${name}` : `${kebabCase(stack)}--${name}`,
+		name: IS_TEST ? `${kebabCase(getApp())}--${kebabCase(stack)}--${name}` : `${kebabCase(stack)}--${name}`,
 	} as const
 }
 

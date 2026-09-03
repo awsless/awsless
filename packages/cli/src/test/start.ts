@@ -17,7 +17,6 @@ export const startProjectsTest = async (props: {
 	onFileFinished?: (project: string) => void
 }): Promise<Map<string, TestResponse>> => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
-	const startTime = process.hrtime.bigint()
 
 	process.noDeprecation = true
 
@@ -93,7 +92,6 @@ export const startProjectsTest = async (props: {
 		}
 	).finally(restoreNodeEnv)
 
-	const duration = startTime - process.hrtime.bigint()
 	const responses = new Map<string, TestResponse>()
 
 	for (const project of props.projects) {
@@ -103,7 +101,7 @@ export const startProjectsTest = async (props: {
 			passed: 0,
 			failed: 0,
 			skipped: 0,
-			duration,
+			duration: 0n,
 		})
 	}
 
@@ -113,6 +111,9 @@ export const startProjectsTest = async (props: {
 		if (!response) {
 			continue
 		}
+
+		// The test & hook time of every file adds up to the project total.
+		response.duration += BigInt(Math.round(module.diagnostic().duration * 1_000_000))
 
 		for (const test of module.children.allTests()) {
 			const result = test.result()
@@ -249,6 +250,7 @@ export type TestResponse = {
 	passed: number
 	failed: number
 	skipped: number
+	// Accumulated test & hook time in nanoseconds.
 	duration: bigint
 	errors: ModuleError[]
 	tests: TestEntry[]

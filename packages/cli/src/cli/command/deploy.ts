@@ -43,28 +43,17 @@ export const deploy = (program: Command) => {
 				await bootstrapAwsless({ credentials, region, accountId })
 
 				// ---------------------------------------------------
-				// every deployment claims the next sequence number of its git
-				// branch in the manifest; abandoned deploys leave a record
-				// without a function version that the prune command sweeps up
-
-				const dynamo = new DynamoDBClient({ credentials, region })
-				const globalAppId = generateGlobalAppId({
-					accountId,
-					region,
-					appName: appConfig.name,
-				})
-				const deployment = await claimDeployment({ client: dynamo, appId: globalAppId })
-
-				// ---------------------------------------------------
 
 				const params = new SsmStore({ credentials, appConfig })
 				const configValues = await params.list()
 
-				const { app, tests, warnings, builders, ready, appId, configs } = createApp({
+				// The synth is pure, so this first pass only feeds the
+				// checks that run before the deployment is claimed. The
+				// graph is rebuilt with the claimed id further down.
+				const { tests, warnings, appId, configs } = createApp({
 					appConfig,
 					stackConfigs,
 					accountId,
-					deploymentId: deployment.id,
 					import: options.import,
 					configValues,
 				})
@@ -95,7 +84,7 @@ export const deploy = (program: Command) => {
 				}
 
 				// ---------------------------------------------------
-				// Building stack assets & run tests
+				// Run tests
 
 				if (!options.skipTests) {
 					const passed = await withTestEnvironment(
@@ -121,6 +110,33 @@ export const deploy = (program: Command) => {
 						throw new ExpectedError('Tests failed.')
 					}
 				}
+
+				// ---------------------------------------------------
+				// every deployment claims the next sequence number of its git
+				// branch in the manifest; abandoned deploys leave a record
+				// without a function version that the prune command sweeps up.
+				// The claim comes after the prompt & the tests, so a declined
+				// or failing deploy doesn't burn a number.
+
+				const dynamo = new DynamoDBClient({ credentials, region })
+				const globalAppId = generateGlobalAppId({
+					accountId,
+					region,
+					appName: appConfig.name,
+				})
+				const deployment = await claimDeployment({ client: dynamo, appId: globalAppId })
+
+				const { app, builders, ready } = createApp({
+					appConfig,
+					stackConfigs,
+					accountId,
+					deploymentId: deployment.id,
+					import: options.import,
+					configValues,
+				})
+
+				// ---------------------------------------------------
+				// Building stack assets
 
 				await buildAssets(builders, [])
 

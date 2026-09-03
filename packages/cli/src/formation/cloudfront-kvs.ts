@@ -10,8 +10,8 @@ import {
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import chunk from 'chunk'
 import { z } from 'zod'
-import { Region } from '../config/schema/region'
-import { Credentials, isError } from '../util/aws'
+import { Region } from '../config/schema/region.js'
+import { Credentials, isError } from '../util/aws.js'
 
 import '@aws-sdk/signature-v4-crt'
 

@@ -33,7 +33,7 @@ export type AuthResponse = PubSubAuthResult;
 type AuthSchema = GenericSchema<InferInput<typeof authEventSchema>, AuthEvent>;
 export declare const auth: <H extends Handler<AuthSchema, PubSubAuthResult | Promise<PubSubAuthResult>>>(handle: H) => (event: {
     token?: string | undefined;
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
+}, context?: import("@awsless/lambda").LambdaContext) => Promise<Awaited<ReturnType<H>>>;
 type LifecycleEvent<E extends string, C = unknown> = {
     /** The lifecycle event kind. */
     event: E;

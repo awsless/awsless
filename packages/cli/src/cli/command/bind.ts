@@ -12,6 +12,29 @@ import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 
+// The command takes over the terminal & the run ends with its exit
+// code, since an outro would land in the middle of its output.
+const runCommand = async (
+	commands: string[],
+	env: Record<string, string | undefined>,
+	exit: (code: number) => never
+) => {
+	console.log(chalk.black(`│`))
+	console.log(chalk.black(`└  ${chalk.yellow(commands.join(' '))}`))
+	console.log('')
+
+	const instance = Bun.spawn(commands, {
+		env,
+		stdout: 'inherit',
+		stderr: 'inherit',
+	})
+
+	await instance.exited
+
+	// A signal termination has no exit code, but is still a failure.
+	exit(instance.exitCode ?? 1)
+}
+
 export const bind = (program: Command) => {
 	program
 		.command('bind')
@@ -22,7 +45,7 @@ export const bind = (program: Command) => {
 		.description(`Bind your site environment variables to a command`)
 
 		.action(async (commands: string[] = [], opts: { config?: string[]; local?: boolean }) => {
-			await layout('bind', async ({ appConfig, stackConfigs }) => {
+			await layout('bind', async ({ appConfig, stackConfigs, exit }) => {
 				// The local dev environment persists its env, so sibling
 				// commands run against the local emulators.
 				if (opts.local) {
@@ -51,22 +74,15 @@ export const bind = (program: Command) => {
 						return 'No command to execute.'
 					}
 
-					console.log(chalk.black(`│`))
-					console.log(chalk.black(`└  ${chalk.yellow(commands.join(' '))}`))
-					console.log('')
-
-					const instance = Bun.spawn(commands, {
-						env: {
+					return runCommand(
+						commands,
+						{
 							...process.env,
 							...env,
 							...configs,
 						},
-						stdout: 'inherit',
-						stderr: 'inherit',
-					})
-
-					await instance.exited
-					process.exit(instance.exitCode ?? 1)
+						exit
+					)
 				}
 
 				const region = appConfig.region
@@ -91,7 +107,6 @@ export const bind = (program: Command) => {
 
 				if (Object.keys(env).length > 0) {
 					log.list('Bind Env', env)
-					// note(wrap(list(env)), 'Bind Env')
 				} else {
 					log.warning('No bindings available.')
 				}
@@ -104,54 +119,31 @@ export const bind = (program: Command) => {
 
 				if (configList.length > 0) {
 					log.note('Bind Config', configList.map(v => color.label(constantCase(v))).join('\n'))
-					// note(wrap(configList.map(v => color.label(constantCase(v)))), 'Bind Config')
 				}
 
 				if (commands.length === 0) {
 					return 'No command to execute.'
 				}
 
-				// const command = commands.join(' ')
 				const freshCred = await credentials()
 
-				console.log(chalk.black(`│`))
-				console.log(chalk.black(`└  ${chalk.yellow(commands.join(' '))}`))
-				console.log('')
-
-				const instance = Bun.spawn(commands, {
-					// cwd: process.cwd(),
-					env: {
-						// Pass the process env vars
+				return runCommand(
+					commands,
+					{
 						...process.env,
-
-						// Pass the site bind env vars
 						...env,
-
-						// Pass in the config values to load
 						...configs,
 
-						// Pass the app config name
 						APP: appConfig.name,
-
-						// Basic AWS info
 						AWS_REGION: appConfig.region,
 						AWS_ACCOUNT_ID: accountId,
 
-						// Give AWS access
 						AWS_ACCESS_KEY_ID: freshCred.accessKeyId,
 						AWS_SECRET_ACCESS_KEY: freshCred.secretAccessKey,
 						AWS_SESSION_TOKEN: freshCred.sessionToken,
 					},
-					stdout: 'inherit',
-					stderr: 'inherit',
-				})
-
-				await instance.exited
-
-				// A signal termination has no exit code, but is still a failure.
-				process.exit(instance.exitCode ?? 1)
-
-				// return
+					exit
+				)
 			})
 		})
 }

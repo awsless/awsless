@@ -10,18 +10,16 @@ import {
 	StateBackend,
 	WorkSpace,
 } from '@terraforge/core'
-// import { fileURLToPath } from 'url'
 import { debug } from '../cli/debug.js'
 import { Region } from '../config/schema/region.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
 import { createOpenSearchProvider } from '../formation/open-search.js'
+import { createRandomProvider } from '../formation/random.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
-
-// aws.apigatewayv2.Api()
 
 export const getStateBucketName = (region: Region, accountId: string) => {
 	return `awsless-state-${region}-${accountId}`
@@ -57,21 +55,10 @@ export const createDeploymentBackends = (props: BackendProps) => {
 export const createWorkSpace = async (props: BackendProps) => {
 	const { lock, state } = createDeploymentBackends(props)
 
-	// const terraform = new Terraform({
-	// 	providerLocation: join(homedir(), `.awsless/providers`),
-	// })
-
 	// The engine debug output always streams into the debug log file.
 	enableDebug((group, ...args) => debug(`${group}:`, ...args))
 
 	await aws.install()
-
-	// const __dirname = dirname(fileURLToPath(import.meta.url))
-	// await aws({}).generateTypes(join(__dirname, './formation.d.ts'))
-	// console.log(join(__dirname, './formation.d.ts'))
-
-	// // aws.cloudfrontkeyvaluestore.Key
-	//
 
 	const cred = await props.credentials()
 
@@ -82,35 +69,25 @@ export const createWorkSpace = async (props: BackendProps) => {
 			createS3Provider(props),
 			createNameServersProvider(props),
 			createOpenSearchProvider(props),
+			createRandomProvider(),
 			// Backwards compatibility for old states, can be removed later.
 			createCustomProvider('cloudfront', {
 				invalidation: {},
+			}),
+			aws({
+				accessKey: cred.accessKeyId,
+				secretKey: cred.secretAccessKey,
+				region: props.region,
+
+				// Control plane calls like dynamodb DescribeTimeToLive
+				// throttle hard when we refresh many resources at once,
+				// so match the terraform aws provider default of 25.
+				maxRetries: 25,
 			}),
 			aws(
 				{
 					accessKey: cred.accessKeyId,
 					secretKey: cred.secretAccessKey,
-					// token: cred.sessionToken,
-
-					// profile: props.profile,
-					region: props.region,
-
-					// Control plane calls like dynamodb DescribeTimeToLive
-					// throttle hard when we refresh many resources at once,
-					// so match the terraform aws provider default of 25.
-					maxRetries: 25,
-				}
-				// {
-				// 	debug: true,
-				// }
-			),
-			aws(
-				{
-					accessKey: cred.accessKeyId,
-					secretKey: cred.secretAccessKey,
-					// token: cred.sessionToken,
-
-					// profile: props.profile,
 					region: 'us-east-1',
 					maxRetries: 25,
 				},

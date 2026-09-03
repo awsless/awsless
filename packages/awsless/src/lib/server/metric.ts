@@ -11,13 +11,13 @@ import {
 } from '@awsless/cloudwatch'
 import { constantCase, kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { APP, getStack, IS_TEST } from './util.js'
+import { getApp, getStack, IS_TEST } from './util.js'
 
 export const getMetricName = (name: string) => {
 	return kebabCase(name)
 }
 
-export const getMetricNamespace = (stack: string = getStack(), app: string = APP) => {
+export const getMetricNamespace = (stack: string = getStack(), app: string = getApp()) => {
 	return `awsless/${kebabCase(app)}/${kebabCase(stack)}`
 }
 

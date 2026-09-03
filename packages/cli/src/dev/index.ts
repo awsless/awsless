@@ -1,6 +1,6 @@
 import { watch } from 'fs'
 import { mkdir, rm, writeFile } from 'fs/promises'
-import { basename, dirname, join, sep } from 'path'
+import { basename, dirname, join } from 'path'
 import { loadWorkspace } from '@awsless/ts-file-cache'
 import { constantCase } from 'change-case'
 import { createApp } from '../app.js'
@@ -25,7 +25,15 @@ import { linkSdkPackages } from './sdk.js'
 import { createSeedRunner } from './seed.js'
 import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
-import { formatTraceHeader, LOCAL_ACCOUNT_ID, traceId, watchdogPath, WATCHDOG_SOURCE } from './util.js'
+import {
+	formatTraceHeader,
+	isConfigFile,
+	isIgnoredPath,
+	LOCAL_ACCOUNT_ID,
+	traceId,
+	watchdogPath,
+	WATCHDOG_SOURCE,
+} from './util.js'
 import { createBundleWorker } from './worker.js'
 
 export type DevInstance = {
@@ -288,6 +296,21 @@ export const startDev = async (props: {
 		functionName: bundleName,
 		quiet: () => seeding,
 		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
+		onCrash: ({ code, size }) => {
+			if (stopping) {
+				return
+			}
+
+			log(`A bundle worker crashed (exit code ${code}), ${size} left.`)
+			dev.context.reportHealth('workers', size > 0 ? 'up' : 'down', size > 0 ? String(size) : 'all workers crashed')
+
+			// An empty pool restarts on the next invoke, through the same
+			// path a failed boot takes.
+			if (size === 0) {
+				restartNeeded = true
+				dirty = true
+			}
+		},
 	})
 
 	dev.resources.push({
@@ -301,6 +324,10 @@ export const startDev = async (props: {
 	// the bundle dirty & the next invoke loads the fresh code. Only app
 	// & stack config changes restart the whole dev environment.
 	let dirty = false
+
+	// The rebuild or worker restart in flight. Every dispatch waits for
+	// it, so no request ever lands in the window between a pool's stop
+	// & its start.
 	let fresh: Promise<void> | undefined
 
 	// A stopping environment must never rebuild or respawn workers,
@@ -311,55 +338,75 @@ export const startDev = async (props: {
 	// with fully cached builds still brings the worker up.
 	let restartNeeded = false
 
-	const ensureFresh = async () => {
-		if (!dirty) {
-			// A rebuild may still be in flight: the fresh code marked
-			// dirty false, but the worker restart hasn't finished -
-			// dispatching now would hit stopped or stale workers.
-			if (fresh) {
-				await fresh
+	// Rebuilds & restarts run one at a time, chained behind whatever is
+	// already in flight.
+	const runFresh = (action: () => Promise<void>) => {
+		const previous = fresh ?? Promise.resolve()
+		const run: Promise<void> = previous
+			.catch(() => {})
+			.then(action)
+			.finally(() => {
+				if (fresh === run) {
+					fresh = undefined
+				}
+			})
+
+		fresh = run
+
+		return run
+	}
+
+	const restartWorkers = async () => {
+		restartNeeded = true
+		await worker.restart()
+		restartNeeded = false
+		dev.context.reportHealth('workers', 'up', String(worker.size()))
+	}
+
+	const rebuild = async () => {
+		dirty = false
+		const started = Date.now()
+
+		try {
+			if (stopping) {
+				return
 			}
 
+			const changed = await buildAll()
+			const built = Date.now()
+
+			// A save that leaves every build output untouched, like a
+			// re-save without changes, skips the worker restart.
+			if ((changed || restartNeeded) && !stopping) {
+				await restartWorkers()
+
+				log(
+					`Reloaded the bundle in ${Date.now() - started}ms (build ${built - started}ms, worker ${Date.now() - built}ms)`
+				)
+			} else if (!changed) {
+				debug(`Rebuild found no changes in ${Date.now() - started}ms`)
+			}
+		} catch (error) {
+			// Retry on the next invoke.
+			dirty = true
+			dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
+			throw error
+		}
+	}
+
+	const ensureFresh = async (): Promise<void> => {
+		if (fresh) {
+			await fresh
+
+			// A save during the wait marked the bundle dirty again.
+			return ensureFresh()
+		}
+
+		if (!dirty) {
 			return
 		}
 
-		fresh ??= (async () => {
-			dirty = false
-			const started = Date.now()
-
-			try {
-				if (stopping) {
-					return
-				}
-
-				const changed = await buildAll()
-				const built = Date.now()
-
-				// A save that leaves every build output untouched, like a
-				// re-save without changes, skips the worker restart.
-				if ((changed || restartNeeded) && !stopping) {
-					restartNeeded = true
-					await worker.restart()
-					restartNeeded = false
-					dev.context.reportHealth('workers', 'up', String(worker.size()))
-
-					log(
-						`Reloaded the bundle in ${Date.now() - started}ms (build ${built - started}ms, worker ${Date.now() - built}ms)`
-					)
-				} else if (!changed) {
-					debug(`Rebuild found no changes in ${Date.now() - started}ms`)
-				}
-			} catch (error) {
-				// Retry on the next invoke.
-				dirty = true
-				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
-				throw error
-			} finally {
-				fresh = undefined
-			}
-		})()
-
-		await fresh
+		await runFresh(rebuild)
 	}
 
 	// A readable label for the homepage activity feed, derived from the
@@ -651,22 +698,16 @@ export const startDev = async (props: {
 	// One native recursive watcher instead of chokidar: chokidar arms a
 	// watcher per directory, which takes minutes on big projects &
 	// starves the dev servers before it ever gets ready.
-	const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
-
 	let rebuildTimer: ReturnType<typeof setTimeout> | undefined
 
 	const watcher = watch(directories.root, { recursive: true }, (_event, filename) => {
-		if (!filename) {
+		if (!filename || isIgnoredPath(filename)) {
 			return
 		}
 
-		if (filename.split(sep).some(segment => ignoredDirectories.has(segment))) {
-			return
-		}
-
-		const base = basename(filename)
-
-		if (base.includes('.stack.') || base.startsWith('app.json')) {
+		// Config saves restart the whole environment through the config
+		// watcher, so a rebuild here would only be thrown away.
+		if (isConfigFile(filename)) {
 			return
 		}
 
@@ -683,25 +724,27 @@ export const startDev = async (props: {
 	})
 
 	// Files like the local config are only read during worker module
-	// init, so a change just needs a worker restart, not a rebuild.
+	// init, so a change just needs a worker restart, not a rebuild. The
+	// restart runs through the same slot as a rebuild, so dispatches
+	// wait for it instead of failing on the stopped pool.
 	const restartWorker = () => {
 		if (stopping) {
 			return
 		}
 
-		void worker
-			.restart()
-			.then(() => {
-				dev.context.reportHealth('workers', 'up', String(worker.size()))
-				log('Restarted the bundle worker.')
-			})
-			.catch(error => {
-				// The next invoke retries through ensureFresh.
-				restartNeeded = true
-				dirty = true
-				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
-				log(`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`)
-			})
+		void runFresh(async () => {
+			if (stopping) {
+				return
+			}
+
+			await restartWorkers()
+			log('Restarted the bundle worker.')
+		}).catch(error => {
+			// The next invoke retries through ensureFresh.
+			dirty = true
+			dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
+			log(`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`)
+		})
 	}
 
 	// The restart paths may not exist yet & the native watch throws on

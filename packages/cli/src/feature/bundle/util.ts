@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { readFile, rm, writeFile } from 'fs/promises'
+import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { generateDependencyHash, generateFileHash } from '@awsless/ts-file-cache'
@@ -126,32 +126,46 @@ ${entries.join('\n')}
 			const temp = await createTempFolder(`bundle--${props.name}`)
 			const entryFile = join(temp.path, 'entry.ts')
 
-			await writeFile(entryFile, entry)
+			let bundle
 
-			const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
-			const moduleSideEffects = handlers.flatMap(handler => handler.moduleSideEffects ?? [])
-			const bundle = await bundleTypeScriptWithRolldown({
-				file: entryFile,
-				minify: props.minify,
-				external: [
-					'./awsless-env.mjs', // The env file is generated at deploy time.
-					...(props.external ?? []),
-					...handlers.flatMap(handler => handler.external ?? []),
-				],
-				importAsString: importAsString.length > 0 ? importAsString : undefined,
-				moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
-			})
+			try {
+				await writeFile(entryFile, entry)
 
-			await temp.delete()
+				const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
+				const moduleSideEffects = handlers.flatMap(handler => handler.moduleSideEffects ?? [])
 
-			// Clear out the stale chunks from the previous build.
-			await rm(getBuildPath('bundle', props.name, 'files'), { recursive: true, force: true })
+				bundle = await bundleTypeScriptWithRolldown({
+					file: entryFile,
+					minify: props.minify,
+					external: [
+						'./awsless-env.mjs', // The env file is generated at deploy time.
+						...(props.external ?? []),
+						...handlers.flatMap(handler => handler.external ?? []),
+					],
+					importAsString: importAsString.length > 0 ? importAsString : undefined,
+					moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
+				})
+			} finally {
+				await temp.delete()
+			}
+
+			// The new output lands next to the old chunks before the stale
+			// ones go: the dev worker of the previous build still lazily
+			// imports its route chunks until its restart, so the folder
+			// must never be empty in between.
+			const filesDir = getBuildPath('bundle', props.name, 'files')
+			const previous = await readdir(filesDir).catch(() => [] as string[])
+			const current = new Set(bundle.files.flatMap(file => [file.name, `${file.name}.map`]))
 
 			await Promise.all([
 				write('HASH', bundle.hash),
 				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
 				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
 			])
+
+			await Promise.all(
+				previous.filter(name => !current.has(name)).map(name => rm(join(filesDir, name), { force: true }))
+			)
 
 			return {
 				size: formatByteSize(bundle.files.reduce((total, file) => total + file.code.byteLength, 0)),

@@ -54,15 +54,6 @@ export const resources = (program: Command) => {
 						.replaceAll(':', color.dim(':'))
 				}
 
-				// const formatResource = (urn: URN) => {
-				// 	return urn
-				// 		.replace(app.urn + ':', '')
-				// 		.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
-				// 			return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
-				// 		})
-				// 		.replaceAll(':', color.dim(':'))
-				// }
-
 				const formatStatus = (status: ResourceStatus) => {
 					if (status === 'created') {
 						return color.success(status)
@@ -79,19 +70,6 @@ export const resources = (program: Command) => {
 					return color.dim(status)
 				}
 
-				// log.message(
-				// 	resources
-				// 		.map(r => {
-				// 			return [
-				// 				//
-				// 				formatStatus(r.),
-				// 				color.dim(icon.arrow.right),
-				// 				formatResource(r.urn),
-				// 			].join(' ')
-				// 		})
-				// 		.join('\n')
-				// )
-				//
 				for (const stack of stacks) {
 					if (filters.length > 0) {
 						const found = filters.find(f => wildstring.match(f, stack.name))
@@ -120,25 +98,6 @@ export const resources = (program: Command) => {
 						log.message(color.line(`(empty)`))
 					}
 				}
-
-				// for (const stack of app.stacks) {
-				// 	if (filters.length > 0) {
-				// 		const found = filters.find(f => wildstring.match(f, stack.name))
-
-				// 		if (!found) {
-				// 			continue
-				// 		}
-				// 	}
-
-				// 	log.step(chalk.magenta(stack.name))
-				// 	log.message(
-				// 		stack.resources
-				// 			.map(resource => {
-				// 				return formatResource(stack, resource.urn)
-				// 			})
-				// 			.join('\n')
-				// 	)
-				// }
 			})
 		})
 }

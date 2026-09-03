@@ -27,11 +27,19 @@ program.exitOverride(error => {
 })
 
 program.on('option:skip-prompt', () => {
-	process.env.SKIP_PROMPT = program.opts().skipPrompt ? '1' : undefined
+	if (program.opts().skipPrompt) {
+		process.env.SKIP_PROMPT = '1'
+	} else {
+		delete process.env.SKIP_PROMPT
+	}
 })
 
 program.on('option:no-cache', () => {
-	process.env.NO_CACHE = program.opts().cache === false ? '1' : undefined
+	if (program.opts().cache === false) {
+		process.env.NO_CACHE = '1'
+	} else {
+		delete process.env.NO_CACHE
+	}
 })
 
 commands.forEach(fn => fn(program))

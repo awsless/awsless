@@ -238,7 +238,7 @@ export const createSymbolicator = (loaders: SourcemapLoaders) => {
 			// The recorded type can be a minified wrapper class, so the
 			// stack header decides when the record's type isn't plausible.
 			const headerType = error.stackTrace[0]?.match(/^([A-Z][\w$]*Error): /)?.[1]
-			const type = error.type === undefined || /Error$/.test(error.type) ? error.type : headerType
+			const type = error.type === undefined || error.type.endsWith('Error') ? error.type : headerType
 			const engineError = type === undefined || type === 'TypeError' || type === 'ReferenceError'
 
 			let message = error.message

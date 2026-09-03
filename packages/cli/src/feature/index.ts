@@ -43,7 +43,9 @@ export const features = [
 	// 2. The global failure/error-log handlers. Both handlers exclude
 	// themselves from their own failure wiring by sharing their keys
 	// only after their handler lambda exists, so they must come before
-	// every other lambda creating feature.
+	// every other lambda creating feature. The on-failure handler
+	// subscribes its log group at ready time, since the error log
+	// subscriber only exists after it.
 	onFailureFeature,
 	onErrorLogFeature,
 
@@ -60,7 +62,6 @@ export const features = [
 	searchFeature,
 	pubsubFeature,
 	metricFeature,
-	// streamFeature,
 	tableFeature,
 	topicFeature,
 	alertFeature,
@@ -70,7 +71,6 @@ export const features = [
 	taskFeature,
 	testFeature,
 	cronFeature,
-	// httpFeature,
 	restFeature,
 	siteFeature,
 	imageFeature,

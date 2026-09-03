@@ -8,6 +8,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { plainTestMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -18,13 +19,7 @@ type Alert<Name extends string> = {
 	(subject: string, payload?: unknown, options?: Omit<PublishOptions, 'subject' | 'topic' | 'payload'>): Promise<void>
 }
 
-type MockHandle = (payload: unknown) => void
-type MockBuilder = (handle?: MockHandle) => void
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry = MockBuilder & Mock<(payload: unknown) => unknown>
-`
+${plainTestMockTypes()}`
 
 export const alertFeature = defineFeature({
 	name: 'alert',

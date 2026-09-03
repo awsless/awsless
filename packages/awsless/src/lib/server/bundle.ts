@@ -19,6 +19,7 @@ export const ROUTE_HEADER = 'x-awsless-route'
 // The alias that every deploy promotes; matches the CLI's LIVE_LAMBDA_ALIAS.
 export const LIVE_BUNDLE_ALIAS = 'live'
 
+// The app env is read at call time, since the CLI sets it after import.
 export const getBundleName = () => `${kebabCase(process.env.APP!)}--function--bundle`
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
@@ -98,6 +99,13 @@ export type InternalInvoke = (routeKey: string, payload: unknown) => Promise<unk
 type BundleContext = {
 	routeKey: string
 	internalInvoke: InternalInvoke
+	throwExpectedErrors: boolean
+}
+
+export type BundleRouteOptions = {
+	// Async routes (queue, topic, table, ...) throw expected errors so
+	// the invocation fails & retries, while sync routes respond with them.
+	throwExpectedErrors?: boolean
 }
 
 const bundleContext = new AsyncLocalStorage<BundleContext>()
@@ -107,9 +115,22 @@ export const isInsideBundle = () => bundleContext.getStore() !== undefined
 
 export const getCurrentRoute = () => bundleContext.getStore()?.routeKey
 
+// Decided per route at invoke time: concurrent requests in one process
+// (the local dev worker) each carry their own flag instead of sharing a
+// global. Outside the bundle nothing enables it.
+export const shouldThrowExpectedErrors = () => bundleContext.getStore()?.throwExpectedErrors ?? false
+
 // The bundle runtime wraps every route handler in this context.
-export const withBundleRouteContext = <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => {
-	return bundleContext.run({ routeKey, internalInvoke }, callback)
+export const withBundleRouteContext = <T>(
+	routeKey: string,
+	internalInvoke: InternalInvoke,
+	callback: () => T,
+	options: BundleRouteOptions = {}
+) => {
+	return bundleContext.run(
+		{ routeKey, internalInvoke, throwExpectedErrors: options.throwExpectedErrors ?? false },
+		callback
+	)
 }
 
 // Run another route handler in the same process, instead of paying

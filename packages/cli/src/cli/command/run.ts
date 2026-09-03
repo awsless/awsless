@@ -13,17 +13,11 @@ import { ExpectedError } from '../../error.js'
 import { formatTableKeys } from '../../feature/table/util.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
-// import { task } from '../ui/util.js'
-
-// @ts-ignore
-// import { tsImport } from 'tsx/esm/api'
 
 export const run = (program: CliCommand) => {
 	program
 		.command('run')
-		// .allowExcessArguments(true)
 		.allowUnknownOption(true)
-		// .passThroughOptions(true)
 		.argument('[command]', 'The command you want to run')
 		.description('Run one of your defined commands.')
 		.action(async (selected: string | undefined) => {
@@ -84,20 +78,6 @@ export const run = (program: CliCommand) => {
 
 				// ---------------------------------------------------
 				// Import the command
-
-				// let module: any
-
-				// try {
-				// 	module = await tsImport(command.file, {
-				// 		parentURL: import.meta.url,
-				// 	})
-				// } catch (error) {
-				// 	if (typeof error === 'object' && error !== null && 'message' in error) {
-				// 		throw error.message
-				// 	}
-
-				// 	throw new ExpectedError(`Failed to import: ${command.file}`)
-				// }
 
 				const module = await import(command.file)
 

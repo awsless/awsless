@@ -335,24 +335,29 @@ export function route(
 	return async (event, context) => {
 		const result = await handler(event as EnvelopeInput, context)
 
-		// Validation & unexpected errors render as a json error
-		// response instead of a viewable error payload. A client
-		// sending bad input is a 400, not a server error.
+		// Expected errors render as a json error response instead of a
+		// viewable error payload. Bad input is a 400, any other expected
+		// error a 500. Unexpected errors keep propagating, so the runtime
+		// logs the record the on-error-log consumer picks up.
 		if (isErrorResponse(result)) {
 			const error = result.__error__
 
-			return {
-				statusCode: error.type === 'validation' ? 400 : 500,
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					type: error.type,
-					message: error.message,
-					data: error.data,
-				}),
-			}
+			return jsonErrorResponse(error.type === 'validation' ? 400 : 500, {
+				type: error.type,
+				message: error.message,
+				data: error.data,
+			})
 		}
 
 		return result
+	}
+}
+
+const jsonErrorResponse = (statusCode: number, error: { type: string; message: string; data?: unknown }) => {
+	return {
+		statusCode,
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(error),
 	}
 }
 

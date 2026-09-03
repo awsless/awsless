@@ -189,7 +189,7 @@ export const createHandler = (consumer: (event: ErrorEvent) => Promise<unknown>,
 								// one - but a plausible type never gets replaced.
 								const header = mapped.stackTrace?.[0]?.match(/^([A-Z][\w$]*Error): /)
 
-								if (didMap && header && !/Error$/.test(error.type)) {
+								if (didMap && header && !error.type.endsWith('Error')) {
 									error.type = header[1]!
 								}
 							}

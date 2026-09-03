@@ -4,48 +4,25 @@ import { availableParallelism } from 'os'
 import { join, relative, sep } from 'path'
 import { inspect } from 'util'
 import { log } from '@awsless/clui'
-// import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
-// import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
 import { parse, stringify } from '@awsless/json'
 import { generateFileHash, generateFolderHash, loadWorkspace } from '@awsless/ts-file-cache'
 import type { TestManifest } from 'awsless'
-// import hrtime from 'pretty-hrtime'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
 import { ModuleError, startProjectsTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { debug } from '../../debug.js'
 import { color, icon } from '../style.js'
-// import { task, wrap } from '../util.js'
 
 type StoredState = {
 	fingerprint: string
-	// duration: number
-	// errors: TestError[]
-	// passed: number
-	// failed: number
-	// logs: string[]
 } & TestResponse
 
-// const formatFileName = (path?: string) => {
-// 	if (!path) {
-// 		return ''
-// 	}
+const formatDuration = (duration: bigint) => {
+	const ms = Number(duration / 1_000_000n)
 
-// 	const abs = join(process.cwd(), path)
-// 	const rel = relative(dir, abs)
-// 	const ext = extname(rel)
-
-// 	if (!ext) {
-// 		return path
-// 	}
-
-// 	const name = basename(rel, ext)
-// 	const base = dirname(rel)
-// 	const start = base === '.' ? '' : style.placeholder(base + '/')
-
-// 	return `${start}${name}${style.placeholder(ext)}`
-// }
+	return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+}
 
 const formatResult = (props: { stack: string; cached: boolean; event: TestResponse }) => {
 	const line: string[] = [`Test ${color.info(props.stack)}`, color.dim(icon.arrow.right)]
@@ -67,13 +44,12 @@ const formatResult = (props: { stack: string; cached: boolean; event: TestRespon
 		stats.push(color.error(`${props.event.failed} failed`))
 	}
 
-	if (props.event.duration > 0n) {
-		// const [time, unit] = hrtime(props.event.duration, {}).split(' ')
-		// return color.attr(time) + color.attr.dim(unit)
-		// line.push(color.success(`${props.event.duration}`))
-	}
-
 	line.push(stats.join(color.line.dim(` ${icon.dot} `)))
+
+	// Results cached by older versions carry a bogus duration.
+	if (props.event.duration > 0n) {
+		line.push(color.dim(`(${formatDuration(props.event.duration)})`))
+	}
 
 	return line.join(` `)
 }
@@ -98,8 +74,6 @@ const logTestLogs = (event: TestResponse) => {
 
 const formatFileName = (test: TestEntry, error?: TestError) => {
 	const name = [test.file]
-
-	// console.log(error)
 
 	const loc = error?.location
 
@@ -136,10 +110,8 @@ const logTestError = (index: number, event: TestResponse, test: TestEntry, error
 			color.dim(icon.arrow.right),
 			formatFileName(test, error),
 			color.dim(icon.arrow.right),
-			// `\n${color.label.inverse.bold(` TEST `)}`,
 			color.dim(test.name),
 			[`\n\n`, errorMessage, ...(error.diff ? ['\n\n', error.diff] : [])].join(''),
-			// error.test,
 		].join(' ')
 	)
 }
@@ -254,7 +226,7 @@ export const runTests = async (
 	if (opts.manifest) {
 		const { servers: _servers, ...stable } = opts.manifest
 
-		const files = [...stable.streams, ...stable.functions, ...stable.tasks, ...stable.queues]
+		const files = [...stable.streams, ...stable.functions, ...stable.tasks, ...stable.queues, ...(stable.crons ?? [])]
 			.map(entry => entry.file)
 			.filter((file): file is string => typeof file === 'string')
 			.toSorted()

@@ -189,6 +189,12 @@ var ViewableError = class extends Error {
 	}
 };
 //#endregion
+//#region src/helpers/env.ts
+const isTestEnv = () => {
+	if (process.env.LAMBDA_ENV) return process.env.LAMBDA_ENV === "test";
+	return process.env.NODE_ENV === "test" || !!process.env.VITEST;
+};
+//#endregion
 //#region src/helpers/mock.ts
 const globalList = {};
 const mockLambda = (lambdas) => {
@@ -232,14 +238,14 @@ const lambda = (options) => {
 				await logger?.(error, { input: event });
 			}));
 		};
-		const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === "test";
+		const isTest = isTestEnv();
 		const successCallbacks = [];
 		const failureCallbacks = [];
 		const finallyCallbacks = [];
 		try {
 			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
-					const raw = typeof event === "undefined" || isTestEnv ? event : patch(event);
+					const raw = typeof event === "undefined" || isTest ? event : patch(event);
 					const input = options.schema ? parse$1(options.schema, raw) : raw;
 					const extendedContext = {
 						event: input,
@@ -262,14 +268,15 @@ const lambda = (options) => {
 				});
 			});
 			await Promise.all(successCallbacks.map((cb) => cb(result)));
-			if (isTestEnv) return parse(stringify(result, { preserveUndefinedValues: true }));
+			if (isTest) return parse(stringify(result, { preserveUndefinedValues: true }));
 			return unpatch(result);
 		} catch (error) {
 			await Promise.all(failureCallbacks.map((cb) => cb(error)));
 			const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError;
-			if (!isExpectedError || options.throwExpectedErrors) await log(error);
-			if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) return toErrorResponse(error);
-			if (!isTestEnv) throw enhanceError(normalizeError(error), options.schema, event, context);
+			const throwExpectedErrors = typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
+			if (!isExpectedError || throwExpectedErrors) await log(error);
+			if (!isTest && !throwExpectedErrors && isExpectedError) return toErrorResponse(error);
+			if (!isTest) throw enhanceError(normalizeError(error), options.schema, event, context);
 			throw error;
 		} finally {
 			await Promise.all(finallyCallbacks.map((cb) => cb()));
@@ -277,4 +284,4 @@ const lambda = (options) => {
 	});
 };
 //#endregion
-export { ExpectedError, LambdaClient, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { ExpectedError, LambdaClient, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

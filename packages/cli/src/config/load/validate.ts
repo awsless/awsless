@@ -13,7 +13,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 
 // zod 4 parses async records in random key order, so we sort the
 // keys to keep the parsed config deterministic.
-const sortKeysDeep = <T>(value: T): T => {
+export const sortKeysDeep = <T>(value: T): T => {
 	if (Array.isArray(value)) {
 		return value.map(entry => sortKeysDeep(entry)) as T
 	}

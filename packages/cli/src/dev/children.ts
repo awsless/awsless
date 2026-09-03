@@ -1,8 +1,9 @@
 import { execFile, spawn, SpawnOptions } from 'child_process'
-import { mkdir, readFile, rm, writeFile } from 'fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { promisify } from 'util'
 import treeKill from 'tree-kill'
+import { debug } from '../cli/debug.js'
 import { directories } from '../util/path.js'
 
 // Dev child processes must never outlive the dev command. The graceful
@@ -30,11 +31,23 @@ const childrenFile = () => {
 	return join(directories.output, 'dev', 'children.json')
 }
 
-const persist = async () => {
-	const file = childrenFile()
+// Writes queue up one after another & land through a rename: parallel
+// spawns would otherwise interleave their writes into a torn file.
+let writing: Promise<void> = Promise.resolve()
 
-	await mkdir(dirname(file), { recursive: true })
-	await writeFile(file, JSON.stringify([...tracked.values()]))
+const persist = () => {
+	writing = writing
+		.catch(() => {})
+		.then(async () => {
+			const file = childrenFile()
+			const temp = `${file}.${process.pid}.tmp`
+
+			await mkdir(dirname(file), { recursive: true })
+			await writeFile(temp, JSON.stringify([...tracked.values()]))
+			await rename(temp, file)
+		})
+
+	return writing
 }
 
 // Spawn a long lived dev child, tracked for the exit hook & pid file.
@@ -71,15 +84,40 @@ const currentCommand = async (pid: number) => {
 	}
 }
 
+const isTrackedChild = (value: unknown): value is TrackedChild => {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		typeof (value as TrackedChild).pid === 'number' &&
+		typeof (value as TrackedChild).command === 'string'
+	)
+}
+
 // Kill the process trees a previous dev run left behind after a hard
 // kill. Runs before the local servers boot, so stale children can't
 // hold on to their ports.
 export const reapOrphanedDevChildren = async () => {
+	const file = childrenFile()
+	let content: string
+
+	try {
+		content = await readFile(file, 'utf8')
+	} catch {
+		return 0
+	}
+
 	let stale: TrackedChild[] = []
 
 	try {
-		stale = JSON.parse(await readFile(childrenFile(), 'utf8')) as TrackedChild[]
-	} catch {
+		const parsed: unknown = JSON.parse(content)
+
+		stale = Array.isArray(parsed) ? parsed.filter(isTrackedChild) : []
+	} catch (error) {
+		// A torn file from a crashed run can't be reaped - it goes, so
+		// the next run's writes start from a clean file again.
+		debug('Ignoring the unreadable dev children file', error)
+		await rm(file, { force: true })
+
 		return 0
 	}
 
@@ -96,7 +134,7 @@ export const reapOrphanedDevChildren = async () => {
 		reaped++
 	}
 
-	await rm(childrenFile(), { force: true })
+	await rm(file, { force: true })
 
 	return reaped
 }

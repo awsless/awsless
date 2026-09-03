@@ -1,4 +1,3 @@
-// import { Duration } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { ExpectedError, invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'

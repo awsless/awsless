@@ -131,8 +131,6 @@ export const tableFeature = defineFeature({
 				JSON.stringify(formatTableKeys(props))
 			)
 
-			// const deletionProtection = ctx.appConfig.removal === 'retain'
-
 			const attributeDefinitions = () => {
 				const attributes = new Set(
 					[
@@ -202,28 +200,6 @@ export const tableFeature = defineFeature({
 			)
 
 			// --------------------------------------------------------
-			// Send table info to every lambda
-
-			// ctx.addEnv(
-			// 	`TABLE_${constantCase(id)}`,
-			// 	JSON.stringify({
-			// 		hash: props.hash,
-			// 		sort: props.sort,
-			// 		indexes: Object.fromEntries(
-			// 			Object.entries(props.indexes ?? {}).map(([indexName, indexProps]) => {
-			// 				return [
-			// 					indexName,
-			// 					{
-			// 						hash: indexProps.hash,
-			// 						sort: indexProps.sort,
-			// 					},
-			// 				]
-			// 			})
-			// 		),
-			// 	})
-			// )
-
-			// --------------------------------------------------------
 			// Stream support
 
 			if (props.stream) {
@@ -240,11 +216,6 @@ export const tableFeature = defineFeature({
 					{
 						functionName: bundle.alias.arn,
 						eventSourceArn: table.streamArn,
-
-						// tumblingWindowInSeconds
-						// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
-						// bisectBatchOnFunctionError: true,
-
 						batchSize: props.stream.batchSize,
 						maximumBatchingWindowInSeconds: props.stream.batchWindow
 							? toSeconds(props.stream.batchWindow)

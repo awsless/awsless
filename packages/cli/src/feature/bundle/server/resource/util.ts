@@ -16,9 +16,7 @@ export const routeFromResourceName = (name: string) => {
 
 // Async event handlers must throw expected errors, so failed invocations retry & reach the on-failure destination.
 export const asyncRoute = (key: string, payload: unknown): RouteMatch => {
-	process.env.THROW_EXPECTED_ERRORS = '1'
-
-	return { key, payload }
+	return { key, payload, throwExpectedErrors: true }
 }
 
 // The cloudfront OAC signing claims the authorization header,

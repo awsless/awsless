@@ -1,5 +1,5 @@
+import { setTimeout as sleep } from 'timers/promises'
 import { Cancelled, log, prompt } from '@awsless/clui'
-import { sleep } from 'bun'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../error.js'
 import { getCredentials } from '../../../util/aws.js'

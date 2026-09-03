@@ -30,6 +30,7 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		searches: [],
 		functions: [],
 		tasks: [],
+		crons: [],
 		queues: [],
 		topics: appConfig.topics ?? [],
 		pubsub: Object.keys(appConfig.pubsub ?? {}),
@@ -77,6 +78,10 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 
 		for (const [id, props] of Object.entries(stack.tasks ?? {})) {
 			manifest.tasks.push({ stack: stack.name, id, file: absolute(props.consumer.code.file) })
+		}
+
+		for (const [id, props] of Object.entries(stack.crons ?? {})) {
+			manifest.crons!.push({ stack: stack.name, id, file: absolute(props.consumer.code.file) })
 		}
 
 		for (const [id, props] of Object.entries(stack.queues ?? {})) {

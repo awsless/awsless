@@ -165,7 +165,7 @@ describe('sandbox', () => {
 		const proxy = metas.find(
 			meta =>
 				meta.type === 'aws_lambda_function' &&
-				meta.input.functionName === 'test-app--stack-1--function--echo-proxy'
+				meta.input.functionName === 'test-app--stack-1--sandbox-proxy--echo'
 		)!
 
 		expect(proxy).toBeDefined()
@@ -173,7 +173,7 @@ describe('sandbox', () => {
 			JSON.stringify(['stack-1:function:other', 'stack-1:task:work'])
 		)
 
-		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--echo-proxy')
+		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--sandbox-proxy--echo')
 
 		// The app wide env never lives in the lambda env, stand-alone
 		// functions receive it baked into their code zip & sandboxed
@@ -239,7 +239,7 @@ describe('sandbox', () => {
 		const proxy = metas.find(
 			meta =>
 				meta.type === 'aws_lambda_function' &&
-				meta.input.functionName === 'test-app--stack-1--function--echo-proxy'
+				meta.input.functionName === 'test-app--stack-1--sandbox-proxy--echo'
 		)
 
 		expect(lambda).toBeDefined()
@@ -275,7 +275,7 @@ describe('sandbox', () => {
 			.find(
 				meta =>
 					meta.type === 'aws_lambda_function' &&
-					meta.input.functionName === 'test-app--stack-1--function--echo-proxy'
+					meta.input.functionName === 'test-app--stack-1--sandbox-proxy--echo'
 			)!
 
 		expect(proxy.input.environment.variables.SANDBOX_ROUTES).toBe(

@@ -302,13 +302,13 @@ describe('bundle handler', () => {
 	it('should scope reused handler modules to their route', async () => {
 		await expect(handler({ '$awsless-route': 'stack-2:topic:scoped', event: {} }, context)).resolves.toStrictEqual({
 			stack: 'stack-2',
-			expected: '1',
+			expected: true,
 		})
 		await expect(
 			handler({ '$awsless-route': 'stack-1:function:scoped', event: {} }, context)
 		).resolves.toStrictEqual({
 			stack: 'stack-1',
-			expected: undefined,
+			expected: false,
 		})
 	})
 
@@ -340,9 +340,6 @@ describe('bundle handler', () => {
 		const result = await handler({ '$awsless-route': route, event }, context)
 
 		expect(result).toStrictEqual({ stack: 'stack-1', event })
-		expect(process.env.THROW_EXPECTED_ERRORS).toBe(
-			route.includes(':cron:') || route.includes(':task:') ? '1' : undefined
-		)
 	})
 
 	it.each([['stack-1:topic:event', 'stack-1']])(
@@ -353,7 +350,7 @@ describe('bundle handler', () => {
 
 			expect(result).toStrictEqual({
 				stack,
-				throwExpectedErrors: '1',
+				throwExpectedErrors: true,
 				event,
 			})
 		}
@@ -432,7 +429,7 @@ describe('bundle handler', () => {
 
 		expect(result).toStrictEqual({
 			stack: 'stack-1',
-			throwExpectedErrors: '1',
+			throwExpectedErrors: true,
 			event: { hello: 'world' },
 		})
 	})
@@ -496,7 +493,7 @@ describe('bundle handler', () => {
 	])('should route $name events', async ({ event }) => {
 		await expect(handler(event, context)).resolves.toStrictEqual({
 			stack: 'stack-1',
-			throwExpectedErrors: '1',
+			throwExpectedErrors: true,
 			event,
 		})
 	})
@@ -536,7 +533,7 @@ describe('bundle handler', () => {
 
 		await expect(handler(event, context)).resolves.toStrictEqual({
 			stack: 'stack-1',
-			throwExpectedErrors: '1',
+			throwExpectedErrors: true,
 			event,
 		})
 	})

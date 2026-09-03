@@ -1,14 +1,12 @@
-import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { log, prompt } from '@awsless/clui'
 import { Command, InvalidArgumentError } from 'commander'
-import { isAfter, isBefore, subHours } from 'date-fns'
 import { Cancelled } from '../../error.js'
 import { getRouteStoreArn, pruneStoreDeployments } from '../../formation/cloudfront-kvs.js'
-import { isError } from '../../util/aws.js'
 import {
 	listDeployments,
 	pruneFunctionVersion,
 	PruneOptions,
+	pruneSiteVersions,
 	readLiveDeploymentId,
 	removeDeployment,
 	selectPrunableDeployments,
@@ -21,93 +19,6 @@ import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 import { createClients } from './deployment.js'
 
-// Every site deploy uploads its files under a content-hashed
-// 'site/<stack>/<id>/v-<hash>/' prefix that route table rewrites point
-// at, so prefixes without a surviving route reference are garbage.
-const pruneSiteVersions = async (props: { s3: S3Client; bucket: string; survivingRoutes: string[] }) => {
-	const referenced = new Set<string>()
-
-	for (const value of props.survivingRoutes) {
-		let parsed: unknown
-
-		try {
-			parsed = JSON.parse(value)
-		} catch {
-			continue
-		}
-
-		for (const route of Array.isArray(parsed) ? parsed : [parsed]) {
-			const to = (route as { rewrite?: { to?: unknown } })?.rewrite?.to
-
-			if (typeof to !== 'string') {
-				continue
-			}
-
-			const parts = to.replace(/^\//, '').split('/')
-
-			if (parts[0] === 'site' && parts[3]?.startsWith('v-')) {
-				referenced.add(parts.slice(0, 4).join('/'))
-			}
-		}
-	}
-
-	const unreferenced = new Map<string, { keys: string[]; newest: Date }>()
-	let cursor: string | undefined
-
-	do {
-		let page
-		try {
-			page = await props.s3.send(
-				new ListObjectsV2Command({
-					Bucket: props.bucket,
-					Prefix: 'site/',
-					ContinuationToken: cursor,
-				})
-			)
-		} catch (error) {
-			// Apps without sites never made the shared bucket.
-			if (isError(error, 'NoSuchBucket')) {
-				return
-			}
-
-			throw error
-		}
-		cursor = page.NextContinuationToken
-
-		for (const object of page.Contents ?? []) {
-			const key = object.Key!
-			const parts = key.split('/')
-			const prefix = parts.slice(0, 4).join('/')
-
-			if (!parts[3]?.startsWith('v-') || referenced.has(prefix)) {
-				continue
-			}
-
-			const modified = object.LastModified ?? new Date()
-			const entry = unreferenced.get(prefix) ?? { keys: [], newest: modified }
-			entry.keys.push(key)
-			entry.newest = isAfter(modified, entry.newest) ? modified : entry.newest
-			unreferenced.set(prefix, entry)
-		}
-	} while (cursor)
-
-	// A fresh prefix may belong to a crashed deploy whose retry reuses it
-	// without re-uploading, so only day-old prefixes are garbage.
-	const cutoff = subHours(new Date(), 24)
-	const garbage = [...unreferenced.values()]
-		.filter(entry => isBefore(entry.newest, cutoff))
-		.flatMap(entry => entry.keys)
-
-	for (let index = 0; index < garbage.length; index += 1000) {
-		await props.s3.send(
-			new DeleteObjectsCommand({
-				Bucket: props.bucket,
-				Delete: { Objects: garbage.slice(index, index + 1000).map(key => ({ Key: key })) },
-			})
-		)
-	}
-}
-
 export const prune = (program: Command) => {
 	program
 		.command('prune')
@@ -118,7 +29,7 @@ export const prune = (program: Command) => {
 			value => {
 				const keep = Number(value)
 
-				if (!Number.isInteger(keep) || keep < 0) {
+				if (!Number.isInteger(keep) || keep < 1) {
 					throw new InvalidArgumentError('Expected a positive number.')
 				}
 

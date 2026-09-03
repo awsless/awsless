@@ -11,6 +11,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { funcType, testMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import {
@@ -20,7 +21,7 @@ import {
 } from '@awsless/sqs'
 import type { Mock } from 'vitest'
 
-type Func = (...args: any[]) => any
+${funcType}
 type Payload<F extends Func> = Parameters<F>[0]['Records'][number]['body']
 
 type Required<T> = T & { groupId: string; deduplicationId: string }
@@ -31,14 +32,8 @@ type Send<Name extends string, F extends Func> = {
 	(payload: Payload<F>, options: Required<Omit<SendMessageOptions, 'queue' | 'payload'>>): Promise<void>
 }
 
-type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
-type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
+${testMockTypes()}`
 
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
-`
 
 export const queueFeature = defineFeature({
 	name: 'queue',
@@ -192,6 +187,7 @@ export const queueFeature = defineFeature({
 				],
 				resources: [queue.arn],
 			})
+
 		}
 	},
 })

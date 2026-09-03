@@ -8,37 +8,14 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
+import { funcType, invokeTypes, testMockTypes } from '../../type-gen/snippets.js'
 import { createFargateJob } from './util.js'
 
 const typeGenCode = `
 import type { Mock } from 'vitest'
 
-type Func = (...args: any[]) => any
-
-type Invoke<N extends string, F extends Func> = Parameters<F> extends []
-	? InvokeWithoutPayload<N, F>
-	: unknown extends Parameters<F>[0]
-		? InvokeWithoutPayload<N, F>
-		: InvokeWithPayload<N, F>
-
-type InvokeWithPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload: Parameters<F>[0]): Promise<{ taskArn: string | undefined }>
-}
-
-type InvokeWithoutPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload?: Parameters<F>[0]): Promise<{ taskArn: string | undefined }>
-}
-
-type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void>
-type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
-`
+${funcType}
+${invokeTypes({ returns: 'Promise<{ taskArn: string | undefined }>' })}${testMockTypes()}`
 
 export const jobFeature = defineFeature({
 	name: 'job',
@@ -214,9 +191,13 @@ export const jobFeature = defineFeature({
 		ctx.addEnv('JOB_SECURITY_GROUP', ctx.shared.get('job', 'security-group-id'))
 		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('asset', 'bucket').name)
 
+		const roleArns: Output<string>[] = []
+
 		for (const [id, props] of jobs) {
 			const group = new Group(ctx.stack, 'job', id)
-			createFargateJob(group, ctx, 'job', id, props)
+			const job = createFargateJob(group, ctx, 'job', id, props)
+
+			roleArns.push(job.taskRole.arn, job.executionRole.arn)
 		}
 
 		// ------------------------------------------------------------
@@ -229,9 +210,10 @@ export const jobFeature = defineFeature({
 			],
 		})
 
+		// Running a task hands ecs the task & execution role of the job.
 		ctx.addPermission({
 			actions: ['iam:PassRole'],
-			resources: ['*'],
+			resources: roleArns,
 			conditions: {
 				StringEquals: {
 					'iam:PassedToService': 'ecs-tasks.amazonaws.com',

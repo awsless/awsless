@@ -10,6 +10,7 @@ import { toErrorResponse } from './errors/response.js'
 import { createTimeoutWrap } from './errors/timeout.js'
 import { transformValidationErrors } from './errors/validation.js'
 import { ViewableError } from './errors/viewable.js'
+import { isTestEnv } from './helpers/env.js'
 import { normalizeError } from './helpers/error.js'
 import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
 
@@ -23,10 +24,12 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
 	/** Array of logging functions that are called when an error is thrown. */
 	logger?: Loggers
 
-	/** Boolean to specify if expected errors should be thrown and logged.
+	/** Whether expected errors are thrown & logged instead of returned
+	 * as an error response. A function is evaluated per invocation, so a
+	 * handler shared by sync & async routes decides at invoke time.
 	 * @default false
 	 */
-	throwExpectedErrors?: boolean
+	throwExpectedErrors?: boolean | (() => boolean)
 }
 
 export type LambdaFactory = {
@@ -68,7 +71,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			)
 		}
 
-		const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === 'test'
+		const isTest = isTestEnv()
 
 		const successCallbacks: Array<(res: unknown) => unknown> = []
 		const failureCallbacks: Array<(err: unknown) => unknown> = []
@@ -77,7 +80,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 		try {
 			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
-					const raw = typeof event === 'undefined' || isTestEnv ? event : patch(event)
+					const raw = typeof event === 'undefined' || isTest ? event : patch(event)
 					const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw
 					const extendedContext: ExtendedContext = {
 						// ...(context ?? {}),
@@ -104,7 +107,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 
 			await Promise.all(successCallbacks.map(cb => cb(result)))
 
-			if (isTestEnv) {
+			if (isTest) {
 				return parse(
 					stringify(result, {
 						preserveUndefinedValues: true,
@@ -117,16 +120,20 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			await Promise.all(failureCallbacks.map(cb => cb(error)))
 
 			const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError
+			const throwExpectedErrors =
+				typeof options.throwExpectedErrors === 'function'
+					? options.throwExpectedErrors()
+					: !!options.throwExpectedErrors
 
-			if (!isExpectedError || options.throwExpectedErrors) {
+			if (!isExpectedError || throwExpectedErrors) {
 				await log(error)
 			}
 
-			if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) {
+			if (!isTest && !throwExpectedErrors && isExpectedError) {
 				return toErrorResponse(error)
 			}
 
-			if (!isTestEnv) {
+			if (!isTest) {
 				throw enhanceError(normalizeError(error), options.schema, event, context)
 			}
 

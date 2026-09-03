@@ -1,7 +1,7 @@
 import { log, prompt } from '@awsless/clui'
-import { Warning } from '../../../app'
-import { Cancelled } from '../../../error'
-import { color } from '../style'
+import { Warning } from '../../../app.js'
+import { Cancelled } from '../../../error.js'
+import { color } from '../style.js'
 
 export const showWarnings = async (warnings: Warning[]) => {
 	for (const warning of warnings) {

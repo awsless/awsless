@@ -1,5 +1,6 @@
 // The dev dashboard is a single self-contained page, so the cli ships
-// no frontend build or dependencies.
+// no frontend build or dependencies. The only slot filled per request
+// is __STATE__.
 export const dashboardHtml = `<!doctype html>
 <html lang="en">
 <head>
@@ -7,473 +8,473 @@ export const dashboardHtml = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>awsless dev</title>
 <style>
-	:root {
-		--bg: hsl(220 20% 5% / 1);
-		--panel: hsl(220 20% 8%);
-		--hover: hsl(220 20% 12%);
-		--border: hsl(220 18% 15%);
-		--border-strong: hsl(220 16% 22%);
-		--text: #ecedf2;
-		--muted: #8b90a1;
-		--accent: #ff9000;
-		--good: #3dd68c;
-		--bad: #ff6166;
-		--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Helvetica, Arial, sans-serif;
-		--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-		font-size: 14px;
-		color-scheme: dark;
-	}
-	* { box-sizing: border-box; }
-	::selection { background: rgb(255 144 0 / 25%); }
-	::-webkit-scrollbar { width: 8px; height: 8px; }
-	::-webkit-scrollbar-track { background: transparent; }
-	::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 10%); border-radius: 999px; }
-	::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 18%); }
-	:focus-visible { outline: 2px solid rgb(255 144 0 / 55%); outline-offset: 1px; }
-	body {
-		margin: 0;
-		font-family: var(--font-sans);
-		-webkit-font-smoothing: antialiased;
-		background: var(--bg);
-		color: var(--text);
-		display: grid;
-		grid-template-columns: 232px 1fr;
-		height: 100vh;
-	}
-	body.with-events { grid-template-columns: 232px 1fr 320px; }
-	button { transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
-	input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-	aside {
-		border-left: 1px solid var(--border);
-		overflow-y: auto;
-		padding: 12px;
-	}
-	aside h3 {
-		font-size: 10px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
-		margin: 8px 8px 12px;
-	}
-	aside .event {
-		border-bottom: 1px solid var(--border);
-		padding: 8px;
-		font-size: 12px;
-		font-family: var(--font-mono);
-	}
-	aside .event:last-child { border-bottom: none; }
-	aside .event .head { display: flex; gap: 8px; align-items: baseline; }
-	aside .event .time { color: var(--muted); }
-	aside .event .topic { font-weight: 600; }
-	aside .event .type { color: var(--muted); }
-	aside .event .body {
-		color: var(--muted);
-		margin-top: 4px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	/* Hovering an event unfolds its payload in place, fully wrapped -
-	   the same behavior as the activity feed. */
-	aside .event:hover .body {
-		white-space: pre-wrap;
-		overflow: visible;
-		word-break: break-word;
-	}
-	aside .empty { padding: 8px; }
-	.logs {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 10px 12px;
-		margin-top: 8px;
-		max-height: 420px;
-		overflow-y: auto;
-		font-size: 12px;
-		font-family: var(--font-mono);
-	}
-	.logs .line { display: flex; gap: 8px; padding: 1px 0; }
-	.logs .time { color: var(--muted); flex-shrink: 0; }
-	.logs .route { color: var(--accent); word-break: break-all; }
-	.logs .text { white-space: pre-wrap; word-break: break-word; }
-	.logs .line.error .text, .logs .entry.error .text { color: var(--bad); }
-	.logs .entry { padding: 6px 0; }
-	.logs .entry + .entry, .logs .line + .entry, .logs .entry + .line { border-top: 1px solid var(--border); }
-	.logs .entry .meta { display: flex; gap: 8px; margin-bottom: 2px; }
-	/* Every group is its own card, with a shared grid inside: the name
-	   column grows to the longest name (capped), so nothing truncates &
-	   the inputs line up. */
-	.config-form { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin-top: 14px; }
-	.config-group {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 16px 18px;
-	}
-	.config-group h3 { margin: 0 0 12px; }
-	.config-fields {
-		display: grid;
-		grid-template-columns: fit-content(340px) 1fr;
-		gap: 10px 16px;
-		align-items: center;
-	}
-	.config-fields .field { display: contents; }
-	.config-fields .name { color: var(--muted); overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12.5px; }
-	.config-fields input {
-		background: var(--bg);
-		color: var(--text);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 6px 10px;
-		font: inherit;
-	}
-	.config-fields input:hover { border-color: var(--border-strong); }
-	.config-fields input:focus { border-color: #5b6272; box-shadow: 0 0 0 3px rgb(255 255 255 / 14%); outline: none; }
-	.config-fields input::placeholder { color: var(--muted); }
-	.groups { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-	.groups .group { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-	nav {
-		border-right: 1px solid var(--border);
-		overflow-y: auto;
-		padding: 14px 12px;
-		/* The menu scrolls, but never shows a permanent scrollbar. */
-		scrollbar-width: none;
-	}
-	nav::-webkit-scrollbar { display: none; }
-	nav h1 {
-		font-size: 15px;
-		font-family: var(--font-mono);
-		margin: 4px 8px 18px;
-		cursor: pointer;
-	}
-	/* The same two-tone logo as the cli: bold AWS in the brand orange,
-	   LESS dimmed, the command muted. */
-	nav h1 .logo { color: var(--accent); font-weight: bold; }
-	nav h1 .logo .dim { color: #a35d00; }
-	nav h1 .cmd { color: var(--muted); font-weight: normal; }
-	nav h3 {
-		font-size: 10px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
-		margin: 18px 8px 6px;
-	}
-	nav button {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		width: 100%;
-		background: none;
-		border: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 13.5px;
-		padding: 6px 8px;
-		border-radius: 6px;
-		cursor: pointer;
-	}
-	nav button .count { margin-left: auto; font-size: 12px; }
-	nav button.reseed { margin-top: auto; color: var(--muted); }
-	nav button.reseed:disabled { cursor: default; }
-	.icon {
-		width: 15px;
-		height: 15px;
-		flex-shrink: 0;
-		display: inline-flex;
-		color: var(--muted);
-		transition: color 0.15s ease;
-	}
-	.icon svg { width: 100%; height: 100%; }
-	nav button.active .icon, .row:hover .icon { color: var(--accent); }
-	main h2 { display: flex; align-items: center; gap: 9px; }
-	main h2 .icon { width: 18px; height: 18px; }
-	nav button:hover { background: var(--hover); color: var(--text); }
-	nav button.active { background: var(--hover); color: var(--text); }
-	nav button .count { color: var(--muted); }
-	main { padding: 24px 28px; overflow-y: auto; }
-	main h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-	main .detail { color: var(--muted); margin-bottom: 16px; word-break: break-all; font-size: 13px; }
-	main .back {
-		display: inline-block;
-		background: none;
-		border: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 13px;
-		padding: 0;
-		margin-bottom: 12px;
-		cursor: pointer;
-	}
-	main .back:hover { color: var(--text); }
-	main h3 {
-		font-size: 11px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
-		margin: 26px 0 8px;
-	}
-	.feed .row { cursor: default; }
-	.feed .empty { padding: 8px; }
-	.filters { display: flex; gap: 8px; margin-bottom: 12px; }
-	.filters input, .filters select {
-		background: var(--panel);
-		color: var(--text);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 6px 10px;
-		font: inherit;
-	}
-	.filters input:hover, .filters select:hover { border-color: var(--border-strong); }
-	.filters input:focus, .filters select:focus {
-		border-color: #5b6272;
-		box-shadow: 0 0 0 3px rgb(255 255 255 / 14%);
-		outline: none;
-	}
-	.filters input { flex: 1; }
-	.filters input::placeholder { color: var(--muted); }
-	.filters .count { color: var(--muted); align-self: center; white-space: nowrap; font-size: 13px; }
-	/* The stack & name columns share one grid across every row, so the
-	   names line up no matter how long each stack name is. */
-	.rows { display: grid; grid-template-columns: fit-content(280px) 1fr auto; }
-	.rows > .empty { grid-column: 1 / -1; }
-	.row {
-		display: grid;
-		grid-template-columns: subgrid;
-		grid-column: 1 / -1;
-		gap: 12px;
-		align-items: baseline;
-		text-align: left;
-		background: none;
-		border: none;
-		color: var(--text);
-		font: inherit;
-		padding: 9px 10px;
-		cursor: pointer;
-		border-radius: 8px;
-		position: relative;
-		transition: background 0.15s ease;
-	}
-	/* The separator is its own straight hairline instead of a border,
-	   so the rounded hover highlight never bends the line at the ends. */
-	.row::after {
-		content: '';
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		height: 1px;
-		background: var(--border);
-	}
-	.row:last-child::after { display: none; }
-	.row:hover { background: var(--hover); }
-	a.row { text-decoration: none; }
-	.health { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
-	.health .chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		background: var(--panel);
-		border: 1px solid var(--border);
-		border-radius: 999px;
-		padding: 4px 12px;
-		font-size: 12px;
-		font-family: var(--font-mono);
-	}
-	.health .dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: var(--good);
-		flex-shrink: 0;
-	}
-	.health .chip.down { border-color: rgb(255 97 102 / 45%); background: rgb(255 97 102 / 8%); }
-	.health .chip.down .dot { background: var(--bad); }
-	.health .chip .detail-text { color: var(--muted); }
-	.home-cols {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-		gap: 0 20px;
-		align-items: start;
-	}
-	.logs .route.link { cursor: pointer; }
-	.logs .route.link:hover { text-decoration: underline; }
-	.logs .took { color: var(--muted); margin-left: auto; flex-shrink: 0; }
-	.logs .payload {
-		color: var(--muted);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	/* Hovering an entry unfolds its payload in place, fully wrapped. */
-	.logs .entry:hover .payload {
-		white-space: pre-wrap;
-		overflow: visible;
-		word-break: break-word;
-	}
-	/* The trace chip appears once a dispatch has trace siblings & opens
-	   the trace tree of the whole request chain. */
-	.logs .trace-link {
-		color: var(--accent);
-		cursor: pointer;
-		flex-shrink: 0;
-	}
-	.logs .trace-link:hover { text-decoration: underline; }
-	.overlay {
-		position: fixed;
-		inset: 0;
-		background: rgb(0 0 0 / 60%);
-		backdrop-filter: blur(6px);
-		-webkit-backdrop-filter: blur(6px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 50;
-	}
-	.overlay .modal {
-		background: var(--panel);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 12px 48px rgb(0 0 0 / 60%);
-		width: min(760px, 92vw);
-		max-height: 82vh;
-		overflow-y: auto;
-		padding: 18px 22px;
-	}
-	.overlay .modal-head { display: flex; align-items: baseline; gap: 10px; }
-	.overlay .modal-head h3 { margin: 0; font-family: var(--font-mono); }
-	.overlay .modal-head .detail { color: var(--muted); font-size: 12px; }
-	.overlay .modal-head button {
-		margin-left: auto;
-		background: none;
-		border: none;
-		color: var(--muted);
-		font-size: 16px;
-		cursor: pointer;
-		border-radius: 6px;
-		padding: 2px 8px;
-	}
-	.overlay .modal-head button:hover { color: var(--text); background: var(--hover); }
-	/* The tree rows reuse the log entry format, the guide marks the
-	   parent-child steps of the chain. */
-	.trace-tree { max-height: none; }
-	.trace-tree .entry .guide { color: var(--muted); flex-shrink: 0; }
-	.row.problem .id { color: var(--bad); }
-	.empty.good { color: var(--good); }
-	.row .stack {
-		color: var(--muted);
-		min-width: 90px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-family: var(--font-mono);
-		font-size: 12.5px;
-	}
-	.row .id {
-		font-weight: 500;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-family: var(--font-mono);
-		font-size: 12.5px;
-	}
-	.row .info {
-		color: var(--muted);
-		justify-self: end;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		max-width: 100%;
-		font-size: 12.5px;
-	}
-	.email-body {
-		width: 100%;
-		min-height: 480px;
-		background: #fff;
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		margin-top: 12px;
-	}
-	textarea {
-		width: 100%;
-		min-height: 120px;
-		background: var(--panel);
-		color: var(--text);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 12px;
-		font-family: var(--font-mono);
-		font-size: 12.5px;
-		resize: vertical;
-	}
-	textarea:hover { border-color: var(--border-strong); }
-	textarea:focus { border-color: #5b6272; box-shadow: 0 0 0 3px rgb(255 255 255 / 14%); outline: none; }
-	.actions { margin: 12px 0; display: flex; gap: 8px; align-items: center; }
-	.actions .status { color: var(--muted); font-size: 13px; }
-	/* Action buttons in the x.ai style: white pill primary, outlined
-	   ghost secondary. */
-	button.primary {
-		background: #fff;
-		color: #0a0a0a;
-		border: none;
-		border-radius: 999px;
-		padding: 7px 18px;
-		font: inherit;
-		font-weight: 500;
-		cursor: pointer;
-	}
-	button.primary:hover { background: #d9d9de; }
-	button.primary:disabled { opacity: 0.5; cursor: wait; }
-	button.secondary {
-		background: transparent;
-		color: var(--text);
-		border: 1px solid var(--border-strong);
-		border-radius: 999px;
-		padding: 6px 18px;
-		font: inherit;
-		cursor: pointer;
-	}
-	button.secondary:hover { background: var(--hover); border-color: #3d3d44; }
-	pre.result {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 12px 14px;
-		overflow-x: auto;
-		white-space: pre-wrap;
-		word-break: break-word;
-		font-family: var(--font-mono);
-		font-size: 12.5px;
-	}
-	pre.result.error { border-color: rgb(255 97 102 / 45%); color: var(--bad); }
-	/* Tables in the vercel style: horizontal hairlines only, quiet
-	   uppercase headers. */
-	table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: 12.5px; }
-	th, td {
-		border-bottom: 1px solid var(--border);
-		padding: 8px 12px;
-		text-align: left;
-		vertical-align: top;
-		max-width: 360px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	th {
-		color: var(--muted);
-		font-weight: 500;
-		font-family: var(--font-sans);
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-	}
-	tbody tr { transition: background 0.15s ease; }
-	tbody tr:hover { background: var(--hover); }
-	td:hover { white-space: normal; word-break: break-all; }
-	.empty { color: var(--muted); }
+:root {
+	--bg: hsl(220 20% 5% / 1);
+	--panel: hsl(220 20% 8%);
+	--hover: hsl(220 20% 12%);
+	--border: hsl(220 18% 15%);
+	--border-strong: hsl(220 16% 22%);
+	--text: #ecedf2;
+	--muted: #8b90a1;
+	--accent: #ff9000;
+	--good: #3dd68c;
+	--bad: #ff6166;
+	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Helvetica, Arial, sans-serif;
+	--font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 14px;
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+::selection { background: rgb(255 144 0 / 25%); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 10%); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 18%); }
+:focus-visible { outline: 2px solid rgb(255 144 0 / 55%); outline-offset: 1px; }
+body {
+	margin: 0;
+	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
+	background: var(--bg);
+	color: var(--text);
+	display: grid;
+	grid-template-columns: 232px 1fr;
+	height: 100vh;
+}
+body.with-events { grid-template-columns: 232px 1fr 320px; }
+button { transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
+input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+aside {
+	border-left: 1px solid var(--border);
+	overflow-y: auto;
+	padding: 12px;
+}
+aside h3 {
+	font-size: 10px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--muted);
+	margin: 8px 8px 12px;
+}
+aside .event {
+	border-bottom: 1px solid var(--border);
+	padding: 8px;
+	font-size: 12px;
+	font-family: var(--font-mono);
+}
+aside .event:last-child { border-bottom: none; }
+aside .event .head { display: flex; gap: 8px; align-items: baseline; }
+aside .event .time { color: var(--muted); }
+aside .event .topic { font-weight: 600; }
+aside .event .type { color: var(--muted); }
+aside .event .body {
+	color: var(--muted);
+	margin-top: 4px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+/* Hovering an event unfolds its payload in place, fully wrapped -
+   the same behavior as the activity feed. */
+aside .event:hover .body {
+	white-space: pre-wrap;
+	overflow: visible;
+	word-break: break-word;
+}
+aside .empty { padding: 8px; }
+.logs {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 10px 12px;
+	margin-top: 8px;
+	max-height: 420px;
+	overflow-y: auto;
+	font-size: 12px;
+	font-family: var(--font-mono);
+}
+.logs .line { display: flex; gap: 8px; padding: 1px 0; }
+.logs .time { color: var(--muted); flex-shrink: 0; }
+.logs .route { color: var(--accent); word-break: break-all; }
+.logs .text { white-space: pre-wrap; word-break: break-word; }
+.logs .line.error .text, .logs .entry.error .text { color: var(--bad); }
+.logs .entry { padding: 6px 0; }
+.logs .entry + .entry, .logs .line + .entry, .logs .entry + .line { border-top: 1px solid var(--border); }
+.logs .entry .meta { display: flex; gap: 8px; margin-bottom: 2px; }
+/* Every group is its own card, with a shared grid inside: the name
+   column grows to the longest name (capped), so nothing truncates &
+   the inputs line up. */
+.config-form { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin-top: 14px; }
+.config-group {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 16px 18px;
+}
+.config-group h3 { margin: 0 0 12px; }
+.config-fields {
+	display: grid;
+	grid-template-columns: fit-content(340px) 1fr;
+	gap: 10px 16px;
+	align-items: center;
+}
+.config-fields .field { display: contents; }
+.config-fields .name { color: var(--muted); overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 12.5px; }
+.config-fields input {
+	background: var(--bg);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 6px 10px;
+	font: inherit;
+}
+.config-fields input:hover { border-color: var(--border-strong); }
+.config-fields input:focus { border-color: #5b6272; box-shadow: 0 0 0 3px rgb(255 255 255 / 14%); outline: none; }
+.config-fields input::placeholder { color: var(--muted); }
+.groups { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.groups .group { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+nav {
+	border-right: 1px solid var(--border);
+	overflow-y: auto;
+	padding: 14px 12px;
+	/* The menu scrolls, but never shows a permanent scrollbar. */
+	scrollbar-width: none;
+}
+nav::-webkit-scrollbar { display: none; }
+nav h1 {
+	font-size: 15px;
+	font-family: var(--font-mono);
+	margin: 4px 8px 18px;
+	cursor: pointer;
+}
+/* The same two-tone logo as the cli: bold AWS in the brand orange,
+   LESS dimmed, the command muted. */
+nav h1 .logo { color: var(--accent); font-weight: bold; }
+nav h1 .logo .dim { color: #a35d00; }
+nav h1 .cmd { color: var(--muted); font-weight: normal; }
+nav h3 {
+	font-size: 10px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--muted);
+	margin: 18px 8px 6px;
+}
+nav button {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	width: 100%;
+	background: none;
+	border: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 13.5px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+nav button .count { margin-left: auto; font-size: 12px; }
+nav button.reseed { margin-top: auto; color: var(--muted); }
+nav button.reseed:disabled { cursor: default; }
+.icon {
+	width: 15px;
+	height: 15px;
+	flex-shrink: 0;
+	display: inline-flex;
+	color: var(--muted);
+	transition: color 0.15s ease;
+}
+.icon svg { width: 100%; height: 100%; }
+nav button.active .icon, .row:hover .icon { color: var(--accent); }
+main h2 { display: flex; align-items: center; gap: 9px; }
+main h2 .icon { width: 18px; height: 18px; }
+nav button:hover { background: var(--hover); color: var(--text); }
+nav button.active { background: var(--hover); color: var(--text); }
+nav button .count { color: var(--muted); }
+main { padding: 24px 28px; overflow-y: auto; }
+main h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+main .detail { color: var(--muted); margin-bottom: 16px; word-break: break-all; font-size: 13px; }
+main .back {
+	display: inline-block;
+	background: none;
+	border: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 13px;
+	padding: 0;
+	margin-bottom: 12px;
+	cursor: pointer;
+}
+main .back:hover { color: var(--text); }
+main h3 {
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--muted);
+	margin: 26px 0 8px;
+}
+.feed .row { cursor: default; }
+.feed .empty { padding: 8px; }
+.filters { display: flex; gap: 8px; margin-bottom: 12px; }
+.filters input, .filters select {
+	background: var(--panel);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 6px 10px;
+	font: inherit;
+}
+.filters input:hover, .filters select:hover { border-color: var(--border-strong); }
+.filters input:focus, .filters select:focus {
+	border-color: #5b6272;
+	box-shadow: 0 0 0 3px rgb(255 255 255 / 14%);
+	outline: none;
+}
+.filters input { flex: 1; }
+.filters input::placeholder { color: var(--muted); }
+.filters .count { color: var(--muted); align-self: center; white-space: nowrap; font-size: 13px; }
+/* The stack & name columns share one grid across every row, so the
+   names line up no matter how long each stack name is. */
+.rows { display: grid; grid-template-columns: fit-content(280px) 1fr auto; }
+.rows > .empty { grid-column: 1 / -1; }
+.row {
+	display: grid;
+	grid-template-columns: subgrid;
+	grid-column: 1 / -1;
+	gap: 12px;
+	align-items: baseline;
+	text-align: left;
+	background: none;
+	border: none;
+	color: var(--text);
+	font: inherit;
+	padding: 9px 10px;
+	cursor: pointer;
+	border-radius: 8px;
+	position: relative;
+	transition: background 0.15s ease;
+}
+/* The separator is its own straight hairline instead of a border,
+   so the rounded hover highlight never bends the line at the ends. */
+.row::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 1px;
+	background: var(--border);
+}
+.row:last-child::after { display: none; }
+.row:hover { background: var(--hover); }
+a.row { text-decoration: none; }
+.health { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
+.health .chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-family: var(--font-mono);
+}
+.health .dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--good);
+	flex-shrink: 0;
+}
+.health .chip.down { border-color: rgb(255 97 102 / 45%); background: rgb(255 97 102 / 8%); }
+.health .chip.down .dot { background: var(--bad); }
+.health .chip .detail-text { color: var(--muted); }
+.home-cols {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+	gap: 0 20px;
+	align-items: start;
+}
+.logs .route.link { cursor: pointer; }
+.logs .route.link:hover { text-decoration: underline; }
+.logs .took { color: var(--muted); margin-left: auto; flex-shrink: 0; }
+.logs .payload {
+	color: var(--muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+/* Hovering an entry unfolds its payload in place, fully wrapped. */
+.logs .entry:hover .payload {
+	white-space: pre-wrap;
+	overflow: visible;
+	word-break: break-word;
+}
+/* The trace chip appears once a dispatch has trace siblings & opens
+   the trace tree of the whole request chain. */
+.logs .trace-link {
+	color: var(--accent);
+	cursor: pointer;
+	flex-shrink: 0;
+}
+.logs .trace-link:hover { text-decoration: underline; }
+.overlay {
+	position: fixed;
+	inset: 0;
+	background: rgb(0 0 0 / 60%);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 50;
+}
+.overlay .modal {
+	background: var(--panel);
+	border: 1px solid var(--border-strong);
+	border-radius: 12px;
+	box-shadow: 0 12px 48px rgb(0 0 0 / 60%);
+	width: min(760px, 92vw);
+	max-height: 82vh;
+	overflow-y: auto;
+	padding: 18px 22px;
+}
+.overlay .modal-head { display: flex; align-items: baseline; gap: 10px; }
+.overlay .modal-head h3 { margin: 0; font-family: var(--font-mono); }
+.overlay .modal-head .detail { color: var(--muted); font-size: 12px; }
+.overlay .modal-head button {
+	margin-left: auto;
+	background: none;
+	border: none;
+	color: var(--muted);
+	font-size: 16px;
+	cursor: pointer;
+	border-radius: 6px;
+	padding: 2px 8px;
+}
+.overlay .modal-head button:hover { color: var(--text); background: var(--hover); }
+/* The tree rows reuse the log entry format, the guide marks the
+   parent-child steps of the chain. */
+.trace-tree { max-height: none; }
+.trace-tree .entry .guide { color: var(--muted); flex-shrink: 0; }
+.row.problem .id { color: var(--bad); }
+.empty.good { color: var(--good); }
+.row .stack {
+	color: var(--muted);
+	min-width: 90px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+}
+.row .id {
+	font-weight: 500;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+}
+.row .info {
+	color: var(--muted);
+	justify-self: end;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+	font-size: 12.5px;
+}
+.email-body {
+	width: 100%;
+	min-height: 480px;
+	background: #fff;
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	margin-top: 12px;
+}
+textarea {
+	width: 100%;
+	min-height: 120px;
+	background: var(--panel);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 12px;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+	resize: vertical;
+}
+textarea:hover { border-color: var(--border-strong); }
+textarea:focus { border-color: #5b6272; box-shadow: 0 0 0 3px rgb(255 255 255 / 14%); outline: none; }
+.actions { margin: 12px 0; display: flex; gap: 8px; align-items: center; }
+.actions .status { color: var(--muted); font-size: 13px; }
+/* Action buttons in the x.ai style: white pill primary, outlined
+   ghost secondary. */
+button.primary {
+	background: #fff;
+	color: #0a0a0a;
+	border: none;
+	border-radius: 999px;
+	padding: 7px 18px;
+	font: inherit;
+	font-weight: 500;
+	cursor: pointer;
+}
+button.primary:hover { background: #d9d9de; }
+button.primary:disabled { opacity: 0.5; cursor: wait; }
+button.secondary {
+	background: transparent;
+	color: var(--text);
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+	padding: 6px 18px;
+	font: inherit;
+	cursor: pointer;
+}
+button.secondary:hover { background: var(--hover); border-color: #3d3d44; }
+pre.result {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: 12px 14px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+}
+pre.result.error { border-color: rgb(255 97 102 / 45%); color: var(--bad); }
+/* Tables in the vercel style: horizontal hairlines only, quiet
+   uppercase headers. */
+table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: 12.5px; }
+th, td {
+	border-bottom: 1px solid var(--border);
+	padding: 8px 12px;
+	text-align: left;
+	vertical-align: top;
+	max-width: 360px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+th {
+	color: var(--muted);
+	font-weight: 500;
+	font-family: var(--font-sans);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+tbody tr { transition: background 0.15s ease; }
+tbody tr:hover { background: var(--hover); }
+td:hover { white-space: normal; word-break: break-all; }
+.empty { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -496,6 +497,30 @@ const api = async (path, options) => {
 	const data = await res.json()
 	if (!res.ok) throw new Error(data.error ?? res.statusText)
 	return data
+}
+
+// One event stream per view, carrying every channel the view shows:
+// the browser caps the connections per host, so a view opening a
+// stream per feed would stall the other dashboard tabs.
+const openEvents = (...channels) => {
+	const listeners = new Map()
+	const query = channels.map(channel => 'channel=' + encodeURIComponent(channel)).join('&')
+	const source = new EventSource('/api/events?' + query)
+
+	source.onmessage = message => {
+		try {
+			const { channel, data } = JSON.parse(message.data)
+			listeners.get(channel)?.forEach(listener => listener(data))
+		} catch (_) {}
+	}
+
+	return {
+		on(channel, listener) {
+			if (!listeners.has(channel)) listeners.set(channel, new Set())
+			listeners.get(channel).add(listener)
+		},
+		close: () => source.close(),
+	}
 }
 
 const GROUPS = [
@@ -940,7 +965,7 @@ const routeTag = route => {
 	return tag
 }
 
-const attachLogFeed = (main, channel, route, title = 'Logs') => {
+const attachLogFeed = (main, channel, route, title = 'Logs', shared) => {
 	if (title) {
 		main.append($('h3', {}, title))
 	}
@@ -948,11 +973,9 @@ const attachLogFeed = (main, channel, route, title = 'Logs') => {
 	const feed = $('div', { className: 'logs' }, $('p', { className: 'empty' }, 'Waiting for output...'))
 	main.append(feed)
 
-	const source = new EventSource('/api/events?channel=' + encodeURIComponent(channel))
+	const events = shared ?? openEvents(channel)
 
-	source.onmessage = message => {
-		const data = JSON.parse(message.data)
-
+	events.on(channel, data => {
 		// A route filter shows only the lines of one resource, like the
 		// function panel showing its own console output.
 		if (route && data.route !== route) {
@@ -988,9 +1011,12 @@ const attachLogFeed = (main, channel, route, title = 'Logs') => {
 		}
 
 		feed.scrollTop = feed.scrollHeight
-	}
+	})
 
-	return () => source.close()
+	// A shared stream closes with the view that opened it.
+	return () => {
+		if (!shared) events.close()
+	}
 }
 
 // ------------------------------------------------------------------
@@ -1007,11 +1033,9 @@ const showEventsFeed = channel => {
 	aside.hidden = false
 	feed.innerHTML = '<p class="empty">Waiting for events...</p>'
 
-	const source = new EventSource('/api/events?channel=' + encodeURIComponent(channel))
+	const events = openEvents(channel)
 
-	source.onmessage = message => {
-		const data = JSON.parse(message.data)
-
+	events.on(channel, data => {
 		feed.querySelector('.empty')?.remove()
 		feed.prepend($('div', { className: 'event' }, [
 			$('div', { className: 'head' }, [
@@ -1028,10 +1052,10 @@ const showEventsFeed = channel => {
 		while (feed.children.length > 25) {
 			feed.lastChild.remove()
 		}
-	}
+	})
 
 	return () => {
-		source.close()
+		events.close()
 		aside.hidden = true
 		document.body.classList.remove('with-events')
 	}
@@ -1240,7 +1264,7 @@ const alertPanel = async (main) => {
 			row.onclick = () => {
 				holder.innerHTML = ''
 
-				const back = $('button', { className: 'back', textContent: '\u2190 Alerts' })
+				const back = $('button', { className: 'back', textContent: '← Alerts' })
 				back.onclick = render
 
 				let message = alert.message ?? '(no payload)'
@@ -1251,7 +1275,7 @@ const alertPanel = async (main) => {
 				holder.append(
 					back,
 					$('h2', {}, alert.subject ?? '(no subject)'),
-					$('p', { className: 'detail' }, alert.alert + ' \u00b7 ' + new Date(alert.date).toLocaleString()),
+					$('p', { className: 'detail' }, alert.alert + ' · ' + new Date(alert.date).toLocaleString()),
 					$('pre', { className: 'result' }, message),
 				)
 			}
@@ -1657,13 +1681,12 @@ const renderList = main => {
 	// The worker page streams the bundle worker output directly,
 	// instead of listing its single resource.
 	if (view.kind === 'worker') {
-		const workerFeed = attachLogFeed(main, 'worker', undefined, 'Worker output')
-		const debugFeed = attachLogFeed(main, 'debug', undefined, 'Dev server')
+		const events = openEvents('worker', 'debug')
 
-		cleanupPanel = () => {
-			workerFeed?.()
-			debugFeed?.()
-		}
+		attachLogFeed(main, 'worker', undefined, 'Worker output', events)
+		attachLogFeed(main, 'debug', undefined, 'Dev server', events)
+
+		cleanupPanel = () => events.close()
 		return
 	}
 
@@ -1853,6 +1876,7 @@ const timeAgo = ms => {
 
 const renderHome = main => {
 	const session = state.session ?? {}
+	const events = openEvents('health', 'problems', 'activity', 'worker')
 
 	const uptime = $('span', {}, '')
 	const updateUptime = () => {
@@ -1865,7 +1889,7 @@ const renderHome = main => {
 		$('h2', {}, state.app),
 		$('p', { className: 'detail' }, [
 			uptime,
-			session.workers ? ' \\u00b7 ' + session.workers + ' workers' : '',
+			session.workers ? ' · ' + session.workers + ' workers' : '',
 		]),
 	)
 
@@ -1889,18 +1913,13 @@ const renderHome = main => {
 		chip.append(
 			$('span', { className: 'dot' }),
 			entry.id,
-			entry.detail ? $('span', { className: 'detail-text' }, '\u00b7 ' + entry.detail) : '',
+			entry.detail ? $('span', { className: 'detail-text' }, '· ' + entry.detail) : '',
 		)
 	}
 
 	for (const entry of state.health ?? []) renderChip(entry)
 
-	const healthSource = new EventSource('/api/events?channel=health')
-	healthSource.onmessage = message => {
-		try {
-			renderChip(JSON.parse(message.data))
-		} catch (_) {}
-	}
+	events.on('health', renderChip)
 
 	if ((state.health ?? []).length > 0) {
 		main.append(chips)
@@ -1940,7 +1959,7 @@ const renderHome = main => {
 		calm.hidden = true
 
 		const row = $('button', { className: 'row problem' }, [
-			$('span', { className: 'stack' }, new Date(data.date).toLocaleTimeString() + ' \\u00b7 ' + data.kind),
+			$('span', { className: 'stack' }, new Date(data.date).toLocaleTimeString() + ' · ' + data.kind),
 			$('span', { className: 'id' }, data.title ?? ''),
 			$('span', { className: 'info' }, (data.detail ?? '').slice(0, 120)),
 		])
@@ -1963,12 +1982,7 @@ const renderHome = main => {
 		}
 	}
 
-	const problemSource = new EventSource('/api/events?channel=problems')
-	problemSource.onmessage = message => {
-		try {
-			problemRow(JSON.parse(message.data))
-		} catch (_) {}
-	}
+	events.on('problems', problemRow)
 
 	// ----------------------------------------------------------------
 	// Activity: every dispatch through the bundle, newest first.
@@ -2020,7 +2034,7 @@ const renderHome = main => {
 		const roots = entries.filter(entry => !entry.parent || !spans.has(entry.parent))
 
 		const renderSpan = (entry, depth) => {
-			const guide = $('span', { className: 'guide' }, '\\u2514')
+			const guide = $('span', { className: 'guide' }, '└')
 			guide.style.paddingLeft = ((depth - 1) * 18) + 'px'
 
 			tree.append($('div', { className: 'entry' + (entry.ok ? '' : ' error') }, [
@@ -2028,7 +2042,7 @@ const renderHome = main => {
 					depth > 0 ? guide : '',
 					$('span', { className: 'time' }, new Date(entry.date).toLocaleTimeString()),
 					routeTag(entry.route),
-					$('span', { className: 'took' }, (entry.ok ? '' : '\\u2717 ') + entry.ms + 'ms'),
+					$('span', { className: 'took' }, (entry.ok ? '' : '✗ ') + entry.ms + 'ms'),
 				]),
 				entry.ok ? '' : $('div', { className: 'text', title: entry.error ?? '' }, entry.error ?? 'failed'),
 				entry.payload ? $('div', { className: 'payload' }, entry.payload) : '',
@@ -2043,12 +2057,12 @@ const renderHome = main => {
 			renderSpan(root, 0)
 		}
 
-		const close = $('button', { title: 'Close' }, '\\u2715')
+		const close = $('button', { title: 'Close' }, '✕')
 		const overlay = $('div', { className: 'overlay' }, $('div', { className: 'modal' }, [
 			$('div', { className: 'modal-head' }, [
 				$('h3', {}, 'Trace ' + traceId),
 				$('span', { className: 'detail' },
-					entries.length + ' spans \\u00b7 ' + (ended - started) + 'ms' + (failed ? ' \\u00b7 failed' : '')),
+					entries.length + ' spans · ' + (ended - started) + 'ms' + (failed ? ' · failed' : '')),
 				close,
 			]),
 			tree,
@@ -2094,7 +2108,7 @@ const renderHome = main => {
 			$('div', { className: 'meta' }, [
 				$('span', { className: 'time' }, new Date(data.date).toLocaleTimeString()),
 				routeTag(data.route),
-				$('span', { className: 'took' }, (data.ok ? '' : '\\u2717 ') + data.ms + 'ms'),
+				$('span', { className: 'took' }, (data.ok ? '' : '✗ ') + data.ms + 'ms'),
 			]),
 			data.ok ? '' : $('div', { className: 'text', title: data.error ?? '' }, data.error ?? 'failed'),
 			data.payload ? $('div', { className: 'payload' }, data.payload) : '',
@@ -2118,26 +2132,18 @@ const renderHome = main => {
 		activityFeed.scrollTop = activityFeed.scrollHeight
 	}
 
-	const activitySource = new EventSource('/api/events?channel=activity')
-	activitySource.onmessage = message => {
-		try {
-			activityRow(JSON.parse(message.data))
-		} catch (_) {}
-	}
+	events.on('activity', activityRow)
 
 	// ----------------------------------------------------------------
 	// Logs: the handlers' own console output, live - the full feed
 	// (incl. the dev server stream) lives on the Logs tab.
 
-	const logsFeed = attachLogFeed(logsCol, 'worker', undefined, 'Logs')
+	attachLogFeed(logsCol, 'worker', undefined, 'Logs', events)
 
 	cleanupPanel = () => {
 		clearInterval(uptimeTimer)
 		closeTrace()
-		healthSource.close()
-		problemSource.close()
-		activitySource.close()
-		logsFeed?.()
+		events.close()
 	}
 }
 

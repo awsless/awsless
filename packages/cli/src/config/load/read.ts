@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
+import JSON5 from 'json5'
 import { debug } from '../../cli/debug.js'
 import { color } from '../../cli/ui/style.js'
 import { FileError } from '../../error.js'
@@ -10,7 +11,7 @@ import { validateConfig } from './validate.js'
 export const readConfig = async (file: string) => {
 	try {
 		const json = await readFile(file, 'utf8')
-		const data = Bun.JSON5.parse(json) as object
+		const data = JSON5.parse(json) as object
 
 		return data
 	} catch (error) {

@@ -25,6 +25,8 @@ export { ExpectedError } from './errors/expected'
 export { isErrorResponse, toErrorResponse, type ErrorResponse } from './errors/response'
 // client
 export { lambdaClient } from './helpers/client'
+// env
+export { isTestEnv } from './helpers/env'
 // mock
 export { mockLambda } from './helpers/mock'
 export { lambda, type LambdaFunction, type LambdaFactory } from './lambda'

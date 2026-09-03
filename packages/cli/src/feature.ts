@@ -8,9 +8,6 @@ import { StackConfig } from './config/stack.js'
 import { SharedData } from './shared.js'
 import { TypeFile } from './type-gen/file.js'
 
-// type RegisterPolicy = (policy: aws.iam.RolePolicy) => void
-// type RegisterFunction = (lambda: aws.lambda.Function) => void
-// type RegisterSiteFunction = (lambda: aws.lambda.Function) => void
 type RegisterCommand = (command: Command) => void
 
 type RegisterBuild = (
@@ -23,32 +20,10 @@ type RegisterBuild = (
 type RegisterConfig = (name: string) => void
 
 type RegisterTest = (name: string, paths: string[]) => void
-// type BindEnv = (name: string, value: Input<string>) => void
-
-// export type EnvStore = {
-// 	bind: (name: string, value: Input<string>) => void
-
-// 	set: (name: string, value: Input<string>) => void
-// 	get: (name: string) => Input<string> | undefined
-// 	all(): Record<string, Input<string>>
-// }
 
 export type AddEnv = (name: string, value: Input<string>) => void
 export type OnEnv = (cb: OnEnvListener) => void
 export type OnEnvListener = (name: string, value: Input<string>) => void
-
-// export type OnFunction = (callback: OnFunctionListener) => void
-// export type OnFunctionListener = (lambda: aws.lambda.Function) => void
-
-// const lol: Statement = {
-// 	Effect: 'Allow',
-// 	""
-// 	'Condition': {
-// 		'Statement': {
-
-// 		}
-// 	}
-// }
 
 export type Permission = {
 	effect?: 'allow' | 'deny'
@@ -57,15 +32,8 @@ export type Permission = {
 	conditions?: unknown
 }
 
-export type OnPermission = (callback: OnPermissionCallback) => void
-export type OnPermissionCallback = (statement: Permission) => void
-
-// export type OnPolicy = (callback: OnPolicyListener) => void
-// export type OnPolicyListener = (policy: aws.iam.RolePolicy) => void
-
-// export type Event = 'after-build' | 'before-build' | 'ready'
-
-// export type OnEvent = (event: Event, callback)
+export type OnPermission = (listener: PermissionListener) => void
+export type PermissionListener = (permission: Permission) => void
 
 export type OnReady = (callback: OnReadyListener) => void
 export type OnReadyListener = () => void
@@ -101,17 +69,10 @@ export type BeforeContext = {
 }
 
 export type AppContext = BeforeContext & {
-	// registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerConfig: RegisterConfig
 	registerCommand: RegisterCommand
 	registerDomainZone: (zone: aws.route53.Zone) => void
-
-	// registerPolicy: RegisterPolicy
-	// registerFunction: RegisterFunction
-	// registerSiteFunction: RegisterSiteFunction
-
-	// env: EnvStore
 
 	bind: AddEnv
 	onBind: OnEnv
@@ -122,23 +83,8 @@ export type AppContext = BeforeContext & {
 	onReady: OnReady
 	onReadyLast: OnReady
 
-	// onEvent: OnEvent
-
-	// bindEnv: BindEnv
-	// setEnv:
-	// listEnvs:
-
-	// onFunction: OnFunction
-	// onGlobalPolicy: OnPolicy
-	// onAppPolicy: OnPolicy
-
-	// onGlobalPermission: OnPermission
-	// onAppPermission: OnPermission
-
 	onPermission: OnPermission
-	addPermission: OnPermissionCallback
-
-	// onEnv: (envVars: Record<string, Input<string>>) => void
+	addPermission: (permission: Permission) => void
 }
 
 export type TypeGenContext = {

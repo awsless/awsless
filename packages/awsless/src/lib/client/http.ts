@@ -121,29 +121,3 @@ export const createHttpClient = <S extends Schema>(fetcher: HttpFetcher) => {
 		},
 	}
 }
-
-// const http = createHttpClient<{
-// 	GET: {
-// 		'/dice': {
-// 			response: string
-// 		}
-// 	}
-// 	POST: {
-// 		'/blaze/{id}': {
-// 			param: {
-// 				id: string | number
-// 			}
-// 			response: number
-// 		}
-// 	}
-// }>(createHttpFetcher('https://api.com'))
-
-// const response = await http.get('/dice', {})
-// const response2 = await http.post('/blaze/{id}', { params: { id: 1 } })
-// const response3 = await http.post('/blaze/{id}', { params: { id: 2 } })
-
-// const result = await http.fetch('GET', '/dice')
-// result.at(0)
-
-// type Reduce<T> = T extends { response: any } ? T['response'] : never
-// type Obj = Reduce<{ response: string } | { other: number }>

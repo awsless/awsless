@@ -10,9 +10,9 @@ import {
 } from '@aws-sdk/client-lambda'
 import { createCustomProvider, createCustomResourceClass, Input, OptionalOutput, Output } from '@terraforge/core'
 import { z } from 'zod'
-import { Region } from '../config/schema/region'
-import { Credentials, isError } from '../util/aws'
-import { getLambdaAlias, LIVE_LAMBDA_ALIAS } from '../util/lambda'
+import { Region } from '../config/schema/region.js'
+import { Credentials, isError } from '../util/aws.js'
+import { getLambdaAlias, LIVE_LAMBDA_ALIAS } from '../util/lambda.js'
 
 // Every deployment tags the published version of a lambda with an
 // immutable alias named after the deployment id. The alias carries

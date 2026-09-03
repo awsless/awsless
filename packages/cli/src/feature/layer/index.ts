@@ -4,23 +4,9 @@ import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { LayerProps } from './schema.js'
-// import { FileError } from '../../error.js'
-// import { StackConfig } from '../../config/stack.js'
 
 export const layerFeature = defineFeature({
 	name: 'layer',
-	// onValidate(ctx) {
-	// 	const layers = Object.keys(ctx.appConfig.layers ?? [])
-
-	// 	for (const stack of ctx.stackConfigs) {
-	// 		const stackLayers = stackSearch<string[]>(stack, 'layers').flat()
-	// 		for (const layer of stackLayers) {
-	// 			if (!layers.includes(layer)) {
-	// 				throw new FileError(stack.file, `Layer "${layer}" is not defined in app.json`)
-	// 			}
-	// 		}
-	// 	}
-	// },
 	onApp(ctx) {
 		const layers = Object.entries(ctx.appConfig.layers ?? {})
 

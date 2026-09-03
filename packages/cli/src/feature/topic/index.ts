@@ -6,6 +6,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { plainTestMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -29,13 +30,7 @@ type Publish<Name extends string> = {
 	readonly define: <S extends GenericSchema>(schema: S) => TopicPublisher<Name, S>
 }
 
-type MockHandle = (payload: unknown) => void
-type MockBuilder = (handle?: MockHandle) => void
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry = MockBuilder & Mock<(payload: unknown) => unknown>
-`
+${plainTestMockTypes()}`
 
 export const topicFeature = defineFeature({
 	name: 'topic',

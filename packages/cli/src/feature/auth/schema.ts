@@ -1,44 +1,6 @@
 import { z } from 'zod'
-// import { FunctionSchema } from '../function/schema.js'
 import { DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-// import { EmailSchema } from '../../config/schema/email.js'
-
-// const TriggersSchema = z
-// 	.object({
-// 		beforeToken: FunctionSchema.optional().describe('A pre jwt token generation AWS Lambda trigger.'),
-
-// 		beforeLogin: FunctionSchema.optional().describe('A pre user login AWS Lambda trigger.'),
-// 		afterLogin: FunctionSchema.optional().describe('A post user login AWS Lambda trigger.'),
-
-// 		beforeRegister: FunctionSchema.optional().describe('A pre user register AWS Lambda trigger.'),
-// 		afterRegister: FunctionSchema.optional().describe('A post user register AWS Lambda trigger.'),
-
-// 		customMessage: FunctionSchema.optional().describe('A custom message AWS Lambda trigger.'),
-
-// 		// /** A custom email sender AWS Lambda trigger */
-// 		// emailSender: FunctionSchema.optional(),
-
-// 		defineChallenge: FunctionSchema.optional().describe('Defines the authentication challenge.'),
-// 		createChallenge: FunctionSchema.optional().describe('Creates an authentication challenge.'),
-// 		verifyChallenge: FunctionSchema.optional().describe('Verifies the authentication challenge response.'),
-// 	})
-// 	.describe('Specifies the configuration for AWS Lambda triggers.')
-
-// export const AuthSchema = z
-// 	.record(
-// 		ResourceIdSchema,
-// 		z.object({
-// 			access: z
-// 				.boolean()
-// 				.default(false)
-// 				.describe('Give access to every function in this stack to your cognito instance.'),
-
-// 			triggers: TriggersSchema.optional(),
-// 		})
-// 	)
-// 	.optional()
-// 	.describe('Define the auth triggers in your stack.')
 
 export const AuthDefaultSchema = z
 	.record(
@@ -49,19 +11,6 @@ export const AuthDefaultSchema = z
 				.default(true)
 				.describe('Specifies whether users can create an user account or if only the administrator can.'),
 
-			// messaging: z
-			// 	.object({
-			// 		fromEmail: EmailSchema.describe("Specifies the sender's email address."),
-			// 		fromName: z.string().optional().describe("Specifies the sender's name."),
-			// 		replyTo: EmailSchema.optional().describe(
-			// 			'The destination to which the receiver of the email should reply.'
-			// 		),
-			// 	})
-			// 	.optional()
-			// 	.describe('The email configuration for sending messages.'),
-
-			// secret: z.boolean().default(false).describe('Specifies whether you want to generate a client secret.'),
-
 			groups: z
 				//
 				.string()
@@ -71,7 +20,6 @@ export const AuthDefaultSchema = z
 
 			username: z
 				.object({
-					// emailAlias: z.boolean().default(true).describe('Allow the user email to be used as username.'),
 					caseSensitive: z
 						.boolean()
 						.default(false)
@@ -134,7 +82,6 @@ export const AuthDefaultSchema = z
 				.prefault({})
 				.describe('Specifies the validity duration for every JWT token.'),
 
-			// triggers: TriggersSchema.optional(),
 		})
 	)
 	.default({})

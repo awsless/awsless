@@ -18,6 +18,14 @@ type SearchIndex = {
 }
 `
 
+export const formatCollectionName = (appName: string) => {
+	return `${appName}-${shortId([appName, 'search', 'main'].join('--'))}`
+}
+
+export const formatFunctionsPolicyName = (collectionName: string) => {
+	return `${collectionName}-functions`
+}
+
 export const searchFeature = defineFeature({
 	name: 'search',
 	onDev: searchOnDev,
@@ -53,9 +61,8 @@ export const searchFeature = defineFeature({
 		}
 
 		const group = new Group(ctx.base, 'search', 'main')
-		const name = `${ctx.app.name}-${shortId([ctx.app.name, 'search', 'main'].join('--'))}`
+		const name = formatCollectionName(ctx.app.name)
 		const props = ctx.appConfig.search
-		// const retainOnDelete = ctx.appConfig.removal === 'retain'
 
 		// The deploy assumes this role to manage the indexes, so
 		// deployers only need sts:AssumeRole instead of a principal
@@ -161,7 +168,7 @@ export const searchFeature = defineFeature({
 			const roles = ctx.shared.list('function', 'role')
 
 			new aws.opensearchserverless.AccessPolicy(group, 'access-functions', {
-				name: `${name}-functions`,
+				name: formatFunctionsPolicyName(name),
 				type: 'data',
 				policy: $combine(...roles.map(role => role.arn)).pipe(dataAccessPolicy),
 			})
@@ -187,7 +194,6 @@ export const searchFeature = defineFeature({
 				],
 			},
 			{
-				// retainOnDelete,
 				replaceOnChanges: ['name', 'generation'],
 			}
 		)
@@ -246,7 +252,6 @@ export const searchFeature = defineFeature({
 					settings: JSON.stringify(props.settings ?? {}),
 				},
 				{
-					// retainOnDelete: ctx.appConfig.removal === 'retain',
 					replaceOnChanges: ['endpoint', 'index'],
 				}
 			)

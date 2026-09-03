@@ -11,7 +11,7 @@ export const push = (program: Command) => {
 		.command('push')
 		.description('Push the local state to the remote server')
 		.action(async () => {
-			await layout('state pull', async ({ appConfig, stackConfigs }) => {
+			await layout('state push', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
 				const credentials = await getCredentials(profile)

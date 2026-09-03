@@ -1,4 +1,4 @@
-export declare const onFailureBucketName: string;
-export declare const onFailureQueueName: string;
-export declare const onFailureBucketArn: string;
-export declare const onFailureQueueArn: string;
+export declare const getOnFailureBucketName: () => string;
+export declare const getOnFailureQueueName: () => string;
+export declare const getOnFailureBucketArn: () => string;
+export declare const getOnFailureQueueArn: () => string;

@@ -18,9 +18,13 @@ type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 };
 export declare const invokeBundle: ({ routeKey, payload, ...options }: InvokeBundleProps) => Promise<unknown>;
 export type InternalInvoke = (routeKey: string, payload: unknown) => Promise<unknown>;
+export type BundleRouteOptions = {
+    throwExpectedErrors?: boolean;
+};
 export declare const isInsideBundle: () => boolean;
 export declare const getCurrentRoute: () => string | undefined;
-export declare const withBundleRouteContext: <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T) => T;
+export declare const shouldThrowExpectedErrors: () => boolean;
+export declare const withBundleRouteContext: <T>(routeKey: string, internalInvoke: InternalInvoke, callback: () => T, options?: BundleRouteOptions) => T;
 export declare const internalInvoke: (routeKey: string, payload: unknown) => Promise<unknown>;
 export declare const setBundleRoutes: (routes: string[]) => void;
 export declare const hasBundleRoute: (routeKey: string) => boolean;

@@ -3,19 +3,31 @@ import { join } from 'path'
 import { directories } from '../util/path.js'
 
 // Debug logs always write to a plain text log file, so the terminal
-// ui stays clean & the last run stays inspectable after a crash. The
-// file truncates at the start of every run.
-export const debugLogFile = join(directories.output, 'debug.log')
+// ui stays clean & the last run stays inspectable after a crash.
+// The file lives in the project's .awsless folder, which is only known
+// once the app config has been located. Lines written before that wait
+// in memory, so a run outside a project leaves no stray folder behind.
+let file: string | undefined
+let pending: string[] = []
 
-let ready = false
+// The log file of the current run, once it has been opened.
+export const debugLogFile = () => file
 
-// Called at the start of every cli run, so the file only ever holds
-// the current run.
-export const clearDebugLog = () => {
+// Called once the project root is known. The file truncates, so it
+// only ever holds the current run.
+export const openDebugLog = () => {
+	if (file) {
+		return
+	}
+
 	try {
+		const path = join(directories.output, 'debug.log')
+
 		mkdirSync(directories.output, { recursive: true })
-		writeFileSync(debugLogFile, '')
-		ready = true
+		writeFileSync(path, pending.join(''))
+
+		pending = []
+		file = path
 	} catch {
 		// Debug logging must never take down the cli.
 	}
@@ -30,12 +42,15 @@ export const setDebugSink = (listener?: (type: string, message: string) => void)
 }
 
 const write = (type: string, message: string) => {
+	const line = `${new Date().toISOString()} [${type}] ${message}\n`
+
 	try {
-		if (!ready) {
-			clearDebugLog()
+		if (file) {
+			appendFileSync(file, line)
+		} else {
+			pending.push(line)
 		}
 
-		appendFileSync(debugLogFile, `${new Date().toISOString()} [${type}] ${message}\n`)
 		sink?.(type, message)
 	} catch {
 		// Debug logging must never take down the cli.

@@ -1,3 +1,4 @@
+import { CloudFrontClient, DescribeKeyValueStoreCommand as DescribeStoreCommand } from '@aws-sdk/client-cloudfront'
 import {
 	CloudFrontKeyValueStoreClient,
 	DescribeKeyValueStoreCommand,
@@ -6,6 +7,9 @@ import {
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import {
 	CreateAliasCommand,
+	DeleteAliasCommand,
+	DeleteFunctionEventInvokeConfigCommand,
+	DeleteFunctionUrlConfigCommand,
 	GetAliasCommand,
 	GetFunctionCommand,
 	LambdaClient,
@@ -14,15 +18,20 @@ import {
 	ListVersionsByFunctionCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
+import { STSClient } from '@aws-sdk/client-sts'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { subHours } from 'date-fns'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { AppConfig } from '../src/config/app'
+import { clearAwsCache } from '../src/util/aws'
 import {
 	claimDeployment,
 	Deployment,
 	isDeploymentBusy,
+	listDeployments,
 	preflightDeployment,
 	previousDeploymentId,
+	promoteAppDeployment,
 	promoteDeployment,
 	readDeployedFunctionVersions,
 	selectPrunableDeployments,
@@ -55,9 +64,13 @@ const seedRow = (row: Partial<Deployment> & { branch: string; seq: number }): De
 	...row,
 })
 
+type Alias = { FunctionVersion: string; Description: string }
+
 const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, string[]> = {}) => {
 	const manifest = new Map<string, Record<string, unknown>>(rows.map(row => [row.id, { ...row }]))
 	const stores = new Map<string, Map<string, string>>()
+	// The stand-alone functions next to the bundle, with their aliases.
+	const functions = new Map<string, Map<string, Alias>>()
 	let live: { FunctionVersion: string; Description: string } | undefined = {
 		FunctionVersion: '1',
 		Description: 'main-1',
@@ -67,6 +80,7 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 	let failMarkPromoted = false
 	let missingVersion = false
 	let raceFirstClaim = false
+	let missingTable = false
 	let aliasUpdates = 0
 
 	const getStore = (arn: string) => {
@@ -88,6 +102,10 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		}
 
 		if (name === 'QueryCommand') {
+			if (missingTable) {
+				throw notFound('ResourceNotFoundException')
+			}
+
 			const values = Object.values(input.ExpressionAttributeValues ?? {}).map(value => fromAttr(value as Attr))
 			const prefix = values.find(value => typeof value === 'string' && value.endsWith('-')) as string | undefined
 			let items = [...manifest.values()].toSorted((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -100,7 +118,19 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 				items.reverse()
 			}
 
-			return { Items: items.slice(0, input.Limit ?? 100).map(toItem) }
+			// Pages like dynamodb: the last key of a full page comes back
+			// as LastEvaluatedKey & the next query starts after it.
+			const limit = input.Limit ?? 100
+			const start = input.ExclusiveStartKey
+				? items.findIndex(item => item.id === fromAttr(input.ExclusiveStartKey.id)) + 1
+				: 0
+			const page = items.slice(start, start + limit)
+			const more = start + limit < items.length
+
+			return {
+				Items: page.map(toItem),
+				LastEvaluatedKey: more ? { appId: toAttr(appId), id: toAttr(page.at(-1)!.id) } : undefined,
+			}
 		}
 
 		if (name === 'PutItemCommand') {
@@ -154,6 +184,23 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		throw new Error(`Unexpected DynamoDB command: ${name}`)
 	})
 
+	vi.spyOn(STSClient.prototype, 'send').mockImplementation(async () => ({ Account: '123456789012' }))
+
+	// The store of a router resolves by name & only exists once seeded.
+	vi.spyOn(CloudFrontClient.prototype, 'send').mockImplementation(async (command: any) => {
+		if (command instanceof DescribeStoreCommand) {
+			const arn = `arn:aws:cloudfront::123456789012:key-value-store/${command.input.Name}`
+
+			if (!stores.has(arn)) {
+				throw notFound('EntityNotFound')
+			}
+
+			return { KeyValueStore: { Name: command.input.Name, ARN: arn } }
+		}
+
+		throw new Error(`Unexpected CloudFront command: ${command.constructor.name}`)
+	})
+
 	vi.spyOn(CloudFrontKeyValueStoreClient.prototype, 'send').mockImplementation(async (command: any) => {
 		if (command instanceof GetKeyCommand) {
 			const value = getStore(command.input.KvsARN!).get(command.input.Key!)
@@ -191,12 +238,34 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 	})
 
 	vi.spyOn(LambdaClient.prototype, 'send').mockImplementation(async (command: any) => {
+		const aliases = functions.get(command.input?.FunctionName)
+
 		if (command instanceof GetAliasCommand) {
+			if (aliases) {
+				const alias = aliases.get(command.input.Name!)
+
+				if (!alias) {
+					throw notFound()
+				}
+
+				return alias
+			}
+
 			if (command.input.Name === 'live' && live) {
 				return live
 			}
 
 			throw notFound()
+		}
+
+		if (command instanceof DeleteFunctionUrlConfigCommand || command instanceof DeleteFunctionEventInvokeConfigCommand) {
+			throw notFound()
+		}
+
+		if (command instanceof DeleteAliasCommand) {
+			aliases?.delete(command.input.Name!)
+
+			return {}
 		}
 
 		if (command instanceof ListVersionsByFunctionCommand) {
@@ -210,7 +279,7 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		}
 
 		if (command instanceof ListFunctionsCommand) {
-			return { Functions: [{ FunctionName: functionName }] }
+			return { Functions: [functionName, ...functions.keys()].map(FunctionName => ({ FunctionName })) }
 		}
 
 		if (command instanceof GetFunctionCommand) {
@@ -222,6 +291,19 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		}
 
 		if (command instanceof UpdateAliasCommand) {
+			if (aliases) {
+				if (!aliases.has(command.input.Name!)) {
+					throw notFound()
+				}
+
+				aliases.set(command.input.Name!, {
+					FunctionVersion: command.input.FunctionVersion!,
+					Description: command.input.Description!,
+				})
+
+				return {}
+			}
+
 			if (command.input.Name === 'live') {
 				aliasUpdates += 1
 
@@ -244,6 +326,15 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		}
 
 		if (command instanceof CreateAliasCommand) {
+			if (aliases) {
+				aliases.set(command.input.Name!, {
+					FunctionVersion: command.input.FunctionVersion!,
+					Description: command.input.Description!,
+				})
+
+				return {}
+			}
+
 			if (command.input.Name === 'live') {
 				aliasUpdates += 1
 				live = {
@@ -261,6 +352,10 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 	return {
 		manifest,
 		stores,
+		functions,
+		addFunction(name: string, aliases: Record<string, Alias>) {
+			functions.set(name, new Map(Object.entries(aliases)))
+		},
 		get alias() {
 			return live
 		},
@@ -281,6 +376,9 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 		},
 		setRaceFirstClaim() {
 			raceFirstClaim = true
+		},
+		setMissingTable() {
+			missingTable = true
 		},
 		removeAlias() {
 			live = undefined
@@ -312,8 +410,8 @@ const clients = () => ({
 	functionName,
 })
 
-const seedStore = (stores: Map<string, Map<string, string>>) => {
-	const arn = `arn:aws:cloudfront::123456789012:key-value-store/store`
+const seedStore = (stores: Map<string, Map<string, string>>, name = 'store') => {
+	const arn = `arn:aws:cloudfront::123456789012:key-value-store/${name}`
 	stores.set(
 		arn,
 		new Map([
@@ -381,6 +479,17 @@ describe('prune selection', () => {
 		const prunable = selectPrunableDeployments(items, undefined, { ...options, branch: 'feat' })
 
 		expect(prunable.map(item => item.id)).toEqual(['feat-1'])
+	})
+
+	it('should honour --keep when pruning the main branch', () => {
+		const items = [
+			build({ id: 'main-1', functionVersion: '1' }),
+			build({ id: 'main-2', seq: 2, functionVersion: '2' }),
+			build({ id: 'main-3', seq: 3, functionVersion: '3' }),
+		]
+		const prunable = selectPrunableDeployments(items, undefined, { ...options, keep: 2, branch: 'main' })
+
+		expect(prunable.map(item => item.id)).toEqual(['main-1'])
 	})
 
 	it('should keep the live deployment & the rollback target', () => {
@@ -487,6 +596,84 @@ describe('deployment claims', () => {
 	})
 })
 
+describe('deployment listing', () => {
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it('should follow the pages of a long manifest', async () => {
+		const rows = Array.from({ length: 150 }, (_, index) =>
+			seedRow({ branch: 'main', seq: index + 1, createdAt: new Date(index * 1000).toISOString() })
+		)
+		mockAws(rows)
+		const { dynamo } = clients()
+
+		const items = await listDeployments(dynamo, appId)
+
+		expect(items).toHaveLength(150)
+		expect(items[0]?.seq).toBe(150)
+
+		const queries = vi.mocked(DynamoDBClient.prototype.send).mock.calls.map(([command]) => (command as any).input)
+
+		expect(queries.length).toBeGreaterThanOrEqual(2)
+		expect(queries[0].ExclusiveStartKey).toBeUndefined()
+		expect(queries[1].ExclusiveStartKey).toBeDefined()
+	})
+
+	it('should treat a missing manifest table as empty', async () => {
+		const aws = mockAws(seedManifest())
+		aws.setMissingTable()
+
+		await expect(listDeployments(clients().dynamo, appId)).resolves.toEqual([])
+	})
+})
+
+describe('deployment activation', () => {
+	const appConfig = {
+		name: 'app',
+		region: 'us-east-1',
+		profile: 'test',
+		router: { main: {} },
+	} as unknown as AppConfig
+
+	afterEach(() => {
+		vi.restoreAllMocks()
+		clearAwsCache()
+	})
+
+	// The activation resolves its own clients, so the credentials come
+	// from the environment instead of the keychain.
+	process.env.AWS_ACCESS_KEY_ID = 'test'
+	process.env.AWS_SECRET_ACCESS_KEY = 'test'
+
+	it('should refuse to activate when the router store was never deployed', async () => {
+		mockAws(seedManifest())
+
+		await expect(promoteAppDeployment({ appConfig, id: 'main-2' })).rejects.toThrow(
+			`The "main" router hasn't been deployed yet`
+		)
+	})
+
+	it('should refuse to activate a deployment the router store never staged', async () => {
+		const aws = mockAws(seedManifest())
+		seedStore(aws.stores, 'app--router--main')
+
+		await expect(promoteAppDeployment({ appConfig, id: 'main-3' })).rejects.toThrow(
+			`Deployment "main-3" doesn't exist for the "main" router`
+		)
+	})
+
+	it('should switch the router store of every router to the deployment', async () => {
+		const aws = mockAws(seedManifest())
+		const store = seedStore(aws.stores, 'app--router--main')
+
+		await expect(promoteAppDeployment({ appConfig, id: 'main-2' })).resolves.toBe('main-2')
+
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('bbbbbbbb:main-2')
+		expect(aws.alias?.FunctionVersion).toBe('2')
+	})
+})
+
 describe('deployment promotion', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
@@ -584,6 +771,45 @@ describe('deployment promotion', () => {
 		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:main-1')
 		expect(aws.alias?.FunctionVersion).toBe('1')
 		expect(aws.manifest.get('main-2')?.promotedAt).toBeUndefined()
+	})
+
+	it('should restore the live aliases of the other functions after a failure', async () => {
+		const aws = mockAws(seedManifest())
+		const ssr = 'app--stack--function--ssr'
+		aws.addFunction(ssr, {
+			live: { FunctionVersion: '4', Description: 'main-1' },
+			'main-2': { FunctionVersion: '5', Description: '' },
+		})
+		aws.setFailMarkPromoted()
+
+		await expect(
+			promoteDeployment({
+				...clients(),
+				id: 'main-2',
+			})
+		).rejects.toThrow('Manifest update failed')
+
+		expect(aws.functions.get(ssr)?.get('live')).toEqual({ FunctionVersion: '4', Description: 'main-1' })
+		expect(aws.alias?.FunctionVersion).toBe('1')
+	})
+
+	it('should delete the live aliases it created after a failure', async () => {
+		const aws = mockAws(seedManifest())
+		const ssr = 'app--stack--function--ssr'
+		aws.addFunction(ssr, {
+			'main-2': { FunctionVersion: '5', Description: '' },
+		})
+		aws.setFailMarkPromoted()
+
+		await expect(
+			promoteDeployment({
+				...clients(),
+				id: 'main-2',
+			})
+		).rejects.toThrow('Manifest update failed')
+
+		expect(aws.functions.get(ssr)?.has('live')).toBe(false)
+		expect(aws.alias?.FunctionVersion).toBe('1')
 	})
 
 	it('should reject a stale async-only promotion', async () => {

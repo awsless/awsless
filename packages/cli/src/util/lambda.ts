@@ -10,7 +10,7 @@ import {
 	ListVersionsByFunctionCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
-import { isError } from './aws'
+import { isError } from './aws.js'
 
 // ------------------------------------------------------------
 // Alias naming contract

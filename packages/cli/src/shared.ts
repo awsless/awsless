@@ -1,9 +1,9 @@
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
-import { Permission } from './feature'
-import { BucketLifecycleRule } from './feature/asset/index'
-import { BundleHandler } from './feature/bundle/util'
-import { Route } from './feature/router/route'
+import { Permission } from './feature.js'
+import { BucketLifecycleRule } from './feature/asset/index.js'
+import { BundleHandler } from './feature/bundle/util.js'
+import { Route } from './feature/router/route.js'
 
 type SharedState = {
 	vpc: {

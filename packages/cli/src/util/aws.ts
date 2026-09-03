@@ -18,21 +18,57 @@ const hasRuntimeAwsCredentials = () =>
 		process.env.AWS_WEB_IDENTITY_TOKEN_FILE
 	)
 
-export const getCredentials = async (profile: string): Promise<Credentials> => {
-	if (hasRuntimeAwsCredentials()) {
-		return fromNodeProviderChain()
+// Fetching credentials can prompt & the account lookup is an STS
+// call, so both are memoized per process: a command fetches them once
+// up front & the locked deploy path reuses the same objects.
+const credentialCache = new Map<string, Promise<Credentials>>()
+const accountCache = new WeakMap<Credentials, Map<string, Promise<string>>>()
+
+const memoize = <K, V>(cache: Map<K, Promise<V>>, key: K, load: () => Promise<V>) => {
+	let pending = cache.get(key)
+
+	if (!pending) {
+		pending = load()
+		cache.set(key, pending)
+
+		// A failed lookup must not poison the next attempt.
+		pending.catch(() => cache.delete(key))
 	}
 
-	const credentials = await fetchCredentials(profile)
+	return pending
+}
 
-	return createCredentialChain(async () => {
-		return credentials
+export const getCredentials = (profile: string): Promise<Credentials> => {
+	return memoize(credentialCache, profile, async () => {
+		if (hasRuntimeAwsCredentials()) {
+			return fromNodeProviderChain()
+		}
+
+		const credentials = await fetchCredentials(profile)
+
+		return createCredentialChain(async () => {
+			return credentials
+		})
 	})
 }
 
-export const getAccountId = async (credentials: Credentials, region: Region): Promise<string> => {
-	const client = new STSClient({ credentials, region })
-	const result = await client.send(new GetCallerIdentityCommand({}))
+export const getAccountId = (credentials: Credentials, region: Region): Promise<string> => {
+	let regions = accountCache.get(credentials)
 
-	return result.Account!
+	if (!regions) {
+		regions = new Map()
+		accountCache.set(credentials, regions)
+	}
+
+	return memoize(regions, region, async () => {
+		const client = new STSClient({ credentials, region })
+		const result = await client.send(new GetCallerIdentityCommand({}))
+
+		return result.Account!
+	})
+}
+
+// Test hook, so every test starts without a remembered session.
+export const clearAwsCache = () => {
+	credentialCache.clear()
 }

@@ -1,21 +1,24 @@
+import { isTestEnv } from '@awsless/lambda'
 import { kebabCase } from 'change-case'
 import { getCurrentRoute } from './bundle.js'
 
-export const APP = process.env.APP!
-export const APP_ID = process.env.APP_ID!
-export const IS_TEST = !!process.env['VITEST'] || process.env['NODE_ENV'] === 'test'
+// The app env is read lazily: the CLI `run` command imports this
+// module before it knows the app config & sets the env vars afterwards.
+export const getApp = () => process.env.APP!
+export const getAppId = () => process.env.APP_ID!
+export const getRegion = () => process.env.AWS_REGION!
+export const getAccountId = () => process.env.AWS_ACCOUNT_ID!
+
+export const IS_TEST = isTestEnv()
 // Local dev mode (`awsless dev`) is a third mode, separate from IS_TEST:
 // tests bypass bundle routing to keep name-keyed mocks working, while local
 // dev keeps the production code paths and redirects the AWS boundary instead.
 export const IS_LOCAL = process.env.AWSLESS_ENV === 'local'
-export const REGION = process.env.AWS_REGION!
-export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID!
-export const STACK = process.env.STACK!
 
 // One bundled lambda process hosts every stack, so the active route
 // is only known while a request is being handled, not at startup.
 export const getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE
-export const getStack = () => getRoute()?.split(':')[0] ?? STACK
+export const getStack = () => getRoute()?.split(':')[0] ?? process.env.STACK!
 
 export const formatResourceName = (opt: {
 	prefix?: string
@@ -28,9 +31,7 @@ export const formatResourceName = (opt: {
 	return [
 		//
 		opt.prefix,
-		// Read lazily: the CLI `run` command imports this module before it
-		// knows the app config, then sets process.env.APP afterwards.
-		process.env.APP,
+		getApp(),
 		opt.stackName,
 		opt.resourceType,
 		opt.resourceName,
@@ -50,7 +51,7 @@ export const bindLocalResourceName = <T extends string>(resourceType: T) => {
 			stackName,
 			resourceType,
 			resourceName,
-		}) as `${typeof APP}--${S}--${T}--${N}`
+		}) as `${string}--${S}--${T}--${N}`
 	}
 }
 
@@ -59,6 +60,6 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		return formatResourceName({
 			resourceType,
 			resourceName,
-		}) as `${typeof APP}--${T}--${N}`
+		}) as `${string}--${T}--${N}`
 	}
 }

@@ -9,38 +9,22 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { funcType, invokeTypes, testMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
 import { InvokeOptions } from '@awsless/lambda'
 import type { Mock } from 'vitest'
 
-type Func = (...args: any[]) => any
+${funcType}
 
 type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'qualifier' | 'reflectViewableErrors'> & {
 	schedule?: Duration | Date
 }
-
-type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
-
-type InvokeWithPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload: Parameters<F>[0], options?: Options): Promise<void>
-}
-
-type InvokeWithoutPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload?: Parameters<F>[0], options?: Options): Promise<void>
-}
-
-type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>
-type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
-type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
-`
+${invokeTypes({ returns: 'Promise<void>', options: 'Options' })}${testMockTypes({
+	// A schedule records on its own spy before the task runs.
+	members: 'readonly scheduled: MockBuilder<F> & MockObject<F>',
+})}`
 
 export const taskFeature = defineFeature({
 	name: 'task',
@@ -199,11 +183,8 @@ export const taskFeature = defineFeature({
 			}
 		)
 
-		// role.arn.pipe(console.log)
-
 		ctx.addPermission({
 			actions: ['scheduler:CreateSchedule'],
-			// resources: [`arn:aws:scheduler:*:*:schedule:${ctx.appConfig.name}--*`],
 			resources: [`arn:aws:scheduler:*:*:schedule/${scheduleGroupName}/*`],
 		})
 
@@ -211,13 +192,6 @@ export const taskFeature = defineFeature({
 			actions: ['iam:PassRole'],
 			resources: [role.arn],
 		})
-
-		// arn:aws:scheduler:us-east-1:468004125411:schedule/app-jack-next--task--group/278058c5-301b-4b62-8d75-a4dacb8cd6a
-
-		// console.log();
-
-		// ctx.addEnv('TASK_SCHEDULE_GROUP', scheduleGroup.name)
-		// ctx.addEnv('TASK_SCHEDULE_ROLE', scheduleRole.arn)
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {

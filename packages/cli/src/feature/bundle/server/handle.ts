@@ -66,9 +66,6 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	]
 
 	const matchRoute = (event: BundleEvent) => {
-		// Expected errors start disabled on every dispatch & only the matched route can enable them.
-		delete process.env.THROW_EXPECTED_ERRORS
-
 		for (const matcher of matchers) {
 			const match = matcher(event, routes)
 
@@ -108,21 +105,27 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 
 			process.env.AWSLESS_ROUTE = match.key
 
-			return withBundleRouteContext(match.key, internalInvoke, async () => {
-				const handle = await load()
+			// The expected error mode rides on the route context, so
+			// concurrent routes in one process never share a global flag.
+			return withBundleRouteContext(
+				match.key,
+				internalInvoke,
+				async () => {
+					const handle = await load()
 
-				// The route on the context ends up in error logs, so log
-				// consumers can attribute an error to a logical resource
-				// instead of the shared bundle function.
-				const routedContext: RoutedLambdaContext = { ...context, route: match.key }
+					// The route on the context ends up in error logs, so log
+					// consumers can attribute an error to a logical resource
+					// instead of the shared bundle function.
+					const routedContext: RoutedLambdaContext = { ...context, route: match.key }
 
-				return handle(match.payload ?? {}, routedContext)
-			})
+					return handle(match.payload ?? {}, routedContext)
+				},
+				{ throwExpectedErrors: match.throwExpectedErrors }
+			)
 		}
 
 		const internalInvoke = async (key: string, payload: unknown) => {
 			const caller = getCurrentRoute()
-			const throwExpectedErrors = process.env.THROW_EXPECTED_ERRORS
 			let result
 
 			try {
@@ -137,12 +140,6 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				// Restore the caller's route env, since the caller keeps running after the nested call.
 				if (caller) {
 					process.env.AWSLESS_ROUTE = caller
-
-					if (throwExpectedErrors) {
-						process.env.THROW_EXPECTED_ERRORS = throwExpectedErrors
-					} else {
-						delete process.env.THROW_EXPECTED_ERRORS
-					}
 				}
 			}
 

@@ -2,7 +2,7 @@ import { ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { IncomingMessage, Server } from 'http'
 import { createServer, Socket } from 'net'
-import { join } from 'path'
+import { basename, join, sep } from 'path'
 import { DevTrace } from '../feature.js'
 import { directories } from '../util/path.js'
 import { killTree } from './children.js'
@@ -39,6 +39,24 @@ if (typeof Bun === 'undefined') {
 
 export const watchdogPath = () => {
 	return join(directories.output, 'local', WATCHDOG_FILE)
+}
+
+// The folders the source watcher never looks into. Mirrors the config
+// watcher's list in config/load/watch.ts, which isn't exported.
+export const IGNORED_DIRECTORIES = new Set(['node_modules', '.awsless', 'dist', '.git'])
+
+export const isIgnoredPath = (path: string) => {
+	return path.split(sep).some(segment => IGNORED_DIRECTORIES.has(segment))
+}
+
+// The config file names the loader accepts (app.json{,c,5}, stack.*
+// and *.stack.*), mirroring the rule of the config watcher: a save of
+// one of these restarts the whole environment, so the source watcher
+// must leave them alone.
+export const isConfigFile = (path: string) => {
+	const base = basename(path)
+
+	return /^app\.(json|jsonc|json5)$/.test(base) || /(^|\.)stack\.(json|jsonc|json5)$/.test(base)
 }
 
 // The request header carrying the active trace out of the bundle

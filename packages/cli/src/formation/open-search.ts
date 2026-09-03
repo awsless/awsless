@@ -4,8 +4,8 @@ import { Client } from '@opensearch-project/opensearch'
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import { z } from 'zod'
-import { Region } from '../config/schema/region'
-import { Credentials } from '../util/aws'
+import { Region } from '../config/schema/region.js'
+import { Credentials } from '../util/aws.js'
 
 type SearchIndexInput = {
 	endpoint: Input<string>

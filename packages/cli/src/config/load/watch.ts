@@ -6,7 +6,7 @@ import { validateFeatures } from '../../feature/validate.js'
 import { directories } from '../../util/path.js'
 import { AppConfig } from '../app.js'
 import { StackConfig } from '../stack.js'
-import { loadAppConfig, loadStackConfigs } from './load.js'
+import { loadAppConfig, loadStackConfigs, resolveProjectRoot } from './load.js'
 
 const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
 
@@ -21,7 +21,8 @@ export const watchConfig = async (
 	resolve: (event: { appConfig: AppConfig; stackConfigs: StackConfig[] }) => void,
 	reject: (error: unknown) => void
 ) => {
-	await loadAppConfig(options)
+	// The watcher needs the project root before any config is loaded.
+	await resolveProjectRoot(options)
 
 	debug('Start watching...')
 

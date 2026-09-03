@@ -1,6 +1,6 @@
-import { basename, dirname, join } from 'path'
+import { basename, dirname, join, resolve } from 'path'
 import { glob } from 'glob'
-import { debug } from '../../cli/debug.js'
+import { debug, openDebugLog } from '../../cli/debug.js'
 import { ProgramOptions } from '../../cli/program.js'
 import { color } from '../../cli/ui/style.js'
 import { directories, findRootDir, setRoot } from '../../util/path.js'
@@ -10,10 +10,12 @@ import { StackConfig, StackSchema } from '../stack.js'
 import { readConfigWithStage } from './read.js'
 import { validateConfig } from './validate.js'
 
-export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig> => {
+// Locates the project by its app config file & points every project
+// relative path at it. Returns the app config file that was found.
+export const resolveProjectRoot = async (options: ProgramOptions) => {
 	debug('Find the root directory')
 
-	const cwd = options.configFile ? dirname(join(process.cwd(), options.configFile)) : process.cwd()
+	const cwd = options.configFile ? dirname(resolve(options.configFile)) : process.cwd()
 
 	const configFileOptions = options.configFile
 		? [basename(options.configFile)]
@@ -23,8 +25,16 @@ export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig>
 
 	setRoot(root)
 	setLocalBasePath(root)
+	openDebugLog()
 
 	debug('CWD:', color.info(root))
+
+	return appFileName
+}
+
+export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig> => {
+	const appFileName = await resolveProjectRoot(options)
+
 	debug('Load app config file')
 
 	const appConfig = await readConfigWithStage(appFileName, options.stage)
@@ -35,13 +45,6 @@ export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig>
 
 	app.stage = options.stage
 
-	// debug('Load credentials', style.info(app.profile))
-	// const credentials = getCredentials(app.profile)
-
-	// debug('Load AWS account ID')
-	// const account = await getAccountId(credentials, app.region)
-	// debug('Account ID:', style.info(account))
-
 	return app
 }
 
@@ -49,12 +52,6 @@ export const loadStackConfigs = async (options: ProgramOptions) => {
 	debug('Load stacks config files')
 
 	const ext = '{json,jsonc,json5}'
-
-	// const glob = new Bun.Glob(`**/{stack.${ext},*.stack.${ext}}`);
-	// glob.scan({
-	// 	''
-	// 	'cwd': directories.root,
-	// })
 
 	const stackFiles = await glob([`**/stack.${ext}`, `**/*.stack.${ext}`], {
 		ignore: ['**/node_modules/**', '**/dist/**'],

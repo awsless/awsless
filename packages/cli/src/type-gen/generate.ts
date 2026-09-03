@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'fs/promises'
+import { mkdir, rm, writeFile } from 'fs/promises'
 import { dirname, join, relative } from 'path'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
@@ -29,8 +29,19 @@ export const generateTypes = async (props: { appConfig: AppConfig; stackConfigs:
 		})
 	)
 
+	const referenceFile = join(directories.root, 'awsless.d.ts')
+
+	// The features write in parallel, so the collected order is random -
+	// sorted, the file only changes when the types do.
 	if (files.length) {
-		const code = files.map(file => `/// <reference path='${file}' />`).join('\n')
-		await writeFile(join(directories.root, `awsless.d.ts`), code)
+		const code = files
+			.toSorted()
+			.map(file => `/// <reference path='${file}' />`)
+			.join('\n')
+
+		await writeFile(referenceFile, code)
+	} else {
+		// A stale reference file would point at types that no longer exist.
+		await rm(referenceFile, { force: true })
 	}
 }

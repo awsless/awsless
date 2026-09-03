@@ -6,4 +6,4 @@ export declare const queue: <S extends GenericSchema, H extends Handler<SqsQueue
     Records: {
         body: string | import("valibot").InferInput<S>;
     }[];
-} | import("valibot").InferInput<S>, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
+} | import("valibot").InferInput<S>, context?: import("@awsless/lambda").LambdaContext) => Promise<Awaited<ReturnType<H>>>;

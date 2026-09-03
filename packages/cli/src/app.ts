@@ -1,13 +1,10 @@
-// import { createDeploymentLine } from './util/deployment.js'
-// import { debug } from './cli/logger.js'
-// import { style } from './cli/style.js'
 import { aws } from '@terraforge/aws'
 import { App, Input, Stack } from '@terraforge/core'
 import { Builder } from './build/index.js'
 import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
 import { StackConfig } from './config/stack.js'
-import { OnEnvListener, OnPermissionCallback, OnReadyListener, Permission } from './feature.js'
+import { AppContext, BeforeContext, OnReadyListener, Permission, StackContext } from './feature.js'
 import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
 import { generateGlobalAppId } from './util/name.js'
@@ -49,15 +46,55 @@ export type BindEnv = {
 	value: Input<string>
 }
 
+// Values & their listeners meet through a channel, so whichever side
+// registers later still sees everything: a permission or env added
+// from a ready listener isn't lost.
+const createChannel = <T extends unknown[]>() => {
+	const values: T[] = []
+	const listeners: ((...value: T) => void)[] = []
+	let open = false
+
+	return {
+		add: (...value: T) => {
+			values.push(value)
+
+			if (open) {
+				for (const listener of listeners) {
+					listener(...value)
+				}
+			}
+		},
+		listen: (listener: (...value: T) => void) => {
+			listeners.push(listener)
+
+			if (open) {
+				for (const value of values) {
+					listener(...value)
+				}
+			}
+		},
+		// Delivery only starts once every feature has registered, so
+		// listeners see the complete set instead of a piecemeal one.
+		open: () => {
+			if (open) {
+				return
+			}
+
+			open = true
+
+			for (const listener of listeners) {
+				for (const value of values) {
+					listener(...value)
+				}
+			}
+		},
+	}
+}
+
 export const createApp = (props: CreateAppProps) => {
 	const app = new App(props.appConfig.name)
-	// app.setTag('app', app.name)
-
 	const zones = new Stack(app, 'zones')
-	// zones.setTag('stack', zones.name)
-
 	const base = new Stack(app, 'base')
-	// base.setTag('stack', base.name)
 
 	const shared = new SharedData()
 	const appId = generateGlobalAppId({
@@ -66,227 +103,127 @@ export const createApp = (props: CreateAppProps) => {
 		appName: props.appConfig.name,
 	})
 
-	// const envVars: Record<string, Input<string>> = {}
-	// const siteFunctions: aws.lambda.Function[] = []
 	const commands: Command[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const warnings: Warning[] = []
 	const builders: BuildTask[] = []
 	const domainZones: aws.route53.Zone[] = []
+	const binds: BindEnv[] = []
 
 	const readyListeners: OnReadyListener[] = []
 	const readyLastListeners: OnReadyListener[] = []
 
-	const binds: BindEnv[] = []
-	const bindListeners: OnEnvListener[] = []
-
-	const globalEnv: BindEnv[] = []
-	const globalEnvListeners: OnEnvListener[] = []
-
-	const permissions: Permission[] = []
-	const permissionCallbacks: OnPermissionCallback[] = []
+	const permissions = createChannel<[Permission]>()
+	const envs = createChannel<[string, Input<string>]>()
+	const bindings = createChannel<[string, Input<string>]>()
 
 	// ---------------------------------------------------------------
 
-	for (const feature of features) {
-		feature.onBefore?.({
-			...props,
-			import: props.import ?? false,
-			dev: props.dev ?? false,
-			app,
-			appId,
-			base,
-			zones,
-			shared,
-			addWarning(props) {
-				warnings.push(props)
-			},
-		})
+	const beforeContext: BeforeContext = {
+		...props,
+		import: props.import ?? false,
+		dev: props.dev ?? false,
+		app,
+		appId,
+		base,
+		zones,
+		shared,
+		addWarning(warning) {
+			warnings.push(warning)
+		},
 	}
 
-	// ---------------------------------------------------------------
+	const createAppContext = (stack: Stack): AppContext => ({
+		...beforeContext,
+		onPermission: permissions.listen,
+		addPermission: permissions.add,
+		registerBuild(type, name, builder) {
+			builders.push({ stackName: stack.name, type, name, builder })
+		},
+		registerConfig(name) {
+			configs.add(name)
+		},
+		registerCommand(command) {
+			commands.push(command)
+		},
+		registerDomainZone(zone) {
+			domainZones.push(zone)
+		},
+		bind(name, value) {
+			binds.push({ name, value })
+			bindings.add(name, value)
+		},
+		onBind: bindings.listen,
+		addEnv: envs.add,
+		onEnv: envs.listen,
+		onReady(cb) {
+			readyListeners.push(cb)
+		},
+		onReadyLast(cb) {
+			readyLastListeners.push(cb)
+		},
+	})
 
-	for (const feature of features) {
-		feature.onApp?.({
-			...props,
-			import: props.import ?? false,
-			dev: props.dev ?? false,
-			app,
-			appId,
-			base,
-			zones,
-			shared,
-			onPermission(callback) {
-				permissionCallbacks.push(callback)
-			},
-			addPermission(permission) {
-				permissions.push(permission)
-			},
-			addWarning(props) {
-				warnings.push(props)
-			},
-			registerBuild(type, name, builder) {
-				builders.push({
-					stackName: base.name,
-					type,
-					name,
-					builder,
-				})
-			},
-			registerConfig(name) {
-				configs.add(name)
-			},
-			registerCommand(command) {
-				commands.push(command)
-			},
-			registerDomainZone(zone) {
-				domainZones.push(zone)
-			},
-			bind(name, value) {
-				binds.push({ name, value })
-			},
-			onBind(cb) {
-				bindListeners.push(cb)
-			},
-			addEnv(name, value) {
-				globalEnv.push({ name, value })
-			},
-			onEnv(cb) {
-				globalEnvListeners.push(cb)
-			},
-			onReady(cb) {
-				readyListeners.push(cb)
-			},
-			onReadyLast(cb) {
-				readyLastListeners.push(cb)
-			},
-		})
-	}
-
-	// ---------------------------------------------------------------
-
-	for (const stackConfig of props.stackConfigs) {
+	const createStackContext = (stackConfig: StackConfig): StackContext => {
 		const stack = new Stack(app, stackConfig.name)
 
+		return {
+			...createAppContext(stack),
+			stackConfig,
+			stack,
+			registerTest(name, paths) {
+				tests.push({ stackName: stack.name, name, paths })
+			},
+		}
+	}
+
+	// ---------------------------------------------------------------
+
+	for (const feature of features) {
+		feature.onBefore?.(beforeContext)
+	}
+
+	const appContext = createAppContext(base)
+
+	for (const feature of features) {
+		feature.onApp?.(appContext)
+	}
+
+	for (const stackConfig of props.stackConfigs) {
+		const stackContext = createStackContext(stackConfig)
+
 		for (const feature of features) {
-			feature.onStack?.({
-				...props,
-				import: props.import ?? false,
-				dev: props.dev ?? false,
-				stackConfig,
-				app,
-				appId,
-				base,
-				zones,
-				stack,
-				shared,
-				onPermission(callback) {
-					permissionCallbacks.push(callback)
-				},
-				addPermission(permission) {
-					permissions.push(permission)
-				},
-				addWarning(props) {
-					warnings.push(props)
-				},
-				// onGlobalPolicy(callback) {
-				// 	globalPoliciesListeners.push(callback)
-				// },
-				// onAppPolicy(callback) {
-				// 	appPoliciesListeners.push(callback)
-				// },
-				// onStackPolicy(callback) {
-				// 	stackPolicyListeners.push(callback)
-				// },
-				// registerPolicy(policy) {
-				// 	globalPolicies.push(policy)
-				// 	stackPolicies.push(policy)
-				// },
-				// registerPolicy(policy) {
-				// 	globalPolicies.push(policy)
-				// 	localPolicies.push(policy)
-				// },
-				registerTest(name, paths) {
-					tests.push({
-						stackName: stack.name,
-						name,
-						paths,
-					})
-				},
-				registerBuild(type, name, builder) {
-					builders.push({
-						stackName: stack.name,
-						type,
-						name,
-						builder,
-					})
-				},
-				registerConfig(name) {
-					configs.add(name)
-				},
-				registerCommand(command) {
-					commands.push(command)
-				},
-				registerDomainZone(zone) {
-					domainZones.push(zone)
-				},
-				// registerSiteFunction(lambda) {
-				// 	siteFunctions.push(lambda)
-				// },
-				// bindEnv(name, value) {
-				// 	binds.push({ name, value })
-				// },
-				bind(name, value) {
-					binds.push({ name, value })
-				},
-				onBind(cb) {
-					bindListeners.push(cb)
-				},
-				addEnv(name, value) {
-					globalEnv.push({ name, value })
-				},
-				onEnv(cb) {
-					globalEnvListeners.push(cb)
-				},
-				onReady(cb) {
-					readyListeners.push(cb)
-				},
-				onReadyLast(cb) {
-					readyLastListeners.push(cb)
-				},
-			})
+			feature.onStack?.(stackContext)
 		}
 	}
 
 	// ---------------------------------------------------------------
-	// Global app binds
+	// Every feature has registered: deliver the app wide permissions,
+	// env vars & site binds. Anything added from here on, including from
+	// a ready listener, delivers right away.
 
-	for (const callback of permissionCallbacks) {
-		for (const permission of permissions) {
-			callback(permission)
-		}
-	}
-
-	for (const listener of globalEnvListeners) {
-		for (const env of globalEnv) {
-			listener(env.name, env.value)
-		}
-	}
-
-	// ---------------------------------------------------------------
-	// Site env binds
-
-	for (const listener of bindListeners) {
-		for (const { name, value } of binds) {
-			listener(name, value)
-		}
-	}
+	permissions.open()
+	envs.open()
+	bindings.open()
 
 	// ---------------------------------------------------------------
 	// Ready!
 
+	let isReady = false
+
+	// Fires the deferred registrations, like the bundle routes & the
+	// consumers that join the bundle. Commands that apply the graph
+	// (deploy, resources) must call it after the builds; commands that
+	// only hydrate deployed state (bind, auth, icon, image) or apply
+	// the zones stack alone (domain deploy) don't need it.
 	const ready = () => {
+		if (isReady) {
+			throw new Error('The app is already ready.')
+		}
+
+		isReady = true
+
 		for (const listener of readyListeners) {
 			listener()
 		}
@@ -295,19 +232,6 @@ export const createApp = (props: CreateAppProps) => {
 			listener()
 		}
 	}
-
-	// ---------------------------------------------------------------
-	// Make a bootstrap stack if needed and add it to the
-	// dependency tree
-
-	// const deploymentLine = createDeploymentLine(stacks)
-
-	// if (bootstrap.size > 0) {
-	// 	deploymentLine.unshift([bootstrap])
-	// }
-	// if (usEastBootstrap.size > 0) {
-	// 	deploymentLine.unshift([usEastBootstrap])
-	// }
 
 	return {
 		app,
@@ -323,6 +247,5 @@ export const createApp = (props: CreateAppProps) => {
 		warnings,
 		builders,
 		commands,
-		// deploymentLine,
 	}
 }

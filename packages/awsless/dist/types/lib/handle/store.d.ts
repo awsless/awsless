@@ -63,5 +63,5 @@ export declare const event: <H extends Handler<StoreSchema>>(handle: H) => (even
             };
         };
     }[];
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
+}, context?: import("@awsless/lambda").LambdaContext) => Promise<Awaited<ReturnType<H>>>;
 export {};

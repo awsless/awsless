@@ -1,7 +1,8 @@
 import { invoke } from '@awsless/lambda'
 import { Fn } from '../src/lib/server/function'
 
-vi.mock('@awsless/lambda', () => ({
+vi.mock('@awsless/lambda', async importOriginal => ({
+	...(await importOriginal<typeof import('@awsless/lambda')>()),
 	invoke: vi.fn(async ({ payload }) => payload),
 }))
 

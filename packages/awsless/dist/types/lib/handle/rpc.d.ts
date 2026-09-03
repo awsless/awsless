@@ -29,5 +29,5 @@ export type AuthResponse = RpcAuthResult;
 type AuthSchema = GenericSchema<InferInput<typeof authEventSchema>, AuthEvent>;
 export declare const auth: <H extends Handler<AuthSchema, RpcAuthResult | Promise<RpcAuthResult>>>(handle: H) => (event: {
     token: string;
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
+}, context?: import("@awsless/lambda").LambdaContext) => Promise<Awaited<ReturnType<H>>>;
 export {};

@@ -28,13 +28,11 @@
 	},
 	"scripts": {
 		"test": "pnpm vitest run -c ../../vitest.shared.ts",
-		"build": "pnpm tsdown --no-fixed-extension ./src/server.ts ./src/client.ts --format esm --clean && tsc -p tsconfig.build.json",
-		"prepublish": "pnpm build"
+		"build": "pnpm tsdown --no-fixed-extension --no-dts ./src/server.ts ./src/client.ts --format esm --clean && tsc -p tsconfig.build.json",
+		"prepublishOnly": "pnpm build"
 	},
 	"dependencies": {
-		"@awsless/big-float": "workspace:^",
 		"@awsless/cloudwatch": "workspace:^",
-		"@awsless/clui": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",
 		"@awsless/ecs": "workspace:^",
@@ -50,31 +48,9 @@
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^",
-		"@types/aws-lambda": "8.10.162",
 		"change-case": "5.4.4"
 	},
-	"devDependencies": {
-		"aws-lambda": "1.0.7"
-	},
 	"peerDependencies": {
-		"@awsless/big-float": "workspace:^",
-		"@awsless/cloudwatch": "workspace:^",
-		"@awsless/clui": "workspace:^",
-		"@awsless/duration": "workspace:^",
-		"@awsless/dynamodb": "workspace:^",
-		"@awsless/ecs": "workspace:^",
-		"@awsless/json": "workspace:^",
-		"@awsless/lambda": "workspace:^",
-		"@awsless/open-search": "workspace:^",
-		"@awsless/redis": "workspace:^",
-		"@awsless/s3": "workspace:^",
-		"@awsless/scheduler": "workspace:^",
-		"@awsless/ses": "workspace:^",
-		"@awsless/sns": "workspace:^",
-		"@awsless/sqs": "workspace:^",
-		"@awsless/ssm": "workspace:^",
-		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^",
 		"vitest": ">=4"
 	},
 	"peerDependenciesMeta": {

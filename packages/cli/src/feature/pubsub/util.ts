@@ -2,7 +2,6 @@ import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
-import { toDays } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
@@ -17,7 +16,7 @@ import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
 import { PolicyStatement } from '../bundle/policy.js'
 import { buildExecutable } from '../instance/build/executable.js'
-import { filterPattern } from '../on-error-log/util.js'
+import { createLogGroup } from '../on-error-log/util.js'
 import { PubSubDefaultProps } from './schema.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -153,7 +152,7 @@ export const createPubSubService = (
 							Statement: [
 								{
 									Effect: pascalCase('allow'),
-									Action: ['s3:getObject', 's3:HeadObject'],
+									Action: ['s3:GetObject', 's3:HeadObject'],
 									Resource: `arn:aws:s3:::${bucket}/${key}`,
 								},
 							],
@@ -194,40 +193,10 @@ export const createPubSubService = (
 	// ------------------------------------------------------------
 	// Logging
 
-	let logGroup: aws.cloudwatch.LogGroup | undefined
-	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(
-			group,
-			'log',
-			{
-				name: `/aws/ecs/${name}`,
-				retentionInDays: toDays(props.log.retention),
-			},
-			{
-				import: ctx.import ? `/aws/ecs/${name}` : undefined,
-			}
-		)
-
-		// ------------------------------------------------------------
-		// Add log subscription
-
-		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(
-				group,
-				'on-error-log',
-				{
-					name: 'error-log-subscription',
-					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-					logGroupName: logGroup.name,
-					filterPattern,
-				},
-				{
-					replaceOnChanges: ['destinationArn'],
-					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
-				}
-			)
-		}
-	}
+	const logGroup = createLogGroup(group, ctx, {
+		name: `/aws/ecs/${name}`,
+		retention: props.log.retention,
+	})
 
 	// ------------------------------------------------------------
 
@@ -274,8 +243,9 @@ export const createPubSubService = (
 							entryPoint: ['sh', '-c'],
 							command: [
 								[
-									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
-									`chmod +x /usr/app/program`,
+									// A custom image may lack the aws cli. The download is
+									// skipped while a persisted program matches the code hash.
+									`if [ "$(cat /usr/app/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program.tmp && mv /usr/app/program.tmp /usr/app/program && chmod +x /usr/app/program && echo "$CODE_HASH" > /usr/app/.code-hash; fi`,
 									`exec /usr/app/program`,
 								].join(' && '),
 							],

@@ -1,15 +1,20 @@
-import { ACCOUNT_ID, APP_ID, formatResourceName, REGION } from './util'
+import { formatResourceName, getAccountId, getAppId, getRegion } from './util.js'
 
-export const onFailureBucketName = formatResourceName({
-	resourceType: 'on-failure',
-	resourceName: 'failure',
-	postfix: APP_ID,
-})
+// Read at call time: the CLI sets the app env after importing this module.
+export const getOnFailureBucketName = () => {
+	return formatResourceName({
+		resourceType: 'on-failure',
+		resourceName: 'failure',
+		postfix: getAppId(),
+	})
+}
 
-export const onFailureQueueName = formatResourceName({
-	resourceType: 'on-failure',
-	resourceName: 'failure',
-})
+export const getOnFailureQueueName = () => {
+	return formatResourceName({
+		resourceType: 'on-failure',
+		resourceName: 'failure',
+	})
+}
 
-export const onFailureBucketArn = `arn:aws:s3:::${onFailureBucketName}`
-export const onFailureQueueArn = `arn:aws:sqs:${REGION}:${ACCOUNT_ID}:${onFailureQueueName}`
+export const getOnFailureBucketArn = () => `arn:aws:s3:::${getOnFailureBucketName()}`
+export const getOnFailureQueueArn = () => `arn:aws:sqs:${getRegion()}:${getAccountId()}:${getOnFailureQueueName()}`

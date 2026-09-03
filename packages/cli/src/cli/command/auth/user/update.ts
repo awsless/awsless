@@ -9,11 +9,10 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider'
 import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
-import { createApp } from '../../../../app.js'
 import { ExpectedError } from '../../../../error.js'
 import { getAccountId, getCredentials } from '../../../../util/aws.js'
-import { createWorkSpace } from '../../../../util/workspace.js'
 import { layout } from '../../../ui/complex/layout.js'
+import { askUsername, loadUserPoolId, selectUserPool, validatePassword } from './util.js'
 
 export const update = (program: Command) => {
 	program
@@ -30,80 +29,9 @@ export const update = (program: Command) => {
 				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const pools = Object.keys(appConfig.auth ?? {})
-
-				if (pools.length === 0) {
-					throw new ExpectedError('No auth resources are defined.')
-				}
-
-				let name = options.pool
-
-				if (name && !pools.includes(name)) {
-					throw new ExpectedError(`The auth userpool "${name}" doesn't exist.`)
-				}
-
-				if (!name) {
-					if (pools.length === 1) {
-						name = pools[0]!
-					} else if (process.env.SKIP_PROMPT) {
-						throw new ExpectedError(
-							`Pass --pool <name> when running with --skip-prompt: [ ${pools.join(', ')} ]`
-						)
-					} else {
-						name = await prompt.select({
-							message: 'Select the auth userpool:',
-							initialValue: pools.at(0),
-							options: pools.map(name => ({
-								label: name,
-								value: name,
-							})),
-						})
-					}
-				}
-
-				const props = appConfig.auth[name]!
-
-				const userPoolId = await log.task({
-					initialMessage: 'Loading auth userpool...',
-					successMessage: 'Done loading auth userpool.',
-					errorMessage: 'Failed loading auth userpool.',
-					async task() {
-						const { shared, app } = createApp({ appConfig, stackConfigs, accountId })
-
-						const { workspace } = await createWorkSpace({
-							credentials,
-							accountId,
-							region,
-						})
-
-						await workspace.hydrate(app)
-
-						try {
-							return await shared.entry('auth', `user-pool-id`, name)
-						} catch {
-							throw new ExpectedError(`The auth userpool hasn't been deployed yet.`)
-						}
-					},
-				})
-
-				let username = options.username
-
-				if (!username) {
-					if (process.env.SKIP_PROMPT) {
-						throw new ExpectedError('Pass --username <username> when running with --skip-prompt.')
-					}
-
-					username = await prompt.text({
-						message: 'Username:',
-						validate(value) {
-							if (!value) {
-								return 'Required'
-							}
-
-							return
-						},
-					})
-				}
+				const { name, props } = await selectUserPool(appConfig, options.pool)
+				const userPoolId = await loadUserPoolId({ appConfig, stackConfigs, accountId, credentials, name })
+				const username = await askUsername(options.username)
 
 				const client = new CognitoIdentityProviderClient({
 					region,
@@ -151,38 +79,10 @@ export const update = (program: Command) => {
 					},
 				})
 
-				const validatePassword = (value: string | undefined) => {
-					if (!value) {
-						return 'Required'
-					}
-
-					if (value.length < props.password.minLength) {
-						return `Min length is ${props.password.minLength}`
-					}
-
-					if (props.password.lowercase && value.toUpperCase() === value) {
-						return `Should include lowercase characters`
-					}
-
-					if (props.password.uppercase && value.toLowerCase() === value) {
-						return `Should include uppercase characters`
-					}
-
-					if (props.password.numbers && !/\d/.test(value)) {
-						return `Should include numbers`
-					}
-
-					if (props.password.symbols && !/[ `!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)) {
-						return `Should include symbols`
-					}
-
-					return
-				}
-
 				let password = options.password
 
 				if (password) {
-					const issue = validatePassword(password)
+					const issue = validatePassword(props, password)
 
 					if (issue) {
 						throw new ExpectedError(`Invalid password: ${issue}`)
@@ -196,7 +96,7 @@ export const update = (program: Command) => {
 					if (changePass) {
 						password = await prompt.password({
 							message: 'New Password:',
-							validate: validatePassword,
+							validate: value => validatePassword(props, value),
 						})
 					}
 				}

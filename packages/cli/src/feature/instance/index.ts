@@ -3,12 +3,13 @@ import { kibibytes, toBytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
-import { defineFeature } from '../../feature'
+import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatLocalResourceName } from '../../util/name'
+import { formatLocalResourceName } from '../../util/name.js'
+import { plainTestMockTypes } from '../../type-gen/snippets.js'
 import { instanceOnDev } from './dev.js'
-import { createFargateTask } from './util'
+import { createFargateTask } from './util.js'
 
 const typeGenCode = `
 import { SendMessageOptions } from '@awsless/sqs'
@@ -18,15 +19,7 @@ type Send<Name extends string> = {
 	readonly name: Name
 	(payload: unknown, options?: Omit<SendMessageOptions, 'queue' | 'payload' | 'groupId' | 'deduplicationId'>): Promise<void>
 }
-
-type MockHandle = (payload: unknown) => void
-type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<(payload: unknown) => unknown>
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry = MockBuilder & MockObject
-`
+${plainTestMockTypes()}`
 
 export const instanceFeature = defineFeature({
 	name: 'instance',

@@ -37,7 +37,7 @@ export const cacheFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.caches ?? {})) {
-			const group = new Group(ctx.stack, this.name, id)
+			const group = new Group(ctx.stack, 'cache', id)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,
@@ -46,13 +46,6 @@ export const cacheFeature = defineFeature({
 				resourceName: id,
 				seperator: '-',
 			})
-
-			// ---------------------------------------------------------------
-			// Trying to retain the cache will result in the whole VPC
-			// not being able to be deleted.
-
-			// const retain = ctx.appConfig.removal === 'retain'
-			// ---------------------------------------------------------------
 
 			const securityGroup = new aws.security.Group(group, 'security', {
 				name,

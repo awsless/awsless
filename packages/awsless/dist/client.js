@@ -62,7 +62,7 @@ const createHttpClient = (fetcher) => {
 //#endregion
 //#region src/lib/client/util.ts
 const getBindEnv = (name) => {
-	return import.meta.env[name];
+	return import.meta.env?.[name];
 };
 //#endregion
 //#region src/lib/client/auth.ts

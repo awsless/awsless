@@ -1,4 +1,3 @@
-import { createHmac } from 'crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
 import { aws } from '@terraforge/aws'
@@ -6,12 +5,14 @@ import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
+import { RandomSecret } from '../../formation/random.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { plainTestMockTypes } from '../../type-gen/snippets.js'
 import { pubsubOnDev } from './dev.js'
 import { pubsubEventTypes } from './schema.js'
 import { createPubSubService, WS_PORT } from './util.js'
@@ -26,14 +27,7 @@ type PubSubInstance = {
 	readonly publish: Publish
 }
 
-type MockHandle = (payload: { topic: string; event: string; payload?: unknown }) => void
-type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<(payload: unknown) => unknown>
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry = MockBuilder & MockObject
-`
+${plainTestMockTypes('{ topic: string; event: string; payload?: unknown }')}`
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
@@ -328,7 +322,9 @@ export const pubsubFeature = defineFeature({
 			// task env stays stable across deployments & sockets only ever
 			// reconnect on pubsub changes.
 
-			const secret = createHmac('sha1', ctx.appId).update(name).digest('hex')
+			// Only the router knows the origin secret, so nothing can reach
+			// the load balancer directly. It's random & kept across deploys.
+			const secret = new RandomSecret(group, 'origin-secret', {})
 
 			const service = createPubSubService(group, ctx, id, props, {
 				clusterName: cluster.name,
@@ -343,7 +339,7 @@ export const pubsubFeature = defineFeature({
 					REDIS_HOST: redisHost,
 					REDIS_PORT: redisPort.pipe(port => port.toString()),
 					CHANNEL: channel,
-					ORIGIN_SECRET: secret,
+					ORIGIN_SECRET: secret.value,
 				},
 			})
 
@@ -397,7 +393,7 @@ export const pubsubFeature = defineFeature({
 					domainName: lb.dnsName,
 					readTimeout: 60,
 					customHeaders: {
-						'x-origin-secret': secret,
+						'x-origin-secret': secret.value,
 					},
 					// The bare mount path maps to the websocket route at the
 					// server root, deeper paths keep their sub path.

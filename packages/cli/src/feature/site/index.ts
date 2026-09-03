@@ -110,12 +110,6 @@ export const siteFeature = defineFeature({
 							)
 						}
 
-						// await execCommand({
-						// 	cwd,
-						// 	command: buildProps.command,
-						// 	env,
-						// })
-
 						await write('HASH', fingerprint)
 
 						return {

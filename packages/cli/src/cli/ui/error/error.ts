@@ -36,7 +36,6 @@ export const logError = (error: unknown) => {
 			wrap([color.error(message), stack], {
 				hard: true,
 			})
-			// { symbol: color.error(icon.error) }
 		)
 	} else if (typeof error === 'string') {
 		log.error(color.error(error))
@@ -51,8 +50,11 @@ export const logError = (error: unknown) => {
 		}
 	}
 
-	// Cancels are user intent, not failures worth investigating.
-	if (!(error instanceof Cancelled) && !(error instanceof CancelledError) && !Array.isArray(error)) {
-		log.message(color.dim(`Debug log: ${relative(process.cwd(), debugLogFile)}`))
+	// Cancels are user intent, not failures worth investigating. The
+	// log only exists once a project was found.
+	const file = debugLogFile()
+
+	if (file && !(error instanceof Cancelled) && !(error instanceof CancelledError) && !Array.isArray(error)) {
+		log.message(color.dim(`Debug log: ${relative(process.cwd(), file)}`))
 	}
 }

@@ -4,7 +4,7 @@ import { availableParallelism } from 'os'
 import { join } from 'path'
 import { debug } from '../cli/debug.js'
 import { spawnDevChild } from './children.js'
-import { findFreePort, stopChild, stripAnsi } from './util.js'
+import { findFreePort, stopChild, stripAnsi, WATCHDOG_FILE, WATCHDOG_SOURCE } from './util.js'
 
 export type BundleWorker = {
 	start: () => Promise<void>
@@ -37,18 +37,9 @@ export class WorkerError extends Error {
 // restart it with a clean module cache & a crashing handler can never
 // take down the dev server. The dev server talks to it over local HTTP
 // instead of IPC, so the worker runtime never needs to match the CLI
-// runtime.
+// runtime. The parent watchdog preload makes it exit on its own when
+// the dev server dies without a graceful stop.
 const WORKER_ENTRY = `import { AsyncLocalStorage } from 'node:async_hooks'
-
-// A hard kill of the dev process reparents the worker to pid 1
-// without any signal, so the worker watches its parent and exits on
-// its own instead of lingering as an orphan.
-setInterval(() => {
-	if (process.ppid === 1) {
-		process.exit(0)
-	}
-}, 2000).unref()
-
 import http from 'node:http'
 import https from 'node:https'
 import { createServer } from 'node:http'
@@ -57,19 +48,6 @@ import { format } from 'node:util'
 
 let handler
 let getCurrentRoute = () => undefined
-
-// A dev server dying without a graceful stop (a crash, kill -9) can
-// never ask its workers to exit - so the worker probes the parent &
-// exits on its own instead of lingering forever. Probing instead of
-// watching process.ppid, which bun caches at startup.
-const parentPid = process.ppid
-setInterval(() => {
-	try {
-		process.kill(parentPid, 0)
-	} catch (_) {
-		process.exit(0)
-	}
-}, 2000).unref()
 
 // The trace of the running invocation, set per dispatch by the dev
 // server. The async context keeps it accurate under concurrent
@@ -187,7 +165,7 @@ const server = createServer((req, res) => {
 	const chunks = []
 	req.on('data', chunk => chunks.push(chunk))
 	req.on('end', async () => {
-		let response
+		let body
 
 		try {
 			const { event, context, trace } = JSON.parse(Buffer.concat(chunks).toString())
@@ -206,24 +184,75 @@ const server = createServer((req, res) => {
 
 			const result = await (trace ? traceContext.run(trace, run) : run())
 
-			response = { result: typeof result === 'undefined' ? null : result }
+			// Serialized inside the try: a result the json encoder rejects
+			// (a bigint, a cycle) is a handler error, not a worker crash.
+			body = JSON.stringify({ result: typeof result === 'undefined' ? null : result })
 		} catch (error) {
-			response = {
+			body = JSON.stringify({
 				error: {
 					name: error?.name ?? 'Error',
 					message: error?.message ?? String(error),
 					stack: error?.stack,
 				},
-			}
+			})
 		}
 
 		res.writeHead(200, { 'content-type': 'application/json' })
-		res.end(JSON.stringify(response))
+		res.end(body)
 	})
 })
 
 server.listen(Number(process.env.AWSLESS_DEV_WORKER_PORT), '127.0.0.1')
 `
+
+export type WorkerRecord = {
+	text: string
+	route?: string
+}
+
+// One console record from the worker's output stream: the framed
+// records the worker entry writes carry their route & json text, and
+// anything else (like node's own crash output) passes through as is.
+const parseFrame = (raw: string): WorkerRecord => {
+	if (!raw.startsWith('\x1f')) {
+		return { text: raw }
+	}
+
+	const end = raw.indexOf('\x1f', 1)
+
+	if (end <= 0) {
+		return { text: raw }
+	}
+
+	const route = raw.slice(1, end) || undefined
+	const encoded = raw.slice(end + 1)
+
+	try {
+		return { route, text: String(JSON.parse(encoded)) }
+	} catch {
+		return { route, text: encoded }
+	}
+}
+
+// Reassembles the worker's output chunks into whole records: a chunk
+// boundary can land anywhere inside a line, so the partial tail waits
+// for the next chunk instead of surfacing as a torn record.
+export const createFrameReader = (onRecord: (record: WorkerRecord) => void) => {
+	let buffer = ''
+
+	return (chunk: Buffer | string) => {
+		buffer += chunk.toString()
+
+		const parts = buffer.split('\n')
+		buffer = parts.pop() ?? ''
+
+		for (const raw of parts) {
+			if (raw !== '') {
+				onRecord(parseFrame(raw))
+			}
+		}
+	}
+}
 
 type PoolWorker = {
 	child: ChildProcess
@@ -231,6 +260,8 @@ type PoolWorker = {
 	// The number of requests currently inside this worker, so dispatch
 	// can route to the least busy one.
 	inflight: number
+	// The exit code once the process died on its own.
+	exited?: number | null
 }
 
 export const createBundleWorker = (props: {
@@ -243,6 +274,9 @@ export const createBundleWorker = (props: {
 	// Receives every output line of the workers, for the dashboard's
 	// live log view. The raw output keeps streaming to the terminal.
 	onOutput?: (line: string, stream: 'stdout' | 'stderr', route?: string) => void
+	// Fires when a worker died on its own (not through a stop or a
+	// restart) & left the pool. The size tells whether any are left.
+	onCrash?: (info: { code: number | null; size: number }) => void
 }): BundleWorker => {
 	let workers: PoolWorker[] = []
 
@@ -256,6 +290,24 @@ export const createBundleWorker = (props: {
 
 	const context = {
 		invokedFunctionArn: `arn:aws:lambda:${props.env.AWS_REGION}:${props.env.AWS_ACCOUNT_ID}:function:${props.functionName}:local`,
+	}
+
+	// Lifecycle operations run strictly one at a time: a restart racing
+	// another restart (or the shutdown) would interleave stop/start &
+	// leak the losing pool's children.
+	let lifecycle: Promise<unknown> = Promise.resolve()
+	let pending = 0
+
+	const serialize = <T>(action: () => Promise<T>) => {
+		pending++
+
+		const run = lifecycle.then(action).finally(() => {
+			pending--
+		})
+
+		lifecycle = run.catch(() => {})
+
+		return run
 	}
 
 	const waitForReady = async (worker: PoolWorker) => {
@@ -280,6 +332,24 @@ export const createBundleWorker = (props: {
 		throw new Error('The bundle worker never became ready.')
 	}
 
+	// A worker that died on its own leaves the pool right away, or the
+	// least-busy pick would keep routing to it: its refused connections
+	// fail instantly, which reads as "idle". The pool only shrinks - an
+	// empty pool restarts as a whole on the next dispatch.
+	const onExit = (worker: PoolWorker, code: number | null, signal: NodeJS.Signals | null) => {
+		worker.exited = code
+
+		const index = workers.indexOf(worker)
+
+		if (index === -1) {
+			return
+		}
+
+		workers.splice(index, 1)
+		debug(`Bundle worker exited unexpectedly (${signal ?? `code ${code}`})`)
+		props.onCrash?.({ code, size: workers.length })
+	}
+
 	const startWorker = async (): Promise<PoolWorker> => {
 		const entry = join(props.buildDir, 'worker.mjs')
 		const port = await findFreePort()
@@ -289,7 +359,7 @@ export const createBundleWorker = (props: {
 		// worker spawned during the boot spinner's raw mode would put
 		// the terminal back into raw mode on every reload, killing
 		// ctrl-c.
-		const child = spawnDevChild('node', ['--enable-source-maps', entry], {
+		const child = spawnDevChild('node', ['--enable-source-maps', '-r', join(props.buildDir, WATCHDOG_FILE), entry], {
 			cwd: props.buildDir,
 			stdio: ['ignore', 'pipe', 'pipe'],
 			env: {
@@ -299,41 +369,10 @@ export const createBundleWorker = (props: {
 			},
 		})
 
-		// Console records arrive framed from the worker entry: one
-		// \x1f<route>\x1f<json text> line per console call, so multi-line
-		// output stays a single log entry. The buffer holds partial lines
-		// across chunk boundaries per worker, so a record never splits or
-		// interleaves between workers.
-		const buffers = { stdout: '', stderr: '' }
-
-		const capture = (stream: 'stdout' | 'stderr') => (chunk: Buffer) => {
-			buffers[stream] += chunk.toString()
-
-			const parts = buffers[stream].split('\n')
-			buffers[stream] = parts.pop() ?? ''
-
-			for (const raw of parts) {
-				if (raw === '') {
-					continue
-				}
-
-				let text = raw
-				let route: string | undefined
-
-				if (raw.startsWith('\x1f')) {
-					const end = raw.indexOf('\x1f', 1)
-
-					if (end > 0) {
-						route = raw.slice(1, end) || undefined
-
-						try {
-							text = JSON.parse(raw.slice(end + 1))
-						} catch {
-							text = raw.slice(end + 1)
-						}
-					}
-				}
-
+		// One reader per stream & worker, so a record never interleaves
+		// between workers.
+		const capture = (stream: 'stdout' | 'stderr') =>
+			createFrameReader(({ text, route }) => {
 				// The terminal shows the route as a readable prefix on the
 				// first line of the record.
 				if (!props.quiet?.()) {
@@ -345,19 +384,14 @@ export const createBundleWorker = (props: {
 				if (clean.trim() !== '') {
 					props.onOutput?.(clean, stream, route)
 				}
-			}
-		}
+			})
 
 		child.stdout?.on('data', capture('stdout'))
 		child.stderr?.on('data', capture('stderr'))
 
-		child.on('exit', code => {
-			if (code !== null && code !== 0) {
-				debug(`Bundle worker exited with code ${code}`)
-			}
-		})
-
 		const worker: PoolWorker = { child, port, inflight: 0 }
+
+		child.on('exit', (code, signal) => onExit(worker, code, signal))
 
 		try {
 			await waitForReady(worker)
@@ -372,7 +406,10 @@ export const createBundleWorker = (props: {
 	}
 
 	const doStart = async () => {
-		await writeFile(join(props.buildDir, 'worker.mjs'), WORKER_ENTRY)
+		await Promise.all([
+			writeFile(join(props.buildDir, 'worker.mjs'), WORKER_ENTRY),
+			writeFile(join(props.buildDir, WATCHDOG_FILE), WATCHDOG_SOURCE),
+		])
 
 		const results = await Promise.allSettled(Array.from({ length: concurrency }, () => startWorker()))
 		const started = results.filter(result => result.status === 'fulfilled').map(result => result.value)
@@ -385,7 +422,15 @@ export const createBundleWorker = (props: {
 			throw failed.reason
 		}
 
-		workers = started
+		// A worker that died between its ready check & this point never
+		// enters the pool dead - it reports like any other crash.
+		workers = started.filter(worker => worker.exited === undefined)
+
+		for (const worker of started) {
+			if (worker.exited !== undefined) {
+				props.onCrash?.({ code: worker.exited, size: workers.length })
+			}
+		}
 	}
 
 	const doStop = async () => {
@@ -393,17 +438,6 @@ export const createBundleWorker = (props: {
 		workers = []
 
 		await Promise.all(stopping.map(worker => stopChild(worker.child)))
-	}
-
-	// Lifecycle operations run strictly one at a time: a restart racing
-	// another restart (or the shutdown) would interleave stop/start &
-	// leak the losing pool's children.
-	let lifecycle: Promise<unknown> = Promise.resolve()
-
-	const serialize = <T>(action: () => Promise<T>) => {
-		const run = lifecycle.then(action)
-		lifecycle = run.catch(() => {})
-		return run
 	}
 
 	return {
@@ -416,6 +450,14 @@ export const createBundleWorker = (props: {
 				await doStart()
 			}),
 		async dispatch(event, trace) {
+			// A start or restart in flight finishes first, so a dispatch
+			// landing between a restart's stop & start never sees an empty
+			// pool. Only lifecycle operations count - a crash never stalls
+			// dispatches to the healthy workers.
+			while (pending > 0) {
+				await lifecycle
+			}
+
 			if (workers.length === 0) {
 				throw new Error('The bundle worker is not running.')
 			}

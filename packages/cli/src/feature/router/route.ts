@@ -17,7 +17,7 @@ type RouteProps = {
 
 	hostHeader?: string
 	originPath?: string
-	customHeaders?: Record<string, string>
+	customHeaders?: Record<string, Input<string>>
 
 	readTimeout?: number
 	responseCompletionTimeout?: number

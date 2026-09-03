@@ -1,1 +1,1 @@
-export declare const getBindEnv: (name: string) => string;
+export declare const getBindEnv: (name: string) => string | undefined;

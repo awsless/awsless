@@ -2,6 +2,7 @@ import { userInfo } from 'node:os'
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { DeleteFunctionCommand, GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import {
 	AnyTable,
 	define,
@@ -17,7 +18,7 @@ import {
 	updateItem,
 } from '@awsless/dynamodb'
 import { StateBackend } from '@terraforge/core'
-import { isAfter, subHours } from 'date-fns'
+import { isAfter, isBefore, subHours } from 'date-fns'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
 import {
@@ -250,8 +251,8 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 			return false
 		}
 
-		if (options.branch) {
-			return item.branch === slugifyBranch(options.branch)
+		if (options.branch && item.branch !== slugifyBranch(options.branch)) {
+			return false
 		}
 
 		// deploys that never finished are abandoned after a day
@@ -263,7 +264,12 @@ export const selectPrunableDeployments = (items: Deployment[], liveId: string | 
 			return !keptMain.has(item.seq)
 		}
 
-		// branch deployments are prunable once their commit is merged
+		// branch deployments are prunable once their commit is merged,
+		// or right away when the branch was named explicitly
+		if (options.branch) {
+			return true
+		}
+
 		return item.commit ? isCommitMerged(item.commit, options.main) : false
 	})
 }
@@ -313,6 +319,93 @@ export const selectPrunableVersions = async (props: {
 	}
 
 	return prunable
+}
+
+// Every site deploy uploads its files under a content-hashed
+// 'site/<stack>/<id>/v-<hash>/' prefix that route table rewrites point
+// at, so prefixes without a surviving route reference are garbage.
+export const pruneSiteVersions = async (props: { s3: S3Client; bucket: string; survivingRoutes: string[] }) => {
+	const referenced = new Set<string>()
+
+	for (const value of props.survivingRoutes) {
+		let parsed: unknown
+
+		try {
+			parsed = JSON.parse(value)
+		} catch {
+			continue
+		}
+
+		for (const route of Array.isArray(parsed) ? parsed : [parsed]) {
+			const to = (route as { rewrite?: { to?: unknown } })?.rewrite?.to
+
+			if (typeof to !== 'string') {
+				continue
+			}
+
+			const parts = to.replace(/^\//, '').split('/')
+
+			if (parts[0] === 'site' && parts[3]?.startsWith('v-')) {
+				referenced.add(parts.slice(0, 4).join('/'))
+			}
+		}
+	}
+
+	const unreferenced = new Map<string, { keys: string[]; newest: Date }>()
+	let cursor: string | undefined
+
+	do {
+		let page
+		try {
+			page = await props.s3.send(
+				new ListObjectsV2Command({
+					Bucket: props.bucket,
+					Prefix: 'site/',
+					ContinuationToken: cursor,
+				})
+			)
+		} catch (error) {
+			// Apps without sites never made the shared bucket.
+			if (isError(error, 'NoSuchBucket')) {
+				return
+			}
+
+			throw error
+		}
+		cursor = page.NextContinuationToken
+
+		for (const object of page.Contents ?? []) {
+			const key = object.Key!
+			const parts = key.split('/')
+			const prefix = parts.slice(0, 4).join('/')
+
+			if (!parts[3]?.startsWith('v-') || referenced.has(prefix)) {
+				continue
+			}
+
+			const modified = object.LastModified ?? new Date()
+			const entry = unreferenced.get(prefix) ?? { keys: [], newest: modified }
+			entry.keys.push(key)
+			entry.newest = isAfter(modified, entry.newest) ? modified : entry.newest
+			unreferenced.set(prefix, entry)
+		}
+	} while (cursor)
+
+	// A fresh prefix may belong to a crashed deploy whose retry reuses it
+	// without re-uploading, so only day-old prefixes are garbage.
+	const cutoff = subHours(new Date(), 24)
+	const garbage = [...unreferenced.values()]
+		.filter(entry => isBefore(entry.newest, cutoff))
+		.flatMap(entry => entry.keys)
+
+	for (let index = 0; index < garbage.length; index += 1000) {
+		await props.s3.send(
+			new DeleteObjectsCommand({
+				Bucket: props.bucket,
+				Delete: { Objects: garbage.slice(index, index + 1000).map(key => ({ Key: key })) },
+			})
+		)
+	}
 }
 
 // ------------------------------------------------------------
@@ -390,6 +483,25 @@ export const previousDeploymentId = async (props: {
 
 // Reject deploys that were claimed before the live deployment was
 // promoted, so a slow deploy can't stage itself over a newer release.
+// The release lock is a TTL lease, so a stalled deploy can lose it
+// mid-apply - hence the check runs both before & after the apply.
+const rejectStaleDeployment = async (props: {
+	dynamo: DynamoDBClient
+	appId: string
+	liveId?: string
+	deployment: Deployment
+}) => {
+	if (!props.liveId || props.liveId === props.deployment.id) {
+		return
+	}
+
+	const live = await getDeployment(props.dynamo, props.appId, props.liveId)
+
+	if (live?.promotedAt && live.promotedAt > props.deployment.createdAt) {
+		throw new ExpectedError(`A newer deployment is already live.`)
+	}
+}
+
 export const preflightDeployment = async (props: {
 	lambda: LambdaClient
 	dynamo: DynamoDBClient
@@ -397,12 +509,12 @@ export const preflightDeployment = async (props: {
 	functionName: string
 	deployment: Deployment
 }) => {
-	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
-	const live = liveId ? await getDeployment(props.dynamo, props.appId, liveId) : undefined
-
-	if (live?.promotedAt && live.promotedAt > props.deployment.createdAt) {
-		throw new ExpectedError(`A newer deployment is already live.`)
-	}
+	await rejectStaleDeployment({
+		dynamo: props.dynamo,
+		appId: props.appId,
+		liveId: await readLiveDeploymentId(props.lambda, props.functionName),
+		deployment: props.deployment,
+	})
 }
 
 export const promoteDeployment = async (props: {
@@ -448,13 +560,8 @@ export const promoteDeployment = async (props: {
 		activeRoutes.set(store.arn, active)
 	}
 
-	// The release lock is a TTL lease, so a stalled deploy can lose it mid-apply.
-	if (props.rejectStale && liveId && liveId !== props.id) {
-		const live = await getDeployment(props.dynamo, props.appId, liveId)
-
-		if (live?.promotedAt && live.promotedAt > deployment.createdAt) {
-			throw new ExpectedError(`A newer deployment is already live.`)
-		}
+	if (props.rejectStale) {
+		await rejectStaleDeployment({ dynamo: props.dynamo, appId: props.appId, liveId, deployment })
 	}
 
 	try {
@@ -532,28 +639,30 @@ export const promoteDeployment = async (props: {
 		// rolls back the routes & alias with it.
 		await markPromoted(props.dynamo, props.appId, props.id)
 	} catch (error) {
-		const rollback = [
-			...flippedStores.map(store => setActiveRouteDeployment(props.kvs, store.arn, activeRoutes.get(store.arn))),
-			...(aliasUpdateStarted && alias?.FunctionVersion
-				? [
-						upsertLambdaAlias(props.lambda, {
-							functionName: props.functionName,
-							functionVersion: alias.FunctionVersion,
-							name: LIVE_LAMBDA_ALIAS,
-							description: alias.Description ?? '',
-						}),
-					]
-				: []),
-			...flipped
-				.filter(item => item.liveVersion)
-				.map(item =>
-					upsertLambdaAlias(props.lambda, {
+		// A live alias that didn't exist before is deleted again, so a
+		// function doesn't stay pointed at the failed deployment.
+		const revertLiveAlias = (item: { functionName: string; liveVersion?: string; liveDescription?: string }) =>
+			item.liveVersion
+				? upsertLambdaAlias(props.lambda, {
 						functionName: item.functionName,
-						functionVersion: item.liveVersion!,
+						functionVersion: item.liveVersion,
 						name: LIVE_LAMBDA_ALIAS,
 						description: item.liveDescription ?? '',
 					})
-				),
+				: deleteLambdaAlias(props.lambda, item.functionName, LIVE_LAMBDA_ALIAS)
+
+		const rollback = [
+			...flippedStores.map(store => setActiveRouteDeployment(props.kvs, store.arn, activeRoutes.get(store.arn))),
+			...(aliasUpdateStarted
+				? [
+						revertLiveAlias({
+							functionName: props.functionName,
+							liveVersion: alias?.FunctionVersion,
+							liveDescription: alias?.Description,
+						}),
+					]
+				: []),
+			...flipped.map(revertLiveAlias),
 		]
 		const failures = (await Promise.allSettled(rollback))
 			.filter(result => result.status === 'rejected')

@@ -237,52 +237,6 @@ export const RouterDefaultSchema = z
 					.optional()
 					.describe('Enable basic authentication for the router.'),
 
-				// security: z
-				// 	.object({
-				// 		contentSecurityPolicy: z.object({
-				// 			override: z.boolean().default(false),
-				// 			policy: z.string(),
-				// 		})
-				// 		contentSecurityPolicy?: {
-				// 			override?: boolean
-				// 			contentSecurityPolicy: string
-				// 		}
-				// 		contentTypeOptions?: {
-				// 			override?: boolean
-				// 		}
-				// 		frameOptions?: {
-				// 			override?: boolean
-				// 			frameOption?: 'deny' | 'same-origin'
-				// 		}
-				// 		referrerPolicy?: {
-				// 			override?: boolean
-				// 			referrerPolicy?: (
-				// 				'no-referrer' |
-				// 				'no-referrer-when-downgrade' |
-				// 				'origin' |
-				// 				'origin-when-cross-origin' |
-				// 				'same-origin' |
-				// 				'strict-origin' |
-				// 				'strict-origin-when-cross-origin' |
-				// 				'unsafe-url'
-				// 			)
-				// 		}
-				// 		strictTransportSecurity?: {
-				// 			maxAge?: Duration
-				// 			includeSubdomains?: boolean
-				// 			override?: boolean
-				// 			preload?: boolean
-				// 		}
-				// 		xssProtection?: {
-				// 			override?: boolean
-				// 			enable?: boolean
-				// 			modeBlock?: boolean
-				// 			reportUri?: string
-				// 		}
-				// 	})
-				// 	.optional()
-				// 	.describe('Specify the security policy.'),
-
 				cache: z
 					.object({
 						cookies: z
@@ -326,19 +280,3 @@ export const RouterDefaultSchema = z
 	)
 	.optional()
 	.describe(`Define the global Router. Backed by AWS CloudFront.`)
-
-// export const RouterDefaultSchema = z
-// 	.record(
-// 		ResourceIdSchema,
-// 		z.object({
-// 			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
-// 			subDomain: z.string().optional(),
-
-// 			geoRestrictions: z
-// 				.array(z.string().length(2).toUpperCase())
-// 				.default([])
-// 				.describe('Specifies a blacklist of countries that should be blocked.'),
-// 		})
-// 	)
-// 	.describe(`Define the global Router. Backed by AWS CloudFront.`)
-// 	.optional()

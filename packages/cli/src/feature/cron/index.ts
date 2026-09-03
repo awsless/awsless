@@ -10,27 +10,17 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { funcType, invokeTypes, testMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'
 import type { Mock } from 'vitest'
 
-type Func = (...args: any[]) => any
+${funcType}
 
 type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'reflectViewableErrors'>
-
-type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
-
-type InvokeWithPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload: Parameters<F>[0], options?: Options): Promise<void>
-}
-
-type InvokeWithoutPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload?: Parameters<F>[0], options?: Options): Promise<void>
-}
-`
+${invokeTypes({ returns: 'Promise<void>', options: 'Options' })}
+${testMockTypes()}`
 
 export const cronFeature = defineFeature({
 	name: 'cron',
@@ -53,9 +43,11 @@ export const cronFeature = defineFeature({
 	async onTypeGen(ctx) {
 		const types = new TypeFile('awsless')
 		const resources = new TypeObject(1)
+		const testMocks = new TypeObject(2)
 
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
+			const testMock = new TypeObject(3)
 
 			for (const [name, props] of Object.entries(stack.crons || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
@@ -70,13 +62,19 @@ export const cronFeature = defineFeature({
 
 				types.addImport(varName, relFile)
 				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
 			}
 
 			resources.addType(stack.name, resource)
+			testMocks.addType(stack.name, testMock)
 		}
+
+		const testMock = new TypeObject(1)
+		testMock.addType('cron', testMocks)
 
 		types.addCode(typeGenCode)
 		types.addInterface('CronResources', resources)
+		types.addInterface('TestMock', testMock)
 
 		await ctx.write('cron.d.ts', types, true)
 	},

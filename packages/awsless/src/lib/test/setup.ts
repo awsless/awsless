@@ -1,5 +1,3 @@
-import type { Mock } from 'vitest'
-
 // The vitest globals, declared instead of imported so importing this
 // module never adds a runtime vitest dependency.
 declare const vi: (typeof import('vitest'))['vi']
@@ -8,6 +6,7 @@ declare const afterEach: (typeof import('vitest'))['afterEach']
 declare const expect: (typeof import('vitest'))['expect']
 import { getAlertName } from '../server/alert.js'
 import { setConfigValue } from '../server/config.js'
+import { getCronName } from '../server/cron.js'
 import { getFunctionName } from '../server/function.js'
 import { getInstanceQueueName } from '../server/instance.js'
 import { getJobName } from '../server/job.js'
@@ -18,6 +17,7 @@ import { getTableName } from '../server/table.js'
 import { getTaskName } from '../server/task.js'
 import { getTopicName } from '../server/topic.js'
 import { hookTestCleanup } from './cleanup.js'
+import type { TestMockFunction } from './mock.js'
 
 // The manifest the cli generates from the app config, handing the test
 // environment everything it needs to materialize the whole app. This
@@ -37,6 +37,8 @@ export type TestManifest = {
 	searches: { stack: string; id: string; mappings: unknown; settings?: unknown }[]
 	functions: { stack: string; id: string; file: string }[]
 	tasks: { stack: string; id: string; file: string }[]
+	// Crons run their real handler on a manual Cron.x.y() trigger.
+	crons?: { stack: string; id: string; file: string }[]
 	// A queue without a consumer still mocks its send.
 	queues: { stack: string; id: string; file?: string }[]
 	topics: string[]
@@ -60,21 +62,26 @@ type ImportFile = (file: string) => Promise<any>
 // scope, like `mock.alert.debug()` at the top of a test file) form the
 // baseline every test starts from. Overrides made INSIDE a test are
 // temporary & reset when the test ends.
-export const mockBaselines = new Map<Mock, (...args: unknown[]) => unknown>()
+export const mockBaselines = new Map<TestMockFunction, (...args: unknown[]) => unknown>()
 export const mockState = { inTest: false }
+
+type Registry = Record<string, TestMockFunction>
 
 // Every materialized resource spy, keyed by its physical name - the
 // `mock` proxy resolves overrides & assertions through this registry.
 export const testRegistry = {
-	emails: {} as Record<string, Mock>,
-	functions: {} as Record<string, Mock>,
-	tasks: {} as Record<string, Mock>,
-	queues: {} as Record<string, Mock>,
-	topics: {} as Record<string, Mock>,
-	pubsub: {} as Record<string, Mock>,
-	alerts: {} as Record<string, Mock>,
-	jobs: {} as Record<string, Mock>,
-	instances: {} as Record<string, Mock>,
+	emails: {} as Registry,
+	functions: {} as Registry,
+	crons: {} as Registry,
+	tasks: {} as Registry,
+	// The scheduled invokes of a task, apart from its direct invokes.
+	schedules: {} as Registry,
+	queues: {} as Registry,
+	topics: {} as Registry,
+	pubsub: {} as Registry,
+	alerts: {} as Registry,
+	jobs: {} as Registry,
+	instances: {} as Registry,
 }
 
 // Materialize the whole app for a test file: every table exists, every
@@ -117,7 +124,7 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	const spies = registerResourceSpies(manifest, options.importFile)
 
 	lambda.mockLambda(spies.lambdas)
-	scheduler.mockScheduler(spies.tasks)
+	scheduler.mockScheduler(spies.schedules)
 	sqs.mockSQS(spies.queues)
 	sns.mockSNS(spies.topics)
 	ecs.mockEcs(spies.jobs)
@@ -133,15 +140,23 @@ const realHandler = (importFile: ImportFile, file: string) => {
 	let cached: Promise<(payload: unknown) => unknown> | undefined
 
 	return vi.fn((payload: unknown) => {
-		cached ??= importFile(file).then(module => {
-			const handle = module.default
+		cached ??= importFile(file).then(
+			module => {
+				const handle = module.default
 
-			if (typeof handle !== 'function') {
-				throw new Error(`The handler file has no default export: ${file}`)
+				if (typeof handle !== 'function') {
+					throw new Error(`The handler file has no default export: ${file}`)
+				}
+
+				return handle
+			},
+			// A failed import must not stick: the next call retries
+			// instead of replaying the same rejection for every test.
+			error => {
+				cached = undefined
+				throw error
 			}
-
-			return handle
-		})
+		)
 
 		return cached.then(handle => handle(payload))
 	})
@@ -318,11 +333,11 @@ const redirectCacheClients = async (manifest: TestManifest) => {
 // grouped per transport for the client mocks.
 const registerResourceSpies = (manifest: TestManifest, importFile: ImportFile) => {
 	const spies = {
-		lambdas: {} as Record<string, Mock>,
-		tasks: {} as Record<string, Mock>,
-		queues: {} as Record<string, Mock>,
-		topics: {} as Record<string, Mock>,
-		jobs: {} as Record<string, Mock>,
+		lambdas: {} as Registry,
+		schedules: {} as Registry,
+		queues: {} as Registry,
+		topics: {} as Registry,
+		jobs: {} as Registry,
 	}
 
 	for (const entry of manifest.functions) {
@@ -333,15 +348,26 @@ const registerResourceSpies = (manifest: TestManifest, importFile: ImportFile) =
 		spies.lambdas[name] = spy
 	}
 
-	// Tasks invoke like a lambda & schedule like a task, so their spy
-	// registers on both transports.
+	for (const entry of manifest.crons ?? []) {
+		const name = getCronName(entry.id, entry.stack)
+		const spy = realHandler(importFile, entry.file)
+
+		testRegistry.crons[name] = spy
+		spies.lambdas[name] = spy
+	}
+
+	// Tasks invoke like a lambda & schedule like a task. A schedule
+	// records on its own spy & then runs the task, so a test can tell
+	// the two apart while the scheduled work still happens.
 	for (const entry of manifest.tasks) {
 		const name = getTaskName(entry.id, entry.stack)
 		const spy = realHandler(importFile, entry.file)
+		const scheduled = vi.fn((payload: unknown) => spy(payload))
 
 		testRegistry.tasks[name] = spy
+		testRegistry.schedules[name] = scheduled
 		spies.lambdas[name] = spy
-		spies.tasks[name] = spy
+		spies.schedules[name] = scheduled
 	}
 
 	for (const id of manifest.pubsub) {

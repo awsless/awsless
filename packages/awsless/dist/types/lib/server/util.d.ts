@@ -1,10 +1,9 @@
-export declare const APP: string;
-export declare const APP_ID: string;
+export declare const getApp: () => string;
+export declare const getAppId: () => string;
+export declare const getRegion: () => string;
+export declare const getAccountId: () => string;
 export declare const IS_TEST: boolean;
 export declare const IS_LOCAL: boolean;
-export declare const REGION: string;
-export declare const ACCOUNT_ID: string;
-export declare const STACK: string;
 export declare const getRoute: () => string | undefined;
 export declare const getStack: () => string;
 export declare const formatResourceName: (opt: {
@@ -15,5 +14,5 @@ export declare const formatResourceName: (opt: {
     postfix?: string;
     separator?: string;
 }) => string;
-export declare const bindLocalResourceName: <T extends string>(resourceType: T) => <N extends string, S extends string = ReturnType<typeof getStack>>(resourceName: N, stackName?: S) => `${typeof APP}--${S}--${T}--${N}`;
-export declare const bindGlobalResourceName: <T extends string>(resourceType: T) => <N extends string>(resourceName: N) => `${typeof APP}--${T}--${N}`;
+export declare const bindLocalResourceName: <T extends string>(resourceType: T) => <N extends string, S extends string = ReturnType<typeof getStack>>(resourceName: N, stackName?: S) => `${string}--${S}--${T}--${N}`;
+export declare const bindGlobalResourceName: <T extends string>(resourceType: T) => <N extends string>(resourceName: N) => `${string}--${T}--${N}`;

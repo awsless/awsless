@@ -107,6 +107,9 @@ declare const lambdaClient: {
   set(client: LambdaClient$1): void;
 };
 //#endregion
+//#region src/helpers/env.d.ts
+declare const isTestEnv: () => boolean;
+//#endregion
 //#region src/helpers/mock.d.ts
 type Lambdas = {
   [key: string]: (payload: any) => unknown;
@@ -121,10 +124,12 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
   handle: H;
   /** Array of logging functions that are called when an error is thrown. */
   logger?: Loggers;
-  /** Boolean to specify if expected errors should be thrown and logged.
+  /** Whether expected errors are thrown & logged instead of returned
+   * as an error response. A function is evaluated per invocation, so a
+   * handler shared by sync & async routes decides at invoke time.
    * @default false
    */
-  throwExpectedErrors?: boolean;
+  throwExpectedErrors?: boolean | (() => boolean);
 }
 type LambdaFactory = {
   <H extends Handler>(options: Options<H>): (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
@@ -134,4 +139,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 //#endregion
-export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

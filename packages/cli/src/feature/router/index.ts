@@ -1,7 +1,7 @@
 import { days, seconds, toSeconds, years } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
-import { camelCase, constantCase, kebabCase } from 'change-case'
+import { constantCase, kebabCase } from 'change-case'
 import { ExpectedError, FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
@@ -13,6 +13,14 @@ import { formatFullDomainName } from '../domain/util.js'
 import { compileRoutePattern } from './pattern.js'
 import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
+
+// The bundle route key of a route pattern, shared by the deployed
+// route store & the local dev router so both dispatch the same keys.
+const formatPatternRouteKey = (stackName: string, pattern: string) => {
+	const slug = kebabCase(pattern).slice(0, 20)
+
+	return formatRouteKey(stackName, 'route', `${slug || 'root'}-${shortId(pattern)}`)
+}
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -143,13 +151,9 @@ export const routerFeature = defineFeature({
 			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
 				name,
 				headersConfig: {
-					headerBehavior: camelCase('all-except'),
+					headerBehavior: 'allExcept',
 					headers: {
-						items: [
-							'host',
-
-							// 'authorization'
-						],
+						items: ['host'],
 					},
 				},
 				cookiesConfig: {
@@ -325,10 +329,6 @@ export const routerFeature = defineFeature({
 				})
 			}
 
-			// ctx.onDeleteResource(() => {
-			// 	aws.wafv2.WebAcl
-			// })
-
 			// ------------------------------------------------------------
 			// CDN Distribution
 
@@ -350,7 +350,6 @@ export const routerFeature = defineFeature({
 								originProtocolPolicy: 'http-only',
 								originReadTimeout: 20,
 								originSslProtocols: ['TLSv1.2'],
-								// originKeepaliveTimeout: 30,
 							},
 						],
 					},
@@ -565,8 +564,7 @@ export const routerFeature = defineFeature({
 
 			for (const [pattern, props] of Object.entries(patterns)) {
 				const compiled = compileRoutePattern(pattern)
-				const slug = kebabCase(pattern).slice(0, 20)
-				const routeKey = formatRouteKey(ctx.stack.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
+				const routeKey = formatPatternRouteKey(ctx.stack.name, pattern)
 
 				registerBundleFunction(ctx, routeKey, props)
 
@@ -604,15 +602,10 @@ export const routerFeature = defineFeature({
 		for (const stackConfig of ctx.stackConfigs) {
 			for (const [id, patterns] of Object.entries(stackConfig.routes ?? {})) {
 				for (const pattern of Object.keys(patterns)) {
-					const slug = kebabCase(pattern).slice(0, 20)
-					// MUST match the onStack derivation above, so the local
-					// router dispatches the same keys the bundle registers.
-					const routeKey = formatRouteKey(stackConfig.name, 'route', `${slug || 'root'}-${shortId(pattern)}`)
-
 					ctx.addRoute({
 						routerId: id,
 						pattern,
-						routeKey,
+						routeKey: formatPatternRouteKey(stackConfig.name, pattern),
 					})
 				}
 			}

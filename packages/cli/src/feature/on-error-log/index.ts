@@ -8,7 +8,7 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import {
 	addEnvWithoutConfigs,
-	createLambdaFunctionFromZip,
+	createLambda,
 	deployFunctionSourcemaps,
 	registerFunctionBuild,
 } from '../function/util.js'
@@ -56,9 +56,8 @@ export const onErrorLogFeature = defineFeature({
 
 		// The handler is created before the shared subscriber arn is set,
 		// so its own log group is never subscribed to itself.
-		const handler = createLambdaFunctionFromZip(group, ctx, 'on-error-log', 'handler', {
-			zipFile: build.zipFile,
-			sourceHash: build.sourceHash,
+		const handler = createLambda(group, ctx, 'on-error-log', 'handler', {
+			code: build,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
 			memorySize: consumer.memorySize ?? ctx.appConfig.function.memorySize,

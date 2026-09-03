@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import { join } from 'path'
-import { toDays, toSeconds } from '@awsless/duration'
+import { toSeconds } from '@awsless/duration'
 import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
@@ -18,7 +18,7 @@ import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
 import { getFeatureFolder } from '../asset/index.js'
 import { PolicyStatement } from '../bundle/policy.js'
-import { filterPattern } from '../on-error-log/util.js'
+import { createLogGroup } from '../on-error-log/util.js'
 import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
@@ -139,7 +139,7 @@ export const createFargateTask = (
 							Statement: [
 								{
 									Effect: pascalCase('allow'),
-									Action: ['s3:getObject', 's3:HeadObject'],
+									Action: ['s3:GetObject', 's3:HeadObject'],
 									Resource: `arn:aws:s3:::${bucket}/${key}`,
 								},
 							],
@@ -180,40 +180,10 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 	// Logging
 
-	let logGroup: aws.cloudwatch.LogGroup | undefined
-	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(
-			group,
-			'log',
-			{
-				name: `/aws/ecs/${name}`,
-				retentionInDays: toDays(props.log.retention),
-			},
-			{
-				import: ctx.import ? `/aws/ecs/${name}` : undefined,
-			}
-		)
-
-		// ------------------------------------------------------------
-		// Add log subscription
-
-		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(
-				group,
-				'on-error-log',
-				{
-					name: 'error-log-subscription',
-					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-					logGroupName: logGroup.name,
-					filterPattern,
-				},
-				{
-					replaceOnChanges: ['destinationArn'],
-					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
-				}
-			)
-		}
-	}
+	const logGroup = createLogGroup(group, ctx, {
+		name: `/aws/ecs/${name}`,
+		retention: props.log.retention,
+	})
 
 	// ------------------------------------------------------------
 
@@ -262,8 +232,9 @@ export const createFargateTask = (
 							command: [
 								[
 									...(props.startupCommand ?? []),
-									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
-									`chmod +x /usr/app/program`,
+									// A custom image may lack the aws cli. The download is
+									// skipped while a persisted program matches the code hash.
+									`if [ "$(cat /usr/app/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program.tmp && mv /usr/app/program.tmp /usr/app/program && chmod +x /usr/app/program && echo "$CODE_HASH" > /usr/app/.code-hash; fi`,
 									`exec /usr/app/program`,
 								].join(' && '),
 							],
@@ -292,13 +263,10 @@ export const createFargateTask = (
 								logConfiguration: {
 									logDriver: 'awslogs',
 									options: {
-										// 'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-region': ctx.appConfig.region,
 										'awslogs-stream-prefix': 'ecs',
 										mode: 'non-blocking',
-										// 'awslogs-multiline-pattern': '',
-										// 'max-buffer-size': '100m',
 									},
 								},
 							}),
@@ -342,16 +310,6 @@ export const createFargateTask = (
 		revokeRulesOnDelete: true,
 		tags,
 	})
-
-	// new aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
-	// 	securityGroupId: securityGroup.id,
-	// 	description: `Allow HTTP traffic on port 80 to the ${name} instance`,
-	// 	fromPort: 80,
-	// 	toPort: 80,
-	// 	ipProtocol: 'tcp',
-	// 	cidrIpv4: '0.0.0.0/0',
-	// 	tags,
-	// })
 
 	new aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
 		securityGroupId: securityGroup.id,
@@ -450,13 +408,7 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 	// Add user defined permissions
 
-	if (ctx.appConfig.instance.permissions) {
-		statements.push(...ctx.appConfig.instance.permissions)
-	}
-
-	if (local.permissions) {
-		statements.push(...local.permissions)
-	}
+	addPermission(...(ctx.appConfig.instance.permissions ?? []), ...(local.permissions ?? []))
 
 	return { name, task, service, policy, code, group, addPermission }
 }

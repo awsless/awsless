@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm } from 'fs/promises'
 import { join } from 'path'
-import { directories } from './path'
+import { directories } from './path.js'
 
 export const createTempFolder = async (name: string) => {
 	const path = join(directories.temp, name)

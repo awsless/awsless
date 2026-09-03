@@ -1,9 +1,9 @@
 import { GetHostedZoneCommand, Route53Client } from '@aws-sdk/client-route-53'
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import { z } from 'zod'
-import { color, icon } from '../cli/ui/style'
-import { Region } from '../config/schema/region'
-import { Credentials } from '../util/aws'
+import { color, icon } from '../cli/ui/style.js'
+import { Region } from '../config/schema/region.js'
+import { Credentials } from '../util/aws.js'
 
 type NsCheckInput = {
 	zoneId: Input<string>

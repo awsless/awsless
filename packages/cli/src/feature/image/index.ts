@@ -2,21 +2,153 @@ import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { toDays } from '@awsless/duration'
+import { Duration, toDays } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
-import { kebabCase } from 'change-case'
+import { constantCase, kebabCase } from 'change-case'
 import { glob } from 'glob'
 import { getBuildPath } from '../../build/index.js'
-import { FileError } from '../../error'
-import { defineFeature } from '../../feature'
+import { FileError } from '../../error.js'
+import { defineFeature, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
-import { formatGlobalResourceName } from '../../util/name'
+import { formatGlobalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { getFeatureFolder } from '../asset/index.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { imageOnDev } from './dev.js'
+
+// The image & icon features share one server shape: a bundle handler
+// behind a router path, an optional origin function or static folder,
+// and a cache folder in the shared bucket.
+export const registerMediaServer = (
+	ctx: StackContext,
+	props: {
+		kind: 'image' | 'icon'
+		id: string
+		router: string
+		path: string
+		cacheDuration?: Duration
+		origin: {
+			function?: Parameters<typeof registerBundleFunction>[2]
+			static?: string
+		}
+		handler: {
+			file: string
+			external?: string[]
+		}
+		// The server config, passed as json through the route env.
+		config: unknown
+		// Rejects a static file before it's uploaded.
+		validateFile?: (file: string) => void
+	}
+) => {
+	const { kind, id } = props
+	const bundle = ctx.shared.get('bundle', 'main')
+	const bucket = ctx.shared.get('asset', 'bucket')
+	const group = new Group(ctx.stack, kind, id)
+	const folder = getFeatureFolder(kind, ctx.stack.name, id)
+	const envPrefix = constantCase(kind)
+
+	const routerId = ctx.shared.entry('router', 'id', props.router)
+	const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
+	const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
+
+	// ------------------------------------------------------------
+	// The origins
+
+	let originRouteKey: string | undefined
+
+	if (props.origin.function) {
+		originRouteKey = formatRouteKey(ctx.stack.name, kind, `${id}-origin`)
+
+		registerBundleFunction(ctx, originRouteKey, props.origin.function)
+	}
+
+	// ------------------------------------------------------------
+	// The cache lives in the shared bucket
+
+	if (props.cacheDuration) {
+		bucket.addLifecycleRule({
+			id: kebabCase(`${folder}cache-duration`),
+			enabled: true,
+			prefix: `${folder}cache/`,
+			expiration: {
+				days: toDays(props.cacheDuration),
+			},
+		})
+	}
+
+	// ------------------------------------------------------------
+	// Add the server to the bundle
+
+	const serverRouteKey = formatRouteKey(ctx.stack.name, kind, id)
+
+	bundle.addHandler({
+		routeKey: serverRouteKey,
+		file: props.handler.file,
+		exportName: 'default',
+		external: props.handler.external,
+	})
+
+	addRoutes({
+		[routeKey]: {
+			type: 'lambda',
+			requestHeaders: {
+				[ROUTE_HEADER]: serverRouteKey,
+			},
+			rewrite: {
+				regex: `^${props.path}/(.*)$`,
+				to: '/$1',
+			},
+		},
+	})
+
+	bundle.addEnv(formatRouteEnvName(serverRouteKey, `${envPrefix}_CONFIG`), JSON.stringify(props.config))
+	bundle.addEnv(formatRouteEnvName(serverRouteKey, `${envPrefix}_BUCKET`), bucket.name)
+	bundle.addEnv(formatRouteEnvName(serverRouteKey, `${envPrefix}_FOLDER`), folder)
+
+	if (originRouteKey) {
+		bundle.addEnv(formatRouteEnvName(serverRouteKey, `${envPrefix}_ORIGIN`), originRouteKey)
+	}
+
+	if (props.origin.static) {
+		bundle.addEnv(formatRouteEnvName(serverRouteKey, `${envPrefix}_ORIGIN_S3`), 'true')
+	}
+
+	// ------------------------------------------------------------
+	// Upload the static origin files to S3
+
+	ctx.onReady(() => {
+		if (props.origin.static) {
+			const files = glob.sync('**', {
+				cwd: props.origin.static,
+				nodir: true,
+			})
+
+			for (const file of files) {
+				props.validateFile?.(file)
+
+				new aws.s3.BucketObject(
+					group,
+					`static-${file}`,
+					{
+						bucket: bucket.name,
+						key: `${folder}origin/${file}`,
+						source: join(props.origin.static, file),
+						sourceHash: $hash(join(props.origin.static, file)),
+					},
+					{
+						replaceOnChanges: ['bucket', 'key'],
+					}
+				)
+			}
+		}
+	})
+
+	ctx.shared.add(kind, 'distribution-id', id, routerId)
+	ctx.shared.add(kind, 'cache', id, { bucket: bucket.name, prefix: `${folder}cache/` })
+}
 
 export const imageFeature = defineFeature({
 	name: 'image',
@@ -115,121 +247,23 @@ export const imageFeature = defineFeature({
 		bundle.addLayer(layer.arn)
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-		const bucket = ctx.shared.get('asset', 'bucket')
-
 		for (const [id, props] of Object.entries(ctx.stackConfig.images ?? {})) {
-			const group = new Group(ctx.stack, 'image', id)
-			const folder = getFeatureFolder('image', ctx.stack.name, id)
-
-			// const addInvalidation = ctx.shared.entry('router', 'addInvalidation', props.router)
-			const routerId = ctx.shared.entry('router', 'id', props.router)
-			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
-			const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
-
-			// ------------------------------------------------------------
-			// Create the image origins
-
-			let originRouteKey: string | undefined
-
-			if (props.origin.function) {
-				const origin = props.origin.function
-				originRouteKey = formatRouteKey(ctx.stack.name, 'image', `${id}-origin`)
-
-				registerBundleFunction(ctx, originRouteKey, origin)
-			}
-
-			// ------------------------------------------------------------
-			// The image cache lives in the shared bucket
-
-			if (props.cacheDuration) {
-				bucket.addLifecycleRule({
-					id: kebabCase(`${folder}cache-duration`),
-					enabled: true,
-					prefix: `${folder}cache/`,
-					expiration: {
-						days: toDays(props.cacheDuration),
-					},
-				})
-			}
-
-			// ------------------------------------------------------------
-			// Add the image server to the bundle
-
-			const serverRouteKey = formatRouteKey(ctx.stack.name, 'image', id)
-
-			bundle.addHandler({
-				routeKey: serverRouteKey,
-				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/image.js'),
-				exportName: 'default',
-				external: ['sharp'],
-			})
-
-			addRoutes({
-				[routeKey]: {
-					type: 'lambda',
-					requestHeaders: {
-						[ROUTE_HEADER]: serverRouteKey,
-					},
-					rewrite: {
-						regex: `^${props.path}/(.*)$`,
-						to: '/$1',
-					},
+			registerMediaServer(ctx, {
+				kind: 'image',
+				id,
+				router: props.router,
+				path: props.path,
+				cacheDuration: props.cacheDuration,
+				origin: props.origin,
+				handler: {
+					file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/image.js'),
+					external: ['sharp'],
 				},
-			})
-
-			bundle.addEnv(
-				formatRouteEnvName(serverRouteKey, 'IMAGE_CONFIG'),
-				JSON.stringify({
+				config: {
 					presets: props.presets,
 					extensions: props.extensions,
-				})
-			)
-
-			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_BUCKET'), bucket.name)
-			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_FOLDER'), folder)
-
-			if (originRouteKey) {
-				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN'), originRouteKey)
-			}
-
-			if (props.origin.static) {
-				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN_S3'), 'true')
-			}
-
-			// ------------------------------------------------------------
-			// Upload static images to S3
-
-			ctx.onReady(() => {
-				if (props.origin.static) {
-					const files = glob.sync('**', {
-						cwd: props.origin.static,
-						nodir: true,
-					})
-
-					for (const file of files) {
-						new aws.s3.BucketObject(
-							group,
-							`static-${file}`,
-							{
-								bucket: bucket.name,
-								key: `${folder}origin/${file}`,
-								source: join(props.origin.static, file),
-								sourceHash: $hash(join(props.origin.static, file)),
-							},
-							{
-								replaceOnChanges: ['bucket', 'key'],
-							}
-						)
-					}
-				}
+				},
 			})
-
-			// ------------------------------------------------------------
-			// Domain name records and endpoint binding
-
-			ctx.shared.add('image', 'distribution-id', id, routerId)
-			ctx.shared.add('image', 'cache', id, { bucket: bucket.name, prefix: `${folder}cache/` })
 		}
 	},
 })

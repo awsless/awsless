@@ -7,6 +7,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { funcType, invokeTypes, testMockTypes } from '../../type-gen/snippets.js'
 import { createLambdaFunction, isStandaloneFunction } from './util.js'
 
 const typeGenCode = `
@@ -14,33 +15,12 @@ import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
 import type { PartialDeep } from 'type-fest'
 import type { Mock } from 'vitest'
 
-type Func = (...args: any[]) => any
+${funcType}
 
-type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
 type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type'>
-
-type InvokeWithPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	readonly cached: (payload: Parameters<F>[0], options?: Options) => InvokeResponse<F>
-	(payload: Parameters<F>[0], options?: Options): InvokeResponse<F>
-}
-
-type InvokeWithoutPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	readonly cached: (payload?: Parameters<F>[0], options?: Options) => InvokeResponse<F>
-	(payload?: Parameters<F>[0], options?: Options): InvokeResponse<F>
-}
-
+${invokeTypes({ returns: 'InvokeResponse<F>', options: 'Options', cached: true })}
 type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurseIntoArrays: true }>
-type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Response<F>> | Response<F> | void | Promise<void> | Promise<Promise<void>>
-type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
-type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
-type MockObject<F extends Func> = Mock<(...args: Parameters<F>) => ReturnType<F>>
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry<F extends Func> = MockBuilder<F> & MockObject<F>
-`
+${testMockTypes({ handle: 'Promise<Response<F>> | Response<F> | void | Promise<void>', accepts: 'Response<F>' })}`
 
 export const functionFeature = defineFeature({
 	name: 'function',

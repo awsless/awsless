@@ -1,6 +1,7 @@
 import { invoke } from '@awsless/lambda'
 
-vi.mock('@awsless/lambda', () => ({
+vi.mock('@awsless/lambda', async importOriginal => ({
+	...(await importOriginal<typeof import('@awsless/lambda')>()),
 	invoke: vi.fn(async ({ payload }) => payload),
 }))
 
@@ -20,8 +21,7 @@ describe('standalone routes', () => {
 	})
 
 	it('routes calls from outside the bundle through the bundle', async () => {
-		vi.stubEnv('NODE_ENV', 'production')
-		vi.stubEnv('VITEST', '')
+		vi.stubEnv('LAMBDA_ENV', 'production')
 		vi.stubEnv('APP', 'app')
 
 		const { Fn } = await import('../src/lib/server/function')
@@ -63,8 +63,7 @@ describe('standalone routes', () => {
 	})
 
 	it('invokes stand-alone routes directly inside the bundle', async () => {
-		vi.stubEnv('NODE_ENV', 'production')
-		vi.stubEnv('VITEST', '')
+		vi.stubEnv('LAMBDA_ENV', 'production')
 		vi.stubEnv('APP', 'app')
 
 		const { captureInvokedQualifier, setBundleRoutes, withBundleRouteContext } =

@@ -5,6 +5,14 @@ import { createProxy } from '../proxy.js'
 import { registerTestCleanup } from '../test/cleanup.js'
 import { getStack, IS_LOCAL, IS_TEST } from './util.js'
 
+const tryGetContext = () => {
+	try {
+		return getContext()
+	} catch {
+		return undefined
+	}
+}
+
 export const getCacheProps = (name: string, stack: string = getStack()) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`
 
@@ -46,7 +54,11 @@ export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 				if (IS_TEST) {
 					registerTestCleanup(() => client.destroy())
 				} else {
-					getContext().onFinally(() => {
+					// Jobs, instances & `awsless run` have no invocation
+					// either - their client lives as long as the process.
+					const context = tryGetContext()
+
+					context?.onFinally(() => {
 						return client.destroy()
 					})
 				}

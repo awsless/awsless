@@ -5,9 +5,9 @@ import { createCustomProvider, createCustomResourceClass, Input, Output } from '
 import { glob } from 'glob'
 import promiseLimit from 'p-limit'
 import { z } from 'zod'
-import { Region } from '../config/schema/region'
+import { Region } from '../config/schema/region.js'
 import { formatSourcemapPrefix, formatSourcemapVersionKey } from '../feature/on-error-log/keys.js'
-import { Credentials } from '../util/aws'
+import { Credentials } from '../util/aws.js'
 import { getCacheControl, getContentType } from '../util/content.js'
 
 type SiteDeploymentInput = {

@@ -8,10 +8,11 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import {
 	addEnvWithoutConfigs,
-	createLambdaFunctionFromZip,
+	createLambda,
 	deployFunctionSourcemaps,
 	registerFunctionBuild,
 } from '../function/util.js'
+import { subscribeToErrorLog } from '../on-error-log/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
@@ -278,9 +279,8 @@ export const onFailureFeature = defineFeature({
 			wrapper: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.js'),
 		})
 
-		const handler = createLambdaFunctionFromZip(group, ctx, 'on-failure', 'handler', {
-			zipFile: build.zipFile,
-			sourceHash: build.sourceHash,
+		const handler = createLambda(group, ctx, 'on-failure', 'handler', {
+			code: build,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
 			memorySize: consumer.memorySize ?? ctx.appConfig.function.memorySize,
@@ -292,7 +292,16 @@ export const onFailureFeature = defineFeature({
 				level: consumer.log?.level ?? 'warn',
 				system: consumer.log?.system ?? 'warn',
 				retention: consumer.log?.retention ?? days(3),
+				errorLog: false,
 			},
+		})
+
+		// The on-error-log handler only exists after this feature ran,
+		// so the log group subscribes once every handler is in place.
+		ctx.onReady(() => {
+			if (handler.logGroup) {
+				subscribeToErrorLog(handler.group, ctx, handler.logGroup)
+			}
 		})
 
 		deployFunctionSourcemaps(group, ctx, {
