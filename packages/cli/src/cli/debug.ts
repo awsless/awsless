@@ -2,11 +2,8 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { directories } from '../util/path.js'
 
-// Debug logs always write to a plain text log file, so the terminal
-// ui stays clean & the last run stays inspectable after a crash.
-// The file lives in the project's .awsless folder, which is only known
-// once the app config has been located. Lines written before that wait
-// in memory, so a run outside a project leaves no stray folder behind.
+// The log file lives in the project's .awsless folder, so lines wait in
+// memory until the project root is known.
 let file: string | undefined
 let pending: string[] = []
 
@@ -33,8 +30,7 @@ export const openDebugLog = () => {
 	}
 }
 
-// The dev dashboard taps the debug stream through this sink - set,
-// not added, so a config restart never stacks stale listeners.
+// Set, not added, so a dev config restart never stacks stale sinks.
 let sink: ((type: string, message: string) => void) | undefined
 
 export const setDebugSink = (listener?: (type: string, message: string) => void) => {

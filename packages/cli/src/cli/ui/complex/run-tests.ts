@@ -9,6 +9,7 @@ import { generateFileHash, generateFolderHash, loadWorkspace } from '@awsless/ts
 import type { TestManifest } from 'awsless'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
+import { AppConfig } from '../../../config/app.js'
 import { ModuleError, startProjectsTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { debug } from '../../debug.js'
@@ -194,14 +195,25 @@ const readCachedResult = async (file: string, fingerprint: string) => {
 	return
 }
 
-// A loaded machine can refuse or time out a local resource
-// server connection for a moment, killing an arbitrary stack
-// mid-run with a bare system error. Those clear within a tick,
-// so a stack that failed on nothing but system errors gets one
-// retry instead of failing the whole run.
+// A loaded machine briefly refuses local server connections, so a
+// stack that failed on nothing but system errors gets one retry.
 const transient = (error: ModuleError) =>
 	['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].includes(error.code ?? '') ||
 	['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].some(code => error.message.includes(code))
+
+// The env the test workers see, shared by the test & deploy commands.
+export const createTestEnv = (props: {
+	appConfig: AppConfig
+	appId: string
+	accountId: string
+	manifestFile: string
+}) => ({
+	APP: props.appConfig.name,
+	APP_ID: props.appId,
+	AWS_REGION: props.appConfig.region,
+	AWS_ACCOUNT_ID: props.accountId,
+	AWSLESS_TEST_MANIFEST: props.manifestFile,
+})
 
 export const runTests = async (
 	tests: TestCase[],
@@ -226,7 +238,13 @@ export const runTests = async (
 	if (opts.manifest) {
 		const { servers: _servers, ...stable } = opts.manifest
 
-		const files = [...stable.streams, ...stable.functions, ...stable.tasks, ...stable.queues, ...(stable.crons ?? [])]
+		const files = [
+			...stable.streams,
+			...stable.functions,
+			...stable.tasks,
+			...stable.queues,
+			...(stable.crons ?? []),
+		]
 			.map(entry => entry.file)
 			.filter((file): file is string => typeof file === 'string')
 			.toSorted()
@@ -284,7 +302,9 @@ export const runTests = async (
 				continue
 			}
 
-			const file = join(directories.test, `${test.name}.json`)
+			// A stack with several test folders needs a result file per folder.
+			const name = test.paths.length > 1 ? `${test.name}:${index}` : test.name
+			const file = join(directories.test, `${name.replace(':', '-')}.json`)
 			const fingerprint = fingerprints.get(dir)!
 			const cached = await readCachedResult(file, fingerprint)
 
@@ -305,7 +325,7 @@ export const runTests = async (
 			}
 
 			pending.push({
-				name: test.paths.length > 1 ? `${test.name}:${index}` : test.name,
+				name,
 				stack: test.name,
 				dir,
 				file,
@@ -421,11 +441,8 @@ export const runTests = async (
 		if (result.errors.length > 0) {
 			passed = false
 
-			// Module errors carry no test file context, so keep the
-			// error type - a bare system error message like
-			// "ECONNREFUSED" is unfindable on its own. The terminal
-			// only shows the message, so the full stack goes to the
-			// debug log.
+			// A bare "ECONNREFUSED" is unfindable, so the type stays on
+			// the terminal & the full stack goes to the debug log.
 			for (const error of result.errors) {
 				debug(`Module error in ${entry.stack} tests: ${formatModuleError(error)}`)
 

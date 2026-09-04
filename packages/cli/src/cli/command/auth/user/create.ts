@@ -8,8 +8,8 @@ import {
 import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../../error.js'
-import { getAccountId, getCredentials } from '../../../../util/aws.js'
 import { layout } from '../../../ui/complex/layout.js'
+import { createClients } from '../../util.js'
 import { askUsername, loadUserPoolId, selectUserPool, validatePassword } from './util.js'
 
 export const create = (program: Command) => {
@@ -22,10 +22,7 @@ export const create = (program: Command) => {
 		.option('--groups <groups...>', 'The groups to add the new user to')
 		.action(async (options: { pool?: string; username?: string; password?: string; groups?: string[] }) => {
 			await layout('auth user create', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { name, props } = await selectUserPool(appConfig, options.pool)
 				const userPoolId = await loadUserPoolId({ appConfig, stackConfigs, accountId, credentials, name })

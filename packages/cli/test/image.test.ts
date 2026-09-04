@@ -15,7 +15,13 @@ describe('image', () => {
 				{
 					name: 'stack-1',
 					images: {
-						photos: { router: 'main', path: '/images', presets: {}, extensions: { webp: {} }, origin: { function: { code } } },
+						photos: {
+							router: 'main',
+							path: '/images',
+							presets: {},
+							extensions: { webp: {} },
+							origin: { function: { code } },
+						},
 					},
 				},
 			],
@@ -35,7 +41,13 @@ describe('image', () => {
 					{
 						name: 'stack-1',
 						images: {
-							photos: { router: 'main', path: '/images', presets: {}, extensions: { webp: {} }, origin: { function: { code } } },
+							photos: {
+								router: 'main',
+								path: '/images',
+								presets: {},
+								extensions: { webp: {} },
+								origin: { function: { code } },
+							},
 						},
 					},
 				],
@@ -49,12 +61,17 @@ describe('icon', () => {
 		const { shared } = createTestApp({
 			app: { router: { main: {} } },
 			stacks: [
-				{ name: 'stack-1', icons: { icons: { router: 'main', path: '/icons', origin: { function: { code } } } } },
+				{
+					name: 'stack-1',
+					icons: { icons: { router: 'main', path: '/icons', origin: { function: { code } } } },
+				},
 			],
 		})
 
 		expect(shared.entry('icon', 'distribution-id', 'icons')).toBeDefined()
-		expect(shared.entry('icon', 'cache', 'icons').prefix).toBe(`${getFeatureFolder('icon', 'stack-1', 'icons')}cache/`)
+		expect(shared.entry('icon', 'cache', 'icons').prefix).toBe(
+			`${getFeatureFolder('icon', 'stack-1', 'icons')}cache/`
+		)
 	})
 
 	it('rejects static origin files that are no svg', () => {
@@ -66,7 +83,10 @@ describe('icon', () => {
 		const result = createTestApp({
 			app: { router: { main: {} } },
 			stacks: [
-				{ name: 'stack-1', icons: { icons: { router: 'main', path: '/icons', origin: { static: { nocheck: dir } } } } },
+				{
+					name: 'stack-1',
+					icons: { icons: { router: 'main', path: '/icons', origin: { static: { nocheck: dir } } } },
+				},
 			],
 		})
 

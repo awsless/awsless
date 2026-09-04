@@ -2,9 +2,8 @@ import { InvokeCommand } from '@aws-sdk/client-lambda'
 import { parse, stringify } from '@awsless/json'
 import { ExpectedError } from '../errors/expected'
 import { isErrorResponse } from '../errors/response'
-// import { isViewableErrorResponse, ViewableError } from '../errors/viewable'
 import { lambdaClient } from '../helpers/client'
-import { ErrorResponse, Invoke, LambdaError, UnknownInvokeOptions } from './type'
+import { ErrorResponse, Invoke, UnknownInvokeOptions } from './type'
 
 const isLambdaErrorResponse = (response: unknown): response is ErrorResponse => {
 	return (
@@ -46,27 +45,15 @@ export const invoke: Invoke = async ({
 		const e = response.__error__
 
 		if (reflectViewableErrors) {
-			throw new ExpectedError(e.type, e.message)
+			throw new ExpectedError(e.type, e.message, e.data)
 		} else {
 			throw new Error(e.message)
 		}
-
-		// const error: LambdaError = reflectViewableErrors ? new ExpectedError(e.message) : new Error(e.message)
-
-		// error.metadata = {
-		// 	functionName: name,
-		// }
-
-		// throw error
 	}
 
 	if (isLambdaErrorResponse(response)) {
-		const error: LambdaError = new Error(response.errorMessage)
+		const error = new Error(response.errorMessage)
 		error.name = response.errorType
-
-		// error.metadata = {
-		// 	functionName: name,
-		// }
 
 		throw error
 	}

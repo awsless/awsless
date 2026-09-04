@@ -34,19 +34,6 @@ export const NO_LOCK_KEY_PROVIDED: GlobalError = {
 	message: 'Your trying to call a locked function without providing a `lockKey`.',
 }
 
-// export const UNAUTHORIZED: GlobalError = {
-// 	type: 'unauthorized',
-// 	message: 'Unauthorized',
-// }
-
-// export const PERMISSION_ACCESS_DENIED = (permissions: string[]): FunctionError => ({
-// 	ok: false,
-// 	error: {
-// 		type: 'permission-access-denied',
-// 		message: `You don't have the following permissions: ${permissions.map(p => `"${p}"`).join(', ')}`,
-// 	},
-// })
-
 export const PERMISSION_ACCESS_DENIED: FunctionError = {
 	ok: false,
 	error: {
@@ -84,13 +71,6 @@ export const EXPECTED_ERROR = (error: ViewableError | ExpectedError): FunctionEr
 	error: {
 		type: error.type,
 		message: error.message,
-		// data: error.data,
+		data: error.data,
 	},
 })
-
-// export const AUTH_HANDLE_ERROR = (error?: Error): GlobalError => {
-// 	return {
-// 		type: 'auth-handle-error',
-// 		message: error ? error.message : `Auth handle error`,
-// 	}
-// }

@@ -1,4 +1,4 @@
-import { Handler } from '@awsless/lambda'
+import { ExpectedError, Handler, isErrorResponse, ViewableError } from '@awsless/lambda'
 import {
 	array,
 	date,
@@ -46,9 +46,9 @@ export type FailureEvent = {
 type FailureHandler = (event: FailureEvent, context: Parameters<Handler>[1]) => unknown
 
 export const failure = <H extends FailureHandler>(handle: H) => {
-	// The failure event has no schema yet, so the unknown event input
-	// narrows to the structural FailureEvent type.
-	return consumer(undefined, handle as unknown as Handler)
+	// Fed by sqs & bounded by its redrive: a bad record retries, then
+	// dead-letters, instead of being acknowledged as an error response.
+	return consumer(undefined, handle as unknown as Handler, true)
 }
 
 const onErrorLogSchema = object({
@@ -103,5 +103,31 @@ export type ErrorEvent = {
 type ErrorSchema = GenericSchema<InferInput<typeof onErrorLogSchema>, ErrorEvent>
 
 export const error = <H extends Handler<ErrorSchema>>(handle: H) => {
-	return consumer(onErrorLogSchema as ErrorSchema, handle)
+	const handler = consumer(onErrorLogSchema as ErrorSchema, handle, false)
+
+	const skip = (error: { type: string; message: string }) => {
+		console.warn(`The on-error-log consumer skipped a record it can't process (${error.type}): ${error.message}`)
+	}
+
+	// A record it can't process is dropped with a warning: throwing would
+	// reach the failure destination, which logs, which re-enters here.
+	return async (...args: Parameters<typeof handler>) => {
+		try {
+			const result = await handler(...args)
+
+			if (isErrorResponse(result)) {
+				skip(result.__error__)
+				return
+			}
+
+			return result
+		} catch (error) {
+			if (error instanceof ExpectedError || error instanceof ViewableError) {
+				skip(error)
+				return
+			}
+
+			throw error
+		}
+	}
 }

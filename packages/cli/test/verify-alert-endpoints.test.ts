@@ -106,7 +106,10 @@ describe('alert endpoint verification', () => {
 	it('should resolve config references & ignore the unset ones', async () => {
 		mockSns({ sandbox: true, verified: [] })
 
-		await verify({ ops: ['config:on-call', 'config:missing', 'config:blank'] }, { 'on-call': '+15550000009', blank: ' ' })
+		await verify(
+			{ ops: ['config:on-call', 'config:missing', 'config:blank'] },
+			{ 'on-call': '+15550000009', blank: ' ' }
+		)
 
 		expect(mocks.warnings).toHaveLength(1)
 		expect(mocks.warnings[0]).toContain('+15550000009')

@@ -81,7 +81,6 @@ export const AuthDefaultSchema = z
 				})
 				.prefault({})
 				.describe('Specifies the validity duration for every JWT token.'),
-
 		})
 	)
 	.default({})

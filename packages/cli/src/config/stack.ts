@@ -33,14 +33,10 @@ export const StackSchema = z
 		routes: RoutesSchema,
 
 		commands: CommandsSchema,
-
-		// auth: AuthSchema,
-		// http: HttpSchema,
 		rest: RestSchema,
 		rpc: RpcSchema,
 		crons: CronsSchema,
 		caches: CachesSchema,
-		// topics: TopicsSchema,
 		subscribers: SubscribersSchema,
 		functions: FunctionsSchema,
 		instances: InstancesSchema,
@@ -48,7 +44,6 @@ export const StackSchema = z
 		tasks: TasksSchema,
 		tables: TablesSchema,
 		stores: StoresSchema,
-		// streams: StreamsSchema,
 		queues: QueuesSchema,
 		pubsub: PubSubSchema,
 		searchs: SearchsSchema,

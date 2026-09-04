@@ -1,7 +1,6 @@
 export type ErrorResponse = {
 	__error__: {
 		type: string
-		// name: string
 		message: string
 		data?: unknown
 	}
@@ -20,10 +19,8 @@ export const toErrorResponse = (error: Error & { type: string; data?: unknown })
 	return {
 		__error__: {
 			type: error.type,
-			// name: error.name,
 			message: error.message,
-			// The viewable data rides along, so a caller (or the http
-			// error response) keeps the structured details.
+			// The data rides along, so a caller keeps the structured details.
 			data: error.data,
 		},
 	}

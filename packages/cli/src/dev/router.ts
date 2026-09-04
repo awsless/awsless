@@ -11,6 +11,9 @@ type CompiledRoute = {
 	routeKey?: string
 	proxy?: string
 	rewrite?: { regex: string; to: string }
+	// Raw keys are the static asset routes, which the deployed viewer
+	// only serves for GET & HEAD (they are s3 origins).
+	readOnly: boolean
 }
 
 type RouteMatch = {
@@ -39,6 +42,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 			routeKey: route.routeKey,
 			proxy: route.proxy,
 			rewrite: route.rewrite,
+			readOnly: Boolean(route.rawKey),
 		})
 
 		store.set(compiled.key, list)
@@ -72,13 +76,17 @@ export const compileRoutes = (routes: DevRoute[]) => {
 		return [path, `/${root}/*`, '/*']
 	}
 
-	return (requestPath: string): RouteMatch | undefined => {
+	return (requestPath: string, method = 'GET'): RouteMatch | undefined => {
 		// Only the route selection drops a trailing slash, like the viewer
 		// function - the forwarded path stays untouched.
 		const path = requestPath.length > 1 && requestPath.endsWith('/') ? requestPath.slice(0, -1) : requestPath
 
 		for (const key of possibleKeys(path)) {
 			for (const route of store.get(key) ?? []) {
+				if (route.readOnly && method !== 'GET' && method !== 'HEAD') {
+					continue
+				}
+
 				if (!route.match) {
 					return { routeKey: route.routeKey, proxy: route.proxy, params: {}, rewrite: route.rewrite }
 				}
@@ -271,7 +279,7 @@ export const startDevRouter = async (props: {
 		idleTimeout: 120,
 		async fetch(request, server) {
 			const url = new URL(request.url)
-			const route = match(url.pathname)
+			const route = match(url.pathname, request.method)
 
 			if (!route) {
 				return new Response(`No route matched: ${url.pathname}`, { status: 404 })

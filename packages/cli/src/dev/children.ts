@@ -6,23 +6,15 @@ import treeKill from 'tree-kill'
 import { debug } from '../cli/debug.js'
 import { directories } from '../util/path.js'
 
-// Dev child processes must never outlive the dev command. The graceful
-// stop already walks every server's stop chain, but a hard kill of the
-// dev process reparents the children to pid 1 and leaves them running.
-// Two layers close that gap:
-//
-// - stopping a child kills its whole process tree through tree-kill,
-//   so grandchildren (like the bundler a vite dev server spawns) die
-//   with it
-// - every child lands in a pid file, and the next dev boot reaps any
-//   tree that survived a hard kill of the previous run
-//
-// A pid can be recycled between runs, so the reaper verifies the
-// command line before it kills anything.
+// A hard kill of the dev process reparents its children to pid 1, so
+// every child lands in a pid file & the next boot reaps the leftovers.
 
 type TrackedChild = {
 	pid: number
 	command: string
+	// The dev process that spawned the child, so a restart inside the
+	// same process never reaps its own live children.
+	owner: number
 }
 
 const tracked = new Map<number, TrackedChild>()
@@ -31,8 +23,7 @@ const childrenFile = () => {
 	return join(directories.output, 'dev', 'children.json')
 }
 
-// Writes queue up one after another & land through a rename: parallel
-// spawns would otherwise interleave their writes into a torn file.
+// Serialized & renamed into place, or parallel spawns tear the file.
 let writing: Promise<void> = Promise.resolve()
 
 const persist = () => {
@@ -54,8 +45,14 @@ const persist = () => {
 export const spawnDevChild = (command: string, args: string[], options: SpawnOptions = {}) => {
 	const child = spawn(command, args, options)
 
+	// Without a listener a spawn failure (like a missing binary) throws
+	// out of the emitter & takes down the whole dev process.
+	child.on('error', error => {
+		debug(`Dev child "${command}" failed`, error)
+	})
+
 	if (child.pid) {
-		tracked.set(child.pid, { pid: child.pid, command: [command, ...args].join(' ') })
+		tracked.set(child.pid, { pid: child.pid, command: [command, ...args].join(' '), owner: process.pid })
 		void persist().catch(() => {})
 
 		child.once('exit', () => {
@@ -84,6 +81,15 @@ const currentCommand = async (pid: number) => {
 	}
 }
 
+const isAlive = (pid: number) => {
+	try {
+		process.kill(pid, 0)
+		return true
+	} catch {
+		return false
+	}
+}
+
 const isTrackedChild = (value: unknown): value is TrackedChild => {
 	return (
 		typeof value === 'object' &&
@@ -94,10 +100,10 @@ const isTrackedChild = (value: unknown): value is TrackedChild => {
 }
 
 // Kill the process trees a previous dev run left behind after a hard
-// kill. Runs before the local servers boot, so stale children can't
-// hold on to their ports.
-export const reapOrphanedDevChildren = async () => {
-	const file = childrenFile()
+// kill, before the local servers need their ports again.
+export const reapOrphanedDevChildren = async (options: { file?: string; self?: number } = {}) => {
+	const file = options.file ?? childrenFile()
+	const self = options.self ?? process.pid
 	let content: string
 
 	try {
@@ -122,8 +128,18 @@ export const reapOrphanedDevChildren = async () => {
 	}
 
 	let reaped = 0
+	const kept: TrackedChild[] = []
 
 	for (const child of stale) {
+		// A living owner (this process on a config restart, or another
+		// dev run) still manages its children - only orphans die.
+		if (typeof child.owner === 'number' && (child.owner === self || isAlive(child.owner))) {
+			kept.push(child)
+			continue
+		}
+
+		// A pid can be recycled between runs, so the command line must
+		// still match before anything dies.
 		const command = await currentCommand(child.pid)
 
 		if (command !== child.command) {
@@ -134,15 +150,17 @@ export const reapOrphanedDevChildren = async () => {
 		reaped++
 	}
 
-	await rm(file, { force: true })
+	if (kept.length > 0) {
+		await writeFile(file, JSON.stringify(kept))
+	} else {
+		await rm(file, { force: true })
+	}
 
 	return reaped
 }
 
-// The graceful stop chains empty the tracked set before the process
-// exits - anything still here is a leftover from a crash. The exit
-// hook can't walk process trees anymore, so the direct children die
-// here and the next boot reaps whatever they leave behind.
+// The exit hook can't walk process trees anymore, so the direct
+// children die here and the next boot reaps whatever they leave.
 process.once('exit', () => {
 	for (const child of tracked.values()) {
 		try {

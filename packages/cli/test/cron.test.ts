@@ -11,7 +11,9 @@ describe('cron', () => {
 
 		const schedules = listResources(app, 'aws_scheduler_schedule')
 
-		expect(listResources(app, 'aws_scheduler_schedule_group').filter(meta => meta.input.name.includes('--cron--'))).toHaveLength(1)
+		expect(
+			listResources(app, 'aws_scheduler_schedule_group').filter(meta => meta.input.name.includes('--cron--'))
+		).toHaveLength(1)
 		expect(schedules).toHaveLength(1)
 		expect(schedules[0]!.input.scheduleExpression).toBe('rate(1 day)')
 		expect(schedules[0]!.input.state).toBe('ENABLED')
@@ -19,7 +21,9 @@ describe('cron', () => {
 
 	it('keeps a disabled cron around but off', () => {
 		const { app } = createTestApp({
-			stacks: [{ name: 'stack-1', crons: { cleanup: { schedule: '1 day', consumer: { code }, enabled: false } } }],
+			stacks: [
+				{ name: 'stack-1', crons: { cleanup: { schedule: '1 day', consumer: { code }, enabled: false } } },
+			],
 		})
 
 		expect(listResources(app, 'aws_scheduler_schedule')[0]!.input.state).toBe('DISABLED')
@@ -28,6 +32,8 @@ describe('cron', () => {
 	it('creates no schedule group without crons', () => {
 		const { app } = createTestApp({ stacks: [{ name: 'stack-1' }] })
 
-		expect(listResources(app, 'aws_scheduler_schedule_group').filter(meta => meta.input.name.includes('--cron--'))).toHaveLength(0)
+		expect(
+			listResources(app, 'aws_scheduler_schedule_group').filter(meta => meta.input.name.includes('--cron--'))
+		).toHaveLength(0)
 	})
 })

@@ -6,13 +6,11 @@ import { formatRouteEnvName } from 'awsless'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { RandomSecret } from '../../formation/random.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { plainTestMockTypes } from '../../type-gen/snippets.js'
 import { pubsubOnDev } from './dev.js'
 import { pubsubEventTypes } from './schema.js'
 import { createPubSubService, WS_PORT } from './util.js'
@@ -33,23 +31,16 @@ export const pubsubFeature = defineFeature({
 	name: 'pubsub',
 	onDev: pubsubOnDev,
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
-
-		for (const id of Object.keys(ctx.appConfig.pubsub ?? {})) {
-			resources.addType(id, `PubSubInstance`)
-			testMocks.addType(id, `TestMockEntry`)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('pubsub', testMocks)
-
-		gen.addCode(typeGenCode)
-		gen.addInterface('PubSubResources', resources)
-		gen.addInterface('TestMock', testMock)
-
-		await ctx.write('pubsub.d.ts', gen, true)
+		await writeResourceTypes(ctx, {
+			kind: 'pubsub',
+			interfaceName: 'PubSubResources',
+			code: typeGenCode,
+			app(add) {
+				for (const id of Object.keys(ctx.appConfig.pubsub ?? {})) {
+					add(id, `PubSubInstance`, `TestMockEntry`)
+				}
+			},
+		})
 	},
 	onValidate(ctx) {
 		const pubsubs = ctx.appConfig.pubsub ?? {}
@@ -203,23 +194,27 @@ export const pubsubFeature = defineFeature({
 			const redisHost = cache.endpoint.pipe(v => v.at(0)!.address)
 			const redisPort = cache.endpoint.pipe(v => v.at(0)!.port)
 
-			new aws.vpc.SecurityGroupIngressRule(group, 'cache-rule-ip-v4', {
-				securityGroupId: cacheSecurityGroup.id,
-				description: redisPort.pipe(port => `Allow ipv4 on port: ${port}`),
-				ipProtocol: 'tcp',
-				cidrIpv4: '0.0.0.0/0',
-				fromPort: redisPort,
-				toPort: redisPort,
+			const taskSecurityGroup = new aws.security.Group(group, 'task-security', {
+				name: `${name}-task`,
+				vpcId,
+				description: `${name}-task`,
 			})
 
-			new aws.vpc.SecurityGroupIngressRule(group, 'cache-rule-ip-v6', {
-				securityGroupId: cacheSecurityGroup.id,
-				description: redisPort.pipe(port => `Allow ipv6 on port: ${port}`),
-				ipProtocol: 'tcp',
-				cidrIpv6: '::/0',
-				fromPort: redisPort,
-				toPort: redisPort,
-			})
+			// Only the websocket tasks & the bundle's publisher route reach
+			// the cache, the bundle through the shared vpc security group.
+			for (const [client, clientSecurityGroupId] of [
+				['task', taskSecurityGroup.id],
+				['lambda', ctx.shared.get('vpc', 'security-group-id')],
+			] as const) {
+				new aws.vpc.SecurityGroupIngressRule(group, `cache-rule-${client}`, {
+					securityGroupId: cacheSecurityGroup.id,
+					description: redisPort.pipe(port => `Allow ${client} on port: ${port}`),
+					ipProtocol: 'tcp',
+					referencedSecurityGroupId: clientSecurityGroupId,
+					fromPort: redisPort,
+					toPort: redisPort,
+				})
+			}
 
 			const channel = `pubsub:${id}`
 
@@ -250,12 +245,6 @@ export const pubsubFeature = defineFeature({
 				description: 'Allow all outbound traffic',
 				ipProtocol: '-1',
 				cidrIpv4: '0.0.0.0/0',
-			})
-
-			const taskSecurityGroup = new aws.security.Group(group, 'task-security', {
-				name: `${name}-task`,
-				vpcId,
-				description: `${name}-task`,
 			})
 
 			new aws.vpc.SecurityGroupIngressRule(group, 'task-ingress', {

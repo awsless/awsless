@@ -10,7 +10,6 @@ export const set = (program: Command) => {
 		.command('set <name>')
 		.description('Set a config value')
 		.option('--value <value>', 'The config value, skips the interactive prompt')
-		// .option('-e --encrypt', 'Encrypt the config value')
 		.action(async (name: string, options: { value?: string }) => {
 			await layout('config set', async ({ appConfig }) => {
 				const profile = appConfig.profile

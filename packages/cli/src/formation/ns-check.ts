@@ -2,8 +2,7 @@ import { GetHostedZoneCommand, Route53Client } from '@aws-sdk/client-route-53'
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import { z } from 'zod'
 import { color, icon } from '../cli/ui/style.js'
-import { Region } from '../config/schema/region.js'
-import { Credentials } from '../util/aws.js'
+import { ProviderProps } from '../util/aws.js'
 
 type NsCheckInput = {
 	zoneId: Input<string>
@@ -27,11 +26,6 @@ const resolveNameServers = async (domainName: string) => {
 	}
 
 	return (result.Answer ?? []).filter(answer => answer.type === 2).map(answer => answer.data.replace(/\.$/, ''))
-}
-
-type ProviderProps = {
-	credentials: Credentials
-	region: Region
 }
 
 export const createNameServersProvider = ({ credentials, region }: ProviderProps) => {

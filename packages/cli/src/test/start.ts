@@ -20,11 +20,8 @@ export const startProjectsTest = async (props: {
 
 	process.noDeprecation = true
 
-	// Vitest sets NODE_ENV=test on the whole CLI process and never restores
-	// it, which leaks test mode into subprocesses spawned after the tests,
-	// like site builds where it flips the Config proxy into mock mode.
-	// Bracket access on purpose: Bun.build inlines the dot access as a
-	// "development" literal at bundle time, which breaks the restore.
+	// Vitest leaves NODE_ENV=test behind, which flips later subprocesses
+	// (site builds) into mock mode. Bracket access: Bun.build inlines dot access.
 	const nodeEnv = process.env['NODE_ENV']
 	const timezone = process.env['TZ']
 

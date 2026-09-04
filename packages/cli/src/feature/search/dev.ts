@@ -1,9 +1,10 @@
 import { download, launch, VERSION_3_5_0_MIN } from '@awsless/open-search'
 import { Client } from '@opensearch-project/opensearch'
+import { formatSearchIndexName } from 'awsless'
 import { findFreePort } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { applySearchIndex } from '../../formation/open-search.js'
-import { formatSearchIndexName, resolveSearchMappings } from './util.js'
+import { resolveSearchMappings } from './util.js'
 
 const waitForSearch = async (port: number, timeoutMs: number) => {
 	const deadline = Date.now() + timeoutMs

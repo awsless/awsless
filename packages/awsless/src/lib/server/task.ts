@@ -4,7 +4,7 @@ import { schedule } from '@awsless/scheduler'
 import { createProxy } from '../proxy.js'
 import { formatRouteKey, formatRoutePayload, getBundleName, invokeBundle, LIVE_BUNDLE_ALIAS } from './bundle.js'
 import { getOnFailureQueueArn } from './on-failure.js'
-import { bindGlobalResourceName, bindLocalResourceName, getAccountId, IS_TEST } from './util.js'
+import { bindGlobalResourceName, bindLocalResourceName, getAccountId, isTest } from './util.js'
 
 export const getTaskName = bindLocalResourceName('task')
 
@@ -24,9 +24,8 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 				const { schedule: scheduleAt, ...invokeOptions } = options
 
 				if (scheduleAt) {
-					// In tests the schedule targets the per-task name, so
-					// the scheduler mock records it apart from a direct invoke.
-					if (IS_TEST) {
+					// The scheduler mock records the per-task name apart from a direct invoke.
+					if (isTest()) {
 						await schedule({
 							name,
 							payload,
@@ -50,9 +49,8 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 					return
 				}
 
-				// In tests we keep invoking the per-task name
-				// so that the task mocks keep working.
-				if (IS_TEST) {
+				// Tests invoke the per-task name, so the name-keyed mocks keep working.
+				if (isTest()) {
 					await invoke({
 						...invokeOptions,
 						type: 'Event',

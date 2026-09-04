@@ -1,15 +1,13 @@
 import { log, prompt } from '@awsless/clui'
-import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import { listDeployments, removeDeployment } from '../../util/deployment.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
-import { task } from '../ui/util.js'
+import { createClients } from './util.js'
 
 export const del = (program: Command) => {
 	program
@@ -40,10 +38,7 @@ export const del = (program: Command) => {
 					}
 				}
 
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId, dynamo } = await createClients(appConfig)
 
 				// ---------------------------------------------------
 
@@ -73,27 +68,26 @@ export const del = (program: Command) => {
 					region,
 				})
 
-				await task('Deleting the app from AWS', async update => {
-					// The release lock keeps a concurrent deploy or rollback
-					// from promoting into a half-deleted app.
-					const release = await releaseLock.lock(getAppReleaseLockUrn(appId))
+				await log.task({
+					initialMessage: 'Deleting the app from AWS',
+					successMessage: 'Done deleting the app from AWS.',
+					async task() {
+						// The release lock keeps a concurrent deploy or rollback
+						// from promoting into a half-deleted app.
+						const release = await releaseLock.lock(getAppReleaseLockUrn(appId))
 
-					try {
-						await workspace.delete(app, { filters: [] })
-						await pullRemoteState(app, state)
+						try {
+							await workspace.delete(app, { filters: [] })
+							await pullRemoteState(app, state)
 
-						// Sweep the deployment manifest, so a deleted app
-						// lists no stale deployment history.
-						const dynamo = new DynamoDBClient({ credentials, region })
-
-						for (const item of await listDeployments(dynamo, appId)) {
-							await removeDeployment(dynamo, appId, item.id)
+							// A deleted app must not list stale deployment history.
+							for (const item of await listDeployments(dynamo, appId)) {
+								await removeDeployment(dynamo, appId, item.id)
+							}
+						} finally {
+							await release()
 						}
-					} finally {
-						await release()
-					}
-
-					update('Done deleting the app from AWS.')
+					},
 				})
 
 				playSuccessSound()

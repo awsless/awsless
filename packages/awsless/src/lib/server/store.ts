@@ -3,8 +3,7 @@ import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { formatResourceName, getAppId } from './util.js'
 
-// Every store lives as a folder inside the shared app bucket. Read at
-// call time, since the CLI sets the app env after importing this module.
+// Every store is a folder in the shared app bucket; read lazily for the CLI run command.
 export const getStoreBucketName = () => {
 	return formatResourceName({
 		resourceType: 'store',

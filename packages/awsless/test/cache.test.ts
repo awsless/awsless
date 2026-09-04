@@ -41,19 +41,38 @@ describe('cache', () => {
 		expect(clients.at(-1)!.destroy).not.toHaveBeenCalled()
 	})
 
-	it('destroys the client when the invocation ends', async () => {
+	it('destroys the client at the end of every invocation that uses it', async () => {
 		const { lambda } = await import('@awsless/lambda')
 		const { Cache } = await import('../src/lib/server/cache')
 		const client = (Cache as any).stack.main(1)
 
+		// One module scope client, used by two warm invocations.
 		const handle = lambda({
 			handle: async () => {
+				await client.send('PING', [])
 				await client.send('PING', [])
 			},
 		})
 
 		await handle({})
+		const destroy = clients.at(-1)!.destroy
 
-		expect(clients.at(-1)!.destroy).toHaveBeenCalledTimes(1)
+		expect(destroy).toHaveBeenCalledTimes(1)
+
+		await handle({})
+
+		expect(destroy).toHaveBeenCalledTimes(2)
+	})
+
+	it('leaves an untouched client alone', async () => {
+		const { lambda } = await import('@awsless/lambda')
+		const { Cache } = await import('../src/lib/server/cache')
+		const client = (Cache as any).stack.main(2)
+		const before = clients.length
+
+		await lambda({ handle: async () => {} })({})
+
+		expect(clients.length).toBe(before)
+		void client
 	})
 })

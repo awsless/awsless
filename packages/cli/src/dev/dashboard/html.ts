@@ -597,6 +597,9 @@ const icon = kind => {
 
 let state
 let cleanupPanel
+// The reseed button's arm & cooldown timers, cleared on re-render so
+// they never poke a detached button.
+const reseedTimers = new Set()
 const view = { kind: null, resource: null }
 const filter = { query: '', stack: '', router: '' }
 
@@ -918,12 +921,8 @@ const rpcPanel = (main, r) => {
 // ------------------------------------------------------------------
 // Live log feed
 
-// A terminal-style view streaming a resource's live event channel,
-// like the dev server output of a site. The bus replays the recent
-// lines, so the boot output shows even when the panel opens later.
-// Resolve a feed label back to its resource: route keys match
-// directly, while queue/stream/topic labels carry the physical name
-// their resource lists as its detail.
+// Queue, stream & topic labels carry the physical name their resource
+// lists as its detail, so they resolve through that.
 const findRouteResource = route => {
 	const direct = state.resources.find(r => r.routeKey === route)
 
@@ -965,6 +964,8 @@ const routeTag = route => {
 	return tag
 }
 
+// The bus replays the recent lines, so the boot output shows even when
+// the panel opens later.
 const attachLogFeed = (main, channel, route, title = 'Logs', shared) => {
 	if (title) {
 		main.append($('h3', {}, title))
@@ -1215,22 +1216,27 @@ const storePanel = async (main, r) => {
 	const holder = $('div', {}, $('p', { className: 'empty' }, 'Listing...'))
 	main.append(holder)
 
-	const data = await api('/api/store?prefix=' + encodeURIComponent(r.detail))
-	holder.innerHTML = ''
+	try {
+		const data = await api('/api/store?prefix=' + encodeURIComponent(r.detail))
+		holder.innerHTML = ''
 
-	if (data.files.length === 0) {
-		holder.append($('p', { className: 'empty' }, 'The store is empty.'))
-		return
+		if (data.files.length === 0) {
+			holder.append($('p', { className: 'empty' }, 'The store is empty.'))
+			return
+		}
+
+		holder.append($('table', {}, [
+			$('tr', {}, [$('th', {}, 'Key'), $('th', {}, 'Size'), $('th', {}, 'Modified')]),
+			...data.files.map(file => $('tr', {}, [
+				$('td', {}, file.key.slice(r.detail.length)),
+				$('td', {}, String(file.size)),
+				$('td', {}, file.modified),
+			])),
+		]))
+	} catch (error) {
+		holder.innerHTML = ''
+		holder.append($('pre', { className: 'result error' }, String(error.message ?? error)))
 	}
-
-	holder.append($('table', {}, [
-		$('tr', {}, [$('th', {}, 'Key'), $('th', {}, 'Size'), $('th', {}, 'Modified')]),
-		...data.files.map(file => $('tr', {}, [
-			$('td', {}, file.key.slice(r.detail.length)),
-			$('td', {}, String(file.size)),
-			$('td', {}, file.modified),
-		])),
-	]))
 }
 
 // Every email sent through Email.send during this session - captured
@@ -1240,7 +1246,16 @@ const alertPanel = async (main) => {
 	main.append(holder)
 
 	const render = async () => {
-		const data = await api('/api/alerts')
+		let data
+
+		try {
+			data = await api('/api/alerts')
+		} catch (error) {
+			holder.innerHTML = ''
+			holder.append($('pre', { className: 'result error' }, String(error.message ?? error)))
+			return
+		}
+
 		const alerts = data.alerts ?? []
 		holder.innerHTML = ''
 
@@ -1285,7 +1300,7 @@ const alertPanel = async (main) => {
 		holder.append(rows)
 	}
 
-	render()
+	await render()
 }
 
 const emailPanel = async (main) => {
@@ -1293,7 +1308,16 @@ const emailPanel = async (main) => {
 	main.append(holder)
 
 	const render = async () => {
-		const data = await api('/api/emails')
+		let data
+
+		try {
+			data = await api('/api/emails')
+		} catch (error) {
+			holder.innerHTML = ''
+			holder.append($('pre', { className: 'result error' }, String(error.message ?? error)))
+			return
+		}
+
 		const emails = data.emails ?? []
 		holder.innerHTML = ''
 
@@ -1343,7 +1367,15 @@ const emailPanel = async (main) => {
 // One input per defined config, saved back to the local config file.
 const configPanel = async (main) => {
 	const names = [...new Set(state.resources.filter(r => r.kind === 'config').map(r => r.id))].sort()
-	const data = await api('/api/config')
+	let data
+
+	try {
+		data = await api('/api/config')
+	} catch (error) {
+		main.append($('pre', { className: 'result error' }, String(error.message ?? error)))
+		return
+	}
+
 	const values = data.values ?? {}
 	const pulled = new Set(data.pulled ?? [])
 
@@ -1765,6 +1797,9 @@ const render = () => {
 	cleanupPanel?.()
 	cleanupPanel = undefined
 
+	for (const timer of reseedTimers) clearTimeout(timer)
+	reseedTimers.clear()
+
 	const nav = document.getElementById('nav')
 	nav.innerHTML = '<h1><span class="logo">AWS<span class="dim">LESS</span></span> <span class="cmd">dev</span></h1>'
 	nav.querySelector('h1').onclick = showHome
@@ -1810,13 +1845,22 @@ const render = () => {
 		let armed = false
 		let disarm
 
+		const later = (fn, ms) => {
+			const timer = setTimeout(() => {
+				reseedTimers.delete(timer)
+				fn()
+			}, ms)
+			reseedTimers.add(timer)
+			return timer
+		}
+
 		reseed.onclick = async () => {
 			// The reset wipes all local data, so it asks for a second
 			// click before running.
 			if (!armed) {
 				armed = true
 				reseed.lastChild.textContent = 'Click to confirm'
-				disarm = setTimeout(() => {
+				disarm = later(() => {
 					armed = false
 					reseed.lastChild.textContent = 'Reset & seed'
 				}, 3000)
@@ -1824,19 +1868,19 @@ const render = () => {
 			}
 
 			clearTimeout(disarm)
+			reseedTimers.delete(disarm)
 			armed = false
 			reseed.disabled = true
 			reseed.lastChild.textContent = 'Seeding...'
 
 			try {
-				const res = await fetch('/api/seed', { method: 'POST' })
-				const data = await res.json()
+				const data = await api('/api/seed', { method: 'POST' })
 				reseed.lastChild.textContent = data.ok ? 'Done' : 'Failed'
 			} catch {
 				reseed.lastChild.textContent = 'Failed'
 			}
 
-			setTimeout(() => {
+			later(() => {
 				reseed.disabled = false
 				reseed.lastChild.textContent = 'Reset & seed'
 			}, 2000)
@@ -1885,12 +1929,13 @@ const renderHome = main => {
 	updateUptime()
 	const uptimeTimer = setInterval(updateUptime, 1000)
 
+	// The boot count is only a snapshot - the health events keep it
+	// honest after a crash or restart.
+	const workers = $('span', {}, session.workers ? ' · ' + session.workers + ' workers' : '')
+
 	main.append(
 		$('h2', {}, state.app),
-		$('p', { className: 'detail' }, [
-			uptime,
-			session.workers ? ' · ' + session.workers + ' workers' : '',
-		]),
+		$('p', { className: 'detail' }, [uptime, workers]),
 	)
 
 	// ----------------------------------------------------------------
@@ -1919,7 +1964,14 @@ const renderHome = main => {
 
 	for (const entry of state.health ?? []) renderChip(entry)
 
-	events.on('health', renderChip)
+	events.on('health', entry => {
+		renderChip(entry)
+
+		if (entry.id === 'workers') {
+			const count = Number(entry.detail)
+			workers.textContent = entry.status === 'up' && count > 0 ? ' · ' + count + ' workers' : ' · no workers'
+		}
+	})
 
 	if ((state.health ?? []).length > 0) {
 		main.append(chips)
@@ -2179,8 +2231,9 @@ try {
 	]
 	applyLocation()
 } catch (error) {
-	document.getElementById('main').innerHTML =
-		'<pre class="result error">Loading the dashboard failed: ' + String(error.message ?? error) + '</pre>'
+	const main = document.getElementById('main')
+	main.innerHTML = ''
+	main.append($('pre', { className: 'result error' }, 'Loading the dashboard failed: ' + String(error.message ?? error)))
 }
 </script>
 </body>

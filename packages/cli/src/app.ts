@@ -46,10 +46,9 @@ export type BindEnv = {
 	value: Input<string>
 }
 
-// Values & their listeners meet through a channel, so whichever side
-// registers later still sees everything: a permission or env added
-// from a ready listener isn't lost.
-const createChannel = <T extends unknown[]>() => {
+// Values & listeners meet through a channel, so whichever side
+// registers later still sees everything.
+export const createChannel = <T extends unknown[]>() => {
 	const values: T[] = []
 	const listeners: ((...value: T) => void)[] = []
 	let open = false
@@ -82,8 +81,12 @@ const createChannel = <T extends unknown[]>() => {
 
 			open = true
 
-			for (const listener of listeners) {
-				for (const value of values) {
+			// Snapshots, so a value added during the replay is delivered
+			// once through add instead of again by this loop.
+			const replay = [...values]
+
+			for (const listener of [...listeners]) {
+				for (const value of replay) {
 					listener(...value)
 				}
 			}
@@ -199,9 +202,7 @@ export const createApp = (props: CreateAppProps) => {
 	}
 
 	// ---------------------------------------------------------------
-	// Every feature has registered: deliver the app wide permissions,
-	// env vars & site binds. Anything added from here on, including from
-	// a ready listener, delivers right away.
+	// Every feature has registered, so the channels can deliver.
 
 	permissions.open()
 	envs.open()
@@ -212,11 +213,8 @@ export const createApp = (props: CreateAppProps) => {
 
 	let isReady = false
 
-	// Fires the deferred registrations, like the bundle routes & the
-	// consumers that join the bundle. Commands that apply the graph
-	// (deploy, resources) must call it after the builds; commands that
-	// only hydrate deployed state (bind, auth, icon, image) or apply
-	// the zones stack alone (domain deploy) don't need it.
+	// Commands that apply the graph call it after the builds; commands
+	// that only hydrate deployed state don't need it.
 	const ready = () => {
 		if (isReady) {
 			throw new Error('The app is already ready.')

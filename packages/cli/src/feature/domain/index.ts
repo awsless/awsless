@@ -84,9 +84,8 @@ export const domainFeature = defineFeature({
 
 				ctx.shared.add('domain', `global-certificate-arn`, id, globalValidation.certificateArn)
 			} else {
-				// If we deploy this app in the us-east-1 region,
-				// then we just use alias the local cert.
-
+				// CloudFront reads certificates from us-east-1, so the local
+				// certificate already serves as the global one there.
 				ctx.shared.add('domain', `global-certificate-arn`, id, validation.certificateArn)
 			}
 

@@ -44,9 +44,6 @@ const endType = (value: unknown) => {
 }
 
 export const logConfigError = (error: ConfigError) => {
-	// console.log(error.error.errors)
-	// console.log(error.data)
-
 	for (const issue of error.error.issues) {
 		const message = [color.error(issue.message), color.dim(error.file), '\n{']
 		let context = error.data
@@ -58,9 +55,6 @@ export const logConfigError = (error: ConfigError) => {
 		issue.path.forEach((path, i) => {
 			const index = i + 1
 			const entry = context[path]
-
-			// console.log(path)
-			// console.log(entry)
 
 			if (typeof entry !== 'undefined') {
 				context = entry

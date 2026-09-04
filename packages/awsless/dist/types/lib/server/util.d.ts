@@ -2,7 +2,7 @@ export declare const getApp: () => string;
 export declare const getAppId: () => string;
 export declare const getRegion: () => string;
 export declare const getAccountId: () => string;
-export declare const IS_TEST: boolean;
+export declare const isTest: () => boolean;
 export declare const IS_LOCAL: boolean;
 export declare const getRoute: () => string | undefined;
 export declare const getStack: () => string;

@@ -4,7 +4,9 @@ import { createTestApp, listResources } from './_kit'
 describe('domain', () => {
 	it('creates the hosted zone, certificates & mail identity', () => {
 		const { app, shared } = createTestApp({
-			app: { domains: { main: { domain: 'example.com', dns: [{ type: 'TXT', ttl: '5 minutes', records: ['v'] }] } } },
+			app: {
+				domains: { main: { domain: 'example.com', dns: [{ type: 'TXT', ttl: '5 minutes', records: ['v'] }] } },
+			},
 		})
 
 		const zones = listResources(app, 'aws_route53_zone')

@@ -49,33 +49,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		}
 
 		// ----------------------------------------
-		// Log Request in cloudwatch for user monitoring purposes.
-
-		// console.log({
-		// 	requestId,
-		// 	lockKey: auth.lockKey,
-		// 	authContext: auth.context,
-		// 	request: request.output.body,
-		// 	ip: request.output.requestContext.http.sourceIp,
-		// })
-
-		// // ----------------------------------------
-		// // Lock the request if needed
-
-		// if (auth.lockKey) {
-		// 	// We should not allow batch calls for locked requests.
-		// 	if (request.output.body.length !== 1) {
-		// 		return response(400, ONE_FUNCTION_AT_A_TIME)
-		// 	}
-
-		// 	const locked = await lock(requestId, auth.lockKey)
-
-		// 	if (!locked) {
-		// 		return response(429, TOO_MANY_REQUESTS)
-		// 	}
-		// }
-
-		// ----------------------------------------
 		// Get function details
 
 		const calls = request.output.body.map(fn => {
@@ -147,7 +120,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 					data = await internalInvoke(fn.details.name, {
 						...fn.payload,
 						...auth.context,
-						// headers: request.output.headers,
 						viewer: buildViewerPayload(request.output),
 					})
 				} catch (error) {

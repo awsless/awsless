@@ -1,14 +1,40 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
+import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
+import { LambdaClient } from '@aws-sdk/client-lambda'
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
-import { Cancelled, log, prompt } from '@awsless/clui'
+import { log, prompt } from '@awsless/clui'
+import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
+import { AppConfig } from '../../config/app.js'
 import { StackConfig } from '../../config/stack.js'
-import { ExpectedError } from '../../error.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { createInvalidationForDistributionTenants } from '../../formation/cloudfront.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
+
+// The credential prelude & the clients every command starts from.
+export const createClients = async (appConfig: AppConfig) => {
+	const region = appConfig.region
+	const credentials = await getCredentials(appConfig.profile)
+	const accountId = await getAccountId(credentials, region)
+
+	return {
+		region,
+		credentials,
+		accountId,
+		appId: generateGlobalAppId({ accountId, region, appName: appConfig.name }),
+		functionName: getBundleFunctionName(appConfig.name),
+		dynamo: new DynamoDBClient({ credentials, region }),
+		lambda: new LambdaClient({ credentials, region }),
+		kvs: new CloudFrontKeyValueStoreClient({ credentials, region }),
+		// CloudFront is a global service that only answers in us-east-1.
+		cloudfront: new CloudFrontClient({ credentials, region: 'us-east-1' }),
+		s3: new S3Client({ credentials, region }),
+	}
+}
 
 type ProxyType = 'icon' | 'image'
 
@@ -26,10 +52,13 @@ export const clearProxyCache = (program: Command, type: ProxyType) => {
 		.description(`Clears the cache of the ${type} proxy`)
 		.action(async (stack: string | undefined, name: string | undefined) => {
 			await layout(`${type} clear-cache`, async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const {
+					region,
+					credentials,
+					accountId,
+					s3: s3Client,
+					cloudfront: cloudFrontClient,
+				} = await createClients(appConfig)
 
 				if (!stack) {
 					const stacks = stackConfigs.filter(stack => proxyResources(type, stack).length > 0)
@@ -112,16 +141,6 @@ export const clearProxyCache = (program: Command, type: ProxyType) => {
 
 				// ------------------------------------------------
 				// Remove all files from the cache bucket
-
-				const s3Client = new S3Client({
-					credentials,
-					region,
-				})
-
-				const cloudFrontClient = new CloudFrontClient({
-					credentials,
-					region,
-				})
 
 				let totalDeleted = 0
 

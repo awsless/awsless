@@ -19,10 +19,8 @@ export const createTimeoutWrap = async <R>(
 		return callback()
 	}
 
-	// Remove 1 second from the remaining time to give us time to log the error
-	// before the lambda times out.
-	// Also make sure we don't set a timeout that is less than 1 second.
-
+	// Fire a second before the deadline, so the error is logged before
+	// lambda kills the sandbox.
 	const time = context.getRemainingTimeInMillis()
 	const delay = Math.max(time - 1000, 1000)
 
@@ -36,10 +34,6 @@ export const createTimeoutWrap = async <R>(
 
 	try {
 		return await callback()
-		// } catch(error) {
-		// 	console.log(error);
-
-		// 	throw error
 	} finally {
 		clearTimeout(id)
 	}

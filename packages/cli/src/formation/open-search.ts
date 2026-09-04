@@ -4,8 +4,7 @@ import { Client } from '@opensearch-project/opensearch'
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import { z } from 'zod'
-import { Region } from '../config/schema/region.js'
-import { Credentials } from '../util/aws.js'
+import { ProviderProps } from '../util/aws.js'
 
 type SearchIndexInput = {
 	endpoint: Input<string>
@@ -27,11 +26,6 @@ type SearchIndexOutput = {
 // deploy creates missing indexes & applies the mappings over the
 // domain rest api.
 export const SearchIndex = createCustomResourceClass<SearchIndexInput, SearchIndexOutput>('open-search', 'index')
-
-type ProviderProps = {
-	credentials: Credentials
-	region: Region
-}
 
 const inputSchema = z.object({
 	endpoint: z.string(),

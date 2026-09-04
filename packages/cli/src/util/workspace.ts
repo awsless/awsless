@@ -77,17 +77,20 @@ export const createWorkSpace = async (props: BackendProps) => {
 			aws({
 				accessKey: cred.accessKeyId,
 				secretKey: cred.secretAccessKey,
+				// Temporary credentials (sso, assumed roles, ci oidc) are
+				// rejected without their session token.
+				token: cred.sessionToken,
 				region: props.region,
 
-				// Control plane calls like dynamodb DescribeTimeToLive
-				// throttle hard when we refresh many resources at once,
-				// so match the terraform aws provider default of 25.
+				// Refreshing many resources at once throttles hard, so match
+				// the terraform aws provider default.
 				maxRetries: 25,
 			}),
 			aws(
 				{
 					accessKey: cred.accessKeyId,
 					secretKey: cred.secretAccessKey,
+					token: cred.sessionToken,
 					region: 'us-east-1',
 					maxRetries: 25,
 				},

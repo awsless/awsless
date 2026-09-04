@@ -42,10 +42,7 @@ describe('config store', () => {
 
 	it('should list every page & strip the app prefix from the names', async () => {
 		const send = mockSsm([
-			[
-				{ Name: '/.awsless/app/DATABASE_URL', Value: 'postgres://db' },
-				{ Name: '/.awsless/app/EMPTY' },
-			],
+			[{ Name: '/.awsless/app/DATABASE_URL', Value: 'postgres://db' }, { Name: '/.awsless/app/EMPTY' }],
 			[{ Name: '/.awsless/app/nested/KEY', Value: 'deep' }],
 		])
 

@@ -5,12 +5,8 @@ import { Workspace } from '@awsless/ts-file-cache'
 import { debug } from '../cli/debug.js'
 import { directories } from '../util/path.js'
 
-// The aws sdk stays external in the bundle, because the lambda runtime
-// provides it in production. Locally the worker resolves it from the
-// project's node_modules, but a strict package manager only exposes
-// the sdk clients the project directly depends on. The dev server
-// plays the role of the lambda runtime by symlinking its own sdk
-// copies into the build folder for every missing client.
+// The bundle keeps the aws sdk external like the lambda runtime does,
+// so the sdk clients the project doesn't depend on get linked in here.
 export const linkSdkPackages = async (workspace: Workspace, buildDir: string, onWarn?: (message: string) => void) => {
 	const filesDir = join(buildDir, 'files')
 	const packages = new Set<string>()
@@ -31,13 +27,8 @@ export const linkSdkPackages = async (workspace: Workspace, buildDir: string, on
 
 	const ownRequire = createRequire(import.meta.url)
 
-	// The check must mirror the worker's esm resolution: a plain walk up
-	// from the build folder to the project's node_modules. It can't use
-	// require.resolve, because the package manager's bin shim exports
-	// NODE_PATH pointing into the hoisted pnpm store - resolve would
-	// report every transitive sdk client as a project dependency, while
-	// the worker, which never sees NODE_PATH & imports esm, can't load
-	// them.
+	// A plain stat instead of require.resolve: the bin shim's NODE_PATH
+	// would report transitive clients the worker's esm import can't load.
 	const isProjectDep = async (name: string) => {
 		try {
 			await stat(join(directories.root, 'node_modules', name, 'package.json'))
@@ -47,12 +38,8 @@ export const linkSdkPackages = async (workspace: Workspace, buildDir: string, on
 		}
 	}
 
-	// A transitive dependency (like the sdk client of a library the
-	// project uses) isn't resolvable from the project root. The library
-	// that pulls it in resolves the version its lockfile pins, so the
-	// link follows that instead of picking a copy out of the store -
-	// a second copy of a client would break the bundle in ways that
-	// only surface as a garbled request.
+	// The library pulling in a transitive client pins its version, so the
+	// link follows that - a second copy of a client garbles requests.
 	const resolveFromDependents = async (name: string) => {
 		const roots = Object.values(workspace.packages).flatMap(pkg => [
 			pkg.path,

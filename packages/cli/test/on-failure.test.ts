@@ -162,30 +162,7 @@ describe('on failure handler', () => {
 		})
 	})
 
-	it('derives the failure source from the failed queue name', async () => {
-		await handle({
-			Records: [
-				{
-					eventSource: 'aws:sqs',
-					messageId: 'queue-message-id',
-					body: '{"task":"failed"}',
-					attributes: {
-						SentTimestamp: '1767225600000',
-					},
-					messageAttributes: {
-						queueName: { stringValue: 'test-app--test-stack--queue--index.fifo' },
-					},
-				},
-			],
-		} as any)
-
-		expect(events.at(-1)).toMatchObject({
-			queue: { name: 'test-app--test-stack--queue--index.fifo' },
-			source: { resource: 'test-stack:queue:index', event: { task: 'failed' } },
-		})
-	})
-
-	it('normalizes ordinary failure queue messages', async () => {
+	it('normalizes dead-lettered scheduler deliveries on the failure queue', async () => {
 		await handle(sqsEvent('{"task":"failed"}') as any)
 
 		expect(events).toStrictEqual([
@@ -194,7 +171,6 @@ describe('on failure handler', () => {
 				id: 'message-id',
 				date: new Date('2026-01-01T00:00:00.000Z'),
 				payload: { task: 'failed' },
-				queue: {},
 			},
 		])
 	})

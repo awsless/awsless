@@ -10,14 +10,11 @@ import {
 } from '@aws-sdk/client-lambda'
 import { createCustomProvider, createCustomResourceClass, Input, OptionalOutput, Output } from '@terraforge/core'
 import { z } from 'zod'
-import { Region } from '../config/schema/region.js'
-import { Credentials, isError } from '../util/aws.js'
+import { isError, ProviderProps } from '../util/aws.js'
 import { getLambdaAlias, LIVE_LAMBDA_ALIAS } from '../util/lambda.js'
 
-// Every deployment tags the published version of a lambda with an
-// immutable alias named after the deployment id. The alias carries
-// the async retry & on-failure config, and pruning a deployment
-// deletes its aliases everywhere.
+// The per deployment alias carries the async retry & on-failure config
+// and is what the prune command deletes.
 
 type DeploymentAliasInput = {
 	functionName: Input<string>
@@ -61,11 +58,6 @@ export const FunctionDeployment = createCustomResourceClass<FunctionDeploymentIn
 	'function-deployment'
 )
 
-type ProviderProps = {
-	credentials: Credentials
-	region: Region
-}
-
 export const createLambdaProvider = ({ credentials, region }: ProviderProps) => {
 	const lambda = new LambdaClient({ credentials, region })
 	const deploymentAliasInputSchema = z.object({
@@ -101,8 +93,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				throw error
 			}
 
-			// Only local deploys reuse a deployment id, so the alias
-			// needs to follow the newly published version.
+			// A re-run of an interrupted deploy finds its alias in place.
 			await lambda.send(
 				new UpdateAliasCommand({
 					FunctionName: state.functionName,

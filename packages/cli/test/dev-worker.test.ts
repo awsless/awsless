@@ -108,7 +108,12 @@ describe('dev bundle worker pool', () => {
 
 		expect(before.size).toBe(2)
 
-		await expect(worker.dispatch({ crash: true })).rejects.toThrow()
+		// The request that took its worker down names the crash instead
+		// of a bare "fetch failed".
+		await expect(worker.dispatch({ crash: true })).rejects.toMatchObject({
+			name: 'WorkerCrashed',
+			message: expect.stringContaining('code 3'),
+		})
 
 		// The dead worker leaves right away, nothing replaces it.
 		await waitFor(() => crashes.length === 1)
@@ -167,4 +172,59 @@ describe('dev bundle worker pool', () => {
 		await worker.start()
 		expect(worker.size()).toBe(2)
 	}, 20_000)
+})
+
+describe('dev bundle worker boot failures', () => {
+	const previousWorkers = process.env.AWSLESS_DEV_WORKERS
+	const dirs: string[] = []
+
+	const boot = async (bundle: string) => {
+		const buildDir = await mkdtemp(join(tmpdir(), 'awsless-worker-boot-'))
+
+		dirs.push(buildDir)
+		await mkdir(join(buildDir, 'files'))
+		await writeFile(join(buildDir, 'files', 'index.mjs'), bundle)
+
+		return createBundleWorker({
+			buildDir,
+			env: { AWS_REGION: 'us-east-1', AWS_ACCOUNT_ID: '000000000000' },
+			functionName: 'test-bundle',
+			quiet: () => true,
+		})
+	}
+
+	beforeAll(() => {
+		process.env.AWSLESS_DEV_WORKERS = '1'
+	})
+
+	afterAll(async () => {
+		await Promise.all(dirs.map(dir => rm(dir, { recursive: true, force: true })))
+
+		if (previousWorkers === undefined) {
+			delete process.env.AWSLESS_DEV_WORKERS
+		} else {
+			process.env.AWSLESS_DEV_WORKERS = previousWorkers
+		}
+	})
+
+	it('should fail the start when the bundle exits during module init', async () => {
+		const worker = await boot(`process.exit(2)\nexport default () => {}\n`)
+
+		await expect(worker.start()).rejects.toThrow('exited (code 2) during startup')
+		expect(worker.size()).toBe(0)
+	})
+
+	it('should fail the start right away when the bundle dies by signal', async () => {
+		const worker = await boot(
+			`process.kill(process.pid, 'SIGTERM')\nawait new Promise(() => {})\nexport default () => {}\n`
+		)
+		const started = Date.now()
+
+		await expect(worker.start()).rejects.toThrow('exited (SIGTERM) during startup')
+
+		// A signal exit leaves exitCode null - it must not wait out the
+		// whole readiness deadline.
+		expect(Date.now() - started).toBeLessThan(5000)
+		expect(worker.size()).toBe(0)
+	})
 })

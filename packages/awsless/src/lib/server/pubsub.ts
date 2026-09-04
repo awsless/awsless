@@ -1,7 +1,7 @@
 import { invoke } from '@awsless/lambda'
 import { createProxy } from '../proxy.js'
 import { formatRouteKey, internalInvoke, invokeBundle, isInsideBundle } from './bundle.js'
-import { bindGlobalResourceName, IS_TEST } from './util.js'
+import { bindGlobalResourceName, isTest } from './util.js'
 
 export const getPubSubPublisherName = bindGlobalResourceName('pubsub-publisher')
 
@@ -15,9 +15,8 @@ export const PubSub: PubSubResources = /*@__PURE__*/ createProxy(name => {
 		publish: async (topic: string, event: string, payload?: unknown) => {
 			const message = { topic, event, payload }
 
-			// In tests we keep invoking the per-publisher name
-			// so that the pubsub mocks keep working.
-			if (IS_TEST) {
+			// Tests invoke the per-publisher name, so the name-keyed mocks keep working.
+			if (isTest()) {
 				await invoke({
 					name: getPubSubPublisherName(name),
 					type: 'Event',

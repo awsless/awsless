@@ -6,11 +6,11 @@ import { constantCase } from 'change-case'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { ExpectedError } from '../../error.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import { directories } from '../../util/path.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
+import { createClients } from './util.js'
 
 // The command takes over the terminal & the run ends with its exit
 // code, since an outro would land in the middle of its output.
@@ -40,12 +40,15 @@ export const bind = (program: Command) => {
 		.command('bind')
 
 		.argument('[command...]', 'The command to execute')
-		.option('--config <string...>', 'List of config values that will be accessable', v => v.split(','))
+		.option('--config <string...>', 'List of config values that will be accessable')
 		.option('--local', 'Bind against the running local dev environment instead of the deployed app')
 		.description(`Bind your site environment variables to a command`)
 
 		.action(async (commands: string[] = [], opts: { config?: string[]; local?: boolean }) => {
 			await layout('bind', async ({ appConfig, stackConfigs, exit }) => {
+				// Comma lists are accepted next to the space separated form.
+				const configList = (opts.config ?? []).flatMap(value => value.split(','))
+
 				// The local dev environment persists its env, so sibling
 				// commands run against the local emulators.
 				if (opts.local) {
@@ -62,7 +65,6 @@ export const bind = (program: Command) => {
 					// merged with whatever the dev environment already
 					// announces.
 					const configs: Record<string, string> = {}
-					const configList = opts.config ?? []
 
 					if (configList.length > 0) {
 						configs.CONFIGS = [
@@ -85,10 +87,7 @@ export const bind = (program: Command) => {
 					)
 				}
 
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { app, binds } = createApp({ appConfig, stackConfigs, accountId })
 
@@ -111,7 +110,6 @@ export const bind = (program: Command) => {
 					log.warning('No bindings available.')
 				}
 
-				const configList = opts.config ?? []
 				const configs: Record<string, string> = {}
 				if (configList.length > 0) {
 					configs.CONFIGS = configList.join(',')

@@ -1,18 +1,43 @@
-// Vitest hoists vi.mock calls above the imports of a test file. This
-// plugin gives top level `mock.config.<name> = value` statements the
-// same treatment, so config values apply before any import resolves &
-// import time Config reads see them - no manual vi.hoisted dance.
-//
-//   mock.config.greeting = 'special'   // hoisted above the imports
-//   import handler from '../src/handler'
-//
-// The vite ssr transform hoists import statements above all module
-// code, so a plain prelude would still run too late. Instead the
-// hoisted statements move into a virtual module imported FIRST - esm
-// evaluation order guarantees it runs before every other import.
+// Top level `mock.config.<name> = value` lines hoist above the imports
+// like vi.mock, so import time Config reads already see them.
 
 const HOIST_PATTERN = /^mock\.config\.[A-Za-z_$][\w$]*\s*=\s*[^=].*?;?\s*$/
 const VIRTUAL_PREFIX = 'awsless:hoisted-config:'
+
+// A hoisted line runs alone in the virtual module, so an unclosed
+// bracket or quote there would only surface as a cryptic syntax error.
+const isBalanced = (line: string) => {
+	const stack: string[] = []
+	let quote: string | undefined
+
+	for (let i = 0; i < line.length; i++) {
+		const char = line[i]!
+
+		if (quote) {
+			if (char === '\\') {
+				i++
+			} else if (char === quote) {
+				quote = undefined
+			}
+
+			continue
+		}
+
+		if (char === '"' || char === "'" || char === '`') {
+			quote = char
+		} else if (char === '(' || char === '[' || char === '{') {
+			stack.push(char)
+		} else if (char === ')' || char === ']' || char === '}') {
+			const open = stack.pop()
+
+			if ((char === ')' && open !== '(') || (char === ']' && open !== '[') || (char === '}' && open !== '{')) {
+				return false
+			}
+		}
+	}
+
+	return stack.length === 0 && quote === undefined
+}
 
 export const hoistConfigPlugin = () => ({
 	name: 'awsless:hoist-mock-config',
@@ -42,10 +67,16 @@ export const hoistConfigPlugin = () => ({
 		const lines = code.split('\n')
 		const hoisted: string[] = []
 
-		const kept = lines.map(line => {
-			// Only single line statements at the very top level (column
-			// zero) hoist - anything nested runs in place, like vi.mock.
+		const kept = lines.map((line, index) => {
+			// Only single line statements at column zero hoist - anything
+			// nested runs in place, like vi.mock.
 			if (HOIST_PATTERN.test(line)) {
+				if (!isBalanced(line)) {
+					throw new Error(
+						`${id}:${index + 1}: a hoisted mock.config assignment must fit on one line - move the value into a variable or close it on the same line.`
+					)
+				}
+
 				hoisted.push(line.trim().replace(/;\s*$/, ''))
 				return ''
 			}

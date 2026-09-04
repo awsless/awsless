@@ -17,7 +17,7 @@ import { deleteLambdaAlias, listLambdaFunctions } from '../../util/lambda.js'
 import { formatGlobalResourceName, getAppNamePrefix } from '../../util/name.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
-import { createClients } from './deployment.js'
+import { createClients } from './util.js'
 
 export const prune = (program: Command) => {
 	program

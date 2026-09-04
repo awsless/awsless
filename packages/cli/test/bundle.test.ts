@@ -4,7 +4,7 @@ import { pathToFileURL } from 'url'
 import { mockLambda } from '@awsless/lambda'
 import { loadWorkspace } from '@awsless/ts-file-cache'
 import { findInputDeps, getMeta } from '@terraforge/core'
-import { formatRouteEnvName, getRouteEnv } from 'awsless'
+import { formatRouteEnvName, getRouteEnv, withBundleRouteContext } from 'awsless'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildBundle, formatRouteKey, parseExportName } from '../src/feature/bundle/util'
 import { createTestApp } from './_kit'
@@ -19,18 +19,20 @@ describe('bundle', () => {
 
 	it('should scope resource env vars to a route', () => {
 		const route = 'stack-1:image:avatar'
-		const previousRoute = process.env.AWSLESS_ROUTE
 
-		process.env.AWSLESS_ROUTE = route
 		process.env[formatRouteEnvName(route, 'IMAGE_CONFIG')] = 'config'
 
-		expect(getRouteEnv('IMAGE_CONFIG')).toBe('config')
-
-		delete process.env[formatRouteEnvName(route, 'IMAGE_CONFIG')]
-		if (previousRoute) {
-			process.env.AWSLESS_ROUTE = previousRoute
-		} else {
-			delete process.env.AWSLESS_ROUTE
+		try {
+			expect(getRouteEnv('IMAGE_CONFIG')).toBeUndefined()
+			expect(
+				withBundleRouteContext(
+					route,
+					async () => undefined,
+					() => getRouteEnv('IMAGE_CONFIG')
+				)
+			).toBe('config')
+		} finally {
+			delete process.env[formatRouteEnvName(route, 'IMAGE_CONFIG')]
 		}
 	})
 

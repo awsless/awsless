@@ -17,9 +17,6 @@ export const IconsSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			// domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
-			// subDomain: z.string().optional(),
-
 			router: ResourceIdSchema.describe('The router id to link your icon proxy.'),
 			path: RouteSchema.describe('The path inside the router to link your icon proxy to.'),
 
@@ -38,28 +35,10 @@ export const IconsSchema = z
 						static: staticOriginSchema.optional(),
 						function: functionOriginSchema,
 					}),
-					// z.object({
-					// 	static: staticOriginSchema,
-					// 	function: functionOriginSchema,
-					// }),
 				])
 				.describe(
 					'Image transformation will be applied from a base image. Base images orginates from a local directory that will be uploaded to S3 or from a lambda function.'
 				),
-
-			// cors: z
-			// 	.object({
-			// 		override: z.boolean().default(true),
-			// 		maxAge: DurationSchema.default('365 days'),
-			// 		exposeHeaders: z.string().array().optional(),
-			// 		credentials: z.boolean().default(false),
-			// 		headers: z.string().array().default(['*']),
-			// 		origins: z.string().array().default(['*']),
-			// 	})
-			// 	.optional()
-			// 	.describe('Specify the cors headers.'),
-
-			// version: z.number().int().min(1).optional().describe('Version of the icon configuration.'),
 		})
 	)
 	.optional()

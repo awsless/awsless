@@ -10,12 +10,11 @@ import {
 	ListVersionsByFunctionCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
+import { LIVE_BUNDLE_ALIAS } from 'awsless'
 import { isError } from './aws.js'
 
-// ------------------------------------------------------------
-// Alias naming contract
-
-export const LIVE_LAMBDA_ALIAS = 'live'
+// The runtime owns the alias name, so both sides can't drift apart.
+export const LIVE_LAMBDA_ALIAS = LIVE_BUNDLE_ALIAS
 
 // ------------------------------------------------------------
 // Alias plumbing

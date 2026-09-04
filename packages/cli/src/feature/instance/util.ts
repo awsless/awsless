@@ -1,12 +1,10 @@
-import { createHash } from 'crypto'
 import { join } from 'path'
 import { toSeconds } from '@awsless/duration'
-import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
-import { constantCase, pascalCase } from 'change-case'
+import { constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
@@ -51,21 +49,27 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 
 	ctx.registerBuild('instance', name, async (build, { workspace }) => {
-		const fingerprint = await generateFileHash(workspace, local.code.file)
+		// The binary is compiled per target, so a cached build must not
+		// survive an architecture switch.
+		const fingerprint = [await generateFileHash(workspace, local.code.file), props.architecture].join(':')
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`instance--${name}`)
-			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
 
-			await Promise.all([
-				//
-				write('HASH', executable.hash),
-				write('program', executable.file),
-				temp.delete(),
-			])
+			try {
+				const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
 
-			return {
-				size: formatByteSize(executable.file.byteLength),
+				await Promise.all([
+					//
+					write('HASH', executable.hash),
+					write('program', executable.file),
+				])
+
+				return {
+					size: formatByteSize(executable.file.byteLength),
+				}
+			} finally {
+				await temp.delete()
 			}
 		})
 	})
@@ -138,8 +142,8 @@ export const createFargateTask = (
 							Version: '2012-10-17',
 							Statement: [
 								{
-									Effect: pascalCase('allow'),
-									Action: ['s3:GetObject', 's3:HeadObject'],
+									Effect: 'Allow',
+									Action: ['s3:GetObject'],
 									Resource: `arn:aws:s3:::${bucket}/${key}`,
 								},
 							],
@@ -176,6 +180,8 @@ export const createFargateTask = (
 	ctx.onPermission(statement => {
 		addPermission(statement)
 	})
+
+	ctx.shared.add('function', 'role', name, role)
 
 	// ------------------------------------------------------------
 	// Logging
@@ -319,6 +325,9 @@ export const createFargateTask = (
 		tags,
 	})
 
+	// The caches open their ingress to every registered instance.
+	ctx.shared.add('instance', 'security-group-id', name, { name, id: securityGroup.id })
+
 	const clusterName = ctx.shared.get('instance', 'cluster-name')
 	const clusterArn = ctx.shared.get('instance', 'cluster-arn')
 
@@ -395,18 +404,14 @@ export const createFargateTask = (
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
-	variables.CODE_HASH = code.sourceHash // needed to force update on code change
-	variables.INSTANCE_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
+	// The bootstrap compares it against the persisted program.
+	variables.CODE_HASH = code.sourceHash
 
-	// Add user-defined environment variables
 	if (props.environment) {
 		for (const [key, value] of Object.entries(props.environment)) {
 			variables[key] = value
 		}
 	}
-
-	// ------------------------------------------------------------
-	// Add user defined permissions
 
 	addPermission(...(ctx.appConfig.instance.permissions ?? []), ...(local.permissions ?? []))
 

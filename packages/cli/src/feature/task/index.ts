@@ -4,12 +4,10 @@ import { Group } from '@terraforge/core'
 import { camelCase } from 'change-case'
 import { createSchedulerServer } from '../../dev/servers/scheduler.js'
 import { defineFeature } from '../../feature.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { funcType, invokeTypes, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { funcType, invokeTypes, testMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -68,42 +66,25 @@ export const taskFeature = defineFeature({
 		})
 	},
 	async onTypeGen(ctx) {
-		const types = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
+		await writeResourceTypes(ctx, {
+			kind: 'task',
+			interfaceName: 'TaskResources',
+			code: typeGenCode,
+			stacks(stack, add, types) {
+				for (const [name, props] of Object.entries(stack.tasks || {})) {
+					const varName = camelCase(`${stack.name}-${name}`)
+					const funcName = formatLocalResourceName({
+						appName: ctx.appConfig.name,
+						stackName: stack.name,
+						resourceType: 'task',
+						resourceName: name,
+					})
 
-		for (const stack of ctx.stackConfigs) {
-			const resource = new TypeObject(2)
-			const testMock = new TypeObject(3)
-
-			for (const [name, props] of Object.entries(stack.tasks || {})) {
-				const varName = camelCase(`${stack.name}-${name}`)
-				const funcName = formatLocalResourceName({
-					appName: ctx.appConfig.name,
-					stackName: stack.name,
-					resourceType: 'task',
-					resourceName: name,
-				})
-
-				const relFile = relative(directories.types, props.consumer.code.file)
-
-				types.addImport(varName, relFile)
-				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
-			}
-
-			resources.addType(stack.name, resource)
-			testMocks.addType(stack.name, testMock)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('task', testMocks)
-
-		types.addCode(typeGenCode)
-		types.addInterface('TaskResources', resources)
-		types.addInterface('TestMock', testMock)
-
-		await ctx.write('task.d.ts', types, true)
+					types.addImport(varName, relative(directories.types, props.consumer.code.file))
+					add(name, `Invoke<'${funcName}', typeof ${varName}>`, `TestMockEntry<typeof ${varName}>`)
+				}
+			},
+		})
 	},
 	onApp(ctx) {
 		const group = new Group(ctx.base, 'task', 'main')
@@ -118,6 +99,8 @@ export const taskFeature = defineFeature({
 			resourceType: 'on-failure',
 			resourceName: 'failure',
 		})
+		const { region } = ctx.appConfig
+		const account = ctx.accountId
 
 		new aws.scheduler.ScheduleGroup(
 			group,
@@ -166,13 +149,18 @@ export const taskFeature = defineFeature({
 								{
 									Action: ['lambda:InvokeFunction'],
 									Effect: 'Allow',
-									Resource: `arn:aws:lambda:*:*:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
+									Resource: `arn:aws:lambda:${region}:${account}:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
 								},
-								{
-									Action: ['sqs:SendMessage'],
-									Effect: 'Allow',
-									Resource: `arn:aws:sqs:*:*:${failureQueueName}`,
-								},
+								// The on-failure queue only exists when the app configures it.
+								...(ctx.appConfig.onFailure
+									? [
+											{
+												Action: ['sqs:SendMessage'],
+												Effect: 'Allow',
+												Resource: `arn:aws:sqs:${region}:${account}:${failureQueueName}`,
+											},
+										]
+									: []),
 							],
 						}),
 					},
@@ -185,12 +173,18 @@ export const taskFeature = defineFeature({
 
 		ctx.addPermission({
 			actions: ['scheduler:CreateSchedule'],
-			resources: [`arn:aws:scheduler:*:*:schedule/${scheduleGroupName}/*`],
+			resources: [`arn:aws:scheduler:${region}:${account}:schedule/${scheduleGroupName}/*`],
 		})
 
+		// Creating a schedule hands the scheduler its role.
 		ctx.addPermission({
 			actions: ['iam:PassRole'],
 			resources: [role.arn],
+			conditions: {
+				StringEquals: {
+					'iam:PassedToService': 'scheduler.amazonaws.com',
+				},
+			},
 		})
 	},
 	onStack(ctx) {

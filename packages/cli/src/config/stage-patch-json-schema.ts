@@ -218,9 +218,7 @@ const collectEntries = (
 			for (const [propertyPattern, propertySchema] of Object.entries(branch.patternProperties ?? {})) {
 				const segmentPattern = dynamicSegmentPattern(propertyPattern)
 				const path = makePatternPath(pointer, segmentPattern)
-				entries.push(
-					...collectEntries(propertySchema, path, appendRegexPattern(pattern, segmentPattern), root)
-				)
+				entries.push(...collectEntries(propertySchema, path, appendRegexPattern(pattern, segmentPattern), root))
 			}
 
 			if (branch.additionalProperties && typeof branch.additionalProperties === 'object') {

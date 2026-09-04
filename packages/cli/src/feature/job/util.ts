@@ -1,11 +1,9 @@
-import { createHash } from 'crypto'
 import { toSeconds } from '@awsless/duration'
-import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
-import { constantCase, pascalCase } from 'change-case'
+import { constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
@@ -47,17 +45,21 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`job--${name}`)
-			const executable = await buildJobExecutable(local.code.file, temp.path, props.architecture)
 
-			await Promise.all([
-				//
-				write('HASH', executable.hash),
-				write('program', executable.file),
-				temp.delete(),
-			])
+			try {
+				const executable = await buildJobExecutable(local.code.file, temp.path, props.architecture)
 
-			return {
-				size: formatByteSize(executable.file.byteLength),
+				await Promise.all([
+					//
+					write('HASH', executable.hash),
+					write('program', executable.file),
+				])
+
+				return {
+					size: formatByteSize(executable.file.byteLength),
+				}
+			} finally {
+				await temp.delete()
 			}
 		})
 	})
@@ -130,8 +132,8 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 							Version: '2012-10-17',
 							Statement: [
 								{
-									Effect: pascalCase('allow'),
-									Action: ['s3:GetObject', 's3:HeadObject'],
+									Effect: 'Allow',
+									Action: ['s3:GetObject'],
 									Resource: [
 										`arn:aws:s3:::${bucket}/${key}`,
 										`arn:aws:s3:::${bucket}/job/payloads/*`,
@@ -172,6 +174,8 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		addPermission(statement)
 	})
 
+	ctx.shared.add('function', 'role', name, role)
+
 	// ------------------------------------------------------------
 	// Logging
 
@@ -190,40 +194,6 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
 	const variableDeps: Set<any> = new Set()
-	const taskDependsOn: any[] = [code]
-
-	const accessPoint = props.persistentStorage
-		? (() => {
-				const fileSystemId = ctx.shared.get('job', 'persistent-storage-file-system-id')
-
-				const accessPoint = new aws.efs.AccessPoint(
-					group,
-					'access-point',
-					{
-						fileSystemId,
-						rootDirectory: {
-							path: `/jobs/${name}`,
-							creationInfo: {
-								ownerUid: 0,
-								ownerGid: 0,
-								permissions: '755',
-							},
-						},
-						tags,
-					},
-					{
-						replaceOnChanges: ['fileSystemId'],
-					}
-				)
-
-				taskDependsOn.push(accessPoint)
-
-				return {
-					accessPoint,
-					fileSystemId,
-				}
-			})()
-		: undefined
 
 	const task = new aws.ecs.TaskDefinition(
 		group,
@@ -241,20 +211,6 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 				operatingSystemFamily: 'LINUX',
 			},
 			trackLatest: true,
-			...(accessPoint && {
-				volume: [
-					{
-						name: 'persistent-storage',
-						efsVolumeConfiguration: {
-							fileSystemId: accessPoint.fileSystemId,
-							transitEncryption: 'ENABLED',
-							authorizationConfig: {
-								accessPointId: accessPoint.accessPoint.id,
-							},
-						},
-					},
-				],
-			}),
 			containerDefinitions: new Output<string>(variableDeps, async (resolve: (value: string) => void) => {
 				const data = await resolveInputs(variables)
 
@@ -285,15 +241,6 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 								name,
 								value,
 							})),
-							...(accessPoint && {
-								mountPoints: [
-									{
-										sourceVolume: 'persistent-storage',
-										containerPath: '/root',
-									},
-								],
-							}),
-
 							...(logGroup && {
 								logConfiguration: {
 									logDriver: 'awslogs',
@@ -321,7 +268,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 				'executionRoleArn',
 				'taskRoleArn',
 			],
-			dependsOn: taskDependsOn,
+			dependsOn: [code],
 		}
 	)
 
@@ -341,18 +288,14 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
-	variables.CODE_HASH = code.sourceHash // needed to force update on code change
-	variables.JOB_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
+	// The bootstrap compares it against the persisted program.
+	variables.CODE_HASH = code.sourceHash
 
-	// Add user-defined environment variables
 	if (props.environment) {
 		for (const [key, value] of Object.entries(props.environment)) {
 			variables[key] = value
 		}
 	}
-
-	// ------------------------------------------------------------
-	// Add user defined permissions
 
 	addPermission(...(ctx.appConfig.job.permissions ?? []), ...(local.permissions ?? []))
 

@@ -3,13 +3,14 @@ import { parse, patch, stringify, unpatch } from "@awsless/json";
 import { globalClient, mockObjectValues, nextTick } from "@awsless/utils";
 import { ValiError, applyRedaction, parse as parse$1 } from "@awsless/validate";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { mockClient } from "aws-sdk-vitest-mock";
 //#region src/errors/expected.ts
 var ExpectedError = class extends Error {
 	type;
-	constructor(type, message) {
+	data;
+	constructor(type, message, data) {
 		super(message);
 		this.type = type;
+		this.data = data;
 	}
 };
 //#endregion
@@ -49,7 +50,7 @@ const invoke = async ({ client = lambdaClient(), name, qualifier, type = "Reques
 	const response = parse(json);
 	if (isErrorResponse(response)) {
 		const e = response.__error__;
-		if (reflectViewableErrors) throw new ExpectedError(e.type, e.message);
+		if (reflectViewableErrors) throw new ExpectedError(e.type, e.message, e.data);
 		else throw new Error(e.message);
 	}
 	if (isLambdaErrorResponse(response)) {
@@ -196,30 +197,38 @@ const isTestEnv = () => {
 };
 //#endregion
 //#region src/helpers/mock.ts
+const resolveVi = (vi) => {
+	const found = vi ?? globalThis.vi;
+	if (!found) throw new Error("mockLambda needs the vitest globals enabled, or pass { vi } explicitly.");
+	return found;
+};
 const globalList = {};
-const mockLambda = (lambdas) => {
+const mockLambda = (lambdas, options) => {
 	const alreadyMocked = Object.keys(globalList).length > 0;
 	const list = mockObjectValues(lambdas);
 	Object.assign(globalList, list);
 	if (alreadyMocked) return list;
-	const client = mockClient(LambdaClient$1);
-	client.on(ListFunctionsCommand).resolves({
-		$metadata: {},
-		Functions: [{
-			FunctionName: "test",
-			FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
-		}]
-	});
-	client.on(InvokeCommand).callsFake((async (input) => {
-		const name = input.FunctionName ?? "";
-		const type = input.InvocationType ?? "RequestResponse";
-		const payload = input.Payload ? parse(new TextDecoder().decode(input.Payload)) : void 0;
-		const callback = globalList[name];
-		if (!callback) throw new TypeError(`Lambda mock function not defined for: ${name}`);
-		const result = await nextTick(callback, payload);
-		return { Payload: type === "RequestResponse" && result ? new TextEncoder().encode(stringify(result)) : void 0 };
+	resolveVi(options?.vi).spyOn(LambdaClient$1.prototype, "send").mockImplementation((async (command) => {
+		if (command instanceof ListFunctionsCommand) return {
+			$metadata: {},
+			Functions: [{
+				FunctionName: "test",
+				FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
+			}]
+		};
+		if (command instanceof InvokeCommand) {
+			const input = command.input;
+			const name = input.FunctionName ?? "";
+			const type = input.InvocationType ?? "RequestResponse";
+			const payload = input.Payload ? parse(new TextDecoder().decode(input.Payload)) : void 0;
+			const callback = globalList[name];
+			if (!callback) throw new TypeError(`Lambda mock function not defined for: ${name}`);
+			const result = await nextTick(callback, payload);
+			return { Payload: type === "RequestResponse" && result ? new TextEncoder().encode(stringify(result)) : void 0 };
+		}
+		throw new TypeError(`Lambda mock doesn't support: ${command?.constructor?.name}`);
 	}));
-	beforeEach && beforeEach(() => {
+	if (typeof beforeEach !== "undefined") beforeEach(() => {
 		Object.values(globalList).forEach((fn) => {
 			fn.mockClear();
 		});

@@ -13,30 +13,49 @@ import { mockBaselines, mockState, testRegistry } from './setup.js'
 
 type AnyFunction = (...args: any[]) => any
 
-// The structural shape of a vitest mock. Declared here instead of
-// imported, so the shipped types never require vitest - an optional
-// peer that consumers without tests don't install.
+type MockResult<R> =
+	| { type: 'return'; value: R }
+	| { type: 'throw'; value: any }
+	| { type: 'incomplete'; value: undefined }
+
+type MockSettledResult<R> =
+	| { type: 'fulfilled'; value: R }
+	| { type: 'rejected'; value: any }
+	| { type: 'incomplete'; value: undefined }
+
+// The full shape of a vitest Mock, declared structurally so the shipped
+// types never require the optional vitest peer.
 export interface TestMockFunction<F extends AnyFunction = AnyFunction> {
 	(...args: Parameters<F>): ReturnType<F>
-	readonly mock: {
-		readonly calls: Parameters<F>[]
-		readonly results: { type: 'return' | 'throw' | 'incomplete'; value: any }[]
-		readonly invocationCallOrder: number[]
-		readonly lastCall: Parameters<F> | undefined
+	mock: {
+		calls: Parameters<F>[]
+		instances: ThisParameterType<F>[]
+		contexts: ThisParameterType<F>[]
+		invocationCallOrder: number[]
+		results: MockResult<ReturnType<F>>[]
+		settledResults: MockSettledResult<Awaited<ReturnType<F>>>[]
+		lastCall: Parameters<F> | undefined
 	}
 	getMockName(): string
 	mockName(name: string): this
 	mockClear(): this
 	mockReset(): this
 	mockRestore(): void
+	getMockImplementation(): F | undefined
 	mockImplementation(fn: F): this
 	mockImplementationOnce(fn: F): this
+	withImplementation(fn: F, cb: () => Promise<unknown>): Promise<this>
+	withImplementation(fn: F, cb: () => unknown): this
+	mockReturnThis(): this
 	mockReturnValue(value: ReturnType<F>): this
 	mockReturnValueOnce(value: ReturnType<F>): this
+	mockThrow(value: unknown): this
+	mockThrowOnce(value: unknown): this
 	mockResolvedValue(value: Awaited<ReturnType<F>>): this
 	mockResolvedValueOnce(value: Awaited<ReturnType<F>>): this
 	mockRejectedValue(error: unknown): this
 	mockRejectedValueOnce(error: unknown): this
+	[Symbol.dispose](): void
 }
 
 const overridable = (
@@ -52,17 +71,14 @@ const overridable = (
 		)
 	}
 
-	// Calling the proxy sets the mock implementation, while property
-	// access forwards to the underlying spy - so the same path works
-	// for "mock.function.x.y(response)" & "expect(mock.function.x.y)".
+	// Calling sets the implementation, property access forwards to the spy,
+	// so one path serves both mock.x.y(response) & expect(mock.x.y).
 	return new Proxy(spy, {
 		apply(_target, _thisArg, args: unknown[]) {
 			const impl = args[0]
 			const handler = typeof impl === 'function' ? (impl as (...p: unknown[]) => unknown) : async () => impl
 
-			// An override registered outside a running test (module or
-			// describe scope) becomes the baseline every test starts
-			// from - inside a test it only lasts until the test ends.
+			// Outside a running test the override is the baseline every test starts from.
 			if (!mockState.inTest) {
 				mockBaselines.set(spy, handler)
 			}
@@ -84,20 +100,14 @@ const overridable = (
 export interface TestMock {
 	readonly email: {
 		/** Every email sent through Email.send, recorded for assertions & overridable like any mock. */
-		readonly send: TestMockFunction<(email: { from?: string; to?: string[]; subject?: string; html?: string }) => unknown>
+		readonly send: TestMockFunction<
+			(email: { from?: string; to?: string[]; subject?: string; html?: string }) => unknown
+		>
 	}
 }
 
-// The unified test mock api: every resource of the app is already
-// materialized, this overrides behavior & asserts calls.
-//
-//   mock.function.currency.list([{ code: 'EUR' }])   // canned response
-//   mock.function.currency.list(payload => ({ .. })) // custom impl
-//   expect(mock.function.currency.list).toHaveBeenCalled()
-//   expect(mock.task.todo.remind.scheduled).toHaveBeenCalled()
-//   expect(mock.topic.tenantRegistered).not.toHaveBeenCalled()
-//   expect(mock.email.send).toHaveBeenCalledWith({ to: [..], subject: .. })
-//   mock.config.JWT_SECRET = 'other-value'
+// Overrides behavior & asserts calls on the materialized resources:
+// mock.function.x.y(response) sets, expect(mock.function.x.y) asserts.
 export const mock: TestMock = {
 	function: createProxy(stack => {
 		return createProxy(name => overridable(testRegistry.functions, getFunctionName(name, stack)))

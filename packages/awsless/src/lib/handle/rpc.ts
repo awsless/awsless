@@ -3,9 +3,7 @@ import { Handler } from '@awsless/lambda'
 import { GenericSchema, InferInput, object, string } from '@awsless/validate'
 import { consumer } from './util.js'
 
-// The response contract of the rpc authorizer: which functions the
-// caller may invoke, the lock key for one-at-a-time callers & how long
-// the session stays valid.
+// The response contract of the rpc authorizer.
 export type RpcAuthResult =
 	| {
 			/** Allow the caller. */

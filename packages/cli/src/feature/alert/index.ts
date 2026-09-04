@@ -5,10 +5,8 @@ import { configRefName, isConfigRef } from '../../config/schema/config-ref.js'
 import { isEmail } from '../../config/schema/email.js'
 import { isPhone } from '../../config/schema/phone.js'
 import { defineFeature } from '../../feature.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { plainTestMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -78,29 +76,22 @@ export const alertFeature = defineFeature({
 		}
 	},
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
+		await writeResourceTypes(ctx, {
+			kind: 'alert',
+			interfaceName: 'AlertResources',
+			code: typeGenCode,
+			app(add) {
+				for (const alert of Object.keys(ctx.appConfig.alerts ?? {})) {
+					const name = formatGlobalResourceName({
+						appName: ctx.appConfig.name,
+						resourceType: 'alert',
+						resourceName: alert,
+					})
 
-		for (const alert of Object.keys(ctx.appConfig.alerts ?? {})) {
-			const name = formatGlobalResourceName({
-				appName: ctx.appConfig.name,
-				resourceType: 'alert',
-				resourceName: alert,
-			})
-
-			resources.addType(alert, `Alert<'${name}'>`)
-			testMocks.addType(alert, `TestMockEntry`)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('alert', testMocks)
-
-		gen.addCode(typeGenCode)
-		gen.addInterface('AlertResources', resources)
-		gen.addInterface('TestMock', testMock)
-
-		await ctx.write('alert.d.ts', gen, true)
+					add(alert, `Alert<'${name}'>`, `TestMockEntry`)
+				}
+			},
+		})
 	},
 	onApp(ctx) {
 		for (const [id, endpoints] of Object.entries(ctx.appConfig.alerts ?? {})) {

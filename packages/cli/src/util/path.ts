@@ -24,9 +24,6 @@ export const directories = {
 	get temp() {
 		return join(this.output, 'temp')
 	},
-	// get template() {
-	// 	return join(this.output, 'template')
-	// },
 	get test() {
 		return join(this.output, 'test')
 	},
@@ -36,10 +33,8 @@ export const setRoot = (path: string = root) => {
 	directories.root = path
 }
 
-// The dev environment builds into its own folder, so a deploy, build or
-// test running next to it can't clobber the chunk graph the live dev
-// workers import from. Sharing the folder mixes chunk generations whose
-// minified export names don't line up, silently miswiring imports.
+// A deploy or test next to a running dev session must not clobber the
+// chunk graph the live dev workers import from.
 export const useDevBuildDir = () => {
 	directories.buildFolder = 'build-dev'
 }

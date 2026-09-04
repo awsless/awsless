@@ -1,4 +1,4 @@
-import { Handler, isErrorResponse, lambda, LambdaContext } from '@awsless/lambda'
+import { ExpectedError, Handler, isErrorResponse, lambda, LambdaContext, ViewableError } from '@awsless/lambda'
 import {
 	BaseSchema,
 	boolean,
@@ -35,9 +35,8 @@ type Op<T extends GenericSchema | undefined, D> = T extends GenericSchema ? Infe
 
 type Method = 'GET' | 'POST' | 'HEAD' | 'OPTIONS' | 'PUT' | 'PATCH' | 'DELETE'
 
-// Our own request object: the useful parts of the web Request without
-// the browser era baggage that makes no sense inside a lambda. The
-// body is already fully buffered, so reading it is synchronous.
+// The useful parts of the web Request; the body is already buffered,
+// so reading it is synchronous.
 export class RouteRequest<Params = Record<string, string>, Query = Record<string, string>, Data = unknown> {
 	/** The http method of the request. */
 	readonly method: Method
@@ -99,10 +98,7 @@ export class RouteRequest<Params = Record<string, string>, Query = Record<string
 	}
 }
 
-// ------------------------------------------------------------------
-// The whole event validates as one schema: the envelope shape first,
-// then the extracted params, query & json body against their schemas,
-// and the final transform builds the web Request.
+// The whole event validates as one schema, ending in the request object.
 
 const envelopeSchema = object({
 	rawPath: optional(string()),
@@ -149,8 +145,7 @@ type RouteRequestOf<P extends RouteSchemaProps> = RouteRequest<
 export type RouteSchema<P extends RouteSchemaProps> = BaseSchema<EnvelopeInput, RouteRequestOf<P>, GenericIssue>
 
 const extractParts = (event: EnvelopeEvent): Extracted => {
-	// Router routes deliver their params as x-param-* headers, while
-	// the rest apis deliver real path parameters - normalize both.
+	// Router routes deliver params as x-param-* headers, rest apis as path parameters.
 	let params: Record<string, string> = event.pathParameters ?? {}
 
 	if (Object.keys(params).length === 0) {
@@ -199,10 +194,8 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 	}
 
 	const method = event.requestContext.http.method
-	// The router forwards the original host, so the request url carries
-	// the domain the caller used instead of the internal lambda url.
-	// Synthetic test events often carry empty domains & paths - fall
-	// back so the url always parses.
+	// The forwarded host is the domain the caller used; synthetic test
+	// events may carry none, so the url must still parse.
 	const domain = headers.get('x-forwarded-host') || event.requestContext.domainName || 'localhost'
 	const path = event.rawPath || event.requestContext.http.path || '/'
 	const protocol = headers.get('x-forwarded-proto') ?? 'https'
@@ -241,9 +234,6 @@ const routeSchema = <P extends RouteSchemaProps>(props: P): RouteSchema<P> => {
 	)
 }
 
-// ------------------------------------------------------------------
-// Responses
-
 const isTextual = (contentType: string) => {
 	return (
 		contentType.startsWith('text/') ||
@@ -254,8 +244,7 @@ const isTextual = (contentType: string) => {
 	)
 }
 
-// A web Response converts to the lambda url result shape, so handlers
-// return standard responses.
+// Handlers return standard web Responses.
 const toLambdaUrlResult = async (response: Response) => {
 	const headers: Record<string, string> = {}
 	const cookies: string[] = []
@@ -270,10 +259,8 @@ const toLambdaUrlResult = async (response: Response) => {
 
 	const buffer = Buffer.from(await response.arrayBuffer())
 
-	// Only a present textual content type marks the body as text: a
-	// Response over raw bytes has no content type (a string body gets
-	// text/plain automatically), and decoding unknown bytes as utf-8
-	// would corrupt them.
+	// A Response over raw bytes has no content type, and decoding
+	// unknown bytes as utf-8 would corrupt them.
 	const contentType = headers['content-type']
 	const textual = typeof contentType === 'string' && isTextual(contentType)
 
@@ -285,9 +272,6 @@ const toLambdaUrlResult = async (response: Response) => {
 		isBase64Encoded: buffer.length > 0 && !textual,
 	}
 }
-
-// ------------------------------------------------------------------
-// Handlers
 
 /** The request a route or site handler receives, validated against the route schemas. */
 export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>
@@ -333,37 +317,40 @@ export function route(
 	})
 
 	return async (event, context) => {
-		const result = await handler(event as EnvelopeInput, context)
+		let result: Awaited<ReturnType<typeof handler>>
 
-		// Expected errors render as a json error response instead of a
-		// viewable error payload. Bad input is a 400, any other expected
-		// error a 500. Unexpected errors keep propagating, so the runtime
-		// logs the record the on-error-log consumer picks up.
+		try {
+			result = await handler(event as EnvelopeInput, context)
+		} catch (error) {
+			// Test mode throws expected errors instead of returning them;
+			// the route contract is http, so they still render as a response.
+			if (error instanceof ExpectedError || error instanceof ViewableError) {
+				return jsonErrorResponse(error)
+			}
+
+			throw error
+		}
+
 		if (isErrorResponse(result)) {
-			const error = result.__error__
-
-			return jsonErrorResponse(error.type === 'validation' ? 400 : 500, {
-				type: error.type,
-				message: error.message,
-				data: error.data,
-			})
+			return jsonErrorResponse(result.__error__)
 		}
 
 		return result
 	}
 }
 
-const jsonErrorResponse = (statusCode: number, error: { type: string; message: string; data?: unknown }) => {
+// Bad input is a 400, any other expected error a 500. Unexpected errors
+// propagate, so the on-error-log consumer sees them.
+const jsonErrorResponse = (error: { type: string; message: string; data?: unknown }) => {
 	return {
-		statusCode,
+		statusCode: error.type === 'validation' ? 400 : 500,
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(error),
+		body: JSON.stringify({ type: error.type, message: error.message, data: error.data }),
 	}
 }
 
-// Site ssr handlers behave exactly like a schema-less route: the same
-// request object & the same error conversion into a json response -
-// an expected error must never serialize as a 200 error payload.
+// A site ssr handler is a schema-less route: an expected error must
+// never serialize as a 200 error payload.
 export const site = <H extends RouteHandler<{}>>(handle: H): RouteEntry => {
 	return route(handle)
 }

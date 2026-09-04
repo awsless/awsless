@@ -1,6 +1,6 @@
 import { toGibibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
-import { Group } from '@terraforge/core'
+import { Group, Input } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -99,52 +99,40 @@ export const cacheFeature = defineFeature({
 				}
 			)
 
-			// ---------------------------------------------------------------
-			// Open up the SecurityGroup for ipv4 & ipv6 for the master node
-
 			const masterHost = cache.endpoint.pipe(v => v.at(0)!.address)
 			const masterPort = cache.endpoint.pipe(v => v.at(0)!.port)
-
-			new aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v4', {
-				securityGroupId: securityGroup.id,
-				description: masterPort.pipe(port => `Allow ipv4 on port: ${port}`),
-				ipProtocol: 'tcp',
-				cidrIpv4: '0.0.0.0/0',
-				fromPort: masterPort,
-				toPort: masterPort,
-			})
-
-			new aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v6', {
-				securityGroupId: securityGroup.id,
-				description: masterPort.pipe(port => `Allow ipv6 on port: ${port}`),
-				ipProtocol: 'tcp',
-				cidrIpv6: '::/0',
-				fromPort: masterPort,
-				toPort: masterPort,
-			})
-
-			// ---------------------------------------------------------------
-			// Open up the SecurityGroup for ipv4 & ipv6 for the slave reader
-
 			const slaveHost = cache.readerEndpoint.pipe(v => v.at(0)!.address)
 			const slavePort = cache.readerEndpoint.pipe(v => v.at(0)!.port)
 
-			new aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v4', {
-				securityGroupId: securityGroup.id,
-				description: slavePort.pipe(port => `Allow ipv4 on port: ${port}`),
-				ipProtocol: 'tcp',
-				cidrIpv4: '0.0.0.0/0',
-				fromPort: slavePort,
-				toPort: slavePort,
-			})
+			// Only the app's own workloads reach the cache: the lambdas share
+			// the vpc security group, jobs & instances bring their own.
+			const allowClient = (clientId: string, clientSecurityGroupId: Input<string>) => {
+				for (const [endpoint, port] of [
+					['master', masterPort],
+					['slave', slavePort],
+				] as const) {
+					new aws.vpc.SecurityGroupIngressRule(group, `${endpoint}-rule-${clientId}`, {
+						securityGroupId: securityGroup.id,
+						description: port.pipe(port => `Allow ${clientId} on port: ${port}`),
+						ipProtocol: 'tcp',
+						referencedSecurityGroupId: clientSecurityGroupId,
+						fromPort: port,
+						toPort: port,
+					})
+				}
+			}
 
-			new aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v6', {
-				securityGroupId: securityGroup.id,
-				description: slavePort.pipe(port => `Allow ipv6 on port: ${port}`),
-				ipProtocol: 'tcp',
-				cidrIpv6: '::/0',
-				fromPort: slavePort,
-				toPort: slavePort,
+			allowClient('lambda', ctx.shared.get('vpc', 'security-group-id'))
+
+			// The instance security groups only exist once every stack has synthed.
+			ctx.onReady(() => {
+				if (ctx.shared.has('job', 'security-group-id')) {
+					allowClient('job', ctx.shared.get('job', 'security-group-id'))
+				}
+
+				for (const instance of ctx.shared.list('instance', 'security-group-id')) {
+					allowClient(instance.name, instance.id)
+				}
 			})
 
 			// ---------------------------------------------------------------

@@ -10,8 +10,8 @@ import {
 import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../../error.js'
-import { getAccountId, getCredentials } from '../../../../util/aws.js'
 import { layout } from '../../../ui/complex/layout.js'
+import { createClients } from '../../util.js'
 import { askUsername, loadUserPoolId, selectUserPool, validatePassword } from './util.js'
 
 export const update = (program: Command) => {
@@ -24,10 +24,7 @@ export const update = (program: Command) => {
 		.option('--groups <groups...>', 'The groups the user should be in, replacing the current groups')
 		.action(async (options: { pool?: string; username?: string; password?: string; groups?: string[] }) => {
 			await layout('auth user update', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { name, props } = await selectUserPool(appConfig, options.pool)
 				const userPoolId = await loadUserPoolId({ appConfig, stackConfigs, accountId, credentials, name })
@@ -140,13 +137,8 @@ export const update = (program: Command) => {
 							)
 						}
 
-						const oldGroupSet = new Set(oldGroups)
-						const newGroupSet = new Set(newGroups)
-
-						// @ts-ignore
-						const removedGroups = oldGroupSet.difference(newGroupSet)
-						// @ts-ignore
-						const addedGroups = newGroupSet.difference(oldGroupSet)
+						const removedGroups = oldGroups.filter(group => !newGroups.includes(group))
+						const addedGroups = newGroups.filter(group => !oldGroups.includes(group))
 
 						for (const group of removedGroups) {
 							await client.send(

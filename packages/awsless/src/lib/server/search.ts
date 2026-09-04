@@ -1,17 +1,21 @@
 import { AnySchema, define, isServerlessEndpoint, searchClient } from '@awsless/open-search'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { getApp, getStack, IS_TEST } from './util.js'
+import { getApp, getStack, isTest } from './util.js'
 
-// The physical name of a search index inside the shared domain: the
-// index name prefixed with its stack. Must stay in sync with
-// formatSearchIndexName in the cli search feature. Tests add the
-// per-file app prefix, since every test file shares one run-wide
-// search server.
+// The physical index name inside the shared domain, also used by the CLI.
+export const formatSearchIndexName = (stackName: string, indexName: string) => {
+	return `${kebabCase(stackName)}--${indexName}`
+}
+
 export const getSearchProps = (name: string, stack: string = getStack()) => {
+	const index = formatSearchIndexName(stack, name)
+
 	return {
 		endpoint: process.env.SEARCH_ENDPOINT,
-		name: IS_TEST ? `${kebabCase(getApp())}--${kebabCase(stack)}--${name}` : `${kebabCase(stack)}--${name}`,
+		// Every test file shares one search server, so the per-file app
+		// prefix keeps their indexes apart.
+		name: isTest() ? `${kebabCase(getApp())}--${index}` : index,
 	} as const
 }
 
@@ -31,10 +35,14 @@ const compatibleTypes = (a: string, b: string) => {
 	return a === b || typeGroups.some(group => group.includes(a) && group.includes(b))
 }
 
-// Tests verify the code schema against the index declaration of the
-// stack file, so a drifted schema fails loud instead of relying on
-// dynamic mappings that don't exist on the deployed index.
-const assertMatchingMappings = (label: string, declared: SearchMapping, defined: SearchMapping, path = ''): void => {
+// A drifted schema fails loud instead of relying on dynamic mappings
+// that don't exist on the deployed index.
+export const assertMatchingMappings = (
+	label: string,
+	declared: SearchMapping,
+	defined: SearchMapping,
+	path = ''
+): void => {
 	const declaredProps = declared.properties ?? {}
 	const definedProps = defined.properties ?? {}
 
@@ -87,7 +95,7 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 			name: index,
 			endpoint,
 			define(schema: AnySchema) {
-				if (IS_TEST) {
+				if (isTest()) {
 					const declared = process.env[`SEARCH_MAPPINGS_${index}`]
 
 					if (declared) {

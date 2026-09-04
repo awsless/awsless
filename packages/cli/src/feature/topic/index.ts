@@ -2,11 +2,9 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { plainTestMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -67,29 +65,22 @@ export const topicFeature = defineFeature({
 		await ctx.useSns()
 	},
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
+		await writeResourceTypes(ctx, {
+			kind: 'topic',
+			interfaceName: 'TopicResources',
+			code: typeGenCode,
+			app(add) {
+				for (const topic of ctx.appConfig.topics ?? []) {
+					const name = formatGlobalResourceName({
+						appName: ctx.appConfig.name,
+						resourceType: 'topic',
+						resourceName: topic,
+					})
 
-		for (const topic of ctx.appConfig.topics ?? []) {
-			const name = formatGlobalResourceName({
-				appName: ctx.appConfig.name,
-				resourceType: 'topic',
-				resourceName: topic,
-			})
-
-			resources.addType(topic, `Publish<'${name}'>`)
-			testMocks.addType(topic, `TestMockEntry`)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('topic', testMocks)
-
-		gen.addCode(typeGenCode)
-		gen.addInterface('TopicResources', resources)
-		gen.addInterface('TestMock', testMock)
-
-		await ctx.write('topic.d.ts', gen, true)
+					add(topic, `Publish<'${name}'>`, `TestMockEntry`)
+				}
+			},
+		})
 	},
 	onValidate(ctx) {
 		const topics = ctx.appConfig.topics ?? []

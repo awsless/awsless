@@ -34,10 +34,6 @@ export const RateExpressionSchema = z
 		return `rate(${rate})`
 	})
 
-// export const RateExpressionSchema = DurationSchema.transform((value) => {
-// 	return `rate(${value.toSeconds()} seconds)`
-// })
-
 export const CronExpressionSchema = z
 	.custom<CronExpression>(
 		value => {

@@ -8,11 +8,8 @@ import { formatTableKeys } from '../feature/table/util.js'
 import { formatLocalResourceName } from '../util/name.js'
 import { directories } from '../util/path.js'
 
-// The manifest hands the vitest setup everything it needs to
-// materialize the whole app: every table, the real handler file of
-// every function, task & queue consumer, and the test config values.
-// The shape is declared once in awsless (lib/test/setup.ts), so the
-// producer & consumer can never drift.
+// The shape lives in awsless (lib/test/setup.ts), so the producer &
+// consumer can never drift.
 export type { TestManifest }
 
 const absolute = (file: string) => {
@@ -20,6 +17,7 @@ const absolute = (file: string) => {
 }
 
 export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConfig[]): TestManifest => {
+	const crons: NonNullable<TestManifest['crons']> = []
 	const manifest: TestManifest = {
 		app: appConfig.name,
 		region: appConfig.region,
@@ -30,7 +28,7 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		searches: [],
 		functions: [],
 		tasks: [],
-		crons: [],
+		crons,
 		queues: [],
 		topics: appConfig.topics ?? [],
 		pubsub: Object.keys(appConfig.pubsub ?? {}),
@@ -81,7 +79,7 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		}
 
 		for (const [id, props] of Object.entries(stack.crons ?? {})) {
-			manifest.crons!.push({ stack: stack.name, id, file: absolute(props.consumer.code.file) })
+			crons.push({ stack: stack.name, id, file: absolute(props.consumer.code.file) })
 		}
 
 		for (const [id, props] of Object.entries(stack.queues ?? {})) {

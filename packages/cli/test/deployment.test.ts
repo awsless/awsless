@@ -40,6 +40,16 @@ import {
 } from '../src/util/deployment'
 import { notFound } from './_kit'
 
+const mocks = vi.hoisted(() => ({
+	isCommitMerged: vi.fn(() => false),
+}))
+
+vi.mock('../src/util/git', async importOriginal => {
+	const mod = await importOriginal<typeof import('../src/util/git')>()
+
+	return { ...mod, isCommitMerged: mocks.isCommitMerged }
+})
+
 const appId = 'app-id'
 const functionName = 'app--function--bundle'
 
@@ -258,7 +268,10 @@ const mockAws = (rows: Deployment[] = [], functionVersions: Record<string, strin
 			throw notFound()
 		}
 
-		if (command instanceof DeleteFunctionUrlConfigCommand || command instanceof DeleteFunctionEventInvokeConfigCommand) {
+		if (
+			command instanceof DeleteFunctionUrlConfigCommand ||
+			command instanceof DeleteFunctionEventInvokeConfigCommand
+		) {
 			throw notFound()
 		}
 
@@ -479,6 +492,19 @@ describe('prune selection', () => {
 		const prunable = selectPrunableDeployments(items, undefined, { ...options, branch: 'feat' })
 
 		expect(prunable.map(item => item.id)).toEqual(['feat-1'])
+	})
+
+	it('should prune a branch deployment once its commit landed on main', () => {
+		const items = [
+			build({ id: 'feat-1', branch: 'feat', functionVersion: '1', commit: 'merged' }),
+			build({ id: 'feat-2', branch: 'feat', seq: 2, functionVersion: '2', commit: 'open' }),
+			build({ id: 'feat-3', branch: 'feat', seq: 3, functionVersion: '3' }),
+		]
+
+		mocks.isCommitMerged.mockImplementation(((commit: string) => commit === 'merged') as never)
+
+		expect(selectPrunableDeployments(items, undefined, options).map(item => item.id)).toEqual(['feat-1'])
+		expect(mocks.isCommitMerged).toHaveBeenCalledWith('merged', 'main')
 	})
 
 	it('should honour --keep when pruning the main branch', () => {

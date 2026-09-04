@@ -9,9 +9,9 @@ import {
 
 describe('resource names', () => {
 	it('should kebab case every part of a global resource name', () => {
-		expect(formatGlobalResourceName({ appName: 'MyApp', resourceType: 'function', resourceName: 'helloWorld' })).toBe(
-			'my-app--function--hello-world'
-		)
+		expect(
+			formatGlobalResourceName({ appName: 'MyApp', resourceType: 'function', resourceName: 'helloWorld' })
+		).toBe('my-app--function--hello-world')
 	})
 
 	it('should place the prefix & postfix around the name with a custom separator', () => {
@@ -35,7 +35,12 @@ describe('resource names', () => {
 
 	it('should include the stack in a local resource name', () => {
 		expect(
-			formatLocalResourceName({ appName: 'app', stackName: 'Shop', resourceType: 'queue', resourceName: 'orderMail' })
+			formatLocalResourceName({
+				appName: 'app',
+				stackName: 'Shop',
+				resourceType: 'queue',
+				resourceName: 'orderMail',
+			})
 		).toBe('app--shop--queue--order-mail')
 	})
 

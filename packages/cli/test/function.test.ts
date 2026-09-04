@@ -1,4 +1,4 @@
-import { getMeta, resolveInputs } from '@terraforge/core'
+import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
 import { BundledFunctionSchema, FunctionSchema, StackFunctionSchema } from '../src/feature/function/schema'
 import { isStandaloneFunction } from '../src/feature/function/util'
@@ -116,6 +116,41 @@ describe('stack functions', () => {
 		expect(variables.CUSTOM).toBe('value')
 	})
 
+	it('logs structured json by default & drops the levels for text logs', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						plain: { code, memorySize: '256 MB' },
+						json: { code, memorySize: '256 MB', log: { level: 'warn' } },
+						text: { code, memorySize: '256 MB', log: { format: 'text', level: 'warn' } },
+					},
+				},
+			],
+		})
+
+		const lambdas = app.resources.map(getMeta).filter(meta => meta.type === 'aws_lambda_function')
+		const configOf = (name: string) => {
+			return lambdas.find(meta => meta.input.functionName === `test-app--stack-1--function--${name}`)!.input
+				.loggingConfig
+		}
+
+		expect(configOf('plain')).toEqual({
+			logGroup: '/aws/lambda/test-app--stack-1--function--plain',
+			logFormat: 'JSON',
+			applicationLogLevel: 'TRACE',
+			systemLogLevel: 'WARN',
+		})
+		expect(configOf('json')).toMatchObject({ logFormat: 'JSON', applicationLogLevel: 'WARN' })
+		expect(configOf('text')).toEqual({
+			logGroup: '/aws/lambda/test-app--stack-1--function--text',
+			logFormat: 'Text',
+			applicationLogLevel: undefined,
+			systemLogLevel: undefined,
+		})
+	})
+
 	it('deploys outside the vpc when the function opts out', () => {
 		const { app } = createTestApp({
 			stacks: [
@@ -175,17 +210,61 @@ describe('sandbox', () => {
 
 		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--sandbox-proxy--echo')
 
-		// The app wide env never lives in the lambda env, stand-alone
-		// functions receive it baked into their code zip & sandboxed
-		// functions don't receive it at all.
-		const standalone = metas.find(
+		// The app wide grants reference the queue & the bundle. A plain
+		// stand-alone role carries them, the sandboxed role only carries
+		// the invoke of its proxy.
+		const policyOf = (functionName: string) => {
+			return metas.find(
+				meta =>
+					meta.type === 'aws_iam_role_policy' &&
+					meta.input.name === 'lambda-policy' &&
+					findInputDeps(meta.input.role).some(dep => dep.input.description === functionName)
+			)!
+		}
+
+		const queue = metas.find(meta => meta.type === 'aws_sqs_queue')!
+		const bundle = metas.find(
+			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--function--bundle'
+		)!
+		const sandboxed = findInputDeps(policyOf('test-app--stack-1--function--echo').input.policy)
+		const standalone = findInputDeps(policyOf('test-app--stack-1--function--standalone').input.policy)
+
+		expect(standalone).toContain(queue)
+		expect(sandboxed).not.toContain(queue)
+		expect(sandboxed).not.toContain(bundle)
+		expect(sandboxed).toContain(proxy)
+
+		// The proxy alone reaches the bundle.
+		expect(findInputDeps(policyOf('test-app--stack-1--sandbox-proxy--echo').input.policy)).toContain(bundle)
+	})
+
+	it('invokes the sandbox proxy through a qualifier only', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					functions: {
+						echo: { code, log: false, sandbox: { functions: ['stack-1:other'] } },
+					},
+				},
+			],
+		})
+
+		const metas = app.resources.map(getMeta)
+		const policy = metas.find(
 			meta =>
-				meta.type === 'aws_lambda_function' &&
-				meta.input.functionName === 'test-app--stack-1--function--standalone'
+				meta.type === 'aws_iam_role_policy' &&
+				meta.input.name === 'lambda-policy' &&
+				findInputDeps(meta.input.role).some(
+					dep => dep.input.description === 'test-app--stack-1--function--echo'
+				)
 		)!
 
-		expect(lambda.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeUndefined()
-		expect(standalone.input.environment.variables.QUEUE_STACK_1_JOBS_URL).toBeUndefined()
+		// The proxy arn is the only lambda the policy references, and it
+		// enters the statement with a ":*" qualifier suffix.
+		const lambdas = findInputDeps(policy.input.policy).filter(dep => dep.type === 'aws_lambda_function')
+
+		expect(lambdas.map(dep => dep.input.functionName)).toEqual(['test-app--stack-1--sandbox-proxy--echo'])
 	})
 
 	it('grants the sandbox access to the allowlisted configs', async () => {

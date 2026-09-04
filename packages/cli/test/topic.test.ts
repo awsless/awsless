@@ -35,14 +35,17 @@ describe('topic', () => {
 
 		expect(subscriptions).toHaveLength(1)
 		expect(subscriptions[0]!.input.protocol).toBe('lambda')
-		expect(listResources(app, 'aws_lambda_permission').some(meta => meta.input.principal === 'sns.amazonaws.com')).toBe(
-			true
-		)
+		expect(
+			listResources(app, 'aws_lambda_permission').some(meta => meta.input.principal === 'sns.amazonaws.com')
+		).toBe(true)
 	})
 
 	it('rejects a subscriber for an unknown topic', () => {
 		const { appConfig } = createTestApp({ app: { topics: ['order-created'] } })
-		const stack = { ...StackSchema.parse({ name: 'stack-1', subscribers: { unknown: { consumer: { code } } } }), file: 'x' }
+		const stack = {
+			...StackSchema.parse({ name: 'stack-1', subscribers: { unknown: { consumer: { code } } } }),
+			file: 'x',
+		}
 
 		expect(() => validateFeatures({ appConfig, stackConfigs: [stack] })).toThrow()
 	})

@@ -1,26 +1,23 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { kebabCase } from 'change-case'
+import { formatResourceName } from './util.js'
 
-// ------------------------------------------------------------
-// The bundle lambda.
-//
-// Every function in the app is deployed into one shared "bundle"
-// lambda. A route key like "stack:function:name" identifies one
-// handler inside the bundle, and every invoke payload carries the
-// route key so the bundle knows which handler should run.
+// Every function of the app deploys into one shared bundle lambda. A
+// route key like "stack:function:name" picks the handler inside it.
 
-// The payload property used to route lambda invokes to the right bundle handler.
+// The payload property that routes lambda invokes to a bundle handler.
 export const ROUTE_PROPERTY = '$awsless-route'
 
-// The request header used to route web requests to the right bundle handler.
+// The request header that routes web requests to a bundle handler.
 export const ROUTE_HEADER = 'x-awsless-route'
 
-// The alias that every deploy promotes; matches the CLI's LIVE_LAMBDA_ALIAS.
+// The alias every deploy promotes.
 export const LIVE_BUNDLE_ALIAS = 'live'
 
-// The app env is read at call time, since the CLI sets it after import.
-export const getBundleName = () => `${kebabCase(process.env.APP!)}--function--bundle`
+export const getBundleName = () => {
+	return formatResourceName({ resourceType: 'function', resourceName: 'bundle' })
+}
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
 	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
@@ -33,14 +30,8 @@ export const formatRoutePayload = (routeKey: string, event: unknown) => {
 	}
 }
 
-// ------------------------------------------------------------
-// The deployment context of an invocation.
-//
-// The qualifier a lambda is invoked with names the deployment it
-// serves: either an immutable deployment id alias or the mutable
-// live alias. Internal calls pass the qualifier along, so a whole
-// call chain stays inside one deployment.
-
+// The qualifier we were invoked with names the deployment we serve.
+// Internal calls pass it along, so a call chain stays in one deployment.
 let invokedQualifier: string | undefined
 
 export const captureInvokedQualifier = (context: { invokedFunctionArn?: string }) => {
@@ -52,47 +43,27 @@ export const getInvokedQualifier = () => {
 	return invokedQualifier
 }
 
-// ------------------------------------------------------------
-// Invoking the bundle from the outside.
-
 type InvokeBundleProps = Omit<InvokeOptions, 'name' | 'payload'> & {
 	routeKey: string
 	payload?: unknown
 }
 
-// Invoke the bundle lambda & let it dispatch to the route handler.
-// The call carries the qualifier we were invoked with ourselves, so
-// one deployment never calls into code of another. Callers outside
-// of a lambda call the latest promoted deployment.
+// Callers outside of a lambda have no qualifier & get the promoted deployment.
 export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProps) => {
-	// Inside a sandbox every bundle call goes to the sandbox proxy,
-	// the only lambda a sandboxed function is allowed to invoke. The
-	// proxy forwards the allowlisted routes to the bundle.
+	// A sandboxed function may only invoke its proxy, which forwards
+	// the allowlisted routes to the bundle.
 	const proxy = process.env.SANDBOX_PROXY
-
-	if (proxy) {
-		return invoke({
-			...options,
-			name: proxy,
-			qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
-			payload: formatRoutePayload(routeKey, payload),
-		})
-	}
 
 	return invoke({
 		...options,
-		name: getBundleName(),
+		name: proxy || getBundleName(),
 		qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
 		payload: formatRoutePayload(routeKey, payload),
 	})
 }
 
-// ------------------------------------------------------------
-// Invoking inside the bundle.
-//
-// While the bundle runs a route handler, we track which route is
-// executing, together with a dispatcher provided by the bundle
-// runtime that can run other route handlers in the same process.
+// While the bundle runs a route handler, the active route key & a
+// dispatcher for other routes in the same process ride on this context.
 
 export type InternalInvoke = (routeKey: string, payload: unknown) => Promise<unknown>
 
@@ -110,17 +81,14 @@ export type BundleRouteOptions = {
 
 const bundleContext = new AsyncLocalStorage<BundleContext>()
 
-// True when the current code is running as a route handler inside the bundle lambda.
 export const isInsideBundle = () => bundleContext.getStore() !== undefined
 
 export const getCurrentRoute = () => bundleContext.getStore()?.routeKey
 
-// Decided per route at invoke time: concurrent requests in one process
-// (the local dev worker) each carry their own flag instead of sharing a
-// global. Outside the bundle nothing enables it.
+// Per route instead of a global flag, since the local dev worker runs
+// concurrent routes in one process.
 export const shouldThrowExpectedErrors = () => bundleContext.getStore()?.throwExpectedErrors ?? false
 
-// The bundle runtime wraps every route handler in this context.
 export const withBundleRouteContext = <T>(
 	routeKey: string,
 	internalInvoke: InternalInvoke,
@@ -133,8 +101,8 @@ export const withBundleRouteContext = <T>(
 	)
 }
 
-// Run another route handler in the same process, instead of paying
-// for a lambda invoke of the bundle we are already running in.
+// Run another route handler in-process instead of paying for a lambda
+// invoke of the bundle we already run in.
 export const internalInvoke = (routeKey: string, payload: unknown) => {
 	const context = bundleContext.getStore()
 
@@ -145,11 +113,8 @@ export const internalInvoke = (routeKey: string, payload: unknown) => {
 	return context.internalInvoke(routeKey, payload)
 }
 
-// ------------------------------------------------------------
-// The bundle's own route table, registered by the bundle runtime.
-// A function route that isn't in the table is served by its own
-// stand-alone lambda, whose name derives from the route key.
-
+// The bundle's route table. A function route outside it is served by
+// its own stand-alone lambda.
 let bundleRoutes: string[] = []
 
 export const setBundleRoutes = (routes: string[]) => {
@@ -163,18 +128,16 @@ export const hasBundleRoute = (routeKey: string) => {
 export const getStandaloneFunctionName = (routeKey: string) => {
 	const [stackName, , functionName] = routeKey.split(':')
 
-	return `${kebabCase(process.env.APP!)}--${stackName}--function--${functionName}`
+	return formatResourceName({ stackName, resourceType: 'function', resourceName: functionName! })
 }
 
-// ------------------------------------------------------------
 // Env vars are scoped per route key inside the shared bundle env.
-
 export const formatRouteEnvName = (routeKey: string, name: string) => {
 	return `${routeKey}:${name}`
 }
 
 export const getRouteEnv = (name: string) => {
-	const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE
+	const routeKey = getCurrentRoute()
 
 	return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name]
 }

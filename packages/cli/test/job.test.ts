@@ -15,9 +15,10 @@ describe('job', () => {
 		expect(task.input.family).toBe('test-app--stack-1--job--export')
 		expect(task.input.volume).toBeUndefined()
 		expect(listResources(app, 'aws_ecs_service')).toHaveLength(0)
-		expect(listResources(app, 'aws_efs_file_system')).toHaveLength(0)
 
-		expect(findStatements(shared, 'ecs:RunTask')).toHaveLength(1)
+		const [runTask] = findStatements(shared, 'ecs:RunTask')
+
+		expect(runTask!.resources).toEqual(['arn:aws:ecs:us-east-1:123456789012:task-definition/test-app--stack-1--*'])
 	})
 
 	it('only passes the roles of the jobs to ecs', () => {
@@ -25,8 +26,10 @@ describe('job', () => {
 			stacks: [{ name: 'stack-1', jobs: { export: { code }, import: { code } } }],
 		})
 
-		// The task feature passes its own schedule role, without a condition.
-		const statement = findStatements(shared, 'iam:PassRole').find(statement => statement.conditions)
+		// The task feature passes its own schedule role to the scheduler.
+		const statement = findStatements(shared, 'iam:PassRole').find(statement =>
+			JSON.stringify(statement.conditions).includes('ecs-tasks')
+		)
 
 		expect(statement).toBeDefined()
 		expect(statement!.resources).toHaveLength(4)
@@ -34,18 +37,5 @@ describe('job', () => {
 		expect(statement!.conditions).toEqual({
 			StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' },
 		})
-	})
-
-	it('mounts a persistent volume when asked', () => {
-		const { app, shared } = createTestApp({
-			stacks: [{ name: 'stack-1', jobs: { export: { code, persistentStorage: true } } }],
-		})
-
-		const task = listResources(app, 'aws_ecs_task_definition')[0]!
-
-		expect(listResources(app, 'aws_efs_file_system')).toHaveLength(1)
-		expect(listResources(app, 'aws_efs_access_point')).toHaveLength(1)
-		expect(task.input.volume).toHaveLength(1)
-		expect(shared.get('job', 'persistent-storage-file-system-id')).toBeDefined()
 	})
 })

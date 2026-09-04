@@ -1,12 +1,3 @@
-import { kebabCase } from 'change-case'
-
-// The physical name of a search index inside the shared domain: the
-// index name prefixed with its stack. Must stay in sync with the
-// runtime derivation in awsless-next lib/server/search.ts.
-export const formatSearchIndexName = (stackName: string, indexName: string) => {
-	return `${kebabCase(stackName)}--${indexName}`
-}
-
 type ShorthandField = string | Record<string, unknown> | [Record<string, unknown>]
 
 const compileField = (field: ShorthandField): Record<string, unknown> => {

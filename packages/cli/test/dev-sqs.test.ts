@@ -52,7 +52,7 @@ const createClient = (port: number) => {
 describe('dev sqs emulator', () => {
 	const servers: { stop: () => Promise<void> }[] = []
 
-	const boot = async () => {
+	const boot = async (visibilityTimeouts?: Map<string, number>) => {
 		const server = createSqsServer({
 			region: 'us-east-1',
 			accountId: '000000000000',
@@ -60,6 +60,7 @@ describe('dev sqs emulator', () => {
 				['pull', undefined],
 				['push', 'stack:consumer'],
 			]),
+			visibilityTimeouts,
 		})
 
 		const port = await server.listen()
@@ -95,7 +96,10 @@ describe('dev sqs emulator', () => {
 
 		expect(second).toMatchObject({
 			MessageId: first!.MessageId,
-			Attributes: { ApproximateReceiveCount: '2', ApproximateFirstReceiveTimestamp: first!.Attributes.ApproximateFirstReceiveTimestamp },
+			Attributes: {
+				ApproximateReceiveCount: '2',
+				ApproximateFirstReceiveTimestamp: first!.Attributes.ApproximateFirstReceiveTimestamp,
+			},
 		})
 		expect(second!.ReceiptHandle).not.toBe(first!.ReceiptHandle)
 
@@ -133,12 +137,68 @@ describe('dev sqs emulator', () => {
 
 		await client.send('pull', 'later', { DelaySeconds: 1 })
 
+		// Never received yet, so it counts as delayed rather than in flight.
 		await expect(client.receive('pull')).resolves.toEqual([])
-		await expect(client.attributes('pull')).resolves.toMatchObject({ ApproximateNumberOfMessagesNotVisible: '1' })
+		await expect(client.attributes('pull')).resolves.toMatchObject({
+			ApproximateNumberOfMessagesNotVisible: '0',
+			ApproximateNumberOfMessagesDelayed: '1',
+		})
 
 		await sleep(1100)
 
 		await expect(client.receive('pull')).resolves.toMatchObject([{ Body: 'later' }])
+	})
+
+	it('should hide a received message for the configured visibility timeout by default', async () => {
+		const { client } = await boot(new Map([['pull', 1]]))
+
+		await client.send('pull', 'configured')
+
+		await expect(client.receive('pull')).resolves.toMatchObject([{ Body: 'configured' }])
+		await expect(client.receive('pull')).resolves.toEqual([])
+
+		await sleep(1100)
+
+		await expect(client.receive('pull')).resolves.toMatchObject([{ Body: 'configured' }])
+	})
+
+	it('should send, receive & delete in batches and purge the rest', async () => {
+		const { client } = await boot()
+
+		const sent = await client.call('SendMessageBatch', {
+			QueueUrl: client.url('pull'),
+			Entries: [
+				{ Id: 'a', MessageBody: 'one' },
+				{ Id: 'b', MessageBody: 'two', DelaySeconds: 60 },
+				{ Id: 'c', MessageBody: 'three' },
+			],
+		})
+
+		expect(sent.Successful.map((entry: { Id: string }) => entry.Id)).toEqual(['a', 'b', 'c'])
+		expect(sent.Failed).toEqual([])
+
+		const received = await client.receive('pull', { MaxNumberOfMessages: 10 })
+
+		expect(received.map(message => message.Body)).toEqual(['one', 'three'])
+
+		const deleted = await client.call('DeleteMessageBatch', {
+			QueueUrl: client.url('pull'),
+			Entries: received.map((message, index) => ({ Id: String(index), ReceiptHandle: message.ReceiptHandle })),
+		})
+
+		expect(deleted.Successful).toEqual([{ Id: '0' }, { Id: '1' }])
+		await expect(client.attributes('pull')).resolves.toMatchObject({
+			ApproximateNumberOfMessages: '0',
+			ApproximateNumberOfMessagesDelayed: '1',
+		})
+
+		await client.call('PurgeQueue', { QueueUrl: client.url('pull') })
+
+		await expect(client.attributes('pull')).resolves.toMatchObject({
+			ApproximateNumberOfMessages: '0',
+			ApproximateNumberOfMessagesNotVisible: '0',
+			ApproximateNumberOfMessagesDelayed: '0',
+		})
 	})
 
 	it('should resolve a long poll as soon as a message arrives', async () => {

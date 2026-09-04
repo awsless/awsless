@@ -53,19 +53,12 @@ const sqsRecord = async (record: SQSRecord, consumer: Consumer) => {
 		return
 	}
 
-	const queueName = record.messageAttributes.queueName?.stringValue
-	const body = parsePayload(record.body)
-
+	// Anything else on the queue is a dead-lettered scheduler delivery.
 	const payload: QueueFailureEvent = {
 		type: 'queue',
 		id: record.messageId,
 		date: new Date(Number(record.attributes.SentTimestamp)),
-		payload: body,
-		source: queueName ? { resource: logicalResourceName(queueName), event: body } : undefined,
-		queue: {
-			name: queueName,
-			url: record.messageAttributes.queueUrl?.stringValue,
-		},
+		payload: parsePayload(record.body),
 	}
 
 	await consumer(payload)

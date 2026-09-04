@@ -5,17 +5,6 @@ import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { BundledFunctionSchema } from '../function/schema.js'
 
 const KeySchema = z.string().min(1).max(255)
-// const DeletionProtectionSchema = z
-// 	.boolean()
-// 	.describe('Specifies if you want to protect the table from being deleted by awsless.')
-
-// export const TableDefaultSchema = z
-// 	.object({
-// 		deletionProtection: DeletionProtectionSchema.optional(),
-// 	})
-// 	.optional()
-
-// const MaxBatchingWindow
 
 export const TablesSchema = z
 	.record(
@@ -50,8 +39,6 @@ export const TablesSchema = z
 					'To update this property, you must first disable TTL and then enable TTL with the new attribute name.',
 				].join('\n')
 			),
-
-			// deletionProtection: DeletionProtectionSchema.optional(),
 
 			stream: z
 				.object({
@@ -93,20 +80,6 @@ export const TablesSchema = z
 								'You can specify a duration from 1 seconds to 5 minutes.',
 							].join('\n')
 						),
-
-					// maxRecordAge: DurationSchema.refine(
-					// 	durationMin(seconds(1)),
-					// 	'Minimum record age duration is 1 second'
-					// )
-					// 	.refine(durationMax(minutes(1)), 'Maximum record age duration is 1 minute')
-					// 	.default('60 seconds')
-					// 	.describe(
-					// 		[
-					// 			'Discard records older than the specified age.',
-					// 			'The maximum valid value for maximum record age is 60s.',
-					// 			'The default value is 60s',
-					// 		].join('\n')
-					// 	),
 
 					retryAttempts: z
 						.number()

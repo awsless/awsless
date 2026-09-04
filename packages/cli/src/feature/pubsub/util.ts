@@ -2,10 +2,8 @@ import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
-import { stringify } from '@awsless/json'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
-import { pascalCase } from 'change-case'
 import { getBuildPath } from '../../build/index.js'
 import { AppContext, Permission } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
@@ -30,6 +28,8 @@ const MEMORY = '512'
 const MIN_CAPACITY = 1
 const MAX_CAPACITY = 10
 
+// The server is a prebuilt program that only talks to the bundle, sns &
+// redis, so it receives its own env & grants instead of the app wide ones.
 export const createPubSubService = (
 	parentGroup: Group,
 	ctx: AppContext,
@@ -68,17 +68,21 @@ export const createPubSubService = (
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`pubsub--${name}`)
-			const executable = await buildExecutable(bundleFile, temp.path, ARCHITECTURE)
 
-			await Promise.all([
-				//
-				write('HASH', executable.hash),
-				write('program', executable.file),
-				temp.delete(),
-			])
+			try {
+				const executable = await buildExecutable(bundleFile, temp.path, ARCHITECTURE)
 
-			return {
-				size: formatByteSize(executable.file.byteLength),
+				await Promise.all([
+					//
+					write('HASH', executable.hash),
+					write('program', executable.file),
+				])
+
+				return {
+					size: formatByteSize(executable.file.byteLength),
+				}
+			} finally {
+				await temp.delete()
 			}
 		})
 	})
@@ -151,8 +155,8 @@ export const createPubSubService = (
 							Version: '2012-10-17',
 							Statement: [
 								{
-									Effect: pascalCase('allow'),
-									Action: ['s3:GetObject', 's3:HeadObject'],
+									Effect: 'Allow',
+									Action: ['s3:GetObject'],
 									Resource: `arn:aws:s3:::${bucket}/${key}`,
 								},
 							],
@@ -185,10 +189,6 @@ export const createPubSubService = (
 			statementDeps.add(dep)
 		}
 	}
-
-	ctx.onPermission(statement => {
-		addPermission(statement)
-	})
 
 	// ------------------------------------------------------------
 	// Logging
@@ -395,18 +395,11 @@ export const createPubSubService = (
 	// ------------------------------------------------------------
 	// Env Vars
 
-	ctx.onEnv((name, value) => {
-		variables[name] = value
-		for (const dep of findInputDeps([value])) {
-			variableDeps.add(dep)
-		}
-	})
-
 	variables.APP = ctx.appConfig.name
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
-	variables.CODE_HASH = code.sourceHash // needed to force update on code change
-	variables.PUBSUB_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
+	// The bootstrap compares it against the persisted program.
+	variables.CODE_HASH = code.sourceHash
 
 	for (const [key, value] of Object.entries(inputs.environment)) {
 		variables[key] = value

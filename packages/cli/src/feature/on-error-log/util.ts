@@ -14,7 +14,11 @@ export const filterPattern = `{${[
 
 // The subscriber arn only exists once the on-error-log handler is
 // created, so the handler's own log group never subscribes to itself.
-export const subscribeToErrorLog = (group: Group, ctx: StackContext | AppContext, logGroup: aws.cloudwatch.LogGroup) => {
+export const subscribeToErrorLog = (
+	group: Group,
+	ctx: StackContext | AppContext,
+	logGroup: aws.cloudwatch.LogGroup
+) => {
 	if (!ctx.shared.has('on-error-log', 'subscriber-arn')) {
 		return
 	}

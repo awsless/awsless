@@ -6,6 +6,12 @@ import { Region } from '../config/schema/region.js'
 
 export type Credentials = AwsCredentialIdentityProvider
 
+// What every custom provider & most sdk clients need to talk to aws.
+export type ProviderProps = {
+	credentials: Credentials
+	region: Region
+}
+
 export const isError = (error: unknown, name: string) => {
 	return error instanceof Error && error.name === name
 }

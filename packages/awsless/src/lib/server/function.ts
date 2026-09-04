@@ -11,7 +11,7 @@ import {
 	isInsideBundle,
 	LIVE_BUNDLE_ALIAS,
 } from './bundle.js'
-import { bindLocalResourceName, IS_TEST } from './util.js'
+import { bindLocalResourceName, isTest } from './util.js'
 
 const cache = new WeakCache<string, Promise<unknown>>()
 
@@ -31,9 +31,8 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 		const routeKey = formatRouteKey(stackName, 'function', funcName)
 
 		const send = async (payload: unknown, options: FunctionInvokeOptions = {}) => {
-			// In tests we keep invoking the per-function name
-			// so that the function mocks keep working.
-			if (IS_TEST) {
+			// Tests invoke the per-function name, so the name-keyed mocks keep working.
+			if (isTest()) {
 				return invoke({
 					...options,
 					name,
@@ -42,9 +41,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 			}
 
 			if (isInsideBundle()) {
-				// A function route outside the bundle's own table is a
-				// stand-alone lambda, invoked directly inside the same
-				// deployment we were invoked with ourselves.
+				// A route outside the bundle table is a stand-alone lambda in the same deployment.
 				if (!hasBundleRoute(routeKey)) {
 					return invoke({
 						...options,
@@ -54,8 +51,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 					})
 				}
 
-				// Calls between bundled functions run in-process,
-				// unless a qualifier or custom client is given.
+				// Bundled functions call each other in-process, unless a qualifier or client is given.
 				if (!options.qualifier && !options.client) {
 					if (options.reflectViewableErrors === false) {
 						return internalInvoke(routeKey, payload).catch(error => {
@@ -71,8 +67,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 				}
 			}
 
-			// Callers outside the bundle route every call through the
-			// bundle, which forwards stand-alone routes.
+			// The bundle forwards stand-alone routes for callers outside of it.
 			return invokeBundle({
 				...options,
 				routeKey,
@@ -95,8 +90,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 					return cached
 				}
 
-				// The module scope outlives the invocation, so a rejection is
-				// evicted instead of being replayed for the life of the container.
+				// The cache outlives the invocation, so a rejection must not replay for the container's life.
 				const pending = send(payload, invokeOptions).catch(error => {
 					cache.delete(cacheKey)
 

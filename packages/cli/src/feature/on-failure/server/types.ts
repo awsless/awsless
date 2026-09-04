@@ -5,11 +5,6 @@ export type QueueFailureEvent = {
 	id: string
 	date: Date
 	payload: unknown
-	source?: FailureSource
-	queue: {
-		url?: string
-		name?: string
-	}
 }
 
 /** The logical resource whose invocation failed, with the app level event it received. */

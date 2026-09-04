@@ -3,6 +3,7 @@ import { glob } from 'glob'
 import { debug, openDebugLog } from '../../cli/debug.js'
 import { ProgramOptions } from '../../cli/program.js'
 import { color } from '../../cli/ui/style.js'
+import { registerConfigFile } from '../../dev/util.js'
 import { directories, findRootDir, setRoot } from '../../util/path.js'
 import { AppConfig, AppSchema } from '../app.js'
 import { setLocalBasePath } from '../schema/relative-path.js'
@@ -20,6 +21,10 @@ export const resolveProjectRoot = async (options: ProgramOptions) => {
 	const configFileOptions = options.configFile
 		? [basename(options.configFile)]
 		: ['app.json', 'app.jsonc', 'app.json5']
+
+	if (options.configFile) {
+		registerConfigFile(options.configFile)
+	}
 
 	const [appFileName, root] = await findRootDir(cwd, configFileOptions)
 
@@ -61,8 +66,8 @@ export const loadStackConfigs = async (options: ProgramOptions) => {
 	const stacks: StackConfig[] = []
 
 	for (const file of stackFiles.toSorted()) {
-		const shouldIngore = file.split('/').filter(v => v.startsWith('_')).length > 0
-		if (shouldIngore) {
+		const shouldIgnore = file.split('/').filter(v => v.startsWith('_')).length > 0
+		if (shouldIgnore) {
 			debug('Skip stack file:', color.info(file))
 			continue
 		}

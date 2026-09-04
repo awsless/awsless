@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'fs/promises'
 import { request } from 'http'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -8,9 +8,9 @@ import { createS3Server } from '../src/dev/servers/s3'
 // A raw request instead of fetch, so an encoded traversal reaches the
 // server exactly as sent instead of being normalized away by the url
 // parser first.
-const raw = (port: number, method: string, path: string, body?: string) => {
+const raw = (port: number, method: string, path: string, body?: string, headers: Record<string, string> = {}) => {
 	return new Promise<{ status: number; body: string; headers: Record<string, unknown> }>((resolve, reject) => {
-		const req = request({ host: '127.0.0.1', port, method, path }, res => {
+		const req = request({ host: '127.0.0.1', port, method, path, headers }, res => {
 			const chunks: Buffer[] = []
 
 			res.on('data', chunk => chunks.push(chunk))
@@ -87,8 +87,70 @@ describe('dev s3 emulator', () => {
 		await expect(readdir(root)).resolves.toEqual([])
 	})
 
+	it('should list the whole bucket without a prefix & answer HEAD misses without a body', async () => {
+		const { port } = await boot()
+
+		await raw(port, 'PUT', '/bucket/a.txt', '1')
+		await raw(port, 'PUT', '/bucket/dir/b.txt', '22')
+
+		const list = await raw(port, 'GET', '/bucket')
+
+		expect(list.body).toContain('<KeyCount>2</KeyCount>')
+		expect(list.body).toContain('<Key>a.txt</Key>')
+		expect(list.body).toContain('<Key>dir/b.txt</Key>')
+
+		await expect(raw(port, 'HEAD', '/bucket/missing.txt')).resolves.toMatchObject({ status: 404, body: '' })
+	})
+
+	it('should decode an aws-chunked upload', async () => {
+		const { port } = await boot()
+		const chunked = `5;chunk-signature=abc\r\nhello\r\n0;chunk-signature=def\r\n\r\n`
+
+		await raw(port, 'PUT', '/bucket/chunked.txt', chunked, { 'content-encoding': 'aws-chunked' })
+
+		await expect(raw(port, 'GET', '/bucket/chunked.txt')).resolves.toMatchObject({ status: 200, body: 'hello' })
+	})
+
+	it('should accept a key that merely starts with two dots', async () => {
+		const { root, port } = await boot()
+
+		await expect(raw(port, 'PUT', '/bucket/..hidden', 'x')).resolves.toMatchObject({ status: 200 })
+		await expect(readFile(join(root, 'bucket', '..hidden'), 'utf8')).resolves.toBe('x')
+	})
+
+	it('should copy the source object on a copy request instead of storing an empty one', async () => {
+		const { server, port } = await boot([{ id: 'stack:on-copy', events: ['s3:ObjectCreated:Copy'], prefix: '' }])
+		const dispatch = vi.fn(async (_event: unknown) => {})
+
+		server.connect(dispatch)
+
+		await raw(port, 'PUT', '/bucket/src/a%20b.txt', 'payload')
+
+		const copy = await raw(port, 'PUT', '/bucket/dst/c.txt', undefined, {
+			'x-amz-copy-source': '/bucket/src/a%20b.txt',
+		})
+
+		expect(copy.status).toBe(200)
+		expect(copy.body).toContain('<CopyObjectResult>')
+		await expect(raw(port, 'GET', '/bucket/dst/c.txt')).resolves.toMatchObject({ status: 200, body: 'payload' })
+
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1))
+		expect(dispatch.mock.calls[0]![0]).toMatchObject({
+			Records: [{ eventName: 'ObjectCreated:Copy', s3: { object: { key: 'dst/c.txt', size: 7 } } }],
+		})
+
+		await expect(
+			raw(port, 'PUT', '/bucket/dst/d.txt', undefined, { 'x-amz-copy-source': '/bucket/missing.txt' })
+		).resolves.toMatchObject({ status: 404 })
+		await expect(
+			raw(port, 'PUT', '/bucket/dst/e.txt', undefined, { 'x-amz-copy-source': '/..%2Foutside/file.txt' })
+		).resolves.toMatchObject({ status: 400 })
+	})
+
 	it('should dispatch bucket notifications for matching rules', async () => {
-		const { server, port } = await boot([{ id: 'stack:on-upload', events: ['s3:ObjectCreated:*'], prefix: 'uploads/' }])
+		const { server, port } = await boot([
+			{ id: 'stack:on-upload', events: ['s3:ObjectCreated:*'], prefix: 'uploads/' },
+		])
 		const dispatch = vi.fn(async (_event: unknown) => {})
 
 		server.connect(dispatch)

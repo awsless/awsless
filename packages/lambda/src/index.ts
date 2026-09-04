@@ -11,16 +11,7 @@ export { ValidationError } from './errors/validation'
 // context
 export { getContext } from './context/lambda-context'
 // errors
-export {
-	// getViewableErrorData,
-	// isViewableError,
-	// isViewableErrorString,
-	// isViewableErrorType,
-	// parseViewableErrorString,
-	// isViewableErrorResponse,
-	// toViewableErrorResponse,
-	ViewableError,
-} from './errors/viewable'
+export { ViewableError } from './errors/viewable'
 export { ExpectedError } from './errors/expected'
 export { isErrorResponse, toErrorResponse, type ErrorResponse } from './errors/response'
 // client

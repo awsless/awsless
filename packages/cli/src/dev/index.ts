@@ -34,7 +34,7 @@ import {
 	watchdogPath,
 	WATCHDOG_SOURCE,
 } from './util.js'
-import { createBundleWorker } from './worker.js'
+import { BundleWorker, createBundleWorker } from './worker.js'
 
 export type DevInstance = {
 	dashboardPort: number
@@ -58,6 +58,162 @@ const breakdown = (timings: [string, number][]) => {
 	return slow
 		.map(([name, ms]) => `${name} ${ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`}`)
 		.join(', ')
+}
+
+// The rebuild & worker restart bookkeeping, apart from startDev so its
+// ordering rules have a unit test.
+export const createReloadController = (props: {
+	// Runs every builder & resolves whether any output changed.
+	build: () => Promise<boolean>
+	worker: Pick<BundleWorker, 'restart' | 'size'>
+	log: (message: string) => void
+	reportHealth: (status: 'up' | 'down', detail?: string) => void
+	debug?: (message: string) => void
+}) => {
+	// Source changes never rebuild eagerly: the next invoke loads the
+	// fresh code, while config changes restart the whole environment.
+	let dirty = false
+
+	// Every dispatch waits for the rebuild or restart in flight, so no
+	// request lands between a pool's stop & its start.
+	let fresh: Promise<void> | undefined
+
+	// A stopping environment must never respawn workers, or a rebuild
+	// racing the shutdown would orphan node children.
+	let stopping = false
+
+	// A failed worker (re)start keeps the restart owed, so a later pass
+	// with fully cached builds still brings the worker up.
+	let restartNeeded = false
+
+	// Rebuilds & restarts run one at a time, chained behind whatever is
+	// already in flight.
+	const runFresh = (action: () => Promise<void>) => {
+		const previous = fresh ?? Promise.resolve()
+		const run: Promise<void> = previous
+			.catch(() => {})
+			.then(action)
+			.finally(() => {
+				if (fresh === run) {
+					fresh = undefined
+				}
+			})
+
+		fresh = run
+
+		return run
+	}
+
+	const restartWorkers = async () => {
+		restartNeeded = true
+		await props.worker.restart()
+		restartNeeded = false
+		props.reportHealth('up', String(props.worker.size()))
+	}
+
+	const rebuild = async () => {
+		dirty = false
+		const started = Date.now()
+
+		try {
+			if (stopping) {
+				return
+			}
+
+			const changed = await props.build()
+			const built = Date.now()
+
+			// A re-save without changes skips the worker restart.
+			if ((changed || restartNeeded) && !stopping) {
+				await restartWorkers()
+
+				props.log(
+					`Reloaded the bundle in ${Date.now() - started}ms (build ${built - started}ms, worker ${Date.now() - built}ms)`
+				)
+			} else if (!changed) {
+				props.debug?.(`Rebuild found no changes in ${Date.now() - started}ms`)
+			}
+		} catch (error) {
+			// Retry on the next invoke.
+			dirty = true
+			props.reportHealth('down', error instanceof Error ? error.message : String(error))
+			throw error
+		}
+	}
+
+	const ensureFresh = async (): Promise<void> => {
+		if (fresh) {
+			await fresh
+
+			// A save during the wait marked the bundle dirty again.
+			return ensureFresh()
+		}
+
+		if (!dirty) {
+			return
+		}
+
+		await runFresh(rebuild)
+	}
+
+	return {
+		markDirty: () => {
+			dirty = true
+		},
+		isDirty: () => dirty,
+		ensureFresh,
+		// An empty pool restarts on the next invoke, through the same
+		// path a failed boot takes.
+		onCrash: ({ code, size }: { code: number | null; size: number }) => {
+			if (stopping) {
+				return
+			}
+
+			props.log(`A bundle worker crashed (exit code ${code}), ${size} left.`)
+			props.reportHealth(size > 0 ? 'up' : 'down', size > 0 ? String(size) : 'all workers crashed')
+
+			if (size === 0) {
+				restartNeeded = true
+				dirty = true
+			}
+		},
+		bootFailed: (error: unknown) => {
+			props.log(`The bundle worker failed to start: ${error instanceof Error ? error.message : String(error)}`)
+			props.reportHealth('down', error instanceof Error ? error.message : String(error))
+			dirty = true
+			restartNeeded = true
+		},
+		// Files read only during worker module init (like the local
+		// config) need a restart, not a rebuild - through the same slot,
+		// so dispatches wait instead of failing on the stopped pool.
+		restartWorker: () => {
+			if (stopping) {
+				return
+			}
+
+			void runFresh(async () => {
+				if (stopping) {
+					return
+				}
+
+				await restartWorkers()
+				props.log('Restarted the bundle worker.')
+			}).catch(error => {
+				// The next invoke retries through ensureFresh.
+				dirty = true
+				props.reportHealth('down', error instanceof Error ? error.message : String(error))
+				props.log(
+					`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`
+				)
+			})
+		},
+		// An in-flight rebuild finishes (or bails on the stopping flag)
+		// before the teardown, so it can never respawn workers after.
+		stop: async () => {
+			stopping = true
+			await fresh?.catch(() => {})
+		},
+	}
 }
 
 export const startDev = async (props: {
@@ -285,10 +441,13 @@ export const startDev = async (props: {
 		dev.events.emit('worker', { date: Date.now(), line, error, route })
 	}
 
-	// While a seed runs, the handler logs its invokes trigger stay off
-	// the terminal - a big seed would otherwise bury the boot output.
-	// The dashboard Logs feed still captures everything.
+	// A big seed would bury the boot output, so its handler logs stay
+	// off the terminal - the dashboard Logs feed still gets them.
 	let seeding = false
+
+	// The local servers outlive the worker, so their teardown dispatches
+	// fail on an empty pool - reporting that says nothing.
+	let stopping = false
 
 	const worker = createBundleWorker({
 		buildDir,
@@ -296,21 +455,15 @@ export const startDev = async (props: {
 		functionName: bundleName,
 		quiet: () => seeding,
 		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
-		onCrash: ({ code, size }) => {
-			if (stopping) {
-				return
-			}
+		onCrash: info => reload.onCrash(info),
+	})
 
-			log(`A bundle worker crashed (exit code ${code}), ${size} left.`)
-			dev.context.reportHealth('workers', size > 0 ? 'up' : 'down', size > 0 ? String(size) : 'all workers crashed')
-
-			// An empty pool restarts on the next invoke, through the same
-			// path a failed boot takes.
-			if (size === 0) {
-				restartNeeded = true
-				dirty = true
-			}
-		},
+	const reload = createReloadController({
+		build: buildAll,
+		worker,
+		log,
+		debug: message => debug(message),
+		reportHealth: (status, detail) => dev.context.reportHealth('workers', status, detail),
 	})
 
 	dev.resources.push({
@@ -319,95 +472,6 @@ export const startDev = async (props: {
 		channel: 'worker',
 		detail: 'The output & errors of the local bundle worker',
 	})
-
-	// Source changes never rebuild in the background - they only mark
-	// the bundle dirty & the next invoke loads the fresh code. Only app
-	// & stack config changes restart the whole dev environment.
-	let dirty = false
-
-	// The rebuild or worker restart in flight. Every dispatch waits for
-	// it, so no request ever lands in the window between a pool's stop
-	// & its start.
-	let fresh: Promise<void> | undefined
-
-	// A stopping environment must never rebuild or respawn workers,
-	// or a rebuild racing the shutdown would orphan node children.
-	let stopping = false
-
-	// A failed worker (re)start keeps the restart owed, so a later pass
-	// with fully cached builds still brings the worker up.
-	let restartNeeded = false
-
-	// Rebuilds & restarts run one at a time, chained behind whatever is
-	// already in flight.
-	const runFresh = (action: () => Promise<void>) => {
-		const previous = fresh ?? Promise.resolve()
-		const run: Promise<void> = previous
-			.catch(() => {})
-			.then(action)
-			.finally(() => {
-				if (fresh === run) {
-					fresh = undefined
-				}
-			})
-
-		fresh = run
-
-		return run
-	}
-
-	const restartWorkers = async () => {
-		restartNeeded = true
-		await worker.restart()
-		restartNeeded = false
-		dev.context.reportHealth('workers', 'up', String(worker.size()))
-	}
-
-	const rebuild = async () => {
-		dirty = false
-		const started = Date.now()
-
-		try {
-			if (stopping) {
-				return
-			}
-
-			const changed = await buildAll()
-			const built = Date.now()
-
-			// A save that leaves every build output untouched, like a
-			// re-save without changes, skips the worker restart.
-			if ((changed || restartNeeded) && !stopping) {
-				await restartWorkers()
-
-				log(
-					`Reloaded the bundle in ${Date.now() - started}ms (build ${built - started}ms, worker ${Date.now() - built}ms)`
-				)
-			} else if (!changed) {
-				debug(`Rebuild found no changes in ${Date.now() - started}ms`)
-			}
-		} catch (error) {
-			// Retry on the next invoke.
-			dirty = true
-			dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
-			throw error
-		}
-	}
-
-	const ensureFresh = async (): Promise<void> => {
-		if (fresh) {
-			await fresh
-
-			// A save during the wait marked the bundle dirty again.
-			return ensureFresh()
-		}
-
-		if (!dirty) {
-			return
-		}
-
-		await runFresh(rebuild)
-	}
 
 	// A readable label for the homepage activity feed, derived from the
 	// dispatched event's shape.
@@ -456,11 +520,8 @@ export const startDev = async (props: {
 		return 'invoke'
 	}
 
-	// Every bundle dispatch lands on the homepage activity feed: what
-	// ran, how long it took & whether it failed. The events bus keeps a
-	// replay, so a freshly opened page still shows the recent history.
-	// The app-level payload of a dispatch, compact enough for the feed:
-	// route payloads unwrap their envelope, everything else shows as is.
+	// The payload for the activity feed: route payloads unwrap their
+	// envelope, everything else shows as is, cut to a readable size.
 	const describePayload = (event: unknown): string => {
 		let payload = ''
 
@@ -474,8 +535,10 @@ export const startDev = async (props: {
 		return payload.length > 1000 ? payload.slice(0, 1000) + '\u2026' : payload
 	}
 
+	// Every dispatch lands on the homepage activity feed - the bus replay
+	// gives a freshly opened page the recent history.
 	const dispatch = async (event: unknown, parent?: DevTrace) => {
-		await ensureFresh()
+		await reload.ensureFresh()
 
 		const started = Date.now()
 		const route = describeDispatch(event)
@@ -544,9 +607,6 @@ export const startDev = async (props: {
 		},
 	})
 
-	// The local servers keep producing until they stop, which is after
-	// the worker, so a dispatch during the teardown always fails on a
-	// pool that is already empty. Reporting that says nothing.
 	const reportFailure: typeof report = failure => {
 		if (stopping) {
 			return
@@ -592,14 +652,10 @@ export const startDev = async (props: {
 				await worker.start()
 				dev.context.reportHealth('workers', 'up', String(worker.size()))
 			} catch (error) {
-				// The failure marks the phase line instead of a false
-				// "started" - the dev server stays up & the next invoke
-				// rebuilds & retries.
+				// The phase line shows the failure instead of a false
+				// "started" - the next invoke rebuilds & retries.
 				detail('FAILED - the next invoke retries')
-				log(`The bundle worker failed to start: ${error instanceof Error ? error.message : String(error)}`)
-				dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
-				dirty = true
-				restartNeeded = true
+				reload.bootFailed(error)
 			}
 		}
 	)
@@ -620,7 +676,7 @@ export const startDev = async (props: {
 		}
 	}
 
-	if (firstBoot && seeder.enabled && !dirty) {
+	if (firstBoot && seeder.enabled && !reload.isDirty()) {
 		try {
 			await phase({ start: 'Seeding the local data...', done: 'Seeded the local data' }, async () => {
 				await runSeed()
@@ -691,13 +747,9 @@ export const startDev = async (props: {
 	dashboard.connect(dispatch)
 	await dashboard.listen(dashboardPort)
 
-	// The source watcher marks the bundle dirty & kicks the rebuild in
-	// the background right away, so the rebuild overlaps with the time
-	// between saving & the next request instead of blocking it. Build
-	// errors stay quiet here - the next invoke retries & surfaces them.
-	// One native recursive watcher instead of chokidar: chokidar arms a
-	// watcher per directory, which takes minutes on big projects &
-	// starves the dev servers before it ever gets ready.
+	// The rebuild starts right away so it overlaps with the time until
+	// the next request. Native recursive watch: chokidar arms a watcher
+	// per directory & starves the dev servers on big projects.
 	let rebuildTimer: ReturnType<typeof setTimeout> | undefined
 
 	const watcher = watch(directories.root, { recursive: true }, (_event, filename) => {
@@ -711,41 +763,18 @@ export const startDev = async (props: {
 			return
 		}
 
-		dirty = true
+		reload.markDirty()
 
 		// Debounced, so a burst of saves triggers one rebuild - and a
 		// save during an in-flight rebuild queues the next one.
 		clearTimeout(rebuildTimer)
 		rebuildTimer = setTimeout(() => {
-			void ensureFresh().catch(error => {
+			// Build errors stay quiet here - the next invoke surfaces them.
+			void reload.ensureFresh().catch(error => {
 				debug('Background rebuild failed', error)
 			})
 		}, 150)
 	})
-
-	// Files like the local config are only read during worker module
-	// init, so a change just needs a worker restart, not a rebuild. The
-	// restart runs through the same slot as a rebuild, so dispatches
-	// wait for it instead of failing on the stopped pool.
-	const restartWorker = () => {
-		if (stopping) {
-			return
-		}
-
-		void runFresh(async () => {
-			if (stopping) {
-				return
-			}
-
-			await restartWorkers()
-			log('Restarted the bundle worker.')
-		}).catch(error => {
-			// The next invoke retries through ensureFresh.
-			dirty = true
-			dev.context.reportHealth('workers', 'down', error instanceof Error ? error.message : String(error))
-			log(`The bundle worker failed to restart: ${error instanceof Error ? error.message : String(error)}`)
-		})
-	}
 
 	// The restart paths may not exist yet & the native watch throws on
 	// missing paths, so each parent directory is watched instead.
@@ -757,7 +786,7 @@ export const startDev = async (props: {
 		restartWatchers.push(
 			watch(dirname(path), (_event, filename) => {
 				if (filename === basename(path)) {
-					restartWorker()
+					reload.restartWorker()
 				}
 			})
 		)
@@ -777,10 +806,7 @@ export const startDev = async (props: {
 				restartWatcher.close()
 			}
 
-			// An in-flight background rebuild finishes (or bails on the
-			// stopping flag) before the teardown, so it can never respawn
-			// workers after the stop.
-			await fresh?.catch(() => {})
+			await reload.stop()
 
 			for (const router of routers) {
 				await router.stop()

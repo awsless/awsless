@@ -1,20 +1,12 @@
 import { watch } from 'fs'
-import { basename, sep } from 'path'
 import { debug } from '../../cli/debug.js'
 import { ProgramOptions } from '../../cli/program.js'
+import { isConfigFile, isIgnoredPath } from '../../dev/util.js'
 import { validateFeatures } from '../../feature/validate.js'
 import { directories } from '../../util/path.js'
 import { AppConfig } from '../app.js'
 import { StackConfig } from '../stack.js'
 import { loadAppConfig, loadStackConfigs, resolveProjectRoot } from './load.js'
-
-const ignoredDirectories = new Set(['node_modules', '.awsless', 'dist', '.git'])
-
-const isConfigFile = (path: string) => {
-	const base = basename(path)
-
-	return /^app\.(json|jsonc|json5)$/.test(base) || /(^|\.)stack\.(json|jsonc|json5)$/.test(base)
-}
 
 export const watchConfig = async (
 	options: ProgramOptions,
@@ -36,11 +28,7 @@ export const watchConfig = async (
 			return
 		}
 
-		if (filename.split(sep).some(segment => ignoredDirectories.has(segment))) {
-			return
-		}
-
-		if (!isConfigFile(filename)) {
+		if (isIgnoredPath(filename) || !isConfigFile(filename)) {
 			return
 		}
 

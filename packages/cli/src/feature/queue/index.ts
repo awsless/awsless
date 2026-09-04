@@ -6,12 +6,10 @@ import { Group } from '@terraforge/core'
 import { camelCase, constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { defineFeature } from '../../feature.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { funcType, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
-import { funcType, testMockTypes } from '../../type-gen/snippets.js'
 
 const typeGenCode = `
 import {
@@ -33,7 +31,6 @@ type Send<Name extends string, F extends Func> = {
 }
 
 ${testMockTypes()}`
-
 
 export const queueFeature = defineFeature({
 	name: 'queue',
@@ -79,48 +76,29 @@ export const queueFeature = defineFeature({
 		}
 	},
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
+		await writeResourceTypes(ctx, {
+			kind: 'queue',
+			interfaceName: 'QueueResources',
+			code: typeGenCode,
+			stacks(stack, add, types) {
+				for (const [name, props] of Object.entries(stack.queues || {})) {
+					const varName = camelCase(`${stack.name}-${name}`)
+					const queueName = `${formatLocalResourceName({
+						appName: ctx.appConfig.name,
+						stackName: stack.name,
+						resourceType: 'queue',
+						resourceName: name,
+					})}.fifo`
 
-		for (const stack of ctx.stackConfigs) {
-			const resource = new TypeObject(2)
-			const testMock = new TypeObject(3)
-
-			for (const [name, props] of Object.entries(stack.queues || {})) {
-				const varName = camelCase(`${stack.name}-${name}`)
-				const queueName = `${formatLocalResourceName({
-					appName: ctx.appConfig.name,
-					stackName: stack.name,
-					resourceType: 'queue',
-					resourceName: name,
-				})}.fifo`
-
-				if (props.consumer) {
-					const relFile = relative(directories.types, props.consumer.code.file)
-
-					gen.addImport(varName, relFile)
-
-					resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
-					testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
-				} else {
-					resource.addType(name, `Send<'${queueName}', Func>`)
-					testMock.addType(name, `TestMockEntry<Func>`)
+					if (props.consumer) {
+						types.addImport(varName, relative(directories.types, props.consumer.code.file))
+						add(name, `Send<'${queueName}', typeof ${varName}>`, `TestMockEntry<typeof ${varName}>`)
+					} else {
+						add(name, `Send<'${queueName}', Func>`, `TestMockEntry<Func>`)
+					}
 				}
-			}
-
-			resources.addType(stack.name, resource)
-			testMocks.addType(stack.name, testMock)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('queue', testMocks)
-
-		gen.addCode(typeGenCode)
-		gen.addInterface('QueueResources', resources)
-		gen.addInterface('TestMock', testMock)
-
-		await ctx.write('queue.d.ts', gen, true)
+			},
+		})
 	},
 	onStack(ctx) {
 		const bundleTimeout = toSeconds(ctx.appConfig.function.timeout)
@@ -187,7 +165,6 @@ export const queueFeature = defineFeature({
 				],
 				resources: [queue.arn],
 			})
-
 		}
 	},
 })

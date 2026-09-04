@@ -50,7 +50,11 @@ describe('test runner cache', () => {
 		// The folder hashes resolve dependencies through the lock file.
 		await writeFile(
 			join(root, 'bun.lock'),
-			JSON.stringify({ lockfileVersion: 1, workspaces: { '': { name: 'project', dependencies: {} } }, packages: {} })
+			JSON.stringify({
+				lockfileVersion: 1,
+				workspaces: { '': { name: 'project', dependencies: {} } },
+				packages: {},
+			})
 		)
 		await mkdir(dir, { recursive: true })
 		await writeFile(join(dir, 'a.test.ts'), `it('works', () => {})\n`)
@@ -126,6 +130,28 @@ describe('test runner cache', () => {
 		expect(mocks.start).toHaveBeenCalledTimes(2)
 	})
 
+	it('should run again when a test config value changes', async () => {
+		mocks.start.mockResolvedValue(new Map([['a', response()]]))
+
+		const manifest = (configs: Record<string, string>) =>
+			({ app: 'app', configs, streams: [], functions: [], tasks: [], queues: [], servers: {} }) as never
+
+		await expect(
+			runTests(tests(), [], [], { showLogs: false, manifest: manifest({ greeting: 'a' }) })
+		).resolves.toBe(true)
+		await expect(
+			runTests(tests(), [], [], { showLogs: false, manifest: manifest({ greeting: 'a' }) })
+		).resolves.toBe(true)
+		expect(mocks.start).toHaveBeenCalledTimes(1)
+
+		// The config values reach the handlers through the manifest, so
+		// a cached result from other values is stale.
+		await expect(
+			runTests(tests(), [], [], { showLogs: false, manifest: manifest({ greeting: 'b' }) })
+		).resolves.toBe(true)
+		expect(mocks.start).toHaveBeenCalledTimes(2)
+	})
+
 	it('should ignore the cache with --no-cache', async () => {
 		process.env.NO_CACHE = '1'
 		mocks.start.mockResolvedValue(new Map([['a', response()]]))
@@ -145,14 +171,35 @@ describe('test runner cache', () => {
 		expect(mocks.start).toHaveBeenCalledTimes(1)
 	})
 
+	it('should cache every test folder of a stack on its own', async () => {
+		const first = join(root, 'stacks/c/one')
+		const second = join(root, 'stacks/c/two')
+		await mkdir(first, { recursive: true })
+		await mkdir(second, { recursive: true })
+		await writeFile(join(first, 'a.test.ts'), `it('works', () => {})\n`)
+		await writeFile(join(second, 'b.test.ts'), `it('works', () => {})\n`)
+
+		mocks.start.mockResolvedValue(
+			new Map([
+				['c:0', response()],
+				['c:1', response()],
+			])
+		)
+		const stack = () => [{ stackName: 'c', name: 'c', paths: [first, second] }]
+
+		await expect(runTests(stack(), [], [], { showLogs: false })).resolves.toBe(true)
+		await expect(runTests(stack(), [], [], { showLogs: false })).resolves.toBe(true)
+		expect(mocks.start).toHaveBeenCalledTimes(1)
+	})
+
 	it('should skip stacks whose test folder holds no test files', async () => {
 		const empty = join(root, 'stacks/b/test')
 		await mkdir(empty, { recursive: true })
 		await writeFile(join(empty, '_helper.ts'), 'export const x = 1\n')
 
-		await expect(runTests([{ stackName: 'b', name: 'b', paths: [empty] }], [], [], { showLogs: false })).resolves.toBe(
-			true
-		)
+		await expect(
+			runTests([{ stackName: 'b', name: 'b', paths: [empty] }], [], [], { showLogs: false })
+		).resolves.toBe(true)
 		expect(mocks.start).not.toHaveBeenCalled()
 	})
 })

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { readdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { toDays, toSeconds } from '@awsless/duration'
+import { toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs } from '@terraforge/core'
@@ -14,8 +14,8 @@ import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { formatPolicyDocument } from '../../util/policy.js'
-import { deployFunctionSourcemaps } from '../function/util.js'
-import { filterPattern } from '../on-error-log/util.js'
+import { deployFunctionSourcemaps, formatLoggingConfig } from '../function/util.js'
+import { createLogGroup } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
 import { PolicyStatement } from './policy.js'
@@ -190,11 +190,6 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// The bundle lambda function.
 
-		const logFormats = {
-			text: 'Text',
-			json: 'JSON',
-		}
-
 		const vpcPolicy = new aws.iam.RolePolicy(group, 'vpc-policy', {
 			role: role.name,
 			name: 'lambda-vpc-policy',
@@ -272,12 +267,7 @@ export const bundleFeature = defineFeature({
 				ipv6AllowedForDualStack: true,
 			},
 
-			loggingConfig: {
-				logGroup: `/aws/lambda/${name}`,
-				logFormat: logFormats[defaults.log.format!],
-				applicationLogLevel: defaults.log.format === 'json' ? defaults.log.level?.toUpperCase() : undefined,
-				systemLogLevel: defaults.log.format === 'json' ? defaults.log.system?.toUpperCase() : undefined,
-			},
+			loggingConfig: formatLoggingConfig(name, defaults.log),
 		}
 
 		const lambda = new aws.lambda.Function(group, 'function', lambdaProps, {
@@ -369,42 +359,16 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// Logging
 
-		let logGroup: aws.cloudwatch.LogGroup | undefined
+		const logGroup = createLogGroup(group, ctx, {
+			name: `/aws/lambda/${name}`,
+			retention: defaults.log.retention,
+		})
 
-		if (defaults.log.retention.value > 0n) {
-			logGroup = new aws.cloudwatch.LogGroup(
-				group,
-				'log',
-				{
-					name: `/aws/lambda/${name}`,
-					retentionInDays: toDays(defaults.log.retention),
-				},
-				{
-					import: ctx.import ? `/aws/lambda/${name}` : undefined,
-				}
-			)
-
+		if (logGroup) {
 			addPermission({
 				actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
 				resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
 			})
-
-			if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-				new aws.cloudwatch.LogSubscriptionFilter(
-					group,
-					'on-error-log',
-					{
-						name: 'error-log-subscription',
-						destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-						logGroupName: logGroup.name,
-						filterPattern,
-					},
-					{
-						replaceOnChanges: ['destinationArn'],
-						dependsOn: [ctx.shared.get('on-error-log', 'permission')],
-					}
-				)
-			}
 		}
 
 		// ------------------------------------------------------

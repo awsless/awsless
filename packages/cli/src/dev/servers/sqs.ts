@@ -81,18 +81,17 @@ type PullMessage = {
 	receipt?: string
 }
 
-// A minimal sqs emulator with two queue shapes: a queue with a consumer
-// route dispatches every sent message straight into the bundle as an
-// sqs event, while a pull queue (like an instance polling its own
-// queue) stores messages for ReceiveMessage long polling instead. No
-// retries or dlq locally - a failing consumer reports to the app's
-// on-failure consumer instead.
+// A queue with a consumer route dispatches straight into the bundle,
+// a pull queue stores messages for ReceiveMessage. No retries or dlq.
 export const createSqsServer = (props: {
 	region: string
 	accountId: string
 	// The physical queue name mapped to its consumer route key. A queue
 	// without a route key is pull based.
 	queues: Map<string, string | undefined>
+	// The configured visibility timeout per queue, for receives that
+	// don't pass their own.
+	visibilityTimeouts?: Map<string, number>
 }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined
@@ -292,7 +291,8 @@ export const createSqsServer = (props: {
 							message.receipt = randomUUID()
 							message.receiveCount += 1
 							message.firstReceivedAt ??= now
-							message.visibleAt = now + (input.VisibilityTimeout ?? 30) * 1000
+							message.visibleAt =
+								now + (input.VisibilityTimeout ?? props.visibilityTimeouts?.get(queue) ?? 30) * 1000
 
 							return {
 								MessageId: message.id,
@@ -386,11 +386,17 @@ export const createSqsServer = (props: {
 			const now = Date.now()
 			const store = storeOf(queue)
 
+			// A message never received yet is delayed, not in flight.
 			return {
 				Attributes: {
 					QueueArn: `arn:aws:sqs:${props.region}:${props.accountId}:${queue}`,
 					ApproximateNumberOfMessages: String(store.filter(m => m.visibleAt <= now).length),
-					ApproximateNumberOfMessagesNotVisible: String(store.filter(m => m.visibleAt > now).length),
+					ApproximateNumberOfMessagesNotVisible: String(
+						store.filter(m => m.visibleAt > now && m.receiveCount > 0).length
+					),
+					ApproximateNumberOfMessagesDelayed: String(
+						store.filter(m => m.visibleAt > now && m.receiveCount === 0).length
+					),
 				},
 			}
 		},

@@ -60,20 +60,18 @@ const createHttpClient = (fetcher) => {
 	};
 };
 //#endregion
-//#region src/lib/client/util.ts
-const getBindEnv = (name) => {
+//#region src/lib/client/auth.ts
+const boundEnv = (name) => {
 	return import.meta.env?.[name];
 };
-//#endregion
-//#region src/lib/client/auth.ts
 const Auth = /*@__PURE__*/ createProxy((name) => {
 	return getAuthProps(name);
 });
 const getAuthProps = (name) => {
 	const id = constantCase(name);
 	return {
-		userPoolId: getBindEnv(`AUTH_${id}_USER_POOL_ID`),
-		clientId: getBindEnv(`AUTH_${id}_CLIENT_ID`)
+		userPoolId: boundEnv(`AUTH_${id}_USER_POOL_ID`),
+		clientId: boundEnv(`AUTH_${id}_CLIENT_ID`)
 	};
 };
 //#endregion

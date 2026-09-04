@@ -1,8 +1,10 @@
 import { join } from 'path'
+import { toSeconds } from '@awsless/duration'
 import { DynamoDBServer } from '@awsless/dynamodb-server'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 import { DevContext, DevResource, DevRoute, DevServer } from '../feature.js'
+import { formatLocalResourceName } from '../util/name.js'
 import { directories } from '../util/path.js'
 import { ServerPool } from './pool.js'
 import { createS3Server, StoreNotificationRule } from './servers/s3.js'
@@ -26,9 +28,18 @@ export type DevRegistry = {
 	health: Map<string, HealthEntry>
 	events: {
 		emit: (channel: string, data: unknown) => void
-		subscribe: (channel: string, listener: (data: unknown) => void) => () => void
+		// The replay skips ids at or below "after", so a reconnecting
+		// dashboard stream never shows an event twice.
+		subscribe: (
+			channel: string,
+			listener: (data: unknown, id: number) => void,
+			options?: { after?: number }
+		) => () => void
 	}
 }
+
+// Ids keep counting across dev restarts, so a browser's last-event-id stays valid.
+let sequence = 0
 
 export const createDevContext = (props: {
 	appConfig: AppConfig
@@ -55,34 +66,38 @@ export const createDevContext = (props: {
 		events.emit('health', entry)
 	}
 
-	// A tiny event bus streaming live resource events to the dashboard.
-	// Every channel keeps a short replay buffer, so a panel opened
-	// after the fact still shows the recent events.
-	const listeners = new Map<string, Set<(data: unknown) => void>>()
-	const replays = new Map<string, unknown[]>()
+	// Every channel keeps a short replay, so a panel opened after the
+	// fact still shows the recent events.
+	type Listener = (data: unknown, id: number) => void
 
-	const events = {
-		emit: (channel: string, data: unknown) => {
+	const listeners = new Map<string, Set<Listener>>()
+	const replays = new Map<string, { id: number; data: unknown }[]>()
+
+	const events: DevRegistry['events'] = {
+		emit: (channel, data) => {
 			const replay = replays.get(channel) ?? []
+			const id = ++sequence
 
-			replay.push(data)
+			replay.push({ id, data })
 
 			while (replay.length > 100) {
 				replay.shift()
 			}
 
 			replays.set(channel, replay)
-			listeners.get(channel)?.forEach(listener => listener(data))
+			listeners.get(channel)?.forEach(listener => listener(data, id))
 		},
-		subscribe: (channel: string, listener: (data: unknown) => void) => {
+		subscribe: (channel, listener, options) => {
 			if (!listeners.has(channel)) {
 				listeners.set(channel, new Set())
 			}
 
 			listeners.get(channel)!.add(listener)
 
-			for (const data of replays.get(channel) ?? []) {
-				listener(data)
+			for (const entry of replays.get(channel) ?? []) {
+				if (entry.id > (options?.after ?? 0)) {
+					listener(entry.data, entry.id)
+				}
 			}
 
 			return () => {
@@ -120,11 +135,8 @@ export const createDevContext = (props: {
 		return dynamo
 	}
 
-	// Stores, images & icons all live in the shared asset style s3
-	// server, while the bundle can only point at one endpoint, so they
-	// share one lazy server. The rules array stays mutable, so features
-	// can register their notification rules before traffic flows. The
-	// server is kept across restarts & the rules reset every run.
+	// One shared s3 server, since the bundle can only point at one
+	// endpoint. It survives restarts, the notification rules reset per run.
 	type StorePoolValue = {
 		server: ReturnType<typeof createS3Server>
 		port: number
@@ -170,15 +182,13 @@ export const createDevContext = (props: {
 		return store
 	}
 
-	// Queues & instances live in one shared sqs server, since the sdk
-	// resolves every queue through the single sqs endpoint. The queues
-	// map stays mutable, so features register their queues before
-	// traffic flows. The server is kept across restarts & the queue set
-	// resets every run, while pull queue backlogs survive.
+	// One shared sqs server, since the sdk resolves every queue through
+	// one endpoint. It survives restarts, the queue set resets per run.
 	type SqsPoolValue = {
 		server: ReturnType<typeof createSqsServer>
 		port: number
 		queues: Map<string, string | undefined>
+		visibilityTimeouts: Map<string, number>
 	}
 
 	let sqs: Promise<{ port: number; queues: Map<string, string | undefined> }> | undefined
@@ -187,16 +197,18 @@ export const createDevContext = (props: {
 		sqs ??= (async () => {
 			const value = await props.pool.keep<SqsPoolValue>('shim:sqs', null, async () => {
 				const queues = new Map<string, string | undefined>()
+				const visibilityTimeouts = new Map<string, number>()
 				const server = createSqsServer({
 					region: props.appConfig.region,
 					accountId: '000000000000',
 					queues,
+					visibilityTimeouts,
 				})
 
 				const port = await server.listen()
 
 				return {
-					value: { server, port, queues },
+					value: { server, port, queues, visibilityTimeouts },
 					stop: () => server.stop(),
 				}
 			})
@@ -204,6 +216,24 @@ export const createDevContext = (props: {
 			// The queue set of the previous run resets, so removed queues
 			// stop resolving.
 			value.queues.clear()
+			value.visibilityTimeouts.clear()
+
+			// The deployed queues derive their visibility timeout from the
+			// bundle timeout, so a local receive hides messages as long.
+			const bundleTimeout = toSeconds(props.appConfig.function.timeout)
+
+			for (const stack of props.stackConfigs) {
+				for (const id of Object.keys(stack.queues ?? {})) {
+					const name = formatLocalResourceName({
+						appName: props.appConfig.name,
+						stackName: stack.name,
+						resourceType: 'queue',
+						resourceName: id,
+					})
+
+					value.visibilityTimeouts.set(`${name}.fifo`, bundleTimeout + 60)
+				}
+			}
 
 			env['AWS_ENDPOINT_URL_SQS'] = `http://127.0.0.1:${value.port}`
 

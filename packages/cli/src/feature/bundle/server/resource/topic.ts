@@ -41,9 +41,8 @@ export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	})
 
 	if (!subscribers.length) {
-		// Publishing to a topic without subscribers is a silent no-op on
-		// aws - sns simply has nothing to deliver to - so the bundle
-		// matches that instead of erroring.
+		// On aws a topic without subscribers publishes into nothing, so the
+		// bundle matches that instead of erroring.
 		return []
 	}
 

@@ -43,20 +43,15 @@ import { formatGlobalResourceName, generateGlobalAppId, getAppNamePrefix, getBun
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 // ------------------------------------------------------------
-// A deployment id is a counter per git branch formatted as
-// '<branch>-<seq>'. The one string is the manifest sort key, the
-// deployment alias suffix, the route store key & the id users see.
-
-// Lambda alias names only allow [a-zA-Z0-9-_].
+// A deployment id '<branch>-<seq>' doubles as the lambda alias name,
+// which only allows [a-zA-Z0-9-_].
 export const slugifyBranch = (branch?: string) => {
 	return (branch ?? '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'local'
 }
 
 // ------------------------------------------------------------
-// The manifest table stores one record per deployment & is the source
-// of the per branch sequence numbers. State is inferred from the
-// fields: a deployed record has a functionVersion & a promoted
-// record has a promotedAt timestamp.
+// The manifest record: a functionVersion means deployed, a promotedAt
+// means it went live.
 
 const table = define('awsless-deployments', {
 	hash: 'appId',
@@ -110,7 +105,7 @@ export const claimDeployment = async (props: { client: DynamoDBClient; appId: st
 			branch,
 			seq,
 			createdAt: new Date().toISOString(),
-			user: userInfo().username,
+			user: currentUser(),
 			commit: currentCommit(),
 			message: currentCommitMessage(),
 		}
@@ -129,6 +124,15 @@ export const claimDeployment = async (props: { client: DynamoDBClient; appId: st
 		}
 
 		return deployment
+	}
+}
+
+// Containers can run as a uid without a passwd entry, which makes the lookup throw.
+const currentUser = () => {
+	try {
+		return userInfo().username
+	} catch {
+		return
 	}
 }
 
@@ -409,10 +413,8 @@ export const pruneSiteVersions = async (props: { s3: S3Client; bucket: string; s
 }
 
 // ------------------------------------------------------------
-// The live lambda alias points production at one function version &
-// its description holds the deployment id that is live, since multiple
-// deployments can share one function version. A stale or foreign
-// description simply fails the manifest lookup.
+// Several deployments can share one function version, so the live
+// alias description names the deployment that is live.
 
 export const readLiveDeploymentId = async (lambda: LambdaClient, functionName: string) => {
 	return (await getLambdaAlias(lambda, functionName, LIVE_LAMBDA_ALIAS))?.Description || undefined
@@ -481,10 +483,8 @@ export const previousDeploymentId = async (props: {
 	return previous.id
 }
 
-// Reject deploys that were claimed before the live deployment was
-// promoted, so a slow deploy can't stage itself over a newer release.
-// The release lock is a TTL lease, so a stalled deploy can lose it
-// mid-apply - hence the check runs both before & after the apply.
+// A slow deploy must not stage itself over a newer release, and the
+// release lock is a lease it can lose mid-apply, so this runs twice.
 const rejectStaleDeployment = async (props: {
 	dynamo: DynamoDBClient
 	appId: string

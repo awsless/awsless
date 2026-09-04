@@ -221,13 +221,10 @@ importers:
         version: 3.6.0(supports-color@8.1.1)
       '@terraforge/aws':
         specifier: 6.53.0
-        version: 6.53.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8)))
+        version: 6.53.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.14(@terraforge/core@0.0.45(graphology-types@0.24.8)))
       '@terraforge/core':
         specifier: 0.0.45
         version: 0.0.45(graphology-types@0.24.8)
-      '@terraforge/terraform':
-        specifier: 0.0.35
-        version: 0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8))
       '@types/aws-lambda':
         specifier: 8.10.162
         version: 8.10.162
@@ -249,9 +246,6 @@ importers:
       '@types/wildstring':
         specifier: 1.0.3
         version: 1.0.3
-      '@vitest/runner':
-        specifier: 4.1.11
-        version: 4.1.11
       '@vitest/utils':
         specifier: 4.1.11
         version: 4.1.11
@@ -267,9 +261,6 @@ importers:
       chunk:
         specifier: 0.0.3
         version: 0.0.3
-      cli-table3:
-        specifier: 0.6.5
-        version: 0.6.5
       commander:
         specifier: 15.0.0
         version: 15.0.0
@@ -578,9 +569,6 @@ importers:
       '@types/aws-lambda':
         specifier: 8.10.162
         version: 8.10.162
-      aws-sdk-vitest-mock:
-        specifier: 1.0.98
-        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
       type-fest:
         specifier: 5.8.0
         version: 5.8.0
@@ -2464,11 +2452,11 @@ packages:
   '@terraforge/core@0.0.45':
     resolution: {integrity: sha512-Y0TSv9efyHTPIX2JS2pZmhj2eR+Jl3LB0QE60oy8hp84Jh7fqU97rZIKqaD9iLHjp8onFVmmXtRiIVjr1vCOyA==}
 
-  '@terraforge/terraform@0.0.35':
-    resolution: {integrity: sha512-Xx3InpGTPThslVYqTBtYzyeuzh00tSIPpriyiqomx05r+HsTIdABl2b4tMi2TJVMXnw1mJy3S3xkx+yliguiBw==}
+  '@terraforge/terraform@0.0.14':
+    resolution: {integrity: sha512-cblSDQAcmpS9zOas+2/JbSmLUGrCxPEMmFVFF4TyaUk2oHJlQf9WP8m/AIvtRMib5hddySpWKfvTRldBXhFDhw==}
     hasBin: true
     peerDependencies:
-      '@terraforge/core': 0.0.19
+      '@terraforge/core': 0.0.11
 
   '@types/aws-lambda@8.10.162':
     resolution: {integrity: sha512-Fn658grtLOci1oxi1391vvDWJRKNGWRSqfxRkmN/Iy3c0tQH1USMKEXcPYHLvope+ZgTFocx9FRQJx1muBL6qw==}
@@ -6081,10 +6069,10 @@ snapshots:
       vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
       vitefu: 1.1.3(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
-  '@terraforge/aws@6.53.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8)))':
+  '@terraforge/aws@6.53.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.14(@terraforge/core@0.0.45(graphology-types@0.24.8)))':
     dependencies:
       '@terraforge/core': 0.0.45(graphology-types@0.24.8)
-      '@terraforge/terraform': 0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8))
+      '@terraforge/terraform': 0.0.14(@terraforge/core@0.0.45(graphology-types@0.24.8))
 
   '@terraforge/core@0.0.45(graphology-types@0.24.8)':
     dependencies:
@@ -6102,7 +6090,7 @@ snapshots:
     transitivePeerDependencies:
       - graphology-types
 
-  '@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8))':
+  '@terraforge/terraform@0.0.14(@terraforge/core@0.0.45(graphology-types@0.24.8))':
     dependencies:
       '@grpc/grpc-js': 1.12.6
       '@grpc/proto-loader': 0.7.15

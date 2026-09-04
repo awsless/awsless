@@ -2,13 +2,10 @@ import { relative } from 'path'
 import { aws } from '@terraforge/aws'
 import { Group, Output, resolveInputs, findInputDeps } from '@terraforge/core'
 import { camelCase } from 'change-case'
-import deepmerge from 'deepmerge'
 import { defineFeature } from '../../feature.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { funcType, invokeTypes, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { funcType, invokeTypes, testMockTypes } from '../../type-gen/snippets.js'
 import { createFargateJob } from './util.js'
 
 const typeGenCode = `
@@ -20,42 +17,25 @@ ${invokeTypes({ returns: 'Promise<{ taskArn: string | undefined }>' })}${testMoc
 export const jobFeature = defineFeature({
 	name: 'job',
 	async onTypeGen(ctx) {
-		const types = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
+		await writeResourceTypes(ctx, {
+			kind: 'job',
+			interfaceName: 'JobResources',
+			code: typeGenCode,
+			stacks(stack, add, types) {
+				for (const [name, props] of Object.entries(stack.jobs || {})) {
+					const varName = camelCase(`${stack.name}-${name}`)
+					const funcName = formatLocalResourceName({
+						appName: ctx.appConfig.name,
+						stackName: stack.name,
+						resourceType: 'job',
+						resourceName: name,
+					})
 
-		for (const stack of ctx.stackConfigs) {
-			const resource = new TypeObject(2)
-			const testMock = new TypeObject(3)
-
-			for (const [name, props] of Object.entries(stack.jobs || {})) {
-				const varName = camelCase(`${stack.name}-${name}`)
-				const funcName = formatLocalResourceName({
-					appName: ctx.appConfig.name,
-					stackName: stack.name,
-					resourceType: 'job',
-					resourceName: name,
-				})
-
-				const relFile = relative(directories.types, props.code.file)
-
-				types.addImport(varName, relFile)
-				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				testMock.addType(name, `TestMockEntry<typeof ${varName}>`)
-			}
-
-			resources.addType(stack.name, resource)
-			testMocks.addType(stack.name, testMock)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('job', testMocks)
-
-		types.addCode(typeGenCode)
-		types.addInterface('JobResources', resources)
-		types.addInterface('TestMock', testMock)
-
-		await ctx.write('job.d.ts', types, true)
+					types.addImport(varName, relative(directories.types, props.code.file))
+					add(name, `Invoke<'${funcName}', typeof ${varName}>`, `TestMockEntry<typeof ${varName}>`)
+				}
+			},
+		})
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {
@@ -120,61 +100,6 @@ export const jobFeature = defineFeature({
 		})
 
 		ctx.shared.set('job', 'security-group-id', securityGroup.id)
-
-		// ------------------------------------------------------------
-		// Create shared EFS for persistent storage
-
-		const needsPersistentStorage = ctx.stackConfigs.some(stack =>
-			Object.values(stack.jobs ?? {}).some(job => {
-				const merged = deepmerge(ctx.appConfig.job, job)
-				return merged.persistentStorage
-			})
-		)
-
-		if (needsPersistentStorage) {
-			const storageGroup = new Group(ctx.base, 'job', 'persistent-storage')
-
-			new aws.vpc.SecurityGroupIngressRule(storageGroup, 'ingress-rule', {
-				securityGroupId: securityGroup.id,
-				referencedSecurityGroupId: securityGroup.id,
-				description: 'Allow NFS traffic from jobs',
-				ipProtocol: 'tcp',
-				fromPort: 2049,
-				toPort: 2049,
-				tags: {
-					APP: ctx.appConfig.name,
-				},
-			})
-
-			const fileSystem = new aws.efs.FileSystem(storageGroup, 'file-system', {
-				encrypted: true,
-				performanceMode: 'generalPurpose',
-				throughputMode: 'elastic',
-				tags: {
-					APP: ctx.appConfig.name,
-					Name: `${ctx.app.name}-job-storage`,
-				},
-			})
-
-			for (const [index, subnetId] of ctx.shared.get('vpc', 'private-subnets').entries()) {
-				new aws.efs.MountTarget(
-					storageGroup,
-					`mount-target-${index + 1}`,
-					{
-						fileSystemId: fileSystem.id,
-						subnetId,
-						securityGroups: [securityGroup.id],
-					},
-					{
-						// Mount targets are immutable per subnet, so a subnet
-						// change replaces them.
-						replaceOnChanges: ['subnetId'],
-					}
-				)
-			}
-
-			ctx.shared.set('job', 'persistent-storage-file-system-id', fileSystem.id)
-		}
 	},
 	onStack(ctx) {
 		const jobs = Object.entries(ctx.stackConfig.jobs ?? {})
@@ -206,7 +131,7 @@ export const jobFeature = defineFeature({
 		ctx.addPermission({
 			actions: ['ecs:RunTask'],
 			resources: [
-				`arn:aws:ecs:${ctx.appConfig.region}:*:task-definition/${ctx.app.name}--${ctx.stackConfig.name}--*`,
+				`arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:task-definition/${ctx.app.name}--${ctx.stackConfig.name}--*`,
 			],
 		})
 

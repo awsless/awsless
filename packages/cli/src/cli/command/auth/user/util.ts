@@ -57,7 +57,11 @@ export const loadUserPoolId = async (props: {
 		successMessage: 'Done loading auth userpool.',
 		errorMessage: 'Failed loading auth userpool.',
 		async task() {
-			const { shared, app } = createApp(props)
+			const { shared, app } = createApp({
+				appConfig: props.appConfig,
+				stackConfigs: props.stackConfigs,
+				accountId: props.accountId,
+			})
 
 			const { workspace } = await createWorkSpace({
 				credentials: props.credentials,

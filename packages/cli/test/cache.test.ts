@@ -13,7 +13,38 @@ describe('cache', () => {
 		expect(cache.input.engine).toBe('valkey')
 		expect(cache.input.cacheUsageLimits).toBeUndefined()
 		expect(listResources(app, 'aws_security_group').some(meta => meta.input.name === cache.input.name)).toBe(true)
-		expect(listResources(app, 'aws_vpc_security_group_ingress_rule')).toHaveLength(4)
+	})
+
+	it('only opens the cache to the lambdas, jobs & instances of the app', () => {
+		const code = { file: { nocheck: './program.ts' } }
+		const result = createTestApp({
+			stacks: [
+				{ name: 'stack-1', caches: { session: {} }, jobs: { export: { code } } },
+				{ name: 'stack-2', instances: { worker: { code } } },
+			],
+		})
+
+		const before = listResources(result.app, 'aws_vpc_security_group_ingress_rule').filter(meta =>
+			meta.urn.includes('cache:{session}')
+		)
+
+		// The lambda rules exist right away, the job & instance rules once
+		// every stack has synthed.
+		expect(before).toHaveLength(2)
+
+		result.ready()
+
+		const rules = listResources(result.app, 'aws_vpc_security_group_ingress_rule').filter(meta =>
+			meta.urn.includes('cache:{session}')
+		)
+
+		expect(rules).toHaveLength(6)
+
+		for (const rule of rules) {
+			expect(rule.input.referencedSecurityGroupId).toBeDefined()
+			expect(rule.input.cidrIpv4).toBeUndefined()
+			expect(rule.input.cidrIpv6).toBeUndefined()
+		}
 	})
 
 	it('only sends usage limits that are set', () => {
@@ -23,6 +54,8 @@ describe('cache', () => {
 
 		const cache = listResources(app, 'aws_elasticache_serverless_cache')[0]!
 
-		expect(cache.input.cacheUsageLimits).toEqual([{ dataStorage: [], ecpuPerSecond: [{ minimum: undefined, maximum: 5000 }] }])
+		expect(cache.input.cacheUsageLimits).toEqual([
+			{ dataStorage: [], ecpuPerSecond: [{ minimum: undefined, maximum: 5000 }] },
+		])
 	})
 })

@@ -33,12 +33,9 @@ export class WorkerError extends Error {
 	}
 }
 
-// The worker runs the bundle in its own node process, so a rebuild can
-// restart it with a clean module cache & a crashing handler can never
-// take down the dev server. The dev server talks to it over local HTTP
-// instead of IPC, so the worker runtime never needs to match the CLI
-// runtime. The parent watchdog preload makes it exit on its own when
-// the dev server dies without a graceful stop.
+// Its own node process, so a rebuild gets a clean module cache & a
+// crashing handler never takes down the dev server. HTTP instead of
+// IPC, so the worker runtime never needs to match the cli runtime.
 const WORKER_ENTRY = `import { AsyncLocalStorage } from 'node:async_hooks'
 import http from 'node:http'
 import https from 'node:https'
@@ -67,7 +64,7 @@ const injectTrace = module => {
 		const trace = traceContext.getStore()
 
 		if (trace) {
-			// request(url[, options][, callback]) or request(options[, callback])
+			// The options may sit behind an optional url argument.
 			const index = typeof args[0] === 'string' || args[0] instanceof URL ? 1 : 0
 			let url
 
@@ -123,11 +120,8 @@ globalThis.fetch = (input, init) => {
 	return originalFetch(input, init)
 }
 
-// Every console call writes ONE framed record: an invisible \\x1f
-// marker with the active bundle route & the json-encoded text, so
-// multi-line output stays a single log entry downstream. The route
-// comes from the bundle's async context, accurate even under
-// concurrent requests.
+// One framed record per console call (marker, route, json text), so
+// multi-line output stays a single log entry downstream.
 const patchConsole = (method, stream) => {
 	console[method] = (...args) => {
 		const route = getCurrentRoute() ?? ''
@@ -314,8 +308,11 @@ export const createBundleWorker = (props: {
 		const deadline = Date.now() + 10_000
 
 		while (Date.now() < deadline) {
-			if (worker.child.exitCode !== null) {
-				throw new Error(`The bundle worker exited with code ${worker.child.exitCode} during startup.`)
+			// A signal kill leaves exitCode null, so both fields count.
+			if (worker.child.exitCode !== null || worker.child.signalCode !== null) {
+				throw new Error(
+					`The bundle worker exited (${worker.child.signalCode ?? `code ${worker.child.exitCode}`}) during startup.`
+				)
 			}
 
 			try {
@@ -354,20 +351,21 @@ export const createBundleWorker = (props: {
 		const entry = join(props.buildDir, 'worker.mjs')
 		const port = await findFreePort()
 
-		// Piped instead of inherited: a node child that inherits the tty
-		// snapshots its termios at spawn & restores it on exit - so a
-		// worker spawned during the boot spinner's raw mode would put
-		// the terminal back into raw mode on every reload, killing
-		// ctrl-c.
-		const child = spawnDevChild('node', ['--enable-source-maps', '-r', join(props.buildDir, WATCHDOG_FILE), entry], {
-			cwd: props.buildDir,
-			stdio: ['ignore', 'pipe', 'pipe'],
-			env: {
-				PATH: process.env.PATH,
-				...props.env,
-				AWSLESS_DEV_WORKER_PORT: String(port),
-			},
-		})
+		// Piped, not inherited: a node child restores the tty termios it
+		// saw at spawn, which under the boot spinner means raw mode.
+		const child = spawnDevChild(
+			'node',
+			['--enable-source-maps', '-r', join(props.buildDir, WATCHDOG_FILE), entry],
+			{
+				cwd: props.buildDir,
+				stdio: ['ignore', 'pipe', 'pipe'],
+				env: {
+					PATH: process.env.PATH,
+					...props.env,
+					AWSLESS_DEV_WORKER_PORT: String(port),
+				},
+			}
+		)
 
 		// One reader per stream & worker, so a record never interleaves
 		// between workers.
@@ -469,14 +467,30 @@ export const createBundleWorker = (props: {
 			worker.inflight++
 
 			try {
-				const res = await fetch(`http://127.0.0.1:${worker.port}`, {
-					method: 'POST',
-					body: JSON.stringify({ event, context, trace }),
-				})
+				let body: { result?: unknown; error?: { name: string; message: string; stack?: string } }
 
-				const body = (await res.json()) as {
-					result?: unknown
-					error?: { name: string; message: string; stack?: string }
+				try {
+					const res = await fetch(`http://127.0.0.1:${worker.port}`, {
+						method: 'POST',
+						body: JSON.stringify({ event, context, trace }),
+					})
+
+					body = await res.json()
+				} catch (error) {
+					// A bare "fetch failed" hides that the handler took its
+					// worker down mid-request.
+					if (
+						worker.exited !== undefined ||
+						worker.child.exitCode !== null ||
+						worker.child.signalCode !== null
+					) {
+						throw new WorkerError(
+							'WorkerCrashed',
+							`The bundle worker exited (${worker.child.signalCode ?? `code ${worker.child.exitCode}`}) while handling the request.`
+						)
+					}
+
+					throw error
 				}
 
 				if (body.error) {

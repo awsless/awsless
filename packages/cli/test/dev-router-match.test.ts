@@ -42,8 +42,9 @@ const storeValues = () => {
 		const compiled = rawKey ? { key: pattern } : compileRoutePattern(pattern)
 		const list = lists.get(compiled.key) ?? []
 
+		// The raw asset routes are s3 origins on the deployed side.
 		list.push({
-			type: 'lambda',
+			type: rawKey ? 's3' : 'lambda',
 			domainName: `stack:${pattern}`,
 			...('match' in compiled && compiled.match ? { match: compiled.match } : {}),
 			...('params' in compiled && compiled.params ? { params: compiled.params } : {}),
@@ -84,9 +85,9 @@ const viewer = (values: Map<string, string>) => {
 	}) => Promise<ViewerRequest | { statusCode: number }>
 }
 
-const resolveDeployed = async (path: string) => {
+const resolveDeployed = async (path: string, method = 'GET') => {
 	const handler = viewer(storeValues())
-	const result = await handler({ request: { uri: path, method: 'GET', headers: {}, querystring: {} } })
+	const result = await handler({ request: { uri: path, method, headers: {}, querystring: {} } })
 
 	if (!('headers' in result)) {
 		return undefined
@@ -103,8 +104,8 @@ const resolveDeployed = async (path: string) => {
 	return { routeKey: result.headers['x-origin']!.value, params }
 }
 
-const resolveLocal = (path: string) => {
-	const result = compileRoutes(devRoutes)(path)
+const resolveLocal = (path: string, method = 'GET') => {
+	const result = compileRoutes(devRoutes)(path, method)
 
 	return result ? { routeKey: result.routeKey, params: result.params } : undefined
 }
@@ -118,6 +119,7 @@ describe('dev router route store matcher', () => {
 		['/api/v1/things', 'stack:/api/*'],
 		['/api/v1.2/users', 'stack:/api/*'],
 		['/users/42', 'stack:/users/{id}', { id: '42' }],
+		['/users/42/', 'stack:/users/{id}', { id: '42' }],
 		['/users/42/posts/7', 'stack:/users/{id}/posts/{post}', { id: '42', post: '7' }],
 		['/users/42/settings', 'stack:/users/*'],
 		['/docs/getting-started', 'stack:/docs/*'],
@@ -134,6 +136,20 @@ describe('dev router route store matcher', () => {
 		await expect(resolveDeployed(path)).resolves.toEqual(expected)
 	})
 
+	// The asset routes are s3 origins, which the viewer only serves for
+	// GET & HEAD - a write falls through to the lambda routes.
+	const writes: [string, string][] = [
+		['/docs/app.js', 'stack:/docs/*'],
+		['/_app/immutable/chunk.js', 'stack:/*'],
+		['/users/42', 'stack:/users/{id}'],
+	]
+
+	it.each(writes)('should route a POST to %s past the asset routes like the viewer', async (path, routeKey) => {
+		expect(resolveLocal(path, 'POST')?.routeKey).toBe(routeKey)
+		expect((await resolveDeployed(path, 'POST'))?.routeKey).toBe(routeKey)
+		expect(resolveLocal(path, 'HEAD')?.routeKey).toBe(resolveLocal(path)?.routeKey)
+	})
+
 	it('should return nothing without a catch-all route', () => {
 		const match = compileRoutes(devRoutes.filter(route => route.pattern !== '/*'))
 
@@ -144,7 +160,12 @@ describe('dev router route store matcher', () => {
 
 	it('should carry the proxy target & rewrite of a route', () => {
 		const match = compileRoutes([
-			{ routerId: 'main', pattern: '/site/*', proxy: 'http://127.0.0.1:5173', rewrite: { regex: '^/site', to: '' } },
+			{
+				routerId: 'main',
+				pattern: '/site/*',
+				proxy: 'http://127.0.0.1:5173',
+				rewrite: { regex: '^/site', to: '' },
+			},
 		])
 
 		expect(match('/site/index.html')).toEqual({

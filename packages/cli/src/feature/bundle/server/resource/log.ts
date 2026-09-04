@@ -14,8 +14,7 @@ export const logHandler: RouteMatcher<CloudWatchLogsEvent> = event => {
 		}
 	}
 
-	// A raw awslogs event never reaches the bundle: locally only the
-	// consumer route registers & deployed apps run the handler as a
-	// stand-alone lambda outside the bundle.
+	// A raw awslogs event never reaches the bundle: deployed apps run the
+	// handler stand-alone & locally only the consumer route registers.
 	return
 }

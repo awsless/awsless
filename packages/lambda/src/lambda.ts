@@ -1,9 +1,7 @@
 import { parse, patch, stringify, unpatch } from '@awsless/json'
 import { parse as valiParse } from '@awsless/validate'
 import { Context } from 'aws-lambda'
-// import { Jsonify } from 'type-fest'
 import { eventContext } from './context/lambda-context.js'
-// import { toViewableErrorResponse, ViewableError } from './errors/viewable.js'
 import { enhanceError } from './errors/enhanced.js'
 import { ExpectedError } from './errors/expected.js'
 import { toErrorResponse } from './errors/response.js'
@@ -15,18 +13,18 @@ import { normalizeError } from './helpers/error.js'
 import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
 
 interface Options<H extends Handler<S>, S extends Schema = undefined> {
-	/** A validation struct to validate the input. */
+	/** A validation schema for the input. */
 	schema?: S
 
-	/** Array of middleware functions. */
+	/** The handler, receiving the validated input & the extended context. */
 	handle: H
 
-	/** Array of logging functions that are called when an error is thrown. */
+	/** Logging functions called when an error is thrown. */
 	logger?: Loggers
 
-	/** Whether expected errors are thrown & logged instead of returned
-	 * as an error response. A function is evaluated per invocation, so a
-	 * handler shared by sync & async routes decides at invoke time.
+	/**
+	 * Whether expected errors throw & log instead of returning as an
+	 * error response. A function is evaluated per invocation.
 	 * @default false
 	 */
 	throwExpectedErrors?: boolean | (() => boolean)
@@ -38,16 +36,6 @@ export type LambdaFactory = {
 		options: Options<H, S>
 	): (event: Input<S>, context?: Context) => Promise<Awaited<ReturnType<H>>>
 }
-
-// type Response<T> = Promise<Awaited<ReturnType<T>>>
-
-// type Response<T> = unknown extends T
-// 	? unknown
-// 	: void extends T
-// 		? void
-// 		: T extends undefined
-// 			? Jsonify<T> | undefined
-// 			: Jsonify<T>
 
 export type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S extends undefined
 	? (event?: unknown, context?: Context) => Promise<Awaited<ReturnType<H>>>
@@ -83,7 +71,6 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 					const raw = typeof event === 'undefined' || isTest ? event : patch(event)
 					const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw
 					const extendedContext: ExtendedContext = {
-						// ...(context ?? {}),
 						event: input,
 						context,
 						raw,

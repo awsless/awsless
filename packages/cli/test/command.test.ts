@@ -16,7 +16,12 @@ describe('command', () => {
 		})
 
 		expect(commands).toEqual([
-			{ name: 'seed', file: expect.stringContaining('seed.ts'), handler: 'default', description: 'Seed the tables' },
+			{
+				name: 'seed',
+				file: expect.stringContaining('seed.ts'),
+				handler: 'default',
+				description: 'Seed the tables',
+			},
 			{ name: 'report', file: expect.stringContaining('report.ts'), handler: 'default', description: undefined },
 		])
 	})

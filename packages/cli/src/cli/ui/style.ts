@@ -24,7 +24,3 @@ export const color = {
 
 	attr: chalk.yellow,
 }
-
-export const char = {
-	br: '\n',
-}

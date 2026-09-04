@@ -1,5 +1,5 @@
 import { relative } from 'path'
-import { Cancelled as CancelledError, log } from '@awsless/clui'
+import { log } from '@awsless/clui'
 import { AppError, ResourceError } from '@terraforge/core'
 import { Cancelled, ConfigError, ExpectedError, FileError } from '../../../error.js'
 import { debugError, debugLogFile } from '../../debug.js'
@@ -18,8 +18,6 @@ export const logError = (error: unknown) => {
 	if (error instanceof ConfigError) {
 		logConfigError(error)
 	} else if (error instanceof Cancelled) {
-		log.error(color.error('Cancelled.'))
-	} else if (error instanceof CancelledError) {
 		log.error(color.error('Cancelled.'))
 	} else if (error instanceof ExpectedError) {
 		log.error(color.error(error.message))
@@ -54,7 +52,7 @@ export const logError = (error: unknown) => {
 	// log only exists once a project was found.
 	const file = debugLogFile()
 
-	if (file && !(error instanceof Cancelled) && !(error instanceof CancelledError) && !Array.isArray(error)) {
+	if (file && !(error instanceof Cancelled) && !Array.isArray(error)) {
 		log.message(color.dim(`Debug log: ${relative(process.cwd(), file)}`))
 	}
 }

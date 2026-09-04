@@ -136,7 +136,6 @@ const ISchema = z.object({
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
 	healthCheck: HealthCheckSchema.optional(),
-	// restartPolicy: RestartPolicySchema.optional(),
 })
 
 const InstanceSchema = z.union([
@@ -160,7 +159,6 @@ export const InstanceDefaultSchema = z
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 		healthCheck: HealthCheckSchema.optional(),
-		// restartPolicy: RestartPolicySchema.default({ enabled: true }),
 		log: LogSchema.prefault(true).transform(log => ({
 			retention: log.retention ?? days(7),
 		})),

@@ -1,11 +1,8 @@
-import { LambdaClient } from '@aws-sdk/client-lambda'
-import { Cancelled as CancelledError, log, prompt } from '@awsless/clui'
-import { DynamoDBClient } from '@awsless/dynamodb'
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled, ExpectedError } from '../../error.js'
 import { withTestEnvironment } from '../../test/environment.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
 	claimDeployment,
 	markDeployed,
@@ -13,16 +10,16 @@ import {
 	promoteAppDeployment,
 	readDeployedFunctionVersions,
 } from '../../util/deployment.js'
-import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
-import { runTests } from '../ui/complex/run-tests.js'
+import { createTestEnv, runTests } from '../ui/complex/run-tests.js'
 import { showWarnings } from '../ui/complex/show-warnings.js'
 import { verifyAlertEndpoints } from '../ui/complex/verify-alert-endpoints.js'
+import { createClients } from './util.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -32,10 +29,15 @@ export const deploy = (program: Command) => {
 		.description('Deploy your app to AWS')
 		.action(async (options: { skipTests: boolean; import: boolean }) => {
 			await layout('deploy', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const {
+					region,
+					credentials,
+					accountId,
+					dynamo,
+					lambda,
+					functionName,
+					appId: globalAppId,
+				} = await createClients(appConfig)
 
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
@@ -47,9 +49,8 @@ export const deploy = (program: Command) => {
 				const params = new SsmStore({ credentials, appConfig })
 				const configValues = await params.list()
 
-				// The synth is pure, so this first pass only feeds the
-				// checks that run before the deployment is claimed. The
-				// graph is rebuilt with the claimed id further down.
+				// A first pass feeds the checks that run before a deployment
+				// id is claimed; the graph is rebuilt with the claimed id below.
 				const { tests, warnings, appId, configs } = createApp({
 					appConfig,
 					stackConfigs,
@@ -95,13 +96,7 @@ export const deploy = (program: Command) => {
 								showLogs: false,
 								manifest,
 								ensureReady,
-								env: {
-									APP: appConfig.name,
-									APP_ID: appId,
-									AWS_REGION: appConfig.region,
-									AWS_ACCOUNT_ID: accountId,
-									AWSLESS_TEST_MANIFEST: manifestFile,
-								},
+								env: createTestEnv({ appConfig, appId, accountId, manifestFile }),
 							})
 						}
 					)
@@ -112,18 +107,9 @@ export const deploy = (program: Command) => {
 				}
 
 				// ---------------------------------------------------
-				// every deployment claims the next sequence number of its git
-				// branch in the manifest; abandoned deploys leave a record
-				// without a function version that the prune command sweeps up.
 				// The claim comes after the prompt & the tests, so a declined
-				// or failing deploy doesn't burn a number.
+				// or failing deploy doesn't burn a sequence number.
 
-				const dynamo = new DynamoDBClient({ credentials, region })
-				const globalAppId = generateGlobalAppId({
-					accountId,
-					region,
-					appName: appConfig.name,
-				})
 				const deployment = await claimDeployment({ client: dynamo, appId: globalAppId })
 
 				const { app, builders, ready } = createApp({
@@ -157,8 +143,6 @@ export const deploy = (program: Command) => {
 					region,
 				})
 				const releaseUrn = getAppReleaseLockUrn(globalAppId)
-				const lambda = new LambdaClient({ credentials, region })
-				const functionName = getBundleFunctionName(appConfig.name)
 
 				await log.task({
 					initialMessage: 'Deploying the stacks to AWS',
@@ -200,7 +184,7 @@ export const deploy = (program: Command) => {
 				try {
 					await verifyAlertEndpoints({ credentials, appConfig, accountId, configValues })
 				} catch (error) {
-					if (error instanceof Cancelled || error instanceof CancelledError) {
+					if (error instanceof Cancelled) {
 						log.warning('Skipped the alert endpoint verification.')
 					} else {
 						log.warning(`Skipped the alert endpoint verification. ${String(error)}`)

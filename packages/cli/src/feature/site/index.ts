@@ -59,14 +59,11 @@ export const siteFeature = defineFeature({
 							// Never inherit NODE_ENV=test from an in-process test run, it would flip the Config proxy into mock mode mid-build.
 							NODE_ENV: 'production',
 
-							// Pass the app config name
+							// The build reads configs & resources through the same
+							// runtime as the handlers, with the deployer's credentials.
 							APP: ctx.appConfig.name,
-
-							// Basic AWS info
 							AWS_REGION: ctx.appConfig.region,
 							AWS_ACCOUNT_ID: ctx.accountId,
-
-							// Give AWS access
 							AWS_ACCESS_KEY_ID: credentials.accessKeyId,
 							AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
 							AWS_SESSION_TOKEN: credentials.sessionToken,

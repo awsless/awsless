@@ -8,12 +8,8 @@ export type SubscribeEvent<S extends { readonly schema: GenericSchema } | Generi
 	S extends { readonly schema: infer T extends GenericSchema } ? T : S extends GenericSchema ? S : never
 >
 
-// The handler receives the parsed message - SNS always delivers a
-// single record per invocation. The first argument is either a defined
-// topic (which carries its schema) or a plain payload schema.
-//
-// The constraint only checks the carried name & schema, since the
-// publisher call signature itself never matches a generic one.
+// A defined topic carries its schema; the constraint checks only name &
+// schema, since the publisher call signature never matches a generic one.
 export function subscribe<
 	D extends { readonly name: string; readonly schema: GenericSchema },
 	H extends Handler<SnsTopicSchema<D['schema']>>,

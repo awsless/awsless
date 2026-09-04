@@ -3,8 +3,8 @@ import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { days, Duration, seconds, toSeconds } from '@awsless/duration'
-import { generateFileHash } from '@awsless/ts-file-cache'
 import { mebibytes, Size, toMebibytes } from '@awsless/size'
+import { generateDependencyHash, generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
 import { kebabCase } from 'change-case'
@@ -14,8 +14,8 @@ import { FileError } from '../../error.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { SourcemapDeployment } from '../../formation/s3.js'
-import { shortId } from '../../util/id.js'
 import { formatByteSize } from '../../util/byte-size.js'
+import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
@@ -127,15 +127,8 @@ type FunctionCode = {
 	moduleSideEffects?: string[]
 }
 
-// Build the code of a stand-alone lambda into a zip at deploy time.
-// A wrapper file provides a createHandler factory that receives the
-// user handler as the lambda entry, so features can compile their own
-// handler code together with the code of a user.
-//
-// The env vars added through the returned addEnv are baked into the
-// zip as an awsless-env.mjs file, like the bundle does, so a lambda
-// can outgrow the 4KB lambda env limit. The generated entry always
-// exports "default", so the lambda handler is "index.default".
+// The env added through addEnv is baked into the zip like the bundle
+// does, so a lambda can outgrow the 4KB lambda env limit.
 export const registerFunctionBuild = (
 	ctx: StackContext | AppContext,
 	name: string,
@@ -149,9 +142,12 @@ export const registerFunctionBuild = (
 	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler)
 
 	ctx.registerBuild('function', name, async (build, { workspace }) => {
+		// The entry & the prebuilt wrappers import the awsless package from
+		// node_modules, outside the workspace file hashes.
 		const fingerprint = createHash('sha1')
 			.update(await generateFileHash(workspace, props.code.file))
 			.update(props.wrapper ? await readFile(props.wrapper) : '')
+			.update(generateDependencyHash(workspace, 'awsless') ?? '')
 			.update(
 				JSON.stringify([
 					//
@@ -198,22 +194,26 @@ export default (event, context) => {
 			const temp = await createTempFolder(name)
 			const entryFile = join(temp.path, 'entry.ts')
 
-			await writeFile(entryFile, entry)
+			let result
 
-			const result = await bundleTypeScriptWithRolldown({
-				file: entryFile,
-				minify: props.code.minify,
-				external: [
-					// The env file is generated at deploy time.
-					'./awsless-env.mjs',
-					...(props.code.external ?? []),
-					...(props.external ?? []),
-				],
-				moduleSideEffects: props.code.moduleSideEffects,
-				importAsString: props.code.importAsString,
-			})
+			try {
+				await writeFile(entryFile, entry)
 
-			await temp.delete()
+				result = await bundleTypeScriptWithRolldown({
+					file: entryFile,
+					minify: props.code.minify,
+					external: [
+						// The env file is generated at deploy time.
+						'./awsless-env.mjs',
+						...(props.code.external ?? []),
+						...(props.external ?? []),
+					],
+					moduleSideEffects: props.code.moduleSideEffects,
+					importAsString: props.code.importAsString,
+				})
+			} finally {
+				await temp.delete()
+			}
 
 			// Clear out the stale chunks from the previous build.
 			await rm(getBuildPath('function', name, 'files'), { recursive: true, force: true })
@@ -352,6 +352,10 @@ export type LambdaProps = {
 	// live alias like the bundle, so failed async invokes report from
 	// the alias. An unversioned lambda deploys in place at $LATEST.
 	versioned?: boolean
+
+	// Where failed async invokes land: the global on-failure bucket by
+	// default. False opts out.
+	onFailure?: { arn: Output<string>; kind: 'bucket' | 'queue' } | false
 }
 
 // The physical name of a lambda: stack scoped inside a stack, app
@@ -378,6 +382,18 @@ export const formatLambdaName = (ctx: StackContext | AppContext, ns: string, id:
 const logFormats = {
 	text: 'Text',
 	json: 'JSON',
+}
+
+// The log levels only apply to structured json logs.
+export const formatLoggingConfig = (name: string, log: LambdaLogProps | undefined) => {
+	const format = log?.format ?? 'json'
+
+	return {
+		logGroup: `/aws/lambda/${name}`,
+		logFormat: logFormats[format],
+		applicationLogLevel: format === 'json' ? log?.level?.toUpperCase() : undefined,
+		systemLogLevel: format === 'json' ? log?.system?.toUpperCase() : undefined,
+	}
 }
 
 // Create a stand-alone lambda from a code zip: a stack function, or an
@@ -496,7 +512,6 @@ export const createLambda = (
 	// The lambda function.
 
 	const variables: Record<string, Input<string>> = {}
-	const logFormat = props.log?.format ?? 'json'
 
 	const lambda = new aws.lambda.Function(
 		group,
@@ -545,12 +560,7 @@ export const createLambda = (
 					}
 				: undefined,
 
-			loggingConfig: {
-				logGroup: `/aws/lambda/${name}`,
-				logFormat: logFormats[logFormat],
-				applicationLogLevel: logFormat === 'json' ? props.log?.level?.toUpperCase() : undefined,
-				systemLogLevel: logFormat === 'json' ? props.log?.system?.toUpperCase() : undefined,
-			},
+			loggingConfig: formatLoggingConfig(name, props.log),
 		},
 		{
 			dependsOn,
@@ -562,7 +572,11 @@ export const createLambda = (
 	// Failed async invokes land in the global on-failure bucket, so
 	// they aren't dropped after the retries run out.
 
-	const onFailure = getGlobalOnFailure(ctx)
+	const globalOnFailure = getGlobalOnFailure(ctx)
+	const onFailure =
+		props.onFailure === false
+			? undefined
+			: (props.onFailure ?? (globalOnFailure ? { arn: globalOnFailure, kind: 'bucket' as const } : undefined))
 	let deployment: Resource | undefined
 	let liveAlias: aws.lambda.Alias | undefined
 
@@ -570,7 +584,7 @@ export const createLambda = (
 		const aliases = createDeploymentAliases(group, ctx, {
 			lambda,
 			policy,
-			onFailureArn: onFailure,
+			onFailureArn: onFailure?.arn,
 		})
 
 		deployment = aliases.deployment
@@ -584,7 +598,7 @@ export const createLambda = (
 				maximumRetryAttempts: 2,
 				destinationConfig: {
 					onFailure: {
-						destination: onFailure,
+						destination: onFailure.arn,
 					},
 				},
 			},
@@ -594,15 +608,22 @@ export const createLambda = (
 		)
 	}
 
-	if (onFailure) {
+	if (onFailure?.kind === 'bucket') {
 		addPermission({
 			actions: ['s3:PutObject', 's3:ListBucket'],
-			resources: [onFailure, $interpolate`${onFailure}/*`],
+			resources: [onFailure.arn, $interpolate`${onFailure.arn}/*`],
 			conditions: {
 				StringEquals: {
 					's3:ResourceAccount': ctx.accountId,
 				},
 			},
+		})
+	}
+
+	if (onFailure?.kind === 'queue') {
+		addPermission({
+			actions: ['sqs:SendMessage'],
+			resources: [onFailure.arn],
 		})
 	}
 
@@ -824,9 +845,8 @@ export const createLambdaFunction = (ctx: StackContext, id: string, local: Stack
 	} else {
 		fn.addPermission(...(props.permissions ?? []))
 		ctx.onPermission(permission => fn.addPermission(permission))
+		ctx.shared.add('function', 'role', name, fn.role)
 	}
-
-	ctx.shared.add('function', 'role', name, fn.role)
 
 	// ------------------------------------------------------------
 	// Env Vars

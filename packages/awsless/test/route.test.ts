@@ -48,7 +48,9 @@ describe('route request', () => {
 
 	it('builds the url from the forwarded host', async () => {
 		const handle = route(request => Response.json(request.url.toString()))
-		const result = await handle(event({ headers: { 'x-forwarded-host': 'app.example.com' }, rawQueryString: 'a=1' }))
+		const result = await handle(
+			event({ headers: { 'x-forwarded-host': 'app.example.com' }, rawQueryString: 'a=1' })
+		)
 
 		expect(parseBody(result)).toBe('https://app.example.com/items/1?a=1')
 	})
@@ -76,7 +78,9 @@ describe('route response', () => {
 	})
 
 	it('base64 encodes binary bodies', async () => {
-		const handle = route(() => new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } }))
+		const handle = route(
+			() => new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } })
+		)
 		const result = await handle(event())
 
 		expect(result).toMatchObject({ body: 'AQID', isBase64Encoded: true })
@@ -96,14 +100,19 @@ describe('route response', () => {
 	})
 })
 
-describe('route errors', () => {
+// The route contract is http, so expected errors render the same way
+// in test mode (where the lambda wrapper throws them) & in production
+// (where it returns them).
+describe.each([
+	['test mode', 'test'],
+	['production', 'production'],
+])('route errors in %s', (_, env) => {
 	beforeEach(() => {
-		vi.stubEnv('LAMBDA_ENV', 'production')
+		vi.stubEnv('LAMBDA_ENV', env)
 	})
 
 	afterEach(() => {
 		vi.unstubAllEnvs()
-		vi.restoreAllMocks()
 	})
 
 	it('renders validation errors as a 400', async () => {
@@ -117,25 +126,15 @@ describe('route errors', () => {
 
 	it('renders other expected errors as a 500', async () => {
 		const handle = route(() => {
-			throw new ExpectedError('not-found', 'No such item')
+			throw new ExpectedError('not-found', 'No such item', { id: 1 })
 		})
 		const result = await handle(event())
 
 		expect(result.statusCode).toBe(500)
-		expect(parseBody(result)).toStrictEqual({ type: 'not-found', message: 'No such item' })
+		expect(parseBody(result)).toStrictEqual({ type: 'not-found', message: 'No such item', data: { id: 1 } })
 	})
 
 	it('propagates unexpected errors so the runtime logs them', async () => {
-		const handle = route(() => {
-			throw new Error('boom')
-		})
-
-		await expect(handle(event())).rejects.toThrow('boom')
-	})
-
-	it('rethrows unexpected errors in tests', async () => {
-		vi.stubEnv('LAMBDA_ENV', 'test')
-
 		const handle = route(() => {
 			throw new Error('boom')
 		})

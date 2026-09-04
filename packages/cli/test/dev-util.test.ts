@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeAwsChunked, isConfigFile, isIgnoredPath } from '../src/dev/util'
+import { decodeAwsChunked, isConfigFile, isIgnoredPath, registerConfigFile } from '../src/dev/util'
 import { createFrameReader, WorkerRecord } from '../src/dev/worker'
 
 describe('decodeAwsChunked', () => {
@@ -35,13 +35,37 @@ describe('decodeAwsChunked', () => {
 
 describe('source watcher rules', () => {
 	it('should recognize every config file name the loader accepts', () => {
-		for (const path of ['app.json', 'app.jsonc', 'app.json5', 'stack.jsonc', 'api/stack.json', 'api/web.stack.json5']) {
+		for (const path of [
+			'app.json',
+			'app.jsonc',
+			'app.json5',
+			'stack.jsonc',
+			'api/stack.json',
+			'api/web.stack.json5',
+		]) {
 			expect(isConfigFile(path), path).toBe(true)
 		}
 
-		for (const path of ['src/stack.ts', 'stacks.jsonc', 'app.ts', 'my-app.jsonc', 'app.prod.jsonc', 'package.json']) {
+		for (const path of [
+			'src/stack.ts',
+			'stacks.jsonc',
+			'app.ts',
+			'my-app.jsonc',
+			'app.prod.jsonc',
+			'package.json',
+		]) {
 			expect(isConfigFile(path), path).toBe(false)
 		}
+	})
+
+	it('should recognize the file passed with --config-file once the loader registers it', () => {
+		expect(isConfigFile('app.local.json5')).toBe(false)
+
+		registerConfigFile('/project/app.local.json5')
+
+		expect(isConfigFile('app.local.json5')).toBe(true)
+		expect(isConfigFile('nested/app.local.json5')).toBe(true)
+		expect(isConfigFile('app.local.json')).toBe(false)
 	})
 
 	it('should skip the build & dependency folders', () => {

@@ -25,11 +25,8 @@ const waitForSearch = async (port: number, timeoutMs: number) => {
 	throw new Error('The local OpenSearch server never became ready.')
 }
 
-// Builds the test manifest & boots the shared resource servers
-// around a test run. The test & deploy commands both run tests, so
-// the whole environment setup lives here once - a run without the
-// manifest registers no mocks at all and fails on the first
-// mock.*() call.
+// Shared by the test & deploy commands: without the manifest no mock
+// registers at all & the first mock.*() call fails.
 export const withTestEnvironment = async (
 	appConfig: AppConfig,
 	stackConfigs: StackConfig[],
@@ -40,11 +37,8 @@ export const withTestEnvironment = async (
 	const manifest = createTestManifest(appConfig, stackConfigs)
 	const manifestFile = join(directories.output, 'test', 'manifest.json')
 
-	// The heavy resource servers boot ONCE for the whole test
-	// run & every test file namespaces into them, so test
-	// files never race each other over ports. Tables run as a
-	// cheap in-process server per test file instead, so their
-	// stream consumers settle inside the write calls.
+	// Booted once per run & namespaced per test file, so files never
+	// race over ports. Tables stay in-process so streams settle inline.
 	let redis: RedisServer | undefined
 	let killSearch: (() => Promise<void>) | undefined
 	let booting: Promise<void> | undefined

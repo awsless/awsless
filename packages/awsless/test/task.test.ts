@@ -31,7 +31,9 @@ describe('task', () => {
 	it('invokes the task directly in tests', async () => {
 		await work({ n: 1 })
 
-		expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ name: 'app--stack--task--work', payload: { n: 1 } }))
+		expect(invoke).toHaveBeenCalledWith(
+			expect.objectContaining({ name: 'app--stack--task--work', payload: { n: 1 } })
+		)
 		expect(schedule).not.toHaveBeenCalled()
 	})
 

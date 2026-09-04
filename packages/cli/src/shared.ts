@@ -24,6 +24,7 @@ type SharedState = {
 			group: Group
 			bucket: aws.s3.Bucket
 			queue: aws.sqs.Queue
+			deadletter: aws.sqs.Queue
 		}
 	}
 
@@ -66,7 +67,6 @@ type SharedState = {
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 		'security-group-id': Output<string>
-		'persistent-storage-file-system-id': Output<string>
 	}
 
 	search: {
@@ -93,6 +93,10 @@ type SharedEntries = {
 
 	auth: {
 		'user-pool-id': Output<string>
+	}
+
+	instance: {
+		'security-group-id': { name: string; id: Output<string> }
 	}
 
 	rest: {

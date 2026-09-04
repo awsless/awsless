@@ -1,3 +1,5 @@
+import { join } from 'path'
+import { loadWorkspace } from '@awsless/ts-file-cache'
 import { describe, expect, it } from 'vitest'
 import { createTestApp, findStatements, listResources } from './_kit'
 
@@ -46,13 +48,46 @@ describe('instance', () => {
 		expect(logGroup.input.retentionInDays).toBe(3)
 	})
 
+	it('rebuilds the executable when the architecture changes', async () => {
+		const workspace = await loadWorkspace(process.cwd())
+		const file = join(process.cwd(), 'test', '_fixture', 'bundle', 'handlers.ts')
+
+		const fingerprint = async (architecture: 'arm64' | 'x86_64') => {
+			const { builders } = createTestApp({
+				stacks: [
+					{ name: 'stack-1', instances: { worker: { code: { file: { nocheck: file } }, architecture } } },
+				],
+			})
+			const build = builders.find(entry => entry.type === 'instance')!
+			let version: string | undefined
+
+			await build.builder(
+				async fingerprint => {
+					version = fingerprint
+
+					return { size: 'n/a' }
+				},
+				{ workspace }
+			)
+
+			return version
+		}
+
+		const arm = await fingerprint('arm64')
+		const x86 = await fingerprint('x86_64')
+
+		expect(arm).toBeDefined()
+		expect(arm).toBe(await fingerprint('arm64'))
+		expect(arm).not.toBe(x86)
+	})
+
 	it('disables logging with a zero retention', () => {
 		const { app } = createTestApp({
 			stacks: [{ name: 'stack-1', instances: { worker: { code, log: false } } }],
 		})
 
-		expect(listResources(app, 'aws_cloudwatch_log_group').some(meta => meta.input.name.startsWith('/aws/ecs/'))).toBe(
-			false
-		)
+		expect(
+			listResources(app, 'aws_cloudwatch_log_group').some(meta => meta.input.name.startsWith('/aws/ecs/'))
+		).toBe(false)
 	})
 })

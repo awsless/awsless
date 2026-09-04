@@ -3,11 +3,11 @@ import {
 	CognitoIdentityProviderClient,
 	UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider'
-import { Cancelled, log, prompt } from '@awsless/clui'
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
-import { ExpectedError } from '../../../../error.js'
-import { getAccountId, getCredentials } from '../../../../util/aws.js'
+import { Cancelled, ExpectedError } from '../../../../error.js'
 import { layout } from '../../../ui/complex/layout.js'
+import { createClients } from '../../util.js'
 import { askUsername, loadUserPoolId, selectUserPool } from './util.js'
 
 export const del = (program: Command) => {
@@ -18,10 +18,7 @@ export const del = (program: Command) => {
 		.option('--username <username>', 'The username of the user to delete')
 		.action(async (options: { pool?: string; username?: string }) => {
 			await layout('auth user delete', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { name } = await selectUserPool(appConfig, options.pool)
 				const userPoolId = await loadUserPoolId({ appConfig, stackConfigs, accountId, credentials, name })

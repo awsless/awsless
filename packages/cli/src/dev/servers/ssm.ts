@@ -73,7 +73,6 @@ export const createSsmServer = (props: { file: string }) => {
 						const parameters: { Name: string; Type: string; Value: string }[] = []
 
 						for (const name of Names ?? []) {
-							// Config parameters live at /.awsless/<app>/<name>
 							const key = name.split('/').at(-1)!
 
 							// A local override always wins & the pulled ssm value

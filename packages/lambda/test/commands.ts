@@ -1,10 +1,18 @@
 import { bigint, date, object } from '@awsless/validate'
-import { invoke, lambda, listFunctions, mockLambda } from '../src'
+import { ExpectedError, invoke, lambda, listFunctions, mockLambda } from '../src'
 
 describe('Lambda', () => {
 	const mock = mockLambda({
 		echo: payload => payload,
 		noop: () => {},
+		failing: () => ({ __error__: { type: 'not-found', message: 'No such item', data: { id: 1 } } }),
+	})
+
+	it('should rebuild expected errors with their data', async () => {
+		const promise = invoke({ name: 'failing' })
+
+		await expect(promise).rejects.toBeInstanceOf(ExpectedError)
+		await expect(promise).rejects.toMatchObject({ type: 'not-found', message: 'No such item', data: { id: 1 } })
 	})
 
 	it('should list lambda functions', async () => {

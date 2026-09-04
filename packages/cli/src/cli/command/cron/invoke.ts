@@ -13,7 +13,6 @@ export const invoke = (program: Command) => {
 		.description('Invoke a cronjob')
 		.argument('[stack]', 'The stack name of the cronjob')
 		.argument('[name]', 'The name of the cronjob')
-		// .option('-e --encrypt', 'Encrypt the config value')
 		.action(async (stack?: string, name?: string) => {
 			await layout('cron invoke', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
@@ -107,13 +106,6 @@ export const invoke = (program: Command) => {
 				})
 
 				log.note('Response', JSON.stringify(response, undefined, 4))
-
-				// console.log(response)
-
-				// const spin = spinner()
-				// spin.start('Saving remote config parameter')
-				// await params.set(name, value)
-				// spin.stop(`Done saving remote config parameter.`)
 			})
 		})
 }
