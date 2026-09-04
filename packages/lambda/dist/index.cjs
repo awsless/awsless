@@ -198,18 +198,14 @@ const isTestEnv = () => {
 };
 //#endregion
 //#region src/helpers/mock.ts
-const resolveVi = (vi) => {
-	const found = vi ?? globalThis.vi;
-	if (!found) throw new Error("mockLambda needs the vitest globals enabled, or pass { vi } explicitly.");
-	return found;
-};
 const globalList = {};
 const mockLambda = (lambdas, options) => {
+	const vi = (0, _awsless_utils.getVitest)(options?.vi);
 	const alreadyMocked = Object.keys(globalList).length > 0;
-	const list = (0, _awsless_utils.mockObjectValues)(lambdas);
+	const list = (0, _awsless_utils.mockObjectValues)(lambdas, vi.fn);
 	Object.assign(globalList, list);
 	if (alreadyMocked) return list;
-	resolveVi(options?.vi).spyOn(_aws_sdk_client_lambda.LambdaClient.prototype, "send").mockImplementation((async (command) => {
+	vi.spyOn(_aws_sdk_client_lambda.LambdaClient.prototype, "send").mockImplementation((async (command) => {
 		if (command instanceof _aws_sdk_client_lambda.ListFunctionsCommand) return {
 			$metadata: {},
 			Functions: [{

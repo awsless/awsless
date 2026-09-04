@@ -123,31 +123,25 @@ ${entries.join('\n')}
 		const fingerprint = hash.digest('hex')
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`bundle--${props.name}`)
+			await using temp = await createTempFolder(`bundle--${props.name}`)
 			const entryFile = join(temp.path, 'entry.ts')
 
-			let bundle
+			await writeFile(entryFile, entry)
 
-			try {
-				await writeFile(entryFile, entry)
+			const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
+			const moduleSideEffects = handlers.flatMap(handler => handler.moduleSideEffects ?? [])
 
-				const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
-				const moduleSideEffects = handlers.flatMap(handler => handler.moduleSideEffects ?? [])
-
-				bundle = await bundleTypeScriptWithRolldown({
-					file: entryFile,
-					minify: props.minify,
-					external: [
-						'./awsless-env.mjs', // The env file is generated at deploy time.
-						...(props.external ?? []),
-						...handlers.flatMap(handler => handler.external ?? []),
-					],
-					importAsString: importAsString.length > 0 ? importAsString : undefined,
-					moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
-				})
-			} finally {
-				await temp.delete()
-			}
+			const bundle = await bundleTypeScriptWithRolldown({
+				file: entryFile,
+				minify: props.minify,
+				external: [
+					'./awsless-env.mjs', // The env file is generated at deploy time.
+					...(props.external ?? []),
+					...handlers.flatMap(handler => handler.external ?? []),
+				],
+				importAsString: importAsString.length > 0 ? importAsString : undefined,
+				moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
+			})
 
 			// The new output lands next to the old chunks before the stale
 			// ones go: the dev worker of the previous build still lazily

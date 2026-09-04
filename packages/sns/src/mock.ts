@@ -16,6 +16,12 @@ export const mockSNS = <T extends Topics>(topics: T) => {
 
 	Object.assign(globalList, list)
 
+	beforeEach(() => {
+		for (const fn of Object.values(list)) {
+			fn.mockClear()
+		}
+	})
+
 	if (alreadyMocked) {
 		return list
 	}
@@ -44,12 +50,6 @@ export const mockSNS = <T extends Topics>(topics: T) => {
 				],
 			})
 		})
-
-	beforeEach(() => {
-		Object.values(list).forEach(fn => {
-			fn.mockClear()
-		})
-	})
 
 	return list
 }

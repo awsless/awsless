@@ -477,13 +477,18 @@ export const createBundleWorker = (props: {
 
 					body = await res.json()
 				} catch (error) {
-					// A bare "fetch failed" hides that the handler took its
-					// worker down mid-request.
-					if (
+					// The socket can drop before the exit event lands, so give
+					// the process a moment before deciding whether it crashed.
+					const hasExited = () =>
 						worker.exited !== undefined ||
 						worker.child.exitCode !== null ||
 						worker.child.signalCode !== null
-					) {
+
+					for (let i = 0; i < 10 && !hasExited(); i++) {
+						await new Promise(resolve => setTimeout(resolve, 25))
+					}
+
+					if (hasExited()) {
 						throw new WorkerError(
 							'WorkerCrashed',
 							`The bundle worker exited (${worker.child.signalCode ?? `code ${worker.child.exitCode}`}) while handling the request.`

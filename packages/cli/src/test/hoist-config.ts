@@ -1,43 +1,10 @@
+import { parseSync } from 'rolldown/utils'
+
 // Top level `mock.config.<name> = value` lines hoist above the imports
 // like vi.mock, so import time Config reads already see them.
 
 const HOIST_PATTERN = /^mock\.config\.[A-Za-z_$][\w$]*\s*=\s*[^=].*?;?\s*$/
 const VIRTUAL_PREFIX = 'awsless:hoisted-config:'
-
-// A hoisted line runs alone in the virtual module, so an unclosed
-// bracket or quote there would only surface as a cryptic syntax error.
-const isBalanced = (line: string) => {
-	const stack: string[] = []
-	let quote: string | undefined
-
-	for (let i = 0; i < line.length; i++) {
-		const char = line[i]!
-
-		if (quote) {
-			if (char === '\\') {
-				i++
-			} else if (char === quote) {
-				quote = undefined
-			}
-
-			continue
-		}
-
-		if (char === '"' || char === "'" || char === '`') {
-			quote = char
-		} else if (char === '(' || char === '[' || char === '{') {
-			stack.push(char)
-		} else if (char === ')' || char === ']' || char === '}') {
-			const open = stack.pop()
-
-			if ((char === ')' && open !== '(') || (char === ']' && open !== '[') || (char === '}' && open !== '{')) {
-				return false
-			}
-		}
-	}
-
-	return stack.length === 0 && quote === undefined
-}
 
 export const hoistConfigPlugin = () => ({
 	name: 'awsless:hoist-mock-config',
@@ -71,7 +38,8 @@ export const hoistConfigPlugin = () => ({
 			// Only single line statements at column zero hoist - anything
 			// nested runs in place, like vi.mock.
 			if (HOIST_PATTERN.test(line)) {
-				if (!isBalanced(line)) {
+				// Hoisted lines run as modules, where await and import.meta are valid.
+				if (parseSync('hoisted-config.mjs', line).errors.length > 0) {
 					throw new Error(
 						`${id}:${index + 1}: a hoisted mock.config assignment must fit on one line - move the value into a variable or close it on the same line.`
 					)

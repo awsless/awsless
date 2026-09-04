@@ -118,7 +118,7 @@ type Lambdas = {
 };
 declare const mockLambda: <T extends Lambdas>(lambdas: T, options?: {
   vi?: Vitest['vi'];
-}) => { [P in keyof T]: Mock<(...args: any[]) => any>; };
+}) => { [K in keyof T]: Mock<T[K]>; };
 //#endregion
 //#region src/lambda.d.ts
 interface Options<H extends Handler<S>, S extends Schema = undefined> {

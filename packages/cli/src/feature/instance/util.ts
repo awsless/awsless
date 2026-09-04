@@ -54,22 +54,18 @@ export const createFargateTask = (
 		const fingerprint = [await generateFileHash(workspace, local.code.file), props.architecture].join(':')
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`instance--${name}`)
+			await using temp = await createTempFolder(`instance--${name}`)
 
-			try {
-				const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
+			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
 
-				await Promise.all([
-					//
-					write('HASH', executable.hash),
-					write('program', executable.file),
-				])
+			await Promise.all([
+				//
+				write('HASH', executable.hash),
+				write('program', executable.file),
+			])
 
-				return {
-					size: formatByteSize(executable.file.byteLength),
-				}
-			} finally {
-				await temp.delete()
+			return {
+				size: formatByteSize(executable.file.byteLength),
 			}
 		})
 	})
@@ -235,14 +231,17 @@ export const createFargateTask = (
 							protocol: 'tcp',
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
+							// Reuse the downloaded program until its code hash changes.
 							command: [
-								[
-									...(props.startupCommand ?? []),
-									// A custom image may lack the aws cli. The download is
-									// skipped while a persisted program matches the code hash.
-									`if [ "$(cat /usr/app/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program.tmp && mv /usr/app/program.tmp /usr/app/program && chmod +x /usr/app/program && echo "$CODE_HASH" > /usr/app/.code-hash; fi`,
-									`exec /usr/app/program`,
-								].join(' && '),
+								`${props.startupCommand?.length ? props.startupCommand.join(' && ') + ' &&' : ''}
+if [ "$(cat /usr/app/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then
+	command -v aws >/dev/null 2>&1 || dnf install -y awscli &&
+	aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program.tmp &&
+	mv /usr/app/program.tmp /usr/app/program &&
+	chmod +x /usr/app/program &&
+	echo "$CODE_HASH" > /usr/app/.code-hash
+fi &&
+exec /usr/app/program`,
 							],
 
 							environment: Object.entries(data).map(([name, value]) => ({

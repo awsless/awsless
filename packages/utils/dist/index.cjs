@@ -13,24 +13,25 @@ const globalClient = (factory) => {
 };
 //#endregion
 //#region src/mock.ts
-const mockObjectValues = (object) => {
+const getVitest = (provided) => {
+	const vi = provided ?? globalThis.vi;
+	if (!vi) throw new Error("Enable vitest globals or pass vi explicitly (vi.fn for mockFn and mockObjectValues).");
+	return vi;
+};
+const mockObjectValues = (object, createMock) => {
 	const list = {};
-	Object.entries(object).forEach(([key, value]) => {
-		list[key] = mockFn(value);
-	});
+	for (const [key, value] of Object.entries(object)) list[key] = mockFn(value, createMock);
 	return Object.freeze(list);
 };
-const mockFn = (fn) => {
-	return vi ? vi.fn(fn) : fn;
+const mockFn = (fn, createMock) => {
+	return (createMock ?? getVitest().fn)(fn);
 };
-const nextTick = (fn, ...args) => {
-	return new Promise((resolve) => {
-		setTimeout(() => {
-			resolve(fn(...args));
-		}, 0);
-	});
+const nextTick = async (fn, ...args) => {
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	return fn(...args);
 };
 //#endregion
+exports.getVitest = getVitest;
 exports.globalClient = globalClient;
 exports.mockFn = mockFn;
 exports.mockObjectValues = mockObjectValues;

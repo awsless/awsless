@@ -1,2 +1,2 @@
 export { globalClient } from './client'
-export { mockObjectValues, mockFn, nextTick } from './mock'
+export { getVitest, mockObjectValues, mockFn, nextTick } from './mock'

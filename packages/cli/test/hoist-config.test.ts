@@ -30,4 +30,26 @@ describe('mock.config hoisting', () => {
 		expect(() => transform(`mock.config.settings = {\n\ta: 1,\n}\n`)).toThrow(/handler\.test\.ts:1: .*one line/)
 		expect(() => transform(`mock.config.name = 'unterminated\n`)).toThrow(/one line/)
 	})
+	it('should ignore a trailing comment when checking the assignment', () => {
+		const result = transform(
+			`mock.config.greeting = 'special' // don't use production\nimport handler from '../src/handler'\n`
+		)
+
+		expect(result?.code).toMatch(/^import "awsless:hoisted-config:/)
+	})
+	it('should accept regex literals with brackets in the value', () => {
+		const result = transform(`mock.config.pattern = /[)]/.source\nimport handler from '../src/handler'\n`)
+
+		expect(result?.code).toMatch(/^import "awsless:hoisted-config:/)
+	})
+	it.each([`mock.config.answer = await Promise.resolve('ok')`, `mock.config.url = import.meta.url`])(
+		'accepts module syntax: %s',
+		code => {
+			const result = transform(code)
+			const id = result!.code.match(/"(awsless:hoisted-config:[^"]+)"/)![1]!
+			const plugin = hoistConfigPlugin()
+
+			expect(plugin.load(plugin.resolveId(id)!)).toBe(`import { mock } from 'awsless'\n${code}\n`)
+		}
+	)
 })

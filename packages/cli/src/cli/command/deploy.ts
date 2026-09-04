@@ -29,6 +29,7 @@ export const deploy = (program: Command) => {
 		.description('Deploy your app to AWS')
 		.action(async (options: { skipTests: boolean; import: boolean }) => {
 			await layout('deploy', async ({ appConfig, stackConfigs }) => {
+				const startedAt = new Date()
 				const {
 					region,
 					credentials,
@@ -110,7 +111,7 @@ export const deploy = (program: Command) => {
 				// The claim comes after the prompt & the tests, so a declined
 				// or failing deploy doesn't burn a sequence number.
 
-				const deployment = await claimDeployment({ client: dynamo, appId: globalAppId })
+				const deployment = await claimDeployment({ client: dynamo, appId: globalAppId, startedAt })
 
 				const { app, builders, ready } = createApp({
 					appConfig,

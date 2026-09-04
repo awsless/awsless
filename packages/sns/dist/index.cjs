@@ -36,6 +36,9 @@ const mockSNS = (topics) => {
 	const alreadyMocked = Object.keys(globalList).length > 0;
 	const list = (0, _awsless_utils.mockObjectValues)(topics);
 	Object.assign(globalList, list);
+	beforeEach(() => {
+		for (const fn of Object.values(list)) fn.mockClear();
+	});
 	if (alreadyMocked) return list;
 	(0, aws_sdk_client_mock.mockClient)(_aws_sdk_client_sns.SNSClient).on(_aws_sdk_client_sns.PublishCommand).callsFake(async (input) => {
 		const parts = input.TopicArn?.split(":") ?? "";
@@ -48,11 +51,6 @@ const mockSNS = (topics) => {
 			Timestamp: (/* @__PURE__ */ new Date()).toISOString(),
 			Message: input.Message
 		} }] });
-	});
-	beforeEach(() => {
-		Object.values(list).forEach((fn) => {
-			fn.mockClear();
-		});
 	});
 	return list;
 };

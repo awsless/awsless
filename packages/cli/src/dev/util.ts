@@ -103,10 +103,13 @@ const signalChild = (child: ChildProcess, signal: NodeJS.Signals) => {
 }
 
 export const stopChild = async (child: ChildProcess | undefined, gracePeriod = 5000) => {
-	// A child already dead by signal keeps exitCode null forever, so
-	// waiting for its exit event would hang the shutdown.
-	if (child && child.exitCode === null && child.signalCode === null) {
-		const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+	// A child already dead by signal keeps exitCode null forever, and one
+	// that never spawned emits error without exit, so neither may be awaited.
+	if (child && child.pid && child.exitCode === null && child.signalCode === null) {
+		const exited = new Promise<void>(resolve => {
+			child.once('exit', () => resolve())
+			child.once('error', () => resolve())
+		})
 		signalChild(child, 'SIGTERM')
 
 		// A child that survives the sigterm (like a program with its own

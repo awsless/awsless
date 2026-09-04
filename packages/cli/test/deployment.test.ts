@@ -608,6 +608,16 @@ describe('deployment claims', () => {
 		expect(aws.manifest.size).toBe(2)
 	})
 
+	it('should stamp the claim with the run start so a slower older run cannot outrank a newer release', async () => {
+		mockAws()
+		const { dynamo } = clients()
+		const startedAt = new Date('2026-01-01T00:00:00.000Z')
+
+		const deployment = await claimDeployment({ client: dynamo, appId, startedAt })
+
+		expect(deployment.createdAt).toBe(startedAt.toISOString())
+	})
+
 	it('should ignore sibling branches that share the id prefix', async () => {
 		const aws = mockAws()
 		const { dynamo } = clients()

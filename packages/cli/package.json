@@ -69,6 +69,7 @@
 		"@opensearch-project/opensearch": "3.6.0",
 		"@terraforge/aws": "6.53.0",
 		"@terraforge/core": "0.0.45",
+		"@terraforge/terraform": "0.0.35",
 		"@types/aws-lambda": "8.10.162",
 		"@types/bun": "1.3.14",
 		"@types/chunk": "0.0.2",

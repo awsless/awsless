@@ -191,29 +191,23 @@ export default (event, context) => {
 	return handle(event, context)
 }
 `
-			const temp = await createTempFolder(name)
+			await using temp = await createTempFolder(name)
 			const entryFile = join(temp.path, 'entry.ts')
 
-			let result
+			await writeFile(entryFile, entry)
 
-			try {
-				await writeFile(entryFile, entry)
-
-				result = await bundleTypeScriptWithRolldown({
-					file: entryFile,
-					minify: props.code.minify,
-					external: [
-						// The env file is generated at deploy time.
-						'./awsless-env.mjs',
-						...(props.code.external ?? []),
-						...(props.external ?? []),
-					],
-					moduleSideEffects: props.code.moduleSideEffects,
-					importAsString: props.code.importAsString,
-				})
-			} finally {
-				await temp.delete()
-			}
+			const result = await bundleTypeScriptWithRolldown({
+				file: entryFile,
+				minify: props.code.minify,
+				external: [
+					// The env file is generated at deploy time.
+					'./awsless-env.mjs',
+					...(props.code.external ?? []),
+					...(props.external ?? []),
+				],
+				moduleSideEffects: props.code.moduleSideEffects,
+				importAsString: props.code.importAsString,
+			})
 
 			// Clear out the stale chunks from the previous build.
 			await rm(getBuildPath('function', name, 'files'), { recursive: true, force: true })

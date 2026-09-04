@@ -92,7 +92,13 @@ const latestBranchDeployment = async (client: DynamoDBClient, appId: string, bra
 	return items.toSorted((a, b) => b.seq - a.seq)[0]
 }
 
-export const claimDeployment = async (props: { client: DynamoDBClient; appId: string }): Promise<Deployment> => {
+// The claim happens after the tests, so the run's start time is what
+// orders it: a slower older run must not outrank a release that started later.
+export const claimDeployment = async (props: {
+	client: DynamoDBClient
+	appId: string
+	startedAt?: Date
+}): Promise<Deployment> => {
 	const branch = slugifyBranch(currentBranch())
 
 	// Retry when a concurrent deploy claims the same sequence number.
@@ -104,7 +110,7 @@ export const claimDeployment = async (props: { client: DynamoDBClient; appId: st
 			id: `${branch}-${seq}`,
 			branch,
 			seq,
-			createdAt: new Date().toISOString(),
+			createdAt: (props.startedAt ?? new Date()).toISOString(),
 			user: currentUser(),
 			commit: currentCommit(),
 			message: currentCommitMessage(),

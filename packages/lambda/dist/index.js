@@ -1,6 +1,6 @@
 import { InvokeCommand, LambdaClient, LambdaClient as LambdaClient$1, ListFunctionsCommand } from "@aws-sdk/client-lambda";
 import { parse, patch, stringify, unpatch } from "@awsless/json";
-import { globalClient, mockObjectValues, nextTick } from "@awsless/utils";
+import { getVitest, globalClient, mockObjectValues, nextTick } from "@awsless/utils";
 import { ValiError, applyRedaction, parse as parse$1 } from "@awsless/validate";
 import { AsyncLocalStorage } from "node:async_hooks";
 //#region src/errors/expected.ts
@@ -197,18 +197,14 @@ const isTestEnv = () => {
 };
 //#endregion
 //#region src/helpers/mock.ts
-const resolveVi = (vi) => {
-	const found = vi ?? globalThis.vi;
-	if (!found) throw new Error("mockLambda needs the vitest globals enabled, or pass { vi } explicitly.");
-	return found;
-};
 const globalList = {};
 const mockLambda = (lambdas, options) => {
+	const vi = getVitest(options?.vi);
 	const alreadyMocked = Object.keys(globalList).length > 0;
-	const list = mockObjectValues(lambdas);
+	const list = mockObjectValues(lambdas, vi.fn);
 	Object.assign(globalList, list);
 	if (alreadyMocked) return list;
-	resolveVi(options?.vi).spyOn(LambdaClient$1.prototype, "send").mockImplementation((async (command) => {
+	vi.spyOn(LambdaClient$1.prototype, "send").mockImplementation((async (command) => {
 		if (command instanceof ListFunctionsCommand) return {
 			$metadata: {},
 			Functions: [{

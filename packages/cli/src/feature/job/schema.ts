@@ -102,8 +102,13 @@ const StartupCommandSchema = z
 	.union([z.string().transform(v => [v]), z.string().array()])
 	.describe('Optional shell commands to run before the job executable is downloaded and started.')
 
+const RemovedStorageSchema = z
+	.never({ error: 'The job persistentStorage option was removed, drop it from the config.' })
+	.optional()
+
 const ASchema = z.object({
 	code: CodeSchema,
+	persistentStorage: RemovedStorageSchema,
 	image: ImageSchema.optional(),
 	startupCommand: StartupCommandSchema.optional(),
 	log: LogSchema.optional(),
@@ -129,6 +134,7 @@ export type JobProps = z.output<typeof ASchema>
 export const JobDefaultSchema = z
 	.object({
 		image: ImageSchema.optional(),
+		persistentStorage: RemovedStorageSchema,
 		cpu: CpuSchema.prefault(0.25),
 		memorySize: MemorySizeSchema.prefault('512 MB'),
 		architecture: ArchitectureSchema.default('arm64'),

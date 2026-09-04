@@ -44,22 +44,18 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 		const fingerprint = [await generateFileHash(workspace, local.code.file), props.architecture].join(':')
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`job--${name}`)
+			await using temp = await createTempFolder(`job--${name}`)
 
-			try {
-				const executable = await buildJobExecutable(local.code.file, temp.path, props.architecture)
+			const executable = await buildJobExecutable(local.code.file, temp.path, props.architecture)
 
-				await Promise.all([
-					//
-					write('HASH', executable.hash),
-					write('program', executable.file),
-				])
+			await Promise.all([
+				//
+				write('HASH', executable.hash),
+				write('program', executable.file),
+			])
 
-				return {
-					size: formatByteSize(executable.file.byteLength),
-				}
-			} finally {
-				await temp.delete()
+			return {
+				size: formatByteSize(executable.file.byteLength),
 			}
 		})
 	})
@@ -227,14 +223,17 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 							image,
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
+							// Reuse the downloaded program until its code hash changes.
 							command: [
-								[
-									...(props.startupCommand?.length ? [props.startupCommand.join(' && ')] : []),
-									// A custom image may lack the aws cli. The download is
-									// skipped while a persisted program matches the code hash.
-									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program.tmp && mv /root/program.tmp /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
-									`exec timeout --kill-after=10 ${toSeconds(props.timeout)} /root/program`,
-								].join(' && '),
+								`${props.startupCommand?.length ? props.startupCommand.join(' && ') + ' &&' : ''}
+if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then
+	command -v aws >/dev/null 2>&1 || dnf install -y awscli &&
+	aws s3 cp s3://${s3Bucket}/${s3Key} /root/program.tmp &&
+	mv /root/program.tmp /root/program &&
+	chmod +x /root/program &&
+	echo "$CODE_HASH" > /root/.code-hash
+fi &&
+exec timeout --kill-after=10 ${toSeconds(props.timeout)} /root/program`,
 							],
 
 							environment: Object.entries(data).map(([name, value]) => ({

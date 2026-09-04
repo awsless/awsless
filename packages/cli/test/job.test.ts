@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { JobsSchema } from '../src/feature/job/schema'
 import { createTestApp, findStatements, listResources } from './_kit'
 
 const code = { file: { nocheck: './export.ts' } }
@@ -37,5 +38,12 @@ describe('job', () => {
 		expect(statement!.conditions).toEqual({
 			StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' },
 		})
+	})
+	it('rejects the removed persistentStorage option instead of dropping it', () => {
+		const result = JobsSchema.safeParse({ export: { code, persistentStorage: true } })
+
+		expect(result.success).toBe(false)
+		expect(JSON.stringify(result.error?.issues)).toContain('persistentStorage option was removed')
+		expect(JobsSchema.safeParse({ export: { code } }).success).toBe(true)
 	})
 })
