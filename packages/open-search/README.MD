@@ -1,12 +1,9 @@
 ### Local testing
 
-The to run a local open-search server you need to install openjdk.
-And point the JAVA_HOME env var to the correct place.
+`mockOpenSearch()` boots an in-memory OpenSearch server from `@awsless/open-search-server`, so tests need no JDK, no download & no network. It covers the basics (index lifecycle, document CRUD, bulk, the common query clauses, sorting & a few aggregations) & rejects anything else with a clear error instead of guessing.
 
-```
-brew install openjdk
-```
+The real distribution stays available as an opt-in engine, which needs a local JDK 21+ on macOS:
 
-```
-export JAVA_HOME="/opt/homebrew/opt/openjdk"
+```ts
+mockOpenSearch({ engine: 'opensearch' })
 ```

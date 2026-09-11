@@ -4,6 +4,7 @@ import { dirname, join } from 'path'
 import { promisify } from 'util'
 import treeKill from 'tree-kill'
 import { directories } from '../util/path.js'
+import { childProxyEnv } from '../util/remote-agent.js'
 
 // Dev child processes must never outlive the dev command. The graceful
 // stop already walks every server's stop chain, but a hard kill of the
@@ -38,8 +39,39 @@ const persist = async () => {
 }
 
 // Spawn a long lived dev child, tracked for the exit hook & pid file.
+// Sandboxes route traffic through a proxy with its own CA. A child
+// with a scoped env must still trust it like the cli process does.
+const proxyEnvNames = [
+	'NODE_EXTRA_CA_CERTS',
+	'SSL_CERT_FILE',
+	'SSL_CERT_DIR',
+	'HTTP_PROXY',
+	'HTTPS_PROXY',
+	'NO_PROXY',
+	'http_proxy',
+	'https_proxy',
+	'no_proxy',
+]
+
+export const proxyEnv = () => {
+	const env: Record<string, string> = {}
+
+	for (const name of proxyEnvNames) {
+		const value = childProxyEnv(name)
+
+		if (value) {
+			env[name] = value
+		}
+	}
+
+	return env
+}
+
 export const spawnDevChild = (command: string, args: string[], options: SpawnOptions = {}) => {
-	const child = spawn(command, args, options)
+	const child = spawn(command, args, {
+		...options,
+		env: options.env ? { ...proxyEnv(), ...options.env } : options.env,
+	})
 
 	if (child.pid) {
 		tracked.set(child.pid, { pid: child.pid, command: [command, ...args].join(' ') })

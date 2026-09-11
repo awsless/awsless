@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/redis",
-	"version": "0.1.14",
+	"version": "0.1.16",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -31,11 +31,11 @@
 	"dependencies": {
 		"@awsless/big-float": "workspace:^",
 		"@awsless/duration": "workspace:^",
+		"@awsless/redis-server": "workspace:^",
 		"@heat/request-port": "0.0.1",
 		"@types/chunk": "0.0.2",
 		"chunk": "0.0.3",
-		"ioredis": "6.0.0",
-		"redis-memory-server": "0.17.1"
+		"ioredis": "6.0.0"
 	},
 	"peerDependencies": {
 		"@awsless/big-float": "workspace:^",

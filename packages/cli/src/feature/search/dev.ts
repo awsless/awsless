@@ -1,27 +1,9 @@
-import { download, launch, VERSION_3_5_0_MIN } from '@awsless/open-search'
+import { OpenSearchServer } from '@awsless/open-search-server'
 import { Client } from '@opensearch-project/opensearch'
-import { findFreePort } from '../../dev/util.js'
+import { localEngine } from '../../dev/engine.js'
 import { DevContext } from '../../feature.js'
 import { applySearchIndex } from '../../formation/open-search.js'
 import { formatSearchIndexName, resolveSearchMappings } from './util.js'
-
-const waitForSearch = async (port: number, timeoutMs: number) => {
-	const deadline = Date.now() + timeoutMs
-
-	while (Date.now() < deadline) {
-		try {
-			const res = await fetch(`http://localhost:${port}`)
-
-			if (res.ok) {
-				return
-			}
-		} catch {}
-
-		await new Promise(resolve => setTimeout(resolve, 500))
-	}
-
-	throw new Error('The local OpenSearch server never became ready.')
-}
 
 export const searchOnDev = async (ctx: DevContext) => {
 	const indexes = ctx.stackConfigs.flatMap(stack => {
@@ -32,14 +14,11 @@ export const searchOnDev = async (ctx: DevContext) => {
 		return
 	}
 
-	// The same real OpenSearch min distribution that the search tests
-	// run against - it needs a local JDK 21+, which launch resolves.
-	// The server is slow to boot, so it survives dev restarts & the
-	// declared indexes reapply on every run.
+	// The same server the search tests run against: in-memory by
+	// default, the real distribution with AWSLESS_LOCAL_ENGINE=real. It
+	// survives dev restarts so indexed data stays put, and the declared
+	// indexes reapply on every run.
 	const { port, sink } = await ctx.keep('opensearch', null, async () => {
-		const port = await findFreePort()
-		const path = await download(VERSION_3_5_0_MIN)
-
 		const sink: {
 			health?: (status: 'up' | 'down', detail?: string) => void
 			log?: (line: string) => void
@@ -47,18 +26,15 @@ export const searchOnDev = async (ctx: DevContext) => {
 			crashed?: string
 		} = { tail: [] }
 
-		const kill = await launch({
-			path,
-			port,
-			host: 'localhost',
-			version: VERSION_3_5_0_MIN,
-			debug: false,
+		const server = new OpenSearchServer({
+			engine: localEngine() === 'real' ? 'opensearch' : 'memory',
 			onExit(code, signal) {
 				sink.crashed = code !== null ? `exited with code ${code}` : `killed by ${signal}`
 				sink.health?.('down', sink.crashed)
 			},
-			// The output streams to the dashboard's search panels, with a
-			// short tail replayed into every fresh run's event bus.
+			// The real server's output streams to the dashboard's search
+			// panel, with a short tail replayed into every fresh run's
+			// event bus.
 			onOutput(line) {
 				sink.tail.push(line)
 
@@ -70,9 +46,9 @@ export const searchOnDev = async (ctx: DevContext) => {
 			},
 		})
 
-		await waitForSearch(port, 60_000)
+		await server.listen()
 
-		return { value: { port, sink }, stop: kill }
+		return { value: { port: server.port, sink }, stop: () => server.close() }
 	})
 
 	// The health & log sinks swap every run - a crash while no run

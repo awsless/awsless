@@ -5,12 +5,10 @@ export { searchClient, isServerlessEndpoint } from './client'
 
 // mock
 export { mockOpenSearch } from './mock'
-export { VERSION_3_5_0_MIN } from './server/version'
-export type { VersionArgs } from './server/version'
 
-// local server, used by the awsless local dev environment
-export { download } from './server/download'
-export { launch } from './server/launch'
+// The local server helpers live in the server package, re-exported so
+// existing callers keep working.
+export { download, launch, VERSION_3_5_0_MIN, type VersionArgs } from '@awsless/open-search-server'
 
 // table
 export { define, type Table, type AnyTable } from './table'

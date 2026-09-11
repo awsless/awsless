@@ -1,5 +1,6 @@
 import { RedisServer } from '@awsless/redis'
 import { constantCase } from 'change-case'
+import { localEngine } from '../../dev/engine.js'
 import { DevContext } from '../../feature.js'
 
 // Every cache runs as its own local redis instance, mirroring the one
@@ -19,7 +20,7 @@ export const cacheOnDev = async (ctx: DevContext) => {
 		// registry - a crash while no run listened still reports through
 		// the crashed marker.
 		const { port, sink } = await ctx.keep(`cache:${stackName}:${id}`, null, async () => {
-			const server = new RedisServer()
+			const server = new RedisServer({ engine: localEngine() === 'real' ? 'redis' : 'memory' })
 
 			await server.start()
 			await server.ping()

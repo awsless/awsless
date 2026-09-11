@@ -1,7 +1,7 @@
-import { watch } from 'fs'
 import { basename, sep } from 'path'
 import { debug } from '../../cli/debug.js'
 import { ProgramOptions } from '../../cli/program.js'
+import { watchTree } from '../../dev/watch-tree.js'
 import { validateFeatures } from '../../feature/validate.js'
 import { directories } from '../../util/path.js'
 import { AppConfig } from '../app.js'
@@ -25,16 +25,9 @@ export const watchConfig = async (
 
 	debug('Start watching...')
 
-	// One native recursive watcher instead of chokidar: chokidar arms a
-	// watcher per directory, which takes minutes on big projects &
-	// starves the dev servers before it ever gets ready.
 	let reloadTimer: ReturnType<typeof setTimeout> | undefined
 
-	const watcher = watch(directories.root, { recursive: true }, (_event, filename) => {
-		if (!filename) {
-			return
-		}
-
+	const watcher = await watchTree(directories.root, ignoredDirectories, filename => {
 		if (filename.split(sep).some(segment => ignoredDirectories.has(segment))) {
 			return
 		}

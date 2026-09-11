@@ -6,7 +6,7 @@ The `awsless/redis` package provides a small and tree-shakable layer around iore
 
 - **Namespaced API** - The API is designed to be more clear by namespacing the API functionality by data-type.
 - **Tree-shakable** - The API is designed to balance tree-shakability vs providing a fully typed API.
-- **Testing** - We provide a local Redis server and mock that will route all Redis requests to your local Redis server.
+- **Testing** - We provide an in-memory Redis server and mock that will route all Redis requests to it, without installing or downloading redis.
 
 ## Recommended
 
@@ -53,6 +53,8 @@ const receivers = await redis.pubsub.publish(client, 'channel', 'message')
 ```
 
 # Local Development / Testing
+
+`mockRedis()` boots the in-memory server from `@awsless/redis-server` for the test file, so no redis binary, download or network is needed. The real binary stays available as an opt-in engine with `mockRedis({ engine: 'redis' })`.
 
 ```ts
 import { mockRedis, createRedisClient } from '@awsless/redis'

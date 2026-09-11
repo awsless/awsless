@@ -1,37 +1,25 @@
-import { requestPort } from '@heat/request-port'
+import { OpenSearchEngineKind, OpenSearchServer, VersionArgs } from '@awsless/open-search-server'
 import { mockClient } from './client'
-import { download } from './server/download'
-import { launch } from './server/launch'
-import { VERSION_3_5_0_MIN, VersionArgs } from './server/version'
-import { wait } from './server/wait'
 
 type Options = {
+	// 'memory' (default) runs the in-process server, 'opensearch' the real
+	// distribution.
+	engine?: OpenSearchEngineKind
+	// Real engine only.
 	version?: VersionArgs
 	debug?: boolean
 }
 
-export const mockOpenSearch = ({ version = VERSION_3_5_0_MIN, debug = false }: Options = {}) => {
+export const mockOpenSearch = ({ engine, version, debug }: Options = {}) => {
 	beforeAll &&
 		beforeAll(async () => {
-			const [port, release] = await requestPort()
+			const server = new OpenSearchServer({ engine, version, debug })
+			await server.listen()
 
-			const host = 'localhost'
-			const path = await download(version)
-			const kill = await launch({
-				path,
-				port,
-				host,
-				version,
-				debug,
-			})
-
-			mockClient(host, port)
-
-			await wait()
+			mockClient(server.host, server.port)
 
 			return async () => {
-				await kill()
-				await release()
+				await server.close()
 			}
 		}, 1000 * 1000)
 }
