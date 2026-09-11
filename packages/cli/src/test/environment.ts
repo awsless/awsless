@@ -1,29 +1,12 @@
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { OpenSearchServer } from '@awsless/open-search-server'
 import { RedisServer } from '@awsless/redis'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
-import { findFreePort } from '../dev/util.js'
+import { localEngine } from '../dev/engine.js'
 import { directories } from '../util/path.js'
 import { createTestManifest, TestManifest } from './manifest.js'
-
-const waitForSearch = async (port: number, timeoutMs: number) => {
-	const deadline = Date.now() + timeoutMs
-
-	while (Date.now() < deadline) {
-		try {
-			const res = await fetch(`http://localhost:${port}`)
-
-			if (res.ok) {
-				return
-			}
-		} catch {}
-
-		await new Promise(resolve => setTimeout(resolve, 500))
-	}
-
-	throw new Error('The local OpenSearch server never became ready.')
-}
 
 // Builds the test manifest & boots the shared resource servers
 // around a test run. The test & deploy commands both run tests, so
@@ -46,7 +29,7 @@ export const withTestEnvironment = async (
 	// cheap in-process server per test file instead, so their
 	// stream consumers settle inside the write calls.
 	let redis: RedisServer | undefined
-	let killSearch: (() => Promise<void>) | undefined
+	let search: OpenSearchServer | undefined
 	let booting: Promise<void> | undefined
 
 	// The boots are deferred until a stack actually misses the test
@@ -56,26 +39,14 @@ export const withTestEnvironment = async (
 			manifest.servers = {}
 
 			if (manifest.searches.length > 0) {
-				const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
+				search = new OpenSearchServer({ engine: localEngine() === 'real' ? 'opensearch' : 'memory' })
+				await search.listen()
 
-				const port = await findFreePort()
-				const path = await download(VERSION_3_5_0_MIN)
-
-				killSearch = await launch({
-					path,
-					port,
-					host: 'localhost',
-					version: VERSION_3_5_0_MIN,
-					debug: false,
-				})
-
-				await waitForSearch(port, 60_000)
-
-				manifest.servers.search = { endpoint: `http://localhost:${port}` }
+				manifest.servers.search = { endpoint: `http://localhost:${search.port}` }
 			}
 
 			if (manifest.caches.length > 0) {
-				redis = new RedisServer()
+				redis = new RedisServer({ engine: localEngine() === 'real' ? 'redis' : 'memory' })
 				// Every vitest worker isolates into its own database.
 				await redis.start(undefined, undefined, ['--databases', '256'])
 				await redis.ping()
@@ -96,6 +67,6 @@ export const withTestEnvironment = async (
 		return await run({ manifest, manifestFile, ensureReady })
 	} finally {
 		await redis?.kill()
-		await killSearch?.()
+		await search?.close()
 	}
 }

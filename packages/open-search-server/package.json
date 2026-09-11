@@ -1,0 +1,40 @@
+{
+	"name": "@awsless/open-search-server",
+	"version": "0.0.3",
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"test": "pnpm vitest run -c ../../vitest.shared.ts",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@types/decompress": "4.2.7",
+		"@types/find-cache-dir": "5.0.2",
+		"decompress": "4.2.1",
+		"find-cache-directory": "6.0.0"
+	},
+	"devDependencies": {
+		"@opensearch-project/opensearch": "3.6.0"
+	}
+}

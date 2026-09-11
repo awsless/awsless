@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { applyRemoteAgentEnv } from '../util/remote-agent.js'
 import { commands } from './command/index.js'
 import { logo } from './ui/logo.js'
 
@@ -29,6 +30,8 @@ program.exitOverride(error => {
 program.on('option:skip-prompt', () => {
 	process.env.SKIP_PROMPT = program.opts().skipPrompt ? '1' : undefined
 })
+
+applyRemoteAgentEnv()
 
 program.on('option:no-cache', () => {
 	process.env.NO_CACHE = program.opts().cache === false ? '1' : undefined

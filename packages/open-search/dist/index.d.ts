@@ -1,4 +1,5 @@
 import { Client, ClientOptions, Types } from "@opensearch-project/opensearch";
+import { OpenSearchEngineKind, VERSION_3_5_0_MIN, VersionArgs, VersionArgs as VersionArgs$1, download, launch } from "@awsless/open-search-server";
 import { BigFloat, Numeric } from "@awsless/big-float";
 //#region src/schema/schema.d.ts
 type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
@@ -28,41 +29,13 @@ declare class Schema<Encoded, Input, Output> {
 declare const searchClient: (options?: ClientOptions, service?: 'es' | 'aoss') => Client;
 declare const isServerlessEndpoint: (endpoint?: string) => boolean;
 //#endregion
-//#region src/server/launch.d.ts
-type Settings = Record<string, string | number | boolean>;
-type Options$5 = {
-  path: string;
-  host: string;
-  port: number;
-  debug?: boolean;
-  version: VersionArgs;
-  onExit?: (code: number | null, signal: string | null) => void;
-  onOutput?: (line: string) => void;
-};
-declare const launch: ({ path, host, port, version, debug, onExit: onDied, onOutput }: Options$5) => Promise<() => Promise<void>>;
-//#endregion
-//#region src/server/version.d.ts
-type Version = `${string}.${string}.${string}`;
-type VersionArgs = {
-  version: Version;
-  settings: (opts: {
-    port: number;
-    host: string;
-    cache: string;
-  }) => Settings;
-  started: (line: string) => boolean;
-};
-declare const VERSION_3_5_0_MIN: VersionArgs;
-//#endregion
 //#region src/mock.d.ts
 type Options$4 = {
-  version?: VersionArgs;
+  engine?: OpenSearchEngineKind;
+  version?: VersionArgs$1;
   debug?: boolean;
 };
-declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
-//#endregion
-//#region src/server/download.d.ts
-declare const download: ({ version }: Pick<VersionArgs, 'version'>) => Promise<string>;
+declare const mockOpenSearch: ({ engine, version, debug }?: Options$4) => void;
 //#endregion
 //#region src/table.d.ts
 type Table<I extends string, S extends AnySchema> = {

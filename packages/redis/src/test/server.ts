@@ -1,73 +1,69 @@
+import { RedisEngineKind, RedisServer as LocalRedisServer } from '@awsless/redis-server'
 import { Cluster, Redis } from 'ioredis'
-import { RedisMemoryServer } from 'redis-memory-server'
+
+export type RedisServerOptions = {
+	// 'memory' (default) runs the in-process server, 'redis' the real
+	// binary through redis-memory-server.
+	engine?: RedisEngineKind
+}
+
+// Pulls `--databases N` out of redis-server style arguments so callers that
+// used to configure the real binary keep working.
+const parseDatabases = (args: string[]) => {
+	const index = args.indexOf('--databases')
+	const value = index === -1 ? undefined : args[index + 1]
+	return value === undefined ? undefined : parseInt(value, 10)
+}
 
 export class RedisServer {
 	private client?: Redis | Cluster
-	private process?: RedisMemoryServer
-	private stopping = false
+	private process?: LocalRedisServer
 
+	constructor(private readonly options: RedisServerOptions = {}) {}
+
+	// The version only applies to the real engine: the in-memory server
+	// always behaves like redis 7, matching the elasticache engine.
 	async start(port?: number, version = '7.2.4', args: string[] = []) {
 		if (this.process) {
-			throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`)
+			throw new Error(`Redis server is already listening on port: ${this.process.port}`)
 		}
 
 		if (port && (port < 0 || port >= 65536)) {
 			throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
 		}
 
-		this.stopping = false
-		this.process = await RedisMemoryServer.create({
-			instance: {
-				port,
-				args,
-			},
-			// The default "stable" resolves to redis 8, which bundles
-			// native modules that fail to build on macos. Redis 7 builds
-			// everywhere & matches the elasticache engine.
-			binary: { version },
-			// binary: { systemBinary: '/usr/local/bin/redis-server' },
+		const server = new LocalRedisServer({
+			engine: this.options.engine,
+			port,
+			version,
+			databases: parseDatabases(args),
+			args: args.filter((arg, i) => arg !== '--databases' && args[i - 1] !== '--databases'),
 		})
+
+		await server.listen()
+		this.process = server
 	}
 
-	// Fires when the redis child dies without kill() asking for it -
-	// the local dev environment surfaces it on the health strip.
+	// Only the real binary can die or log on its own - the in-memory
+	// engine never fires these.
 	onExit(handler: (code: number | null, signal: string | null) => void) {
-		const child = this.process?.instanceInfoSync?.childProcess
-
-		child?.once('exit', (code, signal) => {
-			if (!this.stopping) {
-				handler(code, signal)
-			}
-		})
+		this.process?.onExit(handler)
 	}
 
-	// Streams the redis output, for the local dev dashboard's log view.
 	onOutput(handler: (line: string) => void) {
-		const child = this.process?.instanceInfoSync?.childProcess
-
-		const capture = (chunk: Buffer) => {
-			for (const line of chunk.toString().split('\n')) {
-				if (line.trim() !== '') {
-					handler(line)
-				}
-			}
-		}
-
-		child?.stdout?.on('data', capture)
-		child?.stderr?.on('data', capture)
+		this.process?.onOutput(handler)
 	}
 
 	async kill() {
 		if (this.process) {
-			this.stopping = true
 			this.client?.disconnect()
-			await this.process.stop()
+			await this.process.close()
 			this.process = undefined
 		}
 	}
 
 	async getPort() {
-		const port = await this.process?.getPort()
+		const port = this.process?.port
 
 		if (!port) {
 			throw new Error('The redis server is not running.')
@@ -84,8 +80,8 @@ export class RedisServer {
 	async getClient() {
 		if (!this.client) {
 			this.client = new Redis({
-				host: await this.process?.getHost(),
-				port: await this.process?.getPort(),
+				host: this.process?.host,
+				port: this.process?.port,
 				stringNumbers: true,
 				keepAlive: 0,
 				noDelay: true,

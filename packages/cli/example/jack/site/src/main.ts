@@ -128,9 +128,9 @@ search.addEventListener('input', () => {
 			return
 		}
 
-		const result = await rpc<Task | null>('searchTasks', { query })
+		const result = await rpc<{ items: Task[] }>('searchTasks', { query })
 
-		matches = result ? [result.name] : []
+		matches = result.items.map(item => item.name)
 		render()
 	}, 300)
 })

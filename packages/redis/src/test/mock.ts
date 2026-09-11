@@ -1,9 +1,9 @@
 import { requestPort } from '@heat/request-port'
 import { overrideOptions } from '../client/ioredis'
-import { RedisServer } from './server'
+import { RedisServer, RedisServerOptions } from './server'
 
-export const mockRedis = () => {
-	const server = new RedisServer()
+export const mockRedis = (options: RedisServerOptions = {}) => {
+	const server = new RedisServer(options)
 	let releasePort: () => Promise<void>
 
 	beforeAll &&
