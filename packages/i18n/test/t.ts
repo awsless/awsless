@@ -1262,6 +1262,42 @@ describe('let: destructuring shadows the import', () => {
 	})
 })
 
+describe('attributes that need the runtime component', () => {
+	// Anything but slot and let: keeps the <T> as it is.
+	const untouched = async (markup: string, expected: string) => {
+		const code = component(markup)
+		expect(findSvelteTranslatable(code)).toStrictEqual([])
+
+		const [before] = await ssr(code, {}, ['en'])
+		expect(before).toBe(expected)
+
+		const result = await transform(code, table({ Hello: { fr: 'Bonjour' } }))
+		expect(result.code).toBe(code)
+		expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
+		expect((await ssr(result.code, {}, ['en']))[0]).toBe(expected)
+	}
+
+	it('keeps css custom properties', async () => {
+		await untouched(
+			'<T --color="red"><p style="color:var(--color)">Hello</p></T>',
+			'<svelte-css-wrapper style="display: contents; --color: red;"><p style="color:var(--color)">Hello</p></svelte-css-wrapper>'
+		)
+		await untouched(
+			'<svg><T --color="red"><text fill="var(--color)">Hello</text></T></svg>',
+			'<svg><g style="--color: red;"><text fill="var(--color)">Hello</text></g></svg>'
+		)
+	})
+
+	it('keeps any other attribute', async () => {
+		await untouched('<T class="x">Hello</T>', 'Hello')
+		await untouched('<T onclick={() => {}}>Hello</T>', 'Hello')
+		expect(sources('<T bind:this={x}>Hello</T>')).toStrictEqual([])
+		expect(sources('<T style="color: red">Hello</T>')).toStrictEqual([])
+		expect(sources('<T {...rest}>Hello</T>')).toStrictEqual([])
+		expect(sources('<Panel><T slot="heading" let:item>Hello</T></Panel>')).toStrictEqual(['Hello'])
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')

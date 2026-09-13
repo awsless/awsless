@@ -67,12 +67,13 @@ const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/
 const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/
 const isBlankText = (value: string) => !/[^ \t\r\n]/.test(value)
 
-// With children passed as a prop there is nothing to translate in the <T>
-// itself; the runtime component renders it.
-const hasPassedChildren = (node: AST.Component) =>
+// Only a slot attribute and let: directives survive the unwrapping. Any other
+// attribute (css --props, children, a spread, handlers, ...) means the runtime
+// component has to stay, so that <T> is left alone.
+const isRuntimeOnly = (node: AST.Component) =>
 	node.attributes.some(
 		attribute =>
-			attribute.type === 'SpreadAttribute' || (attribute.type === 'Attribute' && attribute.name === 'children')
+			!(attribute.type === 'LetDirective' || (attribute.type === 'Attribute' && attribute.name === 'slot'))
 	)
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
@@ -354,7 +355,7 @@ export const parseT = (code: string, file?: string) => {
 						break
 					default: {
 						if (node.type === 'Component' && ours.has(node)) {
-							if (!hasPassedChildren(node)) {
+							if (!isRuntimeOnly(node)) {
 								throw fail(node.start, 'nested <T> is not supported inside <T>')
 							}
 
@@ -447,7 +448,7 @@ const collect = (
 					child.attributes.some(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
 			)
 
-			if (hasPassedChildren(node) || slotted) {
+			if (isRuntimeOnly(node) || slotted) {
 				continue
 			}
 

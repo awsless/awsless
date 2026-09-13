@@ -122,7 +122,7 @@ const HOISTED = /* @__PURE__ */ new Set([
 const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/;
 const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/;
 const isBlankText = (value) => !/[^ \t\r\n]/.test(value);
-const hasPassedChildren = (node) => node.attributes.some((attribute) => attribute.type === "SpreadAttribute" || attribute.type === "Attribute" && attribute.name === "children");
+const isRuntimeOnly = (node) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot"));
 const COMPONENTS = /* @__PURE__ */ new Set([
 	"Component",
 	"SvelteComponent",
@@ -318,7 +318,7 @@ const parseT = (code, file) => {
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
-						if (!hasPassedChildren(node)) throw fail(node.start, "nested <T> is not supported inside <T>");
+						if (!isRuntimeOnly(node)) throw fail(node.start, "nested <T> is not supported inside <T>");
 						pieces.push({
 							start: node.start,
 							end: node.end,
@@ -401,7 +401,7 @@ const collect = (code, ours, nodes, preserve, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && ours.has(node)) {
 			const slotted = node.fragment.nodes.some((child) => "attributes" in child && child.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot"));
-			if (hasPassedChildren(node) || slotted) continue;
+			if (isRuntimeOnly(node) || slotted) continue;
 			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
 			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");
