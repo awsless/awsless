@@ -26,8 +26,8 @@ let t: Translate = $derived.by(() => {
 		let result = ''
 
 		for (const part of translations[locale] ?? source) {
-			// Nullish renders empty, like Svelte does for `{null}`.
-			result += typeof part === 'number' ? `${values[part] ?? ''}` : part
+			// Coerced like Svelte does for `{value}`: nullish is empty, symbols stringify.
+			result += typeof part === 'number' ? (values[part] == null ? '' : String(values[part])) : part
 		}
 
 		return result

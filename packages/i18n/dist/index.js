@@ -122,7 +122,8 @@ const HOISTED = /* @__PURE__ */ new Set([
 const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/;
 const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/;
 const isBlankText = (value) => !/[^ \t\r\n]/.test(value);
-const isRuntimeOnly = (node) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot"));
+const hasSlotAttribute = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
+const isRuntimeOnly = (node) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute);
 const COMPONENTS = /* @__PURE__ */ new Set([
 	"Component",
 	"SvelteComponent",
@@ -165,13 +166,15 @@ const resolveT = (ast) => {
 		names,
 		ours
 	};
-	const hasSlot = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 	const walk = (nodes, scope, lets = []) => {
 		const inner = new Set(scope);
-		for (const node of nodes) if (node.type === "ConstTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
+		for (const node of nodes) {
+			if (node.type === "ConstTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
+			if (node.type === "SnippetBlock") inner.add(node.expression.name);
+		}
 		const withLets = /* @__PURE__ */ new Set([...inner, ...lets]);
 		for (const node of nodes) {
-			const current = hasSlot(node) ? inner : withLets;
+			const current = hasSlotAttribute(node) ? inner : withLets;
 			const extend = (names) => /* @__PURE__ */ new Set([...current, ...names]);
 			switch (node.type) {
 				case "EachBlock":
@@ -400,8 +403,7 @@ const parseT = (code, file) => {
 const collect = (code, ours, nodes, preserve, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && ours.has(node)) {
-			const slotted = node.fragment.nodes.some((child) => "attributes" in child && child.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot"));
-			if (isRuntimeOnly(node) || slotted) continue;
+			if (isRuntimeOnly(node)) continue;
 			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
 			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");

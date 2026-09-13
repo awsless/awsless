@@ -67,14 +67,18 @@ const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/
 const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/
 const isBlankText = (value: string) => !/[^ \t\r\n]/.test(value)
 
+const hasSlotAttribute = (node: AST.Fragment['nodes'][number]) =>
+	'attributes' in node &&
+	node.attributes.some(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
+
 // Only a slot attribute and let: directives survive the unwrapping. Any other
-// attribute (css --props, children, a spread, handlers, ...) means the runtime
-// component has to stay, so that <T> is left alone.
+// attribute (css --props, children, a spread, handlers, ...) or named slot
+// content among the children means the runtime component has to stay.
 const isRuntimeOnly = (node: AST.Component) =>
 	node.attributes.some(
 		attribute =>
 			!(attribute.type === 'LetDirective' || (attribute.type === 'Attribute' && attribute.name === 'slot'))
-	)
+	) || node.fragment.nodes.some(hasSlotAttribute)
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
 
@@ -166,27 +170,28 @@ export const resolveT = (ast: AST.Root) => {
 		return { names, ours }
 	}
 
-	const hasSlot = (node: AST.Fragment['nodes'][number]) =>
-		'attributes' in node &&
-		node.attributes.some(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
-
 	// `lets` are a component's let: bindings: they reach its default slot
 	// children only, a child with a slot attribute sees the scope without them.
 	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>, lets: string[] = []) => {
 		const inner = new Set(scope)
 
+		// @const and snippet declarations bind in the enclosing fragment.
 		for (const node of nodes) {
 			if (node.type === 'ConstTag') {
 				node.declaration.declarations.forEach(declaration =>
 					patternNames(declaration.id as Pattern).forEach(n => inner.add(n))
 				)
 			}
+
+			if (node.type === 'SnippetBlock') {
+				inner.add(node.expression.name)
+			}
 		}
 
 		const withLets = new Set([...inner, ...lets])
 
 		for (const node of nodes) {
-			const current = hasSlot(node) ? inner : withLets
+			const current = hasSlotAttribute(node) ? inner : withLets
 			const extend = (names: string[]) => new Set([...current, ...names])
 
 			switch (node.type) {
@@ -440,15 +445,7 @@ const collect = (
 ) => {
 	for (const node of nodes) {
 		if (node.type === 'Component' && ours.has(node)) {
-			// Named slot content among the children keeps Svelte's slot
-			// semantics only with the runtime component in place.
-			const slotted = node.fragment.nodes.some(
-				child =>
-					'attributes' in child &&
-					child.attributes.some(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
-			)
-
-			if (isRuntimeOnly(node) || slotted) {
+			if (isRuntimeOnly(node)) {
 				continue
 			}
 

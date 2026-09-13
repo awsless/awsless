@@ -85,7 +85,7 @@ const component = (markup: string, script = '') => {
 		"\timport Required from './required.svelte'",
 		"\timport Legacy from './legacy.svelte'",
 		"\timport Host from './host.svelte'",
-		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item } = $props()',
+		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item, value } = $props()',
 		'</script>',
 		'',
 		markup,
@@ -126,7 +126,7 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 			'export const lang = { t: {',
 			'\tget: (og, translations) => translations[locale()] ?? og,',
 			'\tpick: (source, translations, values = []) => (translations[locale()] ?? source)',
-			'\t\t.map(part => typeof part === "number" ? `${values[part] ?? ""}` : part).join(""),',
+			'\t\t.map(part => typeof part === "number" ? (values[part] == null ? "" : String(values[part])) : part).join(""),',
 			'} }',
 			'',
 		].join('\n')
@@ -1295,6 +1295,35 @@ describe('attributes that need the runtime component', () => {
 		expect(sources('<T style="color: red">Hello</T>')).toStrictEqual([])
 		expect(sources('<T {...rest}>Hello</T>')).toStrictEqual([])
 		expect(sources('<Panel><T slot="heading" let:item>Hello</T></Panel>')).toStrictEqual(['Hello'])
+	})
+})
+
+describe('value coercion, snippet names and nested runtime <T>', () => {
+	it('stringifies values like svelte, symbols included', async () => {
+		const { baseline, fr } = await parity('<T>Hello {value}</T>', { value: Symbol('test') })
+		expect(baseline).toBe('Hello Symbol(test)')
+		expect(fr).toBe('HELLO Symbol(test)')
+	})
+
+	it('lets a snippet named like the import shadow it', async () => {
+		const markup = '{#if true}{#snippet T()}<b>custom</b>{/snippet}<T>Hello</T>{/if}<T>Hi</T>'
+		expect(sources(markup)).toStrictEqual(['Hi'])
+
+		const { baseline, code } = await parity(markup)
+		expect(baseline).toBe('<b>custom</b>HI'.replace('HI', 'Hi'))
+		expect(code).toContain('{#snippet T()}<b>custom</b>{/snippet}<T>Hello</T>{/if}')
+	})
+
+	it('keeps a runtime-only nested <T> opaque', async () => {
+		const markup = '<T>Outer <T><span slot="unused">hidden</span>Inner</T> end</T>'
+		expect(sources(markup)).toStrictEqual(['Outer <1/> end'])
+
+		const { baseline, fr, code } = await parity(markup)
+		expect(baseline).toBe('Outer Inner end')
+		expect(fr).toBe('OUTER Inner END')
+		expect(code).toContain('<T><span slot="unused">hidden</span>Inner</T>')
+
+		expect(() => findTComponents(withT('<T>a <T>b</T></T>'))).toThrow('nested <T> is not supported')
 	})
 })
 
