@@ -177,9 +177,10 @@ export const resolveT = (ast: AST.Root) => {
 	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>, lets: string[] = []) => {
 		const inner = new Set(scope)
 
-		// @const and snippet declarations bind in the enclosing fragment.
+		// Declarations and snippets bind in the enclosing fragment.
 		for (const node of nodes) {
-			if (node.type === 'ConstTag') {
+			// `{@const}` and the `{const ...}` / `{let ...}` declaration tags alike.
+			if (node.type === 'ConstTag' || node.type === 'DeclarationTag') {
 				node.declaration.declarations.forEach(declaration =>
 					patternNames(declaration.id as Pattern).forEach(n => inner.add(n))
 				)

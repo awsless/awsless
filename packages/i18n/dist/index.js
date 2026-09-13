@@ -169,7 +169,7 @@ const resolveT = (ast) => {
 	const walk = (nodes, scope, lets = []) => {
 		const inner = new Set(scope);
 		for (const node of nodes) {
-			if (node.type === "ConstTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
+			if (node.type === "ConstTag" || node.type === "DeclarationTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
 			if (node.type === "SnippetBlock") inner.add(node.expression.name);
 		}
 		const withLets = /* @__PURE__ */ new Set([...inner, ...lets]);

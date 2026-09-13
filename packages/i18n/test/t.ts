@@ -1420,6 +1420,20 @@ describe('fragments of nested components', () => {
 	})
 })
 
+describe('template declarations', () => {
+	it('lets {const} and {let} declarations shadow the import', async () => {
+		for (const declaration of ['{const T = Host}', '{let T = Host}', '{const { T } = { T: Host }}']) {
+			const markup = `{#if true}${declaration}<T>Fallback</T>{/if}<T>Hello</T>`
+			expect(sources(markup)).toStrictEqual(['Hello'])
+
+			const { baseline, fr, code } = await parity(markup)
+			expect(baseline).toBe('<header></header><main>Fallback</main>Hello')
+			expect(fr).toBe('<header></header><main>Fallback</main>HELLO')
+			expect(code).toContain(`${declaration}<T>Fallback</T>{/if}`)
+		}
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')
