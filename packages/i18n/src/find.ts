@@ -6,7 +6,7 @@ import { findTypescriptTranslatable } from './find/typescript'
 import { hasT } from './t'
 
 /** A source text and where it came from: `lang.t` code or `<T>` markup. */
-export type Source = { source: string; kind: 't' | 'markup' }
+export type Source = { source: string; kind: 't' | 'markup'; sealed?: number[] }
 
 /** A lang.t template: its cache key and the range of the whole tagged call. */
 export type Tagged = { start: number; end: number; source: string }

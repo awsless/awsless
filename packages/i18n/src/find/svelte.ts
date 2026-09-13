@@ -64,7 +64,7 @@ export const findSvelteTranslatable = (code: string, file?: string): Source[] =>
 	return [
 		...findTaggedTemplates(ast, code).map(item => ({ source: item.source, kind: 't' as const })),
 		...components.flatMap(component =>
-			collectSources(component).map(source => ({ source, kind: 'markup' as const }))
+			collectSources(component).map(item => ({ ...item, kind: 'markup' as const }))
 		),
 	]
 }

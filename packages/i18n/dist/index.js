@@ -328,7 +328,8 @@ const parseT = (code, file) => {
 							type: "self",
 							n: ++tags
 						},
-						hoisted: HOISTED.has(node.type)
+						hoisted: HOISTED.has(node.type),
+						snippet: node.type === "SnippetBlock"
 					});
 					for (const body of blockBodies(node)) nested.push(...build(body, blockContext(context), extra));
 					break;
@@ -568,11 +569,26 @@ const isRunToken = (token) => token.type === "text" || token.type === "expr";
 const segment = (pieces, expressions) => {
 	const tokens = pieces.filter((piece) => !piece.dropped).map((piece) => piece.token);
 	const runs = [];
+	const sealed = [];
 	if (pieces.length === 0) return {
 		source: "",
 		tokens,
 		expressions,
-		runs
+		runs,
+		sealed
+	};
+	const stack = [];
+	const direct = (index) => {
+		const open = pieces[index];
+		let depth = 0;
+		for (const piece of pieces.slice(index + 1)) if (piece.token.type === "open") {
+			if (depth === 0 && !piece.slotted) return false;
+			depth++;
+		} else if (piece.token.type === "close") {
+			if (depth === 0) return true;
+			depth--;
+		} else if (depth === 0 && !piece.dropped && !(piece.token.type === "self" && (piece.snippet || piece.slotted))) return false;
+		return open.body?.component === true;
 	};
 	let current = [];
 	let boundary = pieces[0].start;
@@ -584,6 +600,7 @@ const segment = (pieces, expressions) => {
 			start,
 			end
 		}));
+		if (stack.at(-1)?.sealed) sealed.push(runs.length);
 		runs.push(first && last ? {
 			start: first.start,
 			end: last.end,
@@ -598,17 +615,28 @@ const segment = (pieces, expressions) => {
 		current = [];
 		boundary = next;
 	};
-	for (const piece of pieces) if (isRunToken(piece.token)) current.push(piece);
-	else flush(piece.end);
+	for (const [index, piece] of pieces.entries()) if (isRunToken(piece.token)) current.push(piece);
+	else {
+		flush(piece.end);
+		if (piece.token.type === "open") stack.push({
+			n: piece.token.n,
+			sealed: piece.body?.component === true && direct(index)
+		});
+		else if (piece.token.type === "close") stack.pop();
+	}
 	flush(boundary);
 	return {
 		source: serialize(tokens),
 		tokens,
 		expressions,
-		runs
+		runs,
+		sealed
 	};
 };
-const collectSources = (component) => component.segments.map((segment) => segment.source).filter((source) => source !== "");
+const collectSources = (component) => component.segments.filter((segment) => segment.source !== "").map((segment) => ({
+	source: segment.source,
+	sealed: segment.sealed
+}));
 const escapeText = (text) => text.replace(/[\\$<>]/g, (char) => `\\${char}`);
 const serialize = (tokens) => tokens.map((token) => {
 	switch (token.type) {
@@ -686,11 +714,13 @@ const validatePlaceholders = (source, translation) => {
 	if (placeholders(source) !== placeholders(translation)) return "a placeholder is missing, duplicated or changed";
 };
 /** Returns what is wrong with a <T> translation, or nothing when it keeps
-* the tags of the source in order and every placeholder in its own run. */
-const validateTranslation = (source, translation) => {
+* the tags of the source in order, every placeholder in its own run, and
+* the sealed runs empty. */
+const validateTranslation = (source, translation, sealed = []) => {
 	const expected = splitRuns(tokenize(source));
 	const actual = splitRuns(tokenize(translation));
 	if (expected.tags.join(" ") !== actual.tags.join(" ")) return "the numbered tags differ from the source";
+	if (sealed.some((index) => (actual.runs[index]?.length ?? 0) > 0)) return "text was added inside a component that has no default content";
 	for (const [index, run] of expected.runs.entries()) if (placeholdersOf(run) !== placeholdersOf(actual.runs[index])) return "a placeholder is missing, duplicated or moved across a tag";
 };
 const partsOf = (tokens, positions) => tokens.map((token) => {
@@ -739,7 +769,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 		for (const locale of locales) {
 			const translation = lookup(segment.source, locale);
 			if (translation === void 0 || translation === segment.source) continue;
-			const problem = validateTranslation(segment.source, translation);
+			const problem = validateTranslation(segment.source, translation, segment.sealed);
 			if (problem) {
 				warn(`Skipped the "${locale}" translation of "${segment.source}": ${problem}.`);
 				continue;
@@ -823,8 +853,8 @@ const findSvelteTranslatable = (code, file) => {
 	return [...findTaggedTemplates(ast, code).map((item) => ({
 		source: item.source,
 		kind: "t"
-	})), ...components.flatMap((component) => collectSources(component).map((source) => ({
-		source,
+	})), ...components.flatMap((component) => collectSources(component).map((item) => ({
+		...item,
 		kind: "markup"
 	})))];
 };
@@ -884,13 +914,15 @@ const i18n = (props) => {
 	};
 	const translateNow = async (cwd, sources, log) => {
 		const newSourceTexts = findNewTranslations(cache, sources.map((item) => item.source), props.locales);
-		const markup = new Set(sources.filter((item) => item.kind === "markup").map((item) => item.source));
+		const markup = /* @__PURE__ */ new Map();
+		for (const item of sources) if (item.kind === "markup") markup.set(item.source, [.../* @__PURE__ */ new Set([...markup.get(item.source) ?? [], ...item.sealed ?? []])]);
 		if (newSourceTexts.length > 0) {
 			log.info(`Translating ${newSourceTexts.length} new texts.`);
 			const translations = await props.translate(props.default ?? "en", newSourceTexts);
 			log.info(`Translated ${translations.length} texts.`);
 			for (const item of translations) {
-				const problem = (markup.has(item.source) ? validateTranslation : validatePlaceholders)(item.source, item.translation);
+				const sealed = markup.get(item.source);
+				const problem = sealed ? validateTranslation(item.source, item.translation, sealed) : validatePlaceholders(item.source, item.translation);
 				if (problem) {
 					log.warn(`Skipped the "${item.locale}" translation of "${item.source}": ${problem}.`);
 					continue;

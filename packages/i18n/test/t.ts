@@ -320,7 +320,7 @@ describe('lang.t validation', () => {
 		expect(validatePlaceholders('Hi ${name}', 'Salut ${name} ${name}')).toBeDefined()
 		expect(findSvelteTranslatable(withT('<p>{lang.t`Rank <1>`}</p><T>Hi</T>'))).toStrictEqual([
 			{ source: 'Rank <1>', kind: 't' },
-			{ source: 'Hi', kind: 'markup' },
+			{ source: 'Hi', kind: 'markup', sealed: [] },
 		])
 	})
 })
@@ -1195,7 +1195,7 @@ describe('computed members and slot scoped let:', () => {
 			'',
 		].join('\n')
 
-		expect(findSvelteTranslatable(markup)).toStrictEqual([{ source: 'Hi', kind: 'markup' }])
+		expect(findSvelteTranslatable(markup)).toStrictEqual([{ source: 'Hi', kind: 'markup', sealed: [] }])
 
 		const { code } = await transform(markup, table({ Hello: { fr: 'Bonjour' }, Hi: { fr: 'Salut' } }))
 		expect(code).toContain('<p>{lang[t]`Hello`}</p>')
@@ -1620,6 +1620,46 @@ describe('text translated into empty gaps', () => {
 			'<p style="white-space: pre-wrap">Bonjour <b>ami</b> !</p>'
 		)
 		expect(code).toContain('{#if true}{__i18n_lang.t.pick([], {"fr":["Bonjour "]})}<b>')
+	})
+})
+
+describe('sealed component bodies', () => {
+	it('rejects text added where a component has no default content', async () => {
+		const explicit = component('<T><Card>{#snippet children()}Hello{/snippet}</Card></T>')
+		expect(findSvelteTranslatable(explicit)).toStrictEqual([
+			{ source: '<1><2/></1>', kind: 'markup', sealed: [1, 2] },
+			{ source: 'Hello', kind: 'markup', sealed: [] },
+		])
+		expect(validateTranslation('<1><2/></1>', '<1> <2/> </1>', [1, 2])).toBeDefined()
+		expect(validateTranslation('<1><2/></1>', '<1><2/></1>', [1, 2])).toBeUndefined()
+
+		const [baseline] = await ssr(explicit, {}, ['en'])
+		const { code, warn, cache } = await transform(explicit, table({ '<1><2/></1>': { fr: '<1> <2/> </1>' } }))
+		expect(warn).toHaveBeenCalledTimes(1)
+		expect(warn.mock.calls[0]?.[0]).toContain('no default content')
+		expect(cache.get('<1><2/></1>', 'fr')).toBeUndefined()
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe(baseline)
+
+		const fallback = component('<T><Legacy><svelte:fragment slot="side">Side</svelte:fragment></Legacy></T>')
+		const [withFallback] = await ssr(fallback, {}, ['en'])
+		expect(withFallback).toBe('<div>fallback</div><aside>Side</aside>')
+		const kept = await transform(fallback, table({ '<1><2>Side</2></1>': { fr: '<1>Texte <2>Côté</2></1>' } }))
+		expect(kept.warn).toHaveBeenCalledTimes(1)
+		const [keptEn, keptFr] = await ssr(kept.code, {}, ['en', 'fr'])
+		expect(keptEn).toBe(withFallback)
+		expect(keptFr).toBe(withFallback)
+
+		const open = component('<T><Legacy>Body<svelte:fragment slot="side">Side</svelte:fragment></Legacy></T>')
+		expect(findSvelteTranslatable(open)[0]?.sealed).toStrictEqual([])
+		const accepted = await transform(
+			open,
+			table({ '<1>Body<2>Side</2></1>': { fr: '<1>Corps <2>Côté</2> !</1>' } })
+		)
+		expect(accepted.warn).not.toHaveBeenCalled()
+		const [, openFr] = await ssr(accepted.code, {}, ['en', 'fr'])
+		expect(openFr).toBe('<div>Corps  !</div><aside>Côté</aside>')
 	})
 })
 

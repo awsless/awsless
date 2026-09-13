@@ -33,6 +33,8 @@ type Piece = Range & {
 	dropped?: boolean
 	/** Carries a slot attribute, so under a component it belongs to another slot. */
 	slotted?: boolean
+	/** A snippet declaration: under a component it is a prop, not content. */
+	snippet?: boolean
 }
 
 export type Edit = Range & { text: string }
@@ -46,6 +48,9 @@ export type Segment = {
 	tokens: Token[]
 	expressions: Range[]
 	runs: Run[]
+	/** Runs directly inside a component that has no default slot content; text
+	 * put there would create one and change what the component renders. */
+	sealed: number[]
 }
 
 export type TComponent = Range & {
@@ -382,6 +387,7 @@ export const parseT = (code: string, file?: string) => {
 							end: node.end,
 							token: { type: 'self', n: ++tags },
 							hoisted: HOISTED.has(node.type),
+							snippet: node.type === 'SnippetBlock',
 						})
 
 						for (const body of blockBodies(node)) {
@@ -675,9 +681,40 @@ const isRunToken = (token: Token) => token.type === 'text' || token.type === 'ex
 const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 	const tokens = pieces.filter(piece => !piece.dropped).map(piece => piece.token)
 	const runs: Run[] = []
+	const sealed: number[] = []
 
 	if (pieces.length === 0) {
-		return { source: '', tokens, expressions, runs }
+		return { source: '', tokens, expressions, runs, sealed }
+	}
+
+	// Component bodies whose direct children are only snippets or slotted
+	// children have no default slot; the runs right inside them are sealed.
+	const stack: { n: number; sealed: boolean }[] = []
+	const direct = (index: number) => {
+		const open = pieces[index]!
+		let depth = 0
+
+		for (const piece of pieces.slice(index + 1)) {
+			if (piece.token.type === 'open') {
+				if (depth === 0 && !piece.slotted) {
+					return false
+				}
+				depth++
+			} else if (piece.token.type === 'close') {
+				if (depth === 0) {
+					return true
+				}
+				depth--
+			} else if (
+				depth === 0 &&
+				!piece.dropped &&
+				!(piece.token.type === 'self' && (piece.snippet || piece.slotted))
+			) {
+				return false
+			}
+		}
+
+		return open.body?.component === true
 	}
 
 	let current: Piece[] = []
@@ -690,6 +727,10 @@ const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 		const kept = current.filter(piece => !piece.dropped)
 		const dropped = current.filter(piece => piece.dropped).map(({ start, end }) => ({ start, end }))
 
+		if (stack.at(-1)?.sealed) {
+			sealed.push(runs.length)
+		}
+
 		runs.push(
 			first && last
 				? { start: first.start, end: last.end, tokens: kept.map(piece => piece.token), dropped }
@@ -699,23 +740,31 @@ const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 		boundary = next
 	}
 
-	for (const piece of pieces) {
+	for (const [index, piece] of pieces.entries()) {
 		if (isRunToken(piece.token)) {
 			current.push(piece)
 		} else {
 			flush(piece.end)
+
+			if (piece.token.type === 'open') {
+				stack.push({ n: piece.token.n, sealed: piece.body?.component === true && direct(index) })
+			} else if (piece.token.type === 'close') {
+				stack.pop()
+			}
 		}
 	}
 
 	flush(boundary)
 
-	return { source: serialize(tokens), tokens, expressions, runs }
+	return { source: serialize(tokens), tokens, expressions, runs, sealed }
 }
 
 export const findTComponents = (code: string, file?: string) => parseT(code, file).components
 
 export const collectSources = (component: TComponent) =>
-	component.segments.map(segment => segment.source).filter(source => source !== '')
+	component.segments
+		.filter(segment => segment.source !== '')
+		.map(segment => ({ source: segment.source, sealed: segment.sealed }))
 
 // ---------------------------------------------------------------------------
 // The translator string: `text ${0} <1>text</1> <2/>`, with `\$ \< \> \\` for literals
@@ -828,13 +877,18 @@ export const validatePlaceholders = (source: string, translation: string) => {
 }
 
 /** Returns what is wrong with a <T> translation, or nothing when it keeps
- * the tags of the source in order and every placeholder in its own run. */
-export const validateTranslation = (source: string, translation: string) => {
+ * the tags of the source in order, every placeholder in its own run, and
+ * the sealed runs empty. */
+export const validateTranslation = (source: string, translation: string, sealed: number[] = []) => {
 	const expected = splitRuns(tokenize(source))
 	const actual = splitRuns(tokenize(translation))
 
 	if (expected.tags.join(' ') !== actual.tags.join(' ')) {
 		return 'the numbered tags differ from the source'
+	}
+
+	if (sealed.some(index => (actual.runs[index]?.length ?? 0) > 0)) {
+		return 'text was added inside a component that has no default content'
 	}
 
 	for (const [index, run] of expected.runs.entries()) {
@@ -925,7 +979,7 @@ export const transformT = (
 			}
 
 			// Overrides from i18n.json never went through translateNow.
-			const problem = validateTranslation(segment.source, translation)
+			const problem = validateTranslation(segment.source, translation, segment.sealed)
 
 			if (problem) {
 				warn(`Skipped the "${locale}" translation of "${segment.source}": ${problem}.`)

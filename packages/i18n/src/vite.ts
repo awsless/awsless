@@ -72,8 +72,14 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 		)
 
 		// Numbered tags only mean something in markup; the same text found as
-		// both is held to the markup rules.
-		const markup = new Set(sources.filter(item => item.kind === 'markup').map(item => item.source))
+		// both is held to the markup rules, with every sealed run it has anywhere.
+		const markup = new Map<string, number[]>()
+
+		for (const item of sources) {
+			if (item.kind === 'markup') {
+				markup.set(item.source, [...new Set([...(markup.get(item.source) ?? []), ...(item.sealed ?? [])])])
+			}
+		}
 
 		if (newSourceTexts.length > 0) {
 			log.info(`Translating ${newSourceTexts.length} new texts.`)
@@ -85,8 +91,10 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			for (const item of translations) {
 				// A translation that lost a placeholder or tag would break the
 				// markup, so the source text is shown for that locale instead.
-				const validate = markup.has(item.source) ? validateTranslation : validatePlaceholders
-				const problem = validate(item.source, item.translation)
+				const sealed = markup.get(item.source)
+				const problem = sealed
+					? validateTranslation(item.source, item.translation, sealed)
+					: validatePlaceholders(item.source, item.translation)
 
 				if (problem) {
 					log.warn(`Skipped the "${item.locale}" translation of "${item.source}": ${problem}.`)
