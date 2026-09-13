@@ -460,8 +460,10 @@ export const createDashboardServer = (props: {
 		return { status: 404, body: JSON.stringify({ error: `Unknown dashboard path: ${url.pathname}` }) }
 	}
 
-	// One stream per view carrying every channel it shows, since
-	// browsers cap the connections per host.
+	// Live resource events stream to the dashboard as server sent
+	// events. One connection carries every channel of a page - the
+	// browser only allows 6 connections per origin, so a stream per
+	// panel would starve the page after a couple of open tabs.
 	const streamEvents = (req: IncomingMessage, res: import('http').ServerResponse, channels: string[]) => {
 		res.writeHead(200, {
 			'content-type': 'text/event-stream',
@@ -532,7 +534,18 @@ export const createDashboardServer = (props: {
 						return
 					}
 
-					streamEvents(req, res, url.searchParams.getAll('channel'))
+					const channels = (url.searchParams.get('channels') ?? '').split(',').filter(Boolean)
+
+					// A stale pre-upgrade page asking for nothing would hold a
+					// connection slot forever - a 204 tells its EventSource to
+					// stop reconnecting for good.
+					if (channels.length === 0) {
+						res.writeHead(204)
+						res.end()
+						return
+					}
+
+					streamEvents(req, res, channels)
 					return
 				}
 

@@ -27,6 +27,7 @@ import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
 import {
 	formatTraceHeader,
+	IGNORED_DIRECTORIES,
 	isConfigFile,
 	isIgnoredPath,
 	LOCAL_ACCOUNT_ID,
@@ -34,6 +35,7 @@ import {
 	watchdogPath,
 	WATCHDOG_SOURCE,
 } from './util.js'
+import { watchTree } from './watch-tree.js'
 import { BundleWorker, createBundleWorker } from './worker.js'
 
 export type DevInstance = {
@@ -307,8 +309,8 @@ export const startDev = async (props: {
 	const bundleName = getBundleFunctionName(appConfig.name)
 	const buildDir = getBuildPath('bundle', bundleName, '.')
 
-	// The first run may download local servers like opensearch or redis,
-	// which the feature hooks report through the boot task spinner.
+	// Feature hooks report slow boots (like a first instance build)
+	// through the boot task spinner.
 	const { env, lambda } = await phase(
 		{
 			start: 'Preparing the local resources...',
@@ -747,13 +749,14 @@ export const startDev = async (props: {
 	dashboard.connect(dispatch)
 	await dashboard.listen(dashboardPort)
 
-	// The rebuild starts right away so it overlaps with the time until
-	// the next request. Native recursive watch: chokidar arms a watcher
-	// per directory & starves the dev servers on big projects.
+	// The source watcher marks the bundle dirty & kicks the rebuild in
+	// the background right away, so the rebuild overlaps with the time
+	// between saving & the next request instead of blocking it. Build
+	// errors stay quiet here - the next invoke retries & surfaces them.
 	let rebuildTimer: ReturnType<typeof setTimeout> | undefined
 
-	const watcher = watch(directories.root, { recursive: true }, (_event, filename) => {
-		if (!filename || isIgnoredPath(filename)) {
+	const watcher = await watchTree(directories.root, IGNORED_DIRECTORIES, filename => {
+		if (isIgnoredPath(filename)) {
 			return
 		}
 

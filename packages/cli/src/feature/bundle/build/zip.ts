@@ -12,6 +12,14 @@ export type LocalFile = {
 	path: string
 }
 
+const options = {
+	type: 'nodebuffer',
+	compression: 'DEFLATE',
+	compressionOptions: {
+		level: 9,
+	},
+} as const
+
 export const zipFiles = (files: Array<File | LocalFile>) => {
 	const zip = new JSZip()
 
@@ -23,11 +31,17 @@ export const zipFiles = (files: Array<File | LocalFile>) => {
 		}
 	}
 
-	return zip.generateAsync({
-		type: 'nodebuffer',
-		compression: 'DEFLATE',
-		compressionOptions: {
-			level: 9,
-		},
-	})
+	return zip.generateAsync(options)
+}
+
+// Inject the deploy-time env file into a prebuilt archive. The existing
+// entries keep their compressed data as-is, so this stays cheap enough
+// to run inside an input resolve - compressing the build itself there
+// would race the resolve watchdog & fail the deploy.
+export const zipWithEnvFile = async (archive: Buffer, envFile: Buffer) => {
+	const zip = await JSZip.loadAsync(archive)
+
+	zip.file('awsless-env.mjs', envFile)
+
+	return zip.generateAsync(options)
 }

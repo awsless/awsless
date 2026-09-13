@@ -31,9 +31,13 @@ export const dev = (program: Command) => {
 					resolveShutdown = resolve
 				})
 
-				// Some local servers (redis-memory-server via async-on-exit)
-				// exit the process from their own signal handlers, so the
-				// signals are reclaimed before & after every start.
+				// Some libraries the local servers pull in exit the process
+				// straight from their own signal handlers, killing the
+				// graceful stop. The dev command owns shutdown, so it claims
+				// the signals before the first start (a ctrl-c during a long
+				// boot must still stop gracefully instead of stranding the
+				// already started children) & again after every start, to
+				// evict the library handlers.
 				const claimSignals = () => {
 					process.removeAllListeners('SIGINT')
 					process.removeAllListeners('SIGTERM')

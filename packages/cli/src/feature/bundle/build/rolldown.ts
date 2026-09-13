@@ -1,6 +1,9 @@
+import { spawn } from 'child_process'
 import { createHash } from 'crypto'
+import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { extname } from 'path'
+import { dirname, extname, join } from 'path'
+import { fileURLToPath } from 'url'
 import { Minimatch } from 'minimatch'
 import { Plugin, rolldown } from 'rolldown'
 import { importAsString } from 'rollup-plugin-string-import'
@@ -40,7 +43,77 @@ const createModuleMatcher = (patterns: string[] = []) => {
 	}
 }
 
+// Rolldown retains memory of every build it runs in a process -
+// regardless of bundle.close(), version or runtime - so long-lived
+// processes like the dev server run each build in a short-lived
+// child & the leak dies with it. One-shot runs without the prebuilt
+// worker (like tests running from source) build in process.
 export const bundleTypeScriptWithRolldown = async (props: BundleTypeScriptProps) => {
+	const worker = findBuildWorker()
+
+	if (!worker || process.env.AWSLESS_BUILD_IN_PROCESS) {
+		return bundleTypeScriptInProcess(props)
+	}
+
+	return new Promise<{ hash: string; files: File[] }>((resolve, reject) => {
+		const child = spawn('bun', [worker], {
+			cwd: directories.root,
+			stdio: ['pipe', 'pipe', 'pipe'],
+		})
+
+		const stdout: Buffer[] = []
+		const stderr: Buffer[] = []
+
+		child.stdout.on('data', chunk => stdout.push(chunk))
+		child.stderr.on('data', chunk => stderr.push(chunk))
+
+		child.on('error', reject)
+		child.on('close', () => {
+			try {
+				const result = JSON.parse(Buffer.concat(stdout).toString()) as
+					| { ok: true; hash: string; files: { name: string; code: string; map?: string }[] }
+					| { ok: false; expected: boolean; message: string }
+
+				if (!result.ok) {
+					reject(result.expected ? new ExpectedError(result.message) : new Error(result.message))
+					return
+				}
+
+				resolve({
+					hash: result.hash,
+					files: result.files.map(file => ({
+						name: file.name,
+						code: Buffer.from(file.code, 'base64'),
+						map: file.map ? Buffer.from(file.map, 'base64') : undefined,
+					})),
+				})
+			} catch {
+				reject(new Error(`The build worker failed:\n${Buffer.concat(stderr).toString().slice(-2000)}`))
+			}
+		})
+
+		child.stdin.end(JSON.stringify({ root: directories.root, props }))
+	})
+}
+
+// The prebuilt worker sits next to the bundled cli in dist - or, when
+// running from source, in the package's own dist folder.
+let workerPath: string | false | undefined
+
+const findBuildWorker = () => {
+	if (workerPath === undefined) {
+		const base = dirname(fileURLToPath(import.meta.url))
+		workerPath =
+			[
+				join(base, 'handlers/rolldown-worker.js'),
+				join(base, '../../../../dist/handlers/rolldown-worker.js'),
+			].find(candidate => existsSync(candidate)) ?? false
+	}
+
+	return workerPath
+}
+
+export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) => {
 	const { format = 'esm', minify = true } = props
 	const hasModuleSideEffects = createModuleMatcher(props.moduleSideEffects)
 

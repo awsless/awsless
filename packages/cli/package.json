@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/cli",
-	"version": "0.1.33",
+	"version": "0.1.43",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -26,7 +26,7 @@
 		"types": "bun dist/bin.js types --config-file=./example/jack/app.jsonc && bun dist/bin.js types --config-file=./example/kennedy/app.jsonc"
 	},
 	"dependencies": {
-		"@aws-sdk/signature-v4-crt": "3.1113.0",
+		"@aws-sdk/signature-v4a": "3.1111.0",
 		"rolldown": "1.2.4",
 		"vitest": "4.1.11"
 	},
@@ -36,6 +36,7 @@
 		"@aws-sdk/client-cloudwatch-logs": "3.1113.0",
 		"@aws-sdk/client-cognito-identity-provider": "3.1113.0",
 		"@aws-sdk/client-dynamodb": "3.1113.0",
+		"@aws-sdk/client-iam": "3.1113.0",
 		"@aws-sdk/client-lambda": "3.1113.0",
 		"@aws-sdk/client-route-53": "3.1113.0",
 		"@aws-sdk/client-s3": "3.1113.0",
@@ -56,7 +57,9 @@
 		"@awsless/json": "workspace:^",
 		"@awsless/lambda": "workspace:^",
 		"@awsless/open-search": "workspace:^",
+		"@awsless/open-search-server": "workspace:^",
 		"@awsless/redis": "workspace:^",
+		"@awsless/redis-server": "workspace:^",
 		"@awsless/s3": "workspace:^",
 		"@awsless/size": "workspace:^",
 		"@awsless/sns": "workspace:^",
@@ -111,6 +114,7 @@
 		"@aws-sdk/client-cloudwatch-logs": "3.1113.0",
 		"@aws-sdk/client-cognito-identity-provider": "3.1113.0",
 		"@aws-sdk/client-dynamodb": "3.1113.0",
+		"@aws-sdk/client-iam": "3.1113.0",
 		"@aws-sdk/client-lambda": "3.1113.0",
 		"@aws-sdk/client-route-53": "3.1113.0",
 		"@aws-sdk/client-s3": "3.1113.0",

@@ -11,8 +11,7 @@ import { createCustomProvider, createCustomResourceClass, Input } from '@terrafo
 import chunk from 'chunk'
 import { z } from 'zod'
 import { isError, ProviderProps } from '../util/aws.js'
-
-import '@aws-sdk/signature-v4-crt'
+import { createKvsClient } from '../util/kvs.js'
 
 // ------------------------------------------------------------
 // One store per router holds the route tables ('<table>:<route>'),
@@ -180,7 +179,7 @@ const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<t
 }
 
 export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderProps) => {
-	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
+	const kvs = createKvsClient({ credentials, region })
 
 	return createCustomProvider('cloudfront-kvs', {
 		// Backwards compatibility for old states, can be removed later.

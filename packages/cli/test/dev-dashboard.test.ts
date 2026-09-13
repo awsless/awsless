@@ -201,16 +201,16 @@ describe('dev dashboard', () => {
 	})
 
 	it('should apply the origin check to the event stream', async () => {
-		await expect(send(port, '/api/events?channel=worker', { host: 'evil.com' })).resolves.toMatchObject({
+		await expect(send(port, '/api/events?channels=worker', { host: 'evil.com' })).resolves.toMatchObject({
 			status: 403,
 		})
 		await expect(
-			send(port, '/api/events?channel=worker', { host: 'localhost:3000', origin: 'http://evil.com' })
+			send(port, '/api/events?channels=worker', { host: 'localhost:3000', origin: 'http://evil.com' })
 		).resolves.toMatchObject({ status: 403 })
 	})
 
 	it('should stream every requested channel over one connection with event ids', async () => {
-		const reply = send(port, '/api/events?channel=worker&channel=health', own(), 'GET', {
+		const reply = send(port, '/api/events?channels=worker,health', own(), 'GET', {
 			until: body => body.includes('"channel":"health"') && body.includes('"channel":"worker"'),
 		})
 
@@ -239,7 +239,7 @@ describe('dev dashboard', () => {
 		dev.events.emit('worker', { line: 'two' })
 
 		const full = sseMessages(
-			(await send(port, '/api/events?channel=worker', own(), 'GET', { until: body => body.includes('"two"') }))
+			(await send(port, '/api/events?channels=worker', own(), 'GET', { until: body => body.includes('"two"') }))
 				.body
 		)
 		const lastSeen = full.at(-1)!.id
@@ -248,7 +248,7 @@ describe('dev dashboard', () => {
 
 		const resumed = sseMessages(
 			(
-				await send(port, '/api/events?channel=worker', own({ 'last-event-id': String(lastSeen) }), 'GET', {
+				await send(port, '/api/events?channels=worker', own({ 'last-event-id': String(lastSeen) }), 'GET', {
 					until: body => body.includes('"three"'),
 				})
 			).body

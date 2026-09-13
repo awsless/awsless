@@ -94,17 +94,6 @@ export const siteOnDev = async (ctx: DevContext) => {
 								stopping: false,
 							}
 
-							// The command runs with the full local environment,
-							// like "awsless bind --local". Its output stays out
-							// of the cli log: every line streams to the
-							// dashboard panel & the last lines only surface in
-							// the terminal when the dev server dies.
-							const child = spawnDevChild(bin!, [...args], {
-								cwd,
-								stdio: ['ignore', 'pipe', 'pipe'],
-								env: { ...process.env, ...env, PORT: String(port), PATH: binPath(cwd) },
-							})
-
 							const tail: string[] = []
 							const capture = (chunk: Buffer) => {
 								for (const raw of chunk.toString().split('\n')) {
@@ -123,37 +112,82 @@ export const siteOnDev = async (ctx: DevContext) => {
 								}
 							}
 
-							child.stdout?.on('data', capture)
-							child.stderr?.on('data', capture)
+							const server = { port, tail, sink } as SiteDevServer
 
-							child.on('exit', (code, signal) => {
-								if (sink.stopping) {
-									return
-								}
+							let respawnTimer: NodeJS.Timeout | undefined
+							let startedAt = 0
+							let respawnDelay = 1000
 
-								// A signal exit (code null) is usually the
-								// terminal group SIGINT of a ctrl-c - only a
-								// real non-zero exit logs as a crash. The
-								// health chip goes down either way: the
-								// server is gone.
-								if (code !== null && code !== 0) {
-									log.error(
-										`The site "${id}" dev server exited with code ${code}:\n${tail.join('\n')}`
+							const boot = () => {
+								startedAt = Date.now()
+
+								// The command runs with the full local environment,
+								// like "awsless bind --local". Its output stays out
+								// of the cli log: every line streams to the
+								// dashboard panel & the last lines only surface in
+								// the terminal when the dev server dies.
+								const child = spawnDevChild(bin!, [...args], {
+									cwd,
+									stdio: ['ignore', 'pipe', 'pipe'],
+									env: { ...process.env, ...env, PORT: String(port), PATH: binPath(cwd) },
+								})
+
+								server.child = child
+
+								child.stdout?.on('data', capture)
+								child.stderr?.on('data', capture)
+
+								child.on('exit', (code, signal) => {
+									if (sink.stopping) {
+										return
+									}
+
+									// A signal exit (code null) is usually the
+									// terminal group SIGINT of a ctrl-c - only a
+									// real non-zero exit logs as a crash. The
+									// health chip goes down either way: the
+									// server is gone.
+									if (code !== null && code !== 0) {
+										log.error(
+											`The site "${id}" dev server exited with code ${code}:\n${tail.join('\n')}`
+										)
+										sink.emit({ date: Date.now(), line: `Exited with code ${code}` })
+									}
+
+									sink.health?.(
+										'down',
+										code !== null ? `exited with code ${code}` : `killed by ${signal}`
 									)
-									sink.emit({ date: Date.now(), line: `Exited with code ${code}` })
-								}
 
-								sink.health?.(
-									'down',
-									code !== null ? `exited with code ${code}` : `killed by ${signal}`
-								)
-							})
+									// The child usually dies because something
+									// external pulled the ground from under it,
+									// like a pnpm install replacing node_modules.
+									// Without a respawn every request keeps
+									// hitting the dead port until the whole dev
+									// server reboots. The backoff keeps a crash
+									// loop from spinning.
+									if (Date.now() - startedAt > 10_000) {
+										respawnDelay = 1000
+									}
+
+									respawnTimer = setTimeout(() => {
+										sink.emit({ date: Date.now(), line: 'Restarting...' })
+										boot()
+										sink.health?.('up', 'restarted')
+									}, respawnDelay)
+
+									respawnDelay = Math.min(respawnDelay * 2, 30_000)
+								})
+							}
+
+							boot()
 
 							return {
-								value: { port, tail, sink, child },
+								value: server,
 								stop: async () => {
 									sink.stopping = true
-									await stopChild(child)
+									clearTimeout(respawnTimer)
+									await stopChild(server.child)
 								},
 							}
 						})

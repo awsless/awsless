@@ -499,30 +499,6 @@ const api = async (path, options) => {
 	return data
 }
 
-// One event stream per view, carrying every channel the view shows:
-// the browser caps the connections per host, so a view opening a
-// stream per feed would stall the other dashboard tabs.
-const openEvents = (...channels) => {
-	const listeners = new Map()
-	const query = channels.map(channel => 'channel=' + encodeURIComponent(channel)).join('&')
-	const source = new EventSource('/api/events?' + query)
-
-	source.onmessage = message => {
-		try {
-			const { channel, data } = JSON.parse(message.data)
-			listeners.get(channel)?.forEach(listener => listener(data))
-		} catch (_) {}
-	}
-
-	return {
-		on(channel, listener) {
-			if (!listeners.has(channel)) listeners.set(channel, new Set())
-			listeners.get(channel).add(listener)
-		},
-		close: () => source.close(),
-	}
-}
-
 const GROUPS = [
 	['site', 'Sites'],
 	['function', 'Functions'],
@@ -951,6 +927,65 @@ const findRouteResource = route => {
 	return undefined
 }
 
+// ------------------------------------------------------------------
+// Live events: every feed on a page shares one EventSource. The
+// browser only allows 6 connections per origin, so a stream per feed
+// would lock up the whole dashboard after a couple of open tabs.
+
+const events = (() => {
+	const handlers = new Map()
+	let source
+	let scheduled = false
+
+	const sync = () => {
+		const channels = Array.from(handlers.keys()).sort().join(',')
+
+		if (source && source.channels === channels) {
+			return
+		}
+
+		source?.close()
+		source = undefined
+
+		if (!channels) {
+			return
+		}
+
+		source = new EventSource('/api/events?channels=' + encodeURIComponent(channels))
+		source.channels = channels
+		source.onmessage = message => {
+			try {
+				const { channel, data } = JSON.parse(message.data)
+				handlers.get(channel)?.forEach(handler => handler(data))
+			} catch (_) {}
+		}
+	}
+
+	// A render pass tears feeds down & builds new ones in one go - the
+	// microtask collapses that churn into a single reconnect.
+	const schedule = () => {
+		if (scheduled) return
+		scheduled = true
+		queueMicrotask(() => {
+			scheduled = false
+			sync()
+		})
+	}
+
+	return (channel, handler) => {
+		let set = handlers.get(channel)
+		if (!set) handlers.set(channel, (set = new Set()))
+		set.add(handler)
+		schedule()
+
+		return () => {
+			set.delete(handler)
+			if (set.size === 0) handlers.delete(channel)
+			schedule()
+		}
+	}
+})()
+
 // A route tag that links through to its resource, shared by the log
 // feeds & the activity feed.
 const routeTag = route => {
@@ -966,7 +1001,7 @@ const routeTag = route => {
 
 // The bus replays the recent lines, so the boot output shows even when
 // the panel opens later.
-const attachLogFeed = (main, channel, route, title = 'Logs', shared) => {
+const attachLogFeed = (main, channel, route, title = 'Logs') => {
 	if (title) {
 		main.append($('h3', {}, title))
 	}
@@ -974,9 +1009,7 @@ const attachLogFeed = (main, channel, route, title = 'Logs', shared) => {
 	const feed = $('div', { className: 'logs' }, $('p', { className: 'empty' }, 'Waiting for output...'))
 	main.append(feed)
 
-	const events = shared ?? openEvents(channel)
-
-	events.on(channel, data => {
+	return events(channel, data => {
 		// A route filter shows only the lines of one resource, like the
 		// function panel showing its own console output.
 		if (route && data.route !== route) {
@@ -1013,11 +1046,6 @@ const attachLogFeed = (main, channel, route, title = 'Logs', shared) => {
 
 		feed.scrollTop = feed.scrollHeight
 	})
-
-	// A shared stream closes with the view that opened it.
-	return () => {
-		if (!shared) events.close()
-	}
 }
 
 // ------------------------------------------------------------------
@@ -1034,9 +1062,7 @@ const showEventsFeed = channel => {
 	aside.hidden = false
 	feed.innerHTML = '<p class="empty">Waiting for events...</p>'
 
-	const events = openEvents(channel)
-
-	events.on(channel, data => {
+	const unsubscribe = events(channel, data => {
 		feed.querySelector('.empty')?.remove()
 		feed.prepend($('div', { className: 'event' }, [
 			$('div', { className: 'head' }, [
@@ -1056,7 +1082,7 @@ const showEventsFeed = channel => {
 	})
 
 	return () => {
-		events.close()
+		unsubscribe()
 		aside.hidden = true
 		document.body.classList.remove('with-events')
 	}
@@ -1713,12 +1739,13 @@ const renderList = main => {
 	// The worker page streams the bundle worker output directly,
 	// instead of listing its single resource.
 	if (view.kind === 'worker') {
-		const events = openEvents('worker', 'debug')
+		const workerFeed = attachLogFeed(main, 'worker', undefined, 'Worker output')
+		const debugFeed = attachLogFeed(main, 'debug', undefined, 'Dev server')
 
-		attachLogFeed(main, 'worker', undefined, 'Worker output', events)
-		attachLogFeed(main, 'debug', undefined, 'Dev server', events)
-
-		cleanupPanel = () => events.close()
+		cleanupPanel = () => {
+			workerFeed?.()
+			debugFeed?.()
+		}
 		return
 	}
 
@@ -1920,7 +1947,6 @@ const timeAgo = ms => {
 
 const renderHome = main => {
 	const session = state.session ?? {}
-	const events = openEvents('health', 'problems', 'activity', 'worker')
 
 	const uptime = $('span', {}, '')
 	const updateUptime = () => {
@@ -1964,7 +1990,7 @@ const renderHome = main => {
 
 	for (const entry of state.health ?? []) renderChip(entry)
 
-	events.on('health', entry => {
+	const unsubHealth = events('health', entry => {
 		renderChip(entry)
 
 		if (entry.id === 'workers') {
@@ -2034,7 +2060,7 @@ const renderHome = main => {
 		}
 	}
 
-	events.on('problems', problemRow)
+	const unsubProblems = events('problems', problemRow)
 
 	// ----------------------------------------------------------------
 	// Activity: every dispatch through the bundle, newest first.
@@ -2184,18 +2210,21 @@ const renderHome = main => {
 		activityFeed.scrollTop = activityFeed.scrollHeight
 	}
 
-	events.on('activity', activityRow)
+	const unsubActivity = events('activity', activityRow)
 
 	// ----------------------------------------------------------------
 	// Logs: the handlers' own console output, live - the full feed
 	// (incl. the dev server stream) lives on the Logs tab.
 
-	attachLogFeed(logsCol, 'worker', undefined, 'Logs', events)
+	const logsFeed = attachLogFeed(logsCol, 'worker', undefined, 'Logs')
 
 	cleanupPanel = () => {
 		clearInterval(uptimeTimer)
 		closeTrace()
-		events.close()
+		unsubHealth()
+		unsubProblems()
+		unsubActivity()
+		logsFeed?.()
 	}
 }
 

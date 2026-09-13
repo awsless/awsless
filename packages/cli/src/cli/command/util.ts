@@ -1,5 +1,4 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
-import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { LambdaClient } from '@aws-sdk/client-lambda'
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { log, prompt } from '@awsless/clui'
@@ -11,6 +10,7 @@ import { StackConfig } from '../../config/stack.js'
 import { Cancelled, ExpectedError } from '../../error.js'
 import { createInvalidationForDistributionTenants } from '../../formation/cloudfront.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { createKvsClient } from '../../util/kvs.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
@@ -29,7 +29,7 @@ export const createClients = async (appConfig: AppConfig) => {
 		functionName: getBundleFunctionName(appConfig.name),
 		dynamo: new DynamoDBClient({ credentials, region }),
 		lambda: new LambdaClient({ credentials, region }),
-		kvs: new CloudFrontKeyValueStoreClient({ credentials, region }),
+		kvs: createKvsClient({ credentials, region }),
 		// CloudFront is a global service that only answers in us-east-1.
 		cloudfront: new CloudFrontClient({ credentials, region: 'us-east-1' }),
 		s3: new S3Client({ credentials, region }),

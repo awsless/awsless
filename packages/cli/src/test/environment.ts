@@ -1,32 +1,18 @@
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { OpenSearchServer } from '@awsless/open-search-server'
 import { RedisServer } from '@awsless/redis'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
-import { findFreePort } from '../dev/util.js'
+import { localEngine } from '../dev/engine.js'
 import { directories } from '../util/path.js'
 import { createTestManifest, TestManifest } from './manifest.js'
 
-const waitForSearch = async (port: number, timeoutMs: number) => {
-	const deadline = Date.now() + timeoutMs
-
-	while (Date.now() < deadline) {
-		try {
-			const res = await fetch(`http://localhost:${port}`)
-
-			if (res.ok) {
-				return
-			}
-		} catch {}
-
-		await new Promise(resolve => setTimeout(resolve, 500))
-	}
-
-	throw new Error('The local OpenSearch server never became ready.')
-}
-
-// Shared by the test & deploy commands: without the manifest no mock
-// registers at all & the first mock.*() call fails.
+// Builds the test manifest & boots the shared resource servers
+// around a test run. The test & deploy commands both run tests, so
+// the whole environment setup lives here once - a run without the
+// manifest registers no mocks at all and fails on the first
+// mock.*() call.
 export const withTestEnvironment = async (
 	appConfig: AppConfig,
 	stackConfigs: StackConfig[],
@@ -40,7 +26,7 @@ export const withTestEnvironment = async (
 	// Booted once per run & namespaced per test file, so files never
 	// race over ports. Tables stay in-process so streams settle inline.
 	let redis: RedisServer | undefined
-	let killSearch: (() => Promise<void>) | undefined
+	let search: OpenSearchServer | undefined
 	let booting: Promise<void> | undefined
 
 	// The boots are deferred until a stack actually misses the test
@@ -50,26 +36,14 @@ export const withTestEnvironment = async (
 			manifest.servers = {}
 
 			if (manifest.searches.length > 0) {
-				const { download, launch, VERSION_3_5_0_MIN } = await import('@awsless/open-search')
+				search = new OpenSearchServer({ engine: localEngine() === 'real' ? 'opensearch' : 'memory' })
+				await search.listen()
 
-				const port = await findFreePort()
-				const path = await download(VERSION_3_5_0_MIN)
-
-				killSearch = await launch({
-					path,
-					port,
-					host: 'localhost',
-					version: VERSION_3_5_0_MIN,
-					debug: false,
-				})
-
-				await waitForSearch(port, 60_000)
-
-				manifest.servers.search = { endpoint: `http://localhost:${port}` }
+				manifest.servers.search = { endpoint: `http://localhost:${search.port}` }
 			}
 
 			if (manifest.caches.length > 0) {
-				redis = new RedisServer()
+				redis = new RedisServer({ engine: localEngine() === 'real' ? 'redis' : 'memory' })
 				// Every vitest worker isolates into its own database.
 				await redis.start(undefined, undefined, ['--databases', '256'])
 				await redis.ping()
@@ -90,6 +64,6 @@ export const withTestEnvironment = async (
 		return await run({ manifest, manifestFile, ensureReady })
 	} finally {
 		await redis?.kill()
-		await killSearch?.()
+		await search?.close()
 	}
 }

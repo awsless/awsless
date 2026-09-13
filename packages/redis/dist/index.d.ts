@@ -1,14 +1,16 @@
 import { Cluster, Redis, RedisOptions } from "ioredis";
+import { RedisEngineKind } from "@awsless/redis-server";
 import { Numeric } from "@awsless/big-float";
 import { Duration } from "@awsless/duration";
-//#region src/test/mock.d.ts
-declare const mockRedis: () => void;
-//#endregion
 //#region src/test/server.d.ts
+type RedisServerOptions = {
+  engine?: RedisEngineKind;
+};
 declare class RedisServer {
+  private readonly options;
   private client?;
   private process?;
-  private stopping;
+  constructor(options?: RedisServerOptions);
   start(port?: number, version?: string, args?: string[]): Promise<void>;
   onExit(handler: (code: number | null, signal: string | null) => void): void;
   onOutput(handler: (line: string) => void): void;
@@ -17,6 +19,9 @@ declare class RedisServer {
   ping(): Promise<boolean>;
   getClient(): Promise<Cluster<"legacy"> | Redis<"legacy">>;
 }
+//#endregion
+//#region src/test/mock.d.ts
+declare const mockRedis: (options?: RedisServerOptions) => void;
 //#endregion
 //#region src/type.d.ts
 type InputValue = number | string;

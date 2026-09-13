@@ -32,7 +32,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 //#endregion
 let _heat_request_port = require("@heat/request-port");
 let ioredis = require("ioredis");
-let redis_memory_server = require("redis-memory-server");
+let _awsless_redis_server = require("@awsless/redis-server");
 let _awsless_big_float = require("@awsless/big-float");
 let _awsless_duration = require("@awsless/duration");
 let chunk = require("chunk");
@@ -120,45 +120,46 @@ const createIoRedisClient = (options) => {
 };
 //#endregion
 //#region src/test/server.ts
+const parseDatabases = (args) => {
+	const index = args.indexOf("--databases");
+	const value = index === -1 ? void 0 : args[index + 1];
+	return value === void 0 ? void 0 : parseInt(value, 10);
+};
 var RedisServer = class {
+	options;
 	client;
 	process;
-	stopping = false;
+	constructor(options = {}) {
+		this.options = options;
+	}
 	async start(port, version = "7.2.4", args = []) {
-		if (this.process) throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
+		if (this.process) throw new Error(`Redis server is already listening on port: ${this.process.port}`);
 		if (port && (port < 0 || port >= 65536)) throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
-		this.stopping = false;
-		this.process = await redis_memory_server.RedisMemoryServer.create({
-			instance: {
-				port,
-				args
-			},
-			binary: { version }
+		const server = new _awsless_redis_server.RedisServer({
+			engine: this.options.engine,
+			port,
+			version,
+			databases: parseDatabases(args),
+			args: args.filter((arg, i) => arg !== "--databases" && args[i - 1] !== "--databases")
 		});
+		await server.listen();
+		this.process = server;
 	}
 	onExit(handler) {
-		(this.process?.instanceInfoSync?.childProcess)?.once("exit", (code, signal) => {
-			if (!this.stopping) handler(code, signal);
-		});
+		this.process?.onExit(handler);
 	}
 	onOutput(handler) {
-		const child = this.process?.instanceInfoSync?.childProcess;
-		const capture = (chunk) => {
-			for (const line of chunk.toString().split("\n")) if (line.trim() !== "") handler(line);
-		};
-		child?.stdout?.on("data", capture);
-		child?.stderr?.on("data", capture);
+		this.process?.onOutput(handler);
 	}
 	async kill() {
 		if (this.process) {
-			this.stopping = true;
 			this.client?.disconnect();
-			await this.process.stop();
+			await this.process.close();
 			this.process = void 0;
 		}
 	}
 	async getPort() {
-		const port = await this.process?.getPort();
+		const port = this.process?.port;
 		if (!port) throw new Error("The redis server is not running.");
 		return port;
 	}
@@ -168,8 +169,8 @@ var RedisServer = class {
 	async getClient() {
 		if (!this.client) {
 			this.client = new ioredis.Redis({
-				host: await this.process?.getHost(),
-				port: await this.process?.getPort(),
+				host: this.process?.host,
+				port: this.process?.port,
 				stringNumbers: true,
 				keepAlive: 0,
 				noDelay: true,
@@ -186,8 +187,8 @@ var RedisServer = class {
 };
 //#endregion
 //#region src/test/mock.ts
-const mockRedis = () => {
-	const server = new RedisServer();
+const mockRedis = (options = {}) => {
+	const server = new RedisServer(options);
 	let releasePort;
 	beforeAll && beforeAll(async () => {
 		const [port, release] = await (0, _heat_request_port.requestPort)();

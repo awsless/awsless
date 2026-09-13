@@ -13,6 +13,7 @@ import { icon } from './icon/index.js'
 import { image } from './image/index.js'
 import { logs } from './logs/index.js'
 import { prune } from './prune.js'
+import { remoteAgent } from './remote-agent/index.js'
 import { resources } from './resources.js'
 import { rollback } from './rollback.js'
 import { run } from './run.js'
@@ -40,6 +41,7 @@ export const commands = [
 	state,
 	resources,
 	config,
+	remoteAgent,
 	test,
 	cron,
 	image,

@@ -4,6 +4,7 @@ import { RedisServer } from '@awsless/redis'
 import { formatRouteEnvName } from 'awsless'
 import { Redis } from 'ioredis'
 import { spawnDevChild } from '../../dev/children.js'
+import { localEngine } from '../../dev/engine.js'
 import { createSnsServer } from '../../dev/servers/sns.js'
 import { findFreePort, stopChild, watchdogPath } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
@@ -54,7 +55,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 		// survive dev restarts, so the long lived websocket server child
 		// keeps talking to live endpoints.
 		const { redisPort, sns, snsPort, wsPort, redisSink } = await ctx.keep(`pubsub-core:${id}`, null, async () => {
-			const redis = new RedisServer()
+			const redis = new RedisServer({ engine: localEngine() === 'real' ? 'redis' : 'memory' })
 
 			await redis.start()
 			await redis.ping()

@@ -8,7 +8,9 @@ export default h.func(
 	async ({ query }) => {
 		const result = await s.search(searchIndex, {
 			query: {
-				match: { name: query },
+				// The last word matches as a prefix, so a search input keeps
+				// matching while the user is still typing it.
+				match_bool_prefix: { name: query },
 			},
 		})
 
