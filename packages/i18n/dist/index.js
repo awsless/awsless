@@ -108,6 +108,7 @@ const REMOVABLE = /* @__PURE__ */ new Set([
 	"colgroup",
 	"datalist"
 ]);
+const RESTRICTED = /* @__PURE__ */ new Set([...REMOVABLE, "optgroup"]);
 const HOISTED = /* @__PURE__ */ new Set([
 	"ConstTag",
 	"DeclarationTag",
@@ -221,6 +222,13 @@ const rootContext = (preserve) => ({
 	pre: false,
 	svg: false,
 	svgText: false,
+	component: false,
+	restricted: false
+});
+const bodyContext = (parent) => ({
+	...parent,
+	removable: false,
+	pre: false,
 	component: false
 });
 const blockContext = (parent) => ({
@@ -239,7 +247,8 @@ const childContext = (node, parent) => {
 		pre: regular && node.name === "pre",
 		svg,
 		svgText,
-		component: COMPONENTS.has(node.type)
+		component: COMPONENTS.has(node.type),
+		restricted: regular && RESTRICTED.has(node.name) || svg && !svgText
 	};
 };
 const parseT = (code, file) => {
@@ -429,9 +438,9 @@ const parseT = (code, file) => {
 			}
 		};
 		visit(nodes, context, direct);
-		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
+		return [segment(merge(normalize(pieces, context)), expressions, context), ...nested];
 	};
-	collect(code, ours, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, nodes, preserve) => {
+	collect(code, ours, ast.fragment.nodes, rootContext(preserveAll), void 0, (node, head, foot, wrap, nodes, context) => {
 		const extra = [];
 		components.push({
 			start: node.start,
@@ -440,7 +449,7 @@ const parseT = (code, file) => {
 			foot,
 			wrap,
 			extra,
-			segments: nodes ? build(nodes, rootContext(preserve), extra, true) : []
+			segments: nodes ? build(nodes, bodyContext(context), extra, true) : []
 		});
 	});
 	return {
@@ -448,7 +457,7 @@ const parseT = (code, file) => {
 		components
 	};
 };
-const collect = (code, ours, nodes, preserve, parent, found) => {
+const collect = (code, ours, nodes, context, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && ours.has(node)) {
 			if (isRuntimeOnly(node)) continue;
@@ -471,11 +480,11 @@ const collect = (code, ours, nodes, preserve, parent, found) => {
 					end: node.end
 				},
 				tail: snippet ? "{@render children()}" : ""
-			}, children, preserve);
-			else found(node, head, foot, void 0, void 0, preserve);
+			}, children, context);
+			else found(node, head, foot, void 0, void 0, context);
 			continue;
 		}
-		const inside = preserve || node.type === "RegularElement" && PRESERVE.has(node.name);
+		const inside = "fragment" in node && "attributes" in node ? childContext(node, context) : blockContext(context);
 		for (const key of [
 			"fragment",
 			"consequent",
@@ -566,7 +575,7 @@ const merge = (pieces) => {
 	return merged;
 };
 const isRunToken = (token) => token.type === "text" || token.type === "expr";
-const segment = (pieces, expressions) => {
+const segment = (pieces, expressions, context) => {
 	const tokens = pieces.filter((piece) => !piece.dropped).map((piece) => piece.token);
 	const runs = [];
 	const sealed = [];
@@ -577,7 +586,10 @@ const segment = (pieces, expressions) => {
 		runs,
 		sealed
 	};
-	const stack = [];
+	const stack = [{
+		n: 0,
+		sealed: context.restricted
+	}];
 	const direct = (index) => {
 		const open = pieces[index];
 		let depth = 0;
@@ -618,11 +630,13 @@ const segment = (pieces, expressions) => {
 	for (const [index, piece] of pieces.entries()) if (isRunToken(piece.token)) current.push(piece);
 	else {
 		flush(piece.end);
-		if (piece.token.type === "open") stack.push({
-			n: piece.token.n,
-			sealed: piece.body?.component === true && direct(index)
-		});
-		else if (piece.token.type === "close") stack.pop();
+		if (piece.token.type === "open") {
+			const body = piece.body;
+			stack.push({
+				n: piece.token.n,
+				sealed: body?.restricted === true || body?.component === true && direct(index)
+			});
+		} else if (piece.token.type === "close") stack.pop();
 	}
 	flush(boundary);
 	return {
@@ -720,7 +734,7 @@ const validateTranslation = (source, translation, sealed = []) => {
 	const expected = splitRuns(tokenize(source));
 	const actual = splitRuns(tokenize(translation));
 	if (expected.tags.join(" ") !== actual.tags.join(" ")) return "the numbered tags differ from the source";
-	if (sealed.some((index) => (actual.runs[index]?.length ?? 0) > 0)) return "text was added inside a component that has no default content";
+	if (sealed.some((index) => serialize(actual.runs[index] ?? []) !== serialize(expected.runs[index]))) return "text was changed where the surrounding element or component allows none";
 	for (const [index, run] of expected.runs.entries()) if (placeholdersOf(run) !== placeholdersOf(actual.runs[index])) return "a placeholder is missing, duplicated or moved across a tag";
 };
 const partsOf = (tokens, positions) => tokens.map((token) => {
@@ -728,6 +742,12 @@ const partsOf = (tokens, positions) => tokens.map((token) => {
 	if (token.type !== "expr" || !positions.has(token.index)) throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`);
 	return positions.get(token.index);
 });
+const escapeMarkup = (text) => text.replace(/[&<{}]/g, (char) => ({
+	"&": "&amp;",
+	"<": "&lt;",
+	"{": "&#123;",
+	"}": "&#125;"
+})[char]);
 const spliced = (code, target, rewrites) => {
 	let result = "";
 	let cursor = target.start;
@@ -789,10 +809,11 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
 			const values = indices.length > 0 ? `, [${indices.map((i) => `__i18n_lang.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
+			const literal = run.tokens.map((token) => token.type === "text" ? escapeMarkup(token.value) : `{${spliced(code, segment.expressions[token.index], rewrites)}}`).join("");
 			return {
 				run,
 				changed,
-				text: `{__i18n_lang.t.pick(${source}, {${changed.join(",")}}${values})}`
+				text: changed.length > 0 ? `{__i18n_lang.t.pick(${source}, {${changed.join(",")}}${values})}` : literal
 			};
 		});
 		if (!calls.some((call) => call.changed.length > 0)) continue;
@@ -809,7 +830,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 				end: run.end,
 				text
 			});
-			translated = true;
+			translated ||= changed.length > 0;
 		}
 	}
 	return {

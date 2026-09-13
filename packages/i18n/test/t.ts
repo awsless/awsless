@@ -353,9 +353,9 @@ describe('<T> transform', () => {
 
 		expect(code).toContain(
 			'{#if true}' +
-				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{__i18n_lang.t.pick([0], {}, [__i18n_lang.t.str((name))])}</b>' +
+				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{name}</b>' +
 				'{__i18n_lang.t.pick([", you have "], {"fr":[", vous avez "]})}' +
-				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [__i18n_lang.t.str((n))])}</Badge>{__i18n_lang.t.pick([". "], {})}<Icon/>' +
+				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [__i18n_lang.t.str((n))])}</Badge>. <Icon/>' +
 				'{/if}'
 		)
 		expect(code).not.toContain('<T')
@@ -379,7 +379,7 @@ describe('<T> transform', () => {
 			'{#if true}' +
 				'{__i18n_lang.t.pick(["You have "], {"fr":["Il vous reste "]})}' +
 				'{#if n === 0}{__i18n_lang.t.pick(["no items"], {"fr":["aucun article"]})}' +
-				'{:else}<b>{__i18n_lang.t.pick([0], {}, [__i18n_lang.t.str((n))])}</b>{__i18n_lang.t.pick([" items"], {"fr":[" articles"]})}{/if}' +
+				'{:else}<b>{n}</b>{__i18n_lang.t.pick([" items"], {"fr":[" articles"]})}{/if}' +
 				'{__i18n_lang.t.pick([" left."], {"fr":["."]})}' +
 				'{/if}'
 		)
@@ -1534,7 +1534,9 @@ describe('whole-body emission and block contexts', () => {
 		expect(baseline).toBe('<p style="white-space: pre-wrap">Hello world</p>')
 
 		const partial = await transform(component(pre), table({ 'Hello <1/>world': { fr: 'Bonjour <1/>world' } }))
-		expect(partial.code).toContain('{__i18n_lang.t.pick(["world"], {})}')
+		expect(partial.code).toContain(
+			'{#if true}{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}{@const x = 1}world{/if}'
+		)
 		const [en, fr] = await ssr(partial.code, {}, ['en', 'fr'])
 		expect(en).toBe(baseline)
 		expect(fr).toBe('<p style="white-space: pre-wrap">Bonjour world</p>')
@@ -1636,7 +1638,7 @@ describe('sealed component bodies', () => {
 		const [baseline] = await ssr(explicit, {}, ['en'])
 		const { code, warn, cache } = await transform(explicit, table({ '<1><2/></1>': { fr: '<1> <2/> </1>' } }))
 		expect(warn).toHaveBeenCalledTimes(1)
-		expect(warn.mock.calls[0]?.[0]).toContain('no default content')
+		expect(warn.mock.calls[0]?.[0]).toContain('allows none')
 		expect(cache.get('<1><2/></1>', 'fr')).toBeUndefined()
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
 		expect(en).toBe(baseline)
@@ -1660,6 +1662,66 @@ describe('sealed component bodies', () => {
 		expect(accepted.warn).not.toHaveBeenCalled()
 		const [, openFr] = await ssr(accepted.code, {}, ['en', 'fr'])
 		expect(openFr).toBe('<div>Corps  !</div><aside>Côté</aside>')
+	})
+})
+
+describe('restricted parents and literal unchanged runs', () => {
+	it('keeps unchanged runs as markup inside a table', async () => {
+		const markup = '<table><tbody><T><tr><td>Hello</td></tr>\n<tr><td>World</td></tr></T></tbody></table>'
+		const source = '<1><2>Hello</2></1> <3><4>World</4></3>'
+		expect(findSvelteTranslatable(component(markup))).toStrictEqual([
+			{ source, kind: 'markup', sealed: [0, 1, 3, 4, 5, 7, 8] },
+		])
+
+		const [baseline] = await ssr(component(markup), {}, ['en'])
+		const { code, warn } = await transform(
+			component(markup),
+			table({ [source]: { fr: '<1><2>Bonjour</2></1> <3><4>World</4></3>' } })
+		)
+		expect(warn).not.toHaveBeenCalled()
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect(() => compile(code, { generate: 'server' })).not.toThrow()
+		expect(code).toContain('</tr> <tr><td>World</td></tr>{/if}')
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe(baseline!.replace('Hello', 'Bonjour'))
+	})
+
+	it('keeps preserved whitespace beside an explicit children snippet as markup', async () => {
+		const markup = '<T><pre>Hello <Card>\n{#snippet children()}Hi{/snippet}\n</Card></pre></T>'
+		const [baseline] = await ssr(component(markup), {}, ['en'])
+		const { code, warn } = await transform(
+			component(markup),
+			table({ '<1>Hello <2>\n<3/>\n</2></1>': { fr: '<1>Bonjour <2>\n<3/>\n</2></1>' } })
+		)
+		expect(warn).not.toHaveBeenCalled()
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect(() => compile(code, { generate: 'server' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe(baseline!.replace('Hello', 'Bonjour'))
+	})
+
+	it('rejects text added directly under a restricted element', async () => {
+		const markup = '<table><tbody><T><tr><td>Hello</td></tr></T></tbody></table>'
+		const [baseline] = await ssr(component(markup), {}, ['en'])
+		const { code, warn } = await transform(
+			component(markup),
+			table({ '<1><2>Hello</2></1>': { fr: 'Texte <1><2>Bonjour</2></1>' } })
+		)
+		expect(warn).toHaveBeenCalledTimes(1)
+		expect(warn.mock.calls[0]?.[0]).toContain('allows none')
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe(baseline)
+
+		const nested = component('<T><select><option>Hello</option></select></T>')
+		expect(findSvelteTranslatable(nested)[0]?.sealed).toStrictEqual([1, 3])
+		expect(validateTranslation('<1><2>Hello</2></1>', '<1> <2>Bonjour</2></1>', [1, 3])).toBeDefined()
+		expect(validateTranslation('<1><2>Hello</2></1>', '<1><2>Bonjour</2></1>', [1, 3])).toBeUndefined()
 	})
 })
 

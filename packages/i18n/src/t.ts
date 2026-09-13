@@ -21,6 +21,8 @@ type Context = {
 	svgText: boolean
 	/** A component body: its slotted children are not part of the default slot sequence. */
 	component: boolean
+	/** The enclosing element only allows specific children, so no text may be added. */
+	restricted: boolean
 }
 
 type Piece = Range & {
@@ -71,6 +73,7 @@ export const hasT = (code: string) => code.includes(T_MODULE)
 // Mirrors svelte/compiler phases/3-transform/utils.js clean_nodes.
 const PRESERVE = new Set(['pre', 'textarea'])
 const REMOVABLE = new Set(['select', 'tr', 'table', 'tbody', 'thead', 'tfoot', 'colgroup', 'datalist'])
+const RESTRICTED = new Set([...REMOVABLE, 'optgroup'])
 const HOISTED = new Set([
 	'ConstTag',
 	'DeclarationTag',
@@ -278,6 +281,16 @@ const rootContext = (preserve: boolean): Context => ({
 	svg: false,
 	svgText: false,
 	component: false,
+	restricted: false,
+})
+
+// The <T> body: to Svelte it is a component's (then a block's) children, so
+// the rules of the element around it don't apply, only what it allows inside.
+const bodyContext = (parent: Context): Context => ({
+	...parent,
+	removable: false,
+	pre: false,
+	component: false,
 })
 
 // A block body is its own fragment to Svelte: whitespace preservation and the
@@ -302,6 +315,7 @@ const childContext = (node: AST.ElementLike, parent: Context): Context => {
 		svg,
 		svgText,
 		component: COMPONENTS.has(node.type),
+		restricted: (regular && RESTRICTED.has(node.name)) || (svg && !svgText),
 	}
 }
 
@@ -462,22 +476,29 @@ export const parseT = (code: string, file?: string) => {
 
 		visit(nodes, context, direct)
 
-		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
+		return [segment(merge(normalize(pieces, context)), expressions, context), ...nested]
 	}
 
-	collect(code, ours, ast.fragment.nodes, preserveAll, undefined, (node, head, foot, wrap, nodes, preserve) => {
-		const extra: Edit[] = []
+	collect(
+		code,
+		ours,
+		ast.fragment.nodes,
+		rootContext(preserveAll),
+		undefined,
+		(node, head, foot, wrap, nodes, context) => {
+			const extra: Edit[] = []
 
-		components.push({
-			start: node.start,
-			end: node.end,
-			head,
-			foot,
-			wrap,
-			extra,
-			segments: nodes ? build(nodes, rootContext(preserve), extra, true) : [],
-		})
-	})
+			components.push({
+				start: node.start,
+				end: node.end,
+				head,
+				foot,
+				wrap,
+				extra,
+				segments: nodes ? build(nodes, bodyContext(context), extra, true) : [],
+			})
+		}
+	)
 
 	return { ast, components }
 }
@@ -488,14 +509,14 @@ type Found = (
 	foot: string,
 	wrap: TComponent['wrap'],
 	nodes: AST.Fragment['nodes'] | undefined,
-	preserve: boolean
+	context: Context
 ) => void
 
 const collect = (
 	code: string,
 	ours: Set<AST.Component>,
 	nodes: AST.Fragment['nodes'],
-	preserve: boolean,
+	context: Context,
 	parent: AST.Fragment['nodes'][number] | undefined,
 	found: Found
 ) => {
@@ -536,14 +557,14 @@ const collect = (
 					close: { start: last.end, end: node.end },
 					tail: snippet ? '{@render children()}' : '',
 				}
-				found(node, head, foot, wrap, children, preserve)
+				found(node, head, foot, wrap, children, context)
 			} else {
-				found(node, head, foot, undefined, undefined, preserve)
+				found(node, head, foot, undefined, undefined, context)
 			}
 			continue
 		}
 
-		const inside = preserve || (node.type === 'RegularElement' && PRESERVE.has(node.name))
+		const inside = 'fragment' in node && 'attributes' in node ? childContext(node, context) : blockContext(context)
 
 		for (const key of ['fragment', 'consequent', 'alternate', 'body', 'fallback', 'pending', 'then', 'catch']) {
 			const fragment = (node as unknown as Record<string, AST.Fragment | null | undefined>)[key]
@@ -678,7 +699,7 @@ const isRunToken = (token: Token) => token.type === 'text' || token.type === 'ex
 
 // Runs are the gaps between tag tokens; an empty gap still gets a position
 // so a translation that moves text into it has somewhere to go.
-const segment = (pieces: Piece[], expressions: Range[]): Segment => {
+const segment = (pieces: Piece[], expressions: Range[], context: Context): Segment => {
 	const tokens = pieces.filter(piece => !piece.dropped).map(piece => piece.token)
 	const runs: Run[] = []
 	const sealed: number[] = []
@@ -687,9 +708,10 @@ const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 		return { source: '', tokens, expressions, runs, sealed }
 	}
 
-	// Component bodies whose direct children are only snippets or slotted
-	// children have no default slot; the runs right inside them are sealed.
-	const stack: { n: number; sealed: boolean }[] = []
+	// Runs are sealed where text may not be added: inside an element that only
+	// allows specific children, and inside a component whose direct children
+	// are only snippets or slotted children, so it has no default slot.
+	const stack: { n: number; sealed: boolean }[] = [{ n: 0, sealed: context.restricted }]
 	const direct = (index: number) => {
 		const open = pieces[index]!
 		let depth = 0
@@ -747,7 +769,11 @@ const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 			flush(piece.end)
 
 			if (piece.token.type === 'open') {
-				stack.push({ n: piece.token.n, sealed: piece.body?.component === true && direct(index) })
+				const body = piece.body
+				stack.push({
+					n: piece.token.n,
+					sealed: body?.restricted === true || (body?.component === true && direct(index)),
+				})
 			} else if (piece.token.type === 'close') {
 				stack.pop()
 			}
@@ -887,8 +913,8 @@ export const validateTranslation = (source: string, translation: string, sealed:
 		return 'the numbered tags differ from the source'
 	}
 
-	if (sealed.some(index => (actual.runs[index]?.length ?? 0) > 0)) {
-		return 'text was added inside a component that has no default content'
+	if (sealed.some(index => serialize(actual.runs[index] ?? []) !== serialize(expected.runs[index]!))) {
+		return 'text was changed where the surrounding element or component allows none'
 	}
 
 	for (const [index, run] of expected.runs.entries()) {
@@ -919,6 +945,10 @@ const partsOf = (tokens: Token[], positions: Map<number, number>) =>
 
 		return positions.get(token.index)!
 	})
+
+// Normalised text put back as markup: what entity decoding undid is redone.
+const escapeMarkup = (text: string) =>
+	text.replace(/[&<{}]/g, char => ({ '&': '&amp;', '<': '&lt;', '{': '&#123;', '}': '&#125;' })[char]!)
 
 // An expression's source with the lang.t rewrites that fall inside it
 // spliced in by offset, since the text itself is never searched.
@@ -1012,7 +1042,20 @@ export const transformT = (
 							.join(', ')}]`
 					: ''
 
-			return { run, changed, text: `{__i18n_lang.t.pick(${source}, {${changed.join(',')}}${values})}` }
+			// An unchanged run stays markup, since a call is not allowed everywhere
+			// (table rows, beside an explicit children snippet).
+			const literal = run.tokens
+				.map(token =>
+					token.type === 'text'
+						? escapeMarkup(token.value)
+						: `{${spliced(code, segment.expressions[(token as { index: number }).index]!, rewrites)}}`
+				)
+				.join('')
+
+			const text =
+				changed.length > 0 ? `{__i18n_lang.t.pick(${source}, {${changed.join(',')}}${values})}` : literal
+
+			return { run, changed, text }
 		})
 
 		if (!calls.some(call => call.changed.length > 0)) {
@@ -1032,7 +1075,7 @@ export const transformT = (
 			}
 
 			edits.push({ start: run.start, end: run.end, text })
-			translated = true
+			translated ||= changed.length > 0
 		}
 	}
 
