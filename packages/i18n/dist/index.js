@@ -766,8 +766,8 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 			};
 		});
 		if (!calls.some((call) => call.changed.length > 0)) continue;
-		for (const { run, text } of calls) {
-			if (run.tokens.length === 0) {
+		for (const { run, changed, text } of calls) {
+			if (run.tokens.length === 0 && changed.length === 0) {
 				edits.push(...run.dropped.map((range) => ({
 					...range,
 					text: ""

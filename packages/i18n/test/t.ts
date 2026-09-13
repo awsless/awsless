@@ -1589,6 +1589,40 @@ describe('whole-body emission and block contexts', () => {
 	})
 })
 
+describe('text translated into empty gaps', () => {
+	// en must match the untransformed render, fr gets the text the translation added.
+	const gaps = async (markup: string, source: string, fr: string, expected: string) => {
+		const code = component(markup)
+		expect(findSvelteTranslatable(code).map(item => item.source)).toStrictEqual([source])
+
+		const [baseline] = await ssr(code, {}, ['en'])
+		const result = await transform(code, table({ [source]: { fr } }))
+		expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
+
+		const [en, translated] = await ssr(result.code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(translated).toBe(expected)
+
+		return result.code
+	}
+
+	it('before, between and after tags', async () => {
+		await gaps('<T><b>Hello</b></T>', '<1>Hello</1>', 'Bonjour <1>ami</1> !', 'Bonjour <b>ami</b> !')
+		await gaps('<T><b>a</b><i>b</i></T>', '<1>a</1><2>b</2>', '<1>a</1> et <2>b</2>', '<b>a</b> et <i>b</i>')
+		await gaps('<T>Hi <b>x</b></T>', 'Hi <1>x</1>', 'Salut <1>x</1> !', 'Salut <b>x</b> !')
+	})
+
+	it('where the source whitespace was normalised away', async () => {
+		const code = await gaps(
+			'<p style="white-space: pre-wrap"><T>\n  <b>Hello</b>\n</T></p>',
+			'<1>Hello</1>',
+			'Bonjour <1>ami</1> !',
+			'<p style="white-space: pre-wrap">Bonjour <b>ami</b> !</p>'
+		)
+		expect(code).toContain('{#if true}{__i18n_lang.t.pick([], {"fr":["Bonjour "]})}<b>')
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')

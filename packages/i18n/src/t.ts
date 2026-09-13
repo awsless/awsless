@@ -968,8 +968,11 @@ export const transformT = (
 		// Once one run is a call, Svelte's boundary trimming no longer reaches
 		// its neighbours, so every run of the body is emitted normalised, and
 		// whitespace Svelte would have dropped goes with it.
-		for (const { run, text } of calls) {
-			if (run.tokens.length === 0) {
+		for (const { run, changed, text } of calls) {
+			// A gap that is empty in the source still gets a call when a
+			// translation puts text there; it lands at the gap's offset, or
+			// over the whitespace that was normalised away.
+			if (run.tokens.length === 0 && changed.length === 0) {
 				edits.push(...run.dropped.map(range => ({ ...range, text: '' })))
 				continue
 			}
