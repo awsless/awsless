@@ -136,15 +136,19 @@ const patternNames = (pattern, names = []) => {
 			names.push(pattern.name);
 			break;
 		case "ObjectPattern":
-			pattern.properties?.forEach((property) => patternNames(property.type === "RestElement" ? property.argument : property.value, names));
+		case "ObjectExpression":
+			pattern.properties?.forEach((property) => patternNames(property.type === "RestElement" || property.type === "SpreadElement" ? property.argument : property.value, names));
 			break;
 		case "ArrayPattern":
+		case "ArrayExpression":
 			pattern.elements?.forEach((element) => patternNames(element, names));
 			break;
 		case "AssignmentPattern":
+		case "AssignmentExpression":
 			patternNames(pattern.left, names);
 			break;
-		case "RestElement": patternNames(pattern.argument, names);
+		case "RestElement":
+		case "SpreadElement": patternNames(pattern.argument, names);
 	}
 	return names;
 };

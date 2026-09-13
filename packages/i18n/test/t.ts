@@ -84,6 +84,7 @@ const component = (markup: string, script = '') => {
 		"\timport Panel from './panel.svelte'",
 		"\timport Required from './required.svelte'",
 		"\timport Legacy from './legacy.svelte'",
+		"\timport Host from './host.svelte'",
 		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item } = $props()',
 		'</script>',
 		'',
@@ -139,6 +140,13 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 	await emit('required', '<script>let { children } = $props()</script><div>{@render children()}</div>')
 	await emit('legacy', '<div><slot>fallback</slot></div><aside><slot name="side">side-fallback</slot></aside>')
 	await emit('custom', '<script>let { value } = $props()</script><em>{value}</em>')
+	await emit('inner', '<i>inner</i>')
+	await emit(
+		'host',
+		"<script>import Inner from './inner.svelte'</script>" +
+			'<header><slot name="heading" item={{ Widget: Inner }} list={[Inner, Inner]} deep={{ a: { b: Inner } }} /></header>' +
+			'<main><slot item={{ Widget: Inner }} list={[Inner, Inner]} deep={{ a: { b: Inner } }} /></main>'
+	)
 
 	const page = await import(pathToFileURL(resolve(dir, 'page.js')).href)
 
@@ -1208,6 +1216,49 @@ describe('computed members and slot scoped let:', () => {
 		const shadowed = component('<Panel let:T><T>Hello</T></Panel>')
 		expect(findSvelteTranslatable(shadowed)).toStrictEqual([])
 		expect((await transform(shadowed, upper)).code).toBe(shadowed)
+	})
+})
+
+describe('let: destructuring shadows the import', () => {
+	// The inner <T> is the slot-provided component, so nothing may change.
+	const untouched = async (markup: string, expected: string) => {
+		const code = component(markup)
+		expect(findSvelteTranslatable(code)).toStrictEqual([])
+
+		const [before] = await ssr(code, {}, ['en'])
+		expect(before).toBe(expected)
+
+		const result = await transform(code, table({}))
+		expect(result.code).toBe(code)
+		expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
+		expect((await ssr(result.code, {}, ['en']))[0]).toBe(expected)
+	}
+
+	it('in the default slot', async () => {
+		const main = '<header></header><main><i>inner</i></main>'
+		await untouched('<Host let:item={{ Widget: T }}><T>Fallback</T></Host>', main)
+		await untouched('<Host let:list={[T]}><T>Fallback</T></Host>', main)
+		await untouched('<Host let:deep={{ a: { b: T } }}><T>Fallback</T></Host>', main)
+		await untouched('<Host let:list={[, T]}><T>Fallback</T></Host>', main)
+		await untouched('<Host let:list={[T = Inner]}><T>Fallback</T></Host>', main)
+	})
+
+	it('in a named slot', async () => {
+		const heading = '<header><i>inner</i></header><main></main>'
+		await untouched(
+			'<Host><svelte:fragment slot="heading" let:item={{ Widget: T }}><T>Fallback</T></svelte:fragment></Host>',
+			heading
+		)
+		await untouched(
+			'<Host><svelte:fragment slot="heading" let:list={[, T]}><T>Fallback</T></svelte:fragment></Host>',
+			heading
+		)
+	})
+
+	it('through rest elements', () => {
+		expect(sources('<Host let:list={[...T]}><T>Fallback</T></Host>')).toStrictEqual([])
+		expect(sources('<Host let:item={{ ...T }}><T>Fallback</T></Host>')).toStrictEqual([])
+		expect(sources('<Host let:item={{ Widget: other }}><T>Hello</T></Host>')).toStrictEqual(['Hello'])
 	})
 })
 

@@ -90,6 +90,8 @@ type Pattern = {
 	value?: Pattern
 }
 
+// Bound names of a pattern, or of the expression Svelte parses a let:
+// directive into, which has the same shapes under other type names.
 const patternNames = (pattern: Pattern | null | undefined, names: string[] = []) => {
 	if (!pattern) {
 		return names
@@ -100,17 +102,26 @@ const patternNames = (pattern: Pattern | null | undefined, names: string[] = [])
 			names.push(pattern.name!)
 			break
 		case 'ObjectPattern':
+		case 'ObjectExpression':
 			pattern.properties?.forEach(property =>
-				patternNames(property.type === 'RestElement' ? property.argument : property.value, names)
+				patternNames(
+					property.type === 'RestElement' || property.type === 'SpreadElement'
+						? property.argument
+						: property.value,
+					names
+				)
 			)
 			break
 		case 'ArrayPattern':
+		case 'ArrayExpression':
 			pattern.elements?.forEach(element => patternNames(element, names))
 			break
 		case 'AssignmentPattern':
+		case 'AssignmentExpression':
 			patternNames(pattern.left, names)
 			break
 		case 'RestElement':
+		case 'SpreadElement':
 			patternNames(pattern.argument, names)
 			break
 	}
