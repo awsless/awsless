@@ -85,6 +85,7 @@ const component = (markup: string, script = '') => {
 		"\timport Required from './required.svelte'",
 		"\timport Legacy from './legacy.svelte'",
 		"\timport Host from './host.svelte'",
+		"\timport Wrap from './wrap.svelte'",
 		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item, value, mutate } = $props()',
 		'</script>',
 		'',
@@ -145,6 +146,10 @@ const ssr = async (code: string, props: Props, locales: string[]) => {
 	await emit('legacy', '<div><slot>fallback</slot></div><aside><slot name="side">side-fallback</slot></aside>')
 	await emit('custom', '<script>let { value } = $props()</script><em>{value}</em>')
 	await emit('inner', '<i>inner</i>')
+	await emit(
+		'wrap',
+		'<header><slot name="heading" /></header><aside><slot name="other" /></aside><main style="white-space: pre-wrap"><slot /></main>'
+	)
 	await emit(
 		'host',
 		"<script>import Inner from './inner.svelte'</script>" +
@@ -1467,6 +1472,58 @@ describe('dropped whitespace and slot-scoped declarations', () => {
 			expect(findSvelteTranslatable(shadowed)).toStrictEqual([])
 			expect((await transform(shadowed, upper)).code).toBe(shadowed)
 		}
+	})
+})
+
+describe('namespaces and per-slot normalisation', () => {
+	it('treats foreignObject content as html again', async () => {
+		const { baseline, fr } = await parity(
+			'<T><svg><foreignObject><span>Hello</span> <span>world</span></foreignObject></svg></T>'
+		)
+		expect(baseline).toBe('<svg><foreignObject><span>Hello</span> <span>world</span></foreignObject></svg>')
+		expect(fr).toBe('<svg><foreignObject><span>HELLO</span> <span>WORLD</span></foreignObject></svg>')
+
+		const nested = await parity(
+			'<T><svg><foreignObject><svg><text>a</text> <text>b</text></svg></foreignObject></svg></T>'
+		)
+		// Back in the svg namespace, the blank between the texts goes.
+		expect(nested.baseline).toBe(
+			'<svg><foreignObject><svg><text>a</text><text>b</text></svg></foreignObject></svg>'
+		)
+	})
+
+	it('normalises component children per slot', async () => {
+		const main = (text: string, heading = 'Heading', other = '') =>
+			`<header>${heading}</header><aside>${other}</aside><main style="white-space: pre-wrap">${text}</main>`
+
+		const around = '<T><Wrap>Hello <svelte:fragment slot="heading">Heading</svelte:fragment> world</Wrap></T>'
+		expect(sources(around)).toStrictEqual(['<1>Hello <2>Heading</2>world</1>'])
+		const { baseline } = await parity(around)
+		expect(baseline).toBe(main('Hello world'))
+
+		const { code } = await transform(
+			component(around),
+			table({ '<1>Hello <2>Heading</2>world</1>': { fr: '<1>Bonjour <2>Titre</2>monde</1>' } })
+		)
+		const [, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(fr).toBe(main('Bonjour monde', 'Titre'))
+
+		const before = await parity(
+			'<T><Wrap>Hello <svelte:fragment slot="heading">Heading</svelte:fragment></Wrap></T>'
+		)
+		expect(before.baseline).toBe(main('Hello'))
+
+		const after = await parity(
+			'<T><Wrap><svelte:fragment slot="heading">Heading</svelte:fragment> world</Wrap></T>'
+		)
+		expect(after.baseline).toBe(main('world'))
+
+		const two = await parity(
+			'<T><Wrap>Hello <svelte:fragment slot="heading">Heading</svelte:fragment> <span slot="other">Other</span> world</Wrap></T>'
+		)
+		// Svelte empties the blank between the slotted children, and the next
+		// text then gets a space of its own: two spaces, matched exactly.
+		expect(two.baseline).toBe(main('Hello  world', 'Heading', '<span slot="other">Other</span>'))
 	})
 })
 

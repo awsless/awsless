@@ -220,18 +220,20 @@ const rootContext = (preserve) => ({
 	removable: false,
 	pre: false,
 	svg: false,
-	svgText: false
+	svgText: false,
+	component: false
 });
 const childContext = (node, parent) => {
 	const regular = node.type === "RegularElement";
-	const svg = parent.svg || regular && node.name === "svg";
-	const svgText = parent.svgText || regular && node.name === "text";
+	const svg = regular && node.name === "foreignObject" ? false : parent.svg || regular && node.name === "svg";
+	const svgText = svg && (parent.svgText || regular && node.name === "text");
 	return {
 		preserve: parent.preserve || regular && PRESERVE.has(node.name),
 		removable: regular && REMOVABLE.has(node.name) || svg && !svgText,
 		pre: regular && node.name === "pre",
 		svg,
-		svgText
+		svgText,
+		component: COMPONENTS.has(node.type)
 	};
 };
 const parseT = (code, file) => {
@@ -371,6 +373,7 @@ const parseT = (code, file) => {
 					const first = node.fragment.nodes[0];
 					const last = node.fragment.nodes.at(-1);
 					const hoisted = HOISTED.has(node.type);
+					const slotted = hasSlotAttribute(node);
 					if (node.type === "RegularElement" && RAW.has(node.name)) {
 						pieces.push({
 							start: node.start,
@@ -392,6 +395,7 @@ const parseT = (code, file) => {
 								n
 							},
 							hoisted,
+							slotted,
 							body
 						});
 						visit(node.fragment.nodes, body, false);
@@ -411,7 +415,8 @@ const parseT = (code, file) => {
 							type: "self",
 							n
 						},
-						hoisted
+						hoisted,
+						slotted
 					});
 				}
 			}
@@ -497,7 +502,7 @@ const normalize = (pieces, context) => {
 	}
 	const dropped = /* @__PURE__ */ new Set();
 	const text = (item) => item?.piece.token.type === "text" ? item.piece.token : void 0;
-	let regular = items.filter((item) => !item.piece.hoisted);
+	let regular = items.filter((item) => !item.piece.hoisted && !(context.component && item.piece.slotted));
 	if (!context.preserve) {
 		while (regular.length > 0 && text(regular[0]) && isBlankText(text(regular[0]).value)) dropped.add(regular.shift());
 		while (regular.length > 0 && text(regular.at(-1)) && isBlankText(text(regular.at(-1)).value)) dropped.add(regular.pop());

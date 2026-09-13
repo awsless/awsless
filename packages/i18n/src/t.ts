@@ -13,7 +13,15 @@ export type Token =
 	| { type: 'open' | 'close' | 'self'; n: number }
 
 // What Svelte's clean_nodes knows about the body a text node sits in.
-type Context = { preserve: boolean; removable: boolean; pre: boolean; svg: boolean; svgText: boolean }
+type Context = {
+	preserve: boolean
+	removable: boolean
+	pre: boolean
+	svg: boolean
+	svgText: boolean
+	/** A component body: its slotted children are not part of the default slot sequence. */
+	component: boolean
+}
 
 type Piece = Range & {
 	token: Token
@@ -23,6 +31,8 @@ type Piece = Range & {
 	body?: Context
 	/** Whitespace Svelte would drop; it stays in the source, so an edit must take it along. */
 	dropped?: boolean
+	/** Carries a slot attribute, so under a component it belongs to another slot. */
+	slotted?: boolean
 }
 
 export type Edit = Range & { text: string }
@@ -262,12 +272,14 @@ const rootContext = (preserve: boolean): Context => ({
 	pre: false,
 	svg: false,
 	svgText: false,
+	component: false,
 })
 
 const childContext = (node: AST.ElementLike, parent: Context): Context => {
 	const regular = node.type === 'RegularElement'
-	const svg = parent.svg || (regular && node.name === 'svg')
-	const svgText = parent.svgText || (regular && node.name === 'text')
+	// Svelte infers namespaces: <svg> starts one, <foreignObject> is HTML again.
+	const svg = regular && node.name === 'foreignObject' ? false : parent.svg || (regular && node.name === 'svg')
+	const svgText = svg && (parent.svgText || (regular && node.name === 'text'))
 
 	return {
 		preserve: parent.preserve || (regular && PRESERVE.has(node.name)),
@@ -275,6 +287,7 @@ const childContext = (node: AST.ElementLike, parent: Context): Context => {
 		pre: regular && node.name === 'pre',
 		svg,
 		svgText,
+		component: COMPONENTS.has(node.type),
 	}
 }
 
@@ -399,6 +412,7 @@ export const parseT = (code: string, file?: string) => {
 						const first = node.fragment.nodes[0]
 						const last = node.fragment.nodes.at(-1)
 						const hoisted = HOISTED.has(node.type)
+						const slotted = hasSlotAttribute(node)
 
 						if (node.type === 'RegularElement' && RAW.has(node.name)) {
 							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n } })
@@ -412,12 +426,19 @@ export const parseT = (code: string, file?: string) => {
 								end: first.start,
 								token: { type: 'open', n },
 								hoisted,
+								slotted,
 								body,
 							})
 							visit(node.fragment.nodes, body, false)
 							pieces.push({ start: last.end, end: node.end, token: { type: 'close', n }, hoisted })
 						} else {
-							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n }, hoisted })
+							pieces.push({
+								start: node.start,
+								end: node.end,
+								token: { type: 'self', n },
+								hoisted,
+								slotted,
+							})
 						}
 					}
 				}
@@ -547,7 +568,9 @@ const normalize = (pieces: Piece[], context: Context): Piece[] => {
 
 	const dropped = new Set<Item>()
 	const text = (item: Item | undefined) => (item?.piece.token.type === 'text' ? item.piece.token : undefined)
-	let regular = items.filter(item => !item.piece.hoisted)
+	// Like Svelte, a component's slotted children are cleaned as their own
+	// slots; the default slot sequence runs right past them.
+	let regular = items.filter(item => !item.piece.hoisted && !(context.component && item.piece.slotted))
 
 	if (!context.preserve) {
 		while (regular.length > 0 && text(regular[0]) && isBlankText(text(regular[0])!.value)) {
