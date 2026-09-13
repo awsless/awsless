@@ -1,3 +1,4 @@
+import { extname } from 'node:path'
 import MagicString from 'magic-string'
 import { AST } from 'svelte/compiler'
 import { Plugin } from 'vite'
@@ -41,7 +42,8 @@ type Logger = {
 	warn: (message: string) => void
 }
 
-const isSvelteFile = (id: string | undefined) => typeof id === 'string' && id.split('?')[0]!.endsWith('.svelte')
+// Vite ids keep their query (?svelte&type=style), which extname would not strip.
+const isSvelteFile = (id = '') => extname(id.split('?')[0]!) === '.svelte'
 
 const importsLang = (ast: AST.Root) => {
 	for (const script of [ast.instance, ast.module]) {
