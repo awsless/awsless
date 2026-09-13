@@ -385,7 +385,7 @@ const parseT = (code, file, options = {}) => {
 	const components = [];
 	const preserveAll = ast.options?.preserveWhitespace ?? options.preserveWhitespace ?? false;
 	const preserveComments = options.preserveComments ?? false;
-	const namespace = ast.options?.namespace ?? "html";
+	const namespace = ast.options?.namespace ?? options.namespace ?? "html";
 	const { ours } = resolveT(ast);
 	annotate(ast, namespace, internals);
 	const fail = (offset, message) => {
@@ -902,6 +902,29 @@ const validateTranslation = (source, translation, sealed = []) => {
 	if (sealed.some((index) => serialize(actual.runs[index] ?? []) !== serialize(expected.runs[index]))) return "text was changed where the surrounding element or component allows none";
 	for (const [index, run] of expected.runs.entries()) if (placeholdersOf(run) !== placeholdersOf(actual.runs[index])) return "a placeholder is missing, duplicated or moved across a tag";
 };
+/** A name for the imported `lang` that nothing in the file uses: every
+* identifier in the scripts and the template counts, bound or not. */
+const aliasFor = (ast, base = "__i18n_lang") => {
+	const taken = /* @__PURE__ */ new Set();
+	const seen = /* @__PURE__ */ new Set();
+	const walk = (value) => {
+		if (!value || typeof value !== "object" || seen.has(value)) return;
+		seen.add(value);
+		if (Array.isArray(value)) {
+			value.forEach(walk);
+			return;
+		}
+		const node = value;
+		if (node.type === "Identifier" && typeof node.name === "string") taken.add(node.name);
+		if ((node.type === "LetDirective" || node.type === "EachBlock") && typeof node.index === "string") taken.add(node.index);
+		if (node.type === "LetDirective" && typeof node.name === "string") taken.add(node.name);
+		Object.values(node).forEach(walk);
+	};
+	walk(ast);
+	let alias = base;
+	for (let suffix = 1; taken.has(alias); suffix++) alias = `${base}${suffix}`;
+	return alias;
+};
 const partsOf = (tokens, positions) => tokens.map((token) => {
 	if (token.type === "text") return token.value;
 	if (token.type !== "expr" || !positions.has(token.index)) throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`);
@@ -925,7 +948,7 @@ const spliced = (code, target, rewrites) => {
 /** The edits turning a <T> into an `{#if true}` block with translated text
 * runs, and whether any of them calls the runtime. An edit without text
 * removes, one without length inserts. */
-const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
+const transformT = (component, code, locales, lookup, warn, rewrites = [], alias = "__i18n_lang") => {
 	const edits = [];
 	let translated = false;
 	if (!component.wrap) {
@@ -973,12 +996,12 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 				const parts = JSON.stringify(partsOf(item.runs[index], positions));
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
-			const values = indices.length > 0 ? `, [${indices.map((i) => `__i18n_lang.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
+			const values = indices.length > 0 ? `, [${indices.map((i) => `${alias}.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
 			const literal = run.tokens.map((token) => token.type === "text" ? escapeMarkup(token.value) : `{${spliced(code, segment.expressions[token.index], rewrites)}}`).join("");
 			return {
 				run,
 				changed,
-				text: changed.length > 0 ? `{__i18n_lang.t.pick(${source}, {${changed.join(",")}}${values})}` : literal
+				text: changed.length > 0 ? `{${alias}.t.pick(${source}, {${changed.join(",")}}${values})}` : literal
 			};
 		});
 		if (!calls.some((call) => call.changed.length > 0)) continue;
@@ -1086,7 +1109,7 @@ const findTranslatableInCode = async (file, code, options = {}) => {
 //#endregion
 //#region src/vite.ts
 const SOURCE_FILE = /\.(svelte|ts|js)$/;
-const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'";
+const langImport = (alias) => `import { lang as ${alias} } from '@awsless/i18n/svelte'`;
 const outermost = (tagged) => tagged.filter((item) => !tagged.some((other) => other !== item && other.start <= item.start && item.end <= other.end));
 const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
 const svelteCompilerOptions = (plugins) => {
@@ -1100,7 +1123,8 @@ const i18n = (props) => {
 	let cache;
 	let options = {
 		preserveWhitespace: props.preserveWhitespace,
-		preserveComments: props.preserveComments
+		preserveComments: props.preserveComments,
+		namespace: props.namespace
 	};
 	let generatedCache;
 	let overrideCache;
@@ -1138,7 +1162,8 @@ const i18n = (props) => {
 			const compiler = svelteCompilerOptions(config.plugins);
 			options = {
 				preserveWhitespace: props.preserveWhitespace ?? compiler.preserveWhitespace,
-				preserveComments: props.preserveComments ?? compiler.preserveComments
+				preserveComments: props.preserveComments ?? compiler.preserveComments,
+				namespace: props.namespace ?? compiler.namespace
 			};
 		},
 		async buildStart() {
@@ -1186,12 +1211,13 @@ const i18n = (props) => {
 			const transformedCode = new MagicString(code);
 			if (svelte) {
 				const { ast, components } = parseT(code, id, options);
+				const alias = aliasFor(ast);
 				const templates = rewrites(findTaggedTemplates(ast, code));
 				const lookup = (source, locale) => cache.get(source, locale);
 				const edits = [];
 				let called = false;
 				for (const component of components) {
-					const result = transformT(component, code, props.locales, lookup, (message) => this.warn(message), templates);
+					const result = transformT(component, code, props.locales, lookup, (message) => this.warn(message), templates, alias);
 					edits.push(...result.edits);
 					called ||= result.translated;
 				}
@@ -1205,8 +1231,8 @@ const i18n = (props) => {
 						const { start } = ast.instance.content;
 						const first = ast.instance.content.body[0];
 						const sameLine = !code.slice(start, first?.start ?? start).includes("\n");
-						transformedCode.appendLeft(start, `${LANG_IMPORT}${sameLine ? ";\n" : ""}`);
-					} else transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n<\/script>\n`);
+						transformedCode.appendLeft(start, `${langImport(alias)}${sameLine ? ";\n" : ""}`);
+					} else transformedCode.prepend(`<script>\n\t${langImport(alias)}\n<\/script>\n`);
 				}
 			} else for (const template of rewrites(findTypescriptTagged(code))) transformedCode.overwrite(template.start, template.end, template.text);
 			return {

@@ -7,7 +7,7 @@ import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source, Tagged
 import { findTaggedTemplates } from './find/svelte'
 import { findTypescriptTagged } from './find/typescript'
 import { svelteInternals } from './svelte-internal'
-import { Edit, hasT, parseT, TOptions, transformT, validatePlaceholders, validateTranslation } from './t'
+import { aliasFor, Edit, hasT, parseT, TOptions, transformT, validatePlaceholders, validateTranslation } from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -43,11 +43,15 @@ export type I18nPluginProps = {
 	/** Whether comments inside `<T>` stay in the output. Defaults to the
 	 * Svelte plugin's `compilerOptions.preserveComments`. */
 	preserveComments?: boolean
+
+	/** The namespace components are compiled in. Defaults to the Svelte
+	 * plugin's `compilerOptions.namespace`; `<svelte:options namespace>` wins. */
+	namespace?: TOptions['namespace']
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
 // A private alias, so a `lang` of the component itself can't shadow the calls.
-const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'"
+const langImport = (alias: string) => `import { lang as ${alias} } from '@awsless/i18n/svelte'`
 
 type Logger = {
 	info: (message: string) => void
@@ -76,7 +80,11 @@ const svelteCompilerOptions = (plugins: readonly Plugin[]): TOptions => {
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
-	let options: TOptions = { preserveWhitespace: props.preserveWhitespace, preserveComments: props.preserveComments }
+	let options: TOptions = {
+		preserveWhitespace: props.preserveWhitespace,
+		preserveComments: props.preserveComments,
+		namespace: props.namespace,
+	}
 	let generatedCache: Cache
 	let overrideCache: Cache
 
@@ -147,6 +155,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			options = {
 				preserveWhitespace: props.preserveWhitespace ?? compiler.preserveWhitespace,
 				preserveComments: props.preserveComments ?? compiler.preserveComments,
+				namespace: props.namespace ?? compiler.namespace,
 			}
 		},
 		async buildStart() {
@@ -244,6 +253,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 
 			if (svelte) {
 				const { ast, components } = parseT(code, id, options)
+				const alias = aliasFor(ast)
 				const templates = rewrites(findTaggedTemplates(ast, code))
 				const lookup = (source: string, locale: string) => cache.get(source, locale)
 				const edits: Edit[] = []
@@ -256,7 +266,8 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 						props.locales,
 						lookup,
 						message => this.warn(message),
-						templates
+						templates,
+						alias
 					)
 					edits.push(...result.edits)
 					called ||= result.translated
@@ -294,9 +305,9 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 						const first = ast.instance.content.body[0] as unknown as { start: number } | undefined
 						const sameLine = !code.slice(start, first?.start ?? start).includes('\n')
 
-						transformedCode.appendLeft(start, `${LANG_IMPORT}${sameLine ? ';\n' : ''}`)
+						transformedCode.appendLeft(start, `${langImport(alias)}${sameLine ? ';\n' : ''}`)
 					} else {
-						transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n</script>\n`)
+						transformedCode.prepend(`<script>\n\t${langImport(alias)}\n</script>\n`)
 					}
 				}
 			} else {

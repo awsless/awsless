@@ -109,7 +109,7 @@ const CARD =
 type Props = Record<string, unknown> | (() => Record<string, unknown>)
 type Settings = {
 	plugin?: Partial<Parameters<typeof i18n>[0]>
-	compile?: { preserveWhitespace?: boolean; preserveComments?: boolean }
+	compile?: { preserveWhitespace?: boolean; preserveComments?: boolean; namespace?: 'html' | 'svg' | 'mathml' }
 }
 
 // A props factory gives every render fresh state.
@@ -2080,6 +2080,78 @@ describe('namespace lookup through the wrapper', () => {
 		const { baseline, fr } = await parity(same, { tag: 'text' })
 		expect(baseline).toBe('<svg><text><tspan>Hello</tspan><tspan>world</tspan></text></svg>')
 		expect(fr).toBe('<svg><text><tspan>HELLO</tspan><tspan>WORLD</tspan></text></svg>')
+	})
+})
+
+describe('compiler namespace and the helper alias', () => {
+	const element = '<svelte:element this={tag}><span>Hello</span> <span>world</span></svelte:element>'
+	const markup = `<svg><foreignObject><T>${element}</T></foreignObject></svg>`
+	const translations = table({ '<1><2>Hello</2> <3>world</3></1>': { fr: '<1><2>Bonjour</2> <3>monde</3></1>' } })
+
+	it('takes the component namespace from the compiler options', async () => {
+		const svg = { plugin: { namespace: 'svg' as const }, compile: { namespace: 'svg' as const } }
+
+		expect(findSvelteTranslatable(component(markup), 'page.svelte', { namespace: 'svg' })).toStrictEqual([])
+		const { baseline, code } = await parity(markup, { tag: 'div' }, svg)
+		expect(baseline).toBe(
+			'<svg><foreignObject><div><span>Hello</span><span>world</span></div></foreignObject></svg>'
+		)
+		expect(code).toBe(component(markup))
+
+		const translated = await transform(component(markup), translations, undefined, 'page.svelte', svg.plugin)
+		expect(translated.code).toBe(component(markup))
+		expect((await ssr(translated.code, { tag: 'div' }, ['fr'], svg.compile))[0]).toBe(baseline)
+
+		// The default namespace is html, which the element keeps once unwrapped.
+		expect(sources(markup)).toStrictEqual(['<1><2>Hello</2> <3>world</3></1>'])
+		const plain = await parity(markup, { tag: 'div' })
+		expect(plain.baseline).toBe(
+			'<svg><foreignObject><div><span>Hello</span> <span>world</span></div></foreignObject></svg>'
+		)
+
+		const plugin = i18n({ locales: ['fr'], translate: table({}) })
+		const fake = { name: 'vite-plugin-svelte:config', api: { options: { compilerOptions: { namespace: 'svg' } } } }
+		// @ts-expect-error only the hook body is exercised
+		plugin.configResolved({ plugins: [fake] })
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-t-'))
+		await writeFile(resolve(cwd, 'page.svelte'), component(markup))
+		const previous = process.cwd()
+		process.chdir(cwd)
+		try {
+			const context = { info() {}, warn() {}, environment: { logger: { info() {}, warn() {} } } }
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+			expect(Object.keys((await loadCache(cwd)).toJSON())).toStrictEqual([])
+		} finally {
+			process.chdir(previous)
+		}
+	})
+
+	it('picks a helper alias nothing in the file uses', async () => {
+		const each = '{#each [1] as __i18n_lang}<T>Hello</T>{/each}'
+		const { code } = await transform(component(each), table({ Hello: { fr: 'Bonjour' } }))
+		expect(code).toContain("import { lang as __i18n_lang1 } from '@awsless/i18n/svelte'")
+		expect(code).toContain('{__i18n_lang1.t.pick(["Hello"], {"fr":["Bonjour"]})}')
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('Hello')
+		expect(fr).toBe('Bonjour')
+
+		const script = await transform(
+			component('<T>Hello {__i18n_lang}</T>', 'let __i18n_lang = 1'),
+			table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } })
+		)
+		expect(script.code).toContain(
+			'__i18n_lang1.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [__i18n_lang1.t.str((__i18n_lang))])'
+		)
+		expect(() => compile(script.code, { generate: 'client' })).not.toThrow()
+		expect(await ssr(script.code, {}, ['en', 'fr'])).toStrictEqual(['Hello 1', 'Bonjour 1'])
+
+		const both = await transform(
+			component('<T>Hello</T>', 'let __i18n_lang = 1, __i18n_lang1 = 2'),
+			table({ Hello: { fr: 'Bonjour' } })
+		)
+		expect(both.code).toContain('import { lang as __i18n_lang2 }')
 	})
 })
 

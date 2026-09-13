@@ -17,6 +17,7 @@ export type Token =
 export type TOptions = {
 	preserveWhitespace?: boolean
 	preserveComments?: boolean
+	namespace?: Namespace
 }
 
 // Where a body sits: what Svelte's visitors carry down to clean it, plus
@@ -332,7 +333,7 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 	// The component's own options beat the compiler defaults.
 	const preserveAll = ast.options?.preserveWhitespace ?? options.preserveWhitespace ?? false
 	const preserveComments = options.preserveComments ?? false
-	const namespace = (ast.options?.namespace as Namespace | undefined) ?? 'html'
+	const namespace = (ast.options?.namespace as Namespace | undefined) ?? options.namespace ?? 'html'
 	const { ours } = resolveT(ast)
 
 	annotate(ast, namespace, internals)
@@ -976,6 +977,53 @@ export const validateTranslation = (source: string, translation: string, sealed:
 // ---------------------------------------------------------------------------
 // Emitting: `{__i18n_lang.t.pick(["Hello ", 0], {"fr":["Bonjour ", 0]}, [__i18n_lang.t.str((name))])}`
 
+/** A name for the imported `lang` that nothing in the file uses: every
+ * identifier in the scripts and the template counts, bound or not. */
+export const aliasFor = (ast: AST.Root, base = '__i18n_lang') => {
+	const taken = new Set<string>()
+	const seen = new Set<object>()
+
+	const walk = (value: unknown) => {
+		if (!value || typeof value !== 'object' || seen.has(value)) {
+			return
+		}
+
+		seen.add(value)
+
+		if (Array.isArray(value)) {
+			value.forEach(walk)
+			return
+		}
+
+		const node = value as { type?: string; name?: unknown; index?: unknown }
+
+		if (node.type === 'Identifier' && typeof node.name === 'string') {
+			taken.add(node.name)
+		}
+
+		// `let:name` without a value and an each block's index are plain strings.
+		if ((node.type === 'LetDirective' || node.type === 'EachBlock') && typeof node.index === 'string') {
+			taken.add(node.index)
+		}
+
+		if (node.type === 'LetDirective' && typeof node.name === 'string') {
+			taken.add(node.name)
+		}
+
+		Object.values(node).forEach(walk)
+	}
+
+	walk(ast)
+
+	let alias = base
+
+	for (let suffix = 1; taken.has(alias); suffix++) {
+		alias = `${base}${suffix}`
+	}
+
+	return alias
+}
+
 export type Lookup = (source: string, locale: string) => string | undefined
 
 // Parts are text or the position of a value, so a translation can reorder
@@ -1022,7 +1070,8 @@ export const transformT = (
 	locales: string[],
 	lookup: Lookup,
 	warn: (message: string) => void,
-	rewrites: Edit[] = []
+	rewrites: Edit[] = [],
+	alias = '__i18n_lang'
 ) => {
 	const edits: Edit[] = []
 	let translated = false
@@ -1085,7 +1134,7 @@ export const transformT = (
 			const values =
 				indices.length > 0
 					? `, [${indices
-							.map(i => `__i18n_lang.t.str((${spliced(code, segment.expressions[i]!, rewrites)}))`)
+							.map(i => `${alias}.t.str((${spliced(code, segment.expressions[i]!, rewrites)}))`)
 							.join(', ')}]`
 					: ''
 
@@ -1099,8 +1148,7 @@ export const transformT = (
 				)
 				.join('')
 
-			const text =
-				changed.length > 0 ? `{__i18n_lang.t.pick(${source}, {${changed.join(',')}}${values})}` : literal
+			const text = changed.length > 0 ? `{${alias}.t.pick(${source}, {${changed.join(',')}}${values})}` : literal
 
 			return { run, changed, text }
 		})
