@@ -264,6 +264,11 @@ const SVG_TEXT = /* @__PURE__ */ new Set([
 	"desc"
 ]);
 const hasSlotAttribute = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
+const staticTag = (node) => {
+	const tag = node.tag;
+	return tag.type === "Literal" && typeof tag.value === "string" ? tag.value : void 0;
+};
+const isSvgTextElement = (node) => node.type === "RegularElement" && SVG_TEXT.has(node.name) || node.type === "SvelteElement" && SVG_TEXT.has(staticTag(node) ?? "");
 const hasStaticXmlns = (node) => node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "xmlns" && Array.isArray(attribute.value) && attribute.value.length === 1 && attribute.value[0]?.type === "Text");
 const hasExposedDynamicElement = (nodes) => nodes.some((node) => {
 	switch (node.type) {
@@ -312,6 +317,17 @@ const patternNames = (pattern, names = []) => {
 	return names;
 };
 const letNames = (node) => node.attributes.flatMap((attribute) => attribute.type === "LetDirective" ? attribute.expression ? patternNames(attribute.expression) : [attribute.name] : []);
+const isTImport = (statement) => statement.type === "ImportDeclaration" && statement.source.value === "@awsless/i18n/T";
+const statementBindings = (statement) => {
+	switch (statement.type) {
+		case "VariableDeclaration": return statement.declarations.flatMap((declaration) => patternNames(declaration.id));
+		case "FunctionDeclaration":
+		case "ClassDeclaration": return statement.id ? [statement.id.name] : [];
+		case "ImportDeclaration": return statement.specifiers.map((specifier) => specifier.local.name);
+		case "ExportNamedDeclaration": return statement.declaration ? statementBindings(statement.declaration) : [];
+		default: return [];
+	}
+};
 /** The <T> uses that are ours: any default import of this package, used
 * where no each, snippet, let:, @const or await binding shadows that name. */
 const resolveT = (ast) => {
@@ -320,6 +336,7 @@ const resolveT = (ast) => {
 	for (const script of [ast.instance, ast.module]) for (const statement of script?.content.body ?? []) if (statement.type === "ImportDeclaration" && statement.source.value === "@awsless/i18n/T") {
 		for (const specifier of statement.specifiers) if (specifier.type === "ImportDefaultSpecifier" || specifier.type === "ImportSpecifier" && specifier.imported.type === "Identifier" && specifier.imported.name === "default") names.add(specifier.local.name);
 	}
+	for (const statement of ast.instance?.content.body ?? []) for (const name of statementBindings(statement)) if (!isTImport(statement)) names.delete(name);
 	if (names.size === 0) return {
 		names,
 		ours
@@ -606,7 +623,7 @@ const parseT = (code, file, options = {}) => {
 					const regular = node.type === "RegularElement";
 					const current = namespaces.get(node) ?? context.namespace;
 					const childNamespace = regular || node.type === "SvelteElement" ? internals.childNamespace(node, current) : current;
-					const svgText = childNamespace === "svg" && (context.svgText || regular && SVG_TEXT.has(node.name));
+					const svgText = childNamespace === "svg" && (context.svgText || isSvgTextElement(node));
 					const body = {
 						restricted: regular && RESTRICTED.has(node.name) || childNamespace === "svg" && !svgText,
 						component: COMPONENTS.has(node.type)
@@ -695,7 +712,7 @@ const collect = (code, ours, internals, componentNamespace, nodes, context, pare
 		}
 		const regular = node.type === "RegularElement";
 		const namespace = regular || node.type === "SvelteElement" ? internals.childNamespace(node, context.namespace) : context.namespace;
-		const svgText = namespace === "svg" && (context.svgText || regular && SVG_TEXT.has(node.name));
+		const svgText = namespace === "svg" && (context.svgText || "attributes" in node && isSvgTextElement(node));
 		const inside = {
 			path: [...context.path, node],
 			namespace,

@@ -89,6 +89,18 @@ const hasSlotAttribute = (node: AST.Fragment['nodes'][number]) =>
 // Only a slot attribute and let: directives survive the unwrapping. Any other
 // attribute (css --props, children, a spread, handlers, ...) or named slot
 // content among the children means the runtime component has to stay.
+// A `this` that is a plain string names the element as surely as a tag does.
+const staticTag = (node: AST.SvelteElement) => {
+	const tag = node.tag as { type: string; value?: unknown }
+
+	return tag.type === 'Literal' && typeof tag.value === 'string' ? tag.value : undefined
+}
+
+// Whether an element holds svg text, so its runs may be translated.
+const isSvgTextElement = (node: AST.ElementLike) =>
+	(node.type === 'RegularElement' && SVG_TEXT.has(node.name)) ||
+	(node.type === 'SvelteElement' && SVG_TEXT.has(staticTag(node) ?? ''))
+
 const hasStaticXmlns = (node: AST.SvelteElement) =>
 	node.attributes.some(
 		attribute =>
@@ -206,6 +218,27 @@ const letNames = (node: AST.ElementLike) =>
 			: []
 	)
 
+const isTImport = (statement: AST.Script['content']['body'][number]) =>
+	statement.type === 'ImportDeclaration' && statement.source.value === T_MODULE
+
+// The names a top level script statement binds: declarations, classes,
+// functions, imports and destructured `$props()`.
+const statementBindings = (statement: AST.Script['content']['body'][number]): string[] => {
+	switch (statement.type) {
+		case 'VariableDeclaration':
+			return statement.declarations.flatMap(declaration => patternNames(declaration.id as Pattern))
+		case 'FunctionDeclaration':
+		case 'ClassDeclaration':
+			return statement.id ? [statement.id.name] : []
+		case 'ImportDeclaration':
+			return statement.specifiers.map(specifier => specifier.local.name)
+		case 'ExportNamedDeclaration':
+			return statement.declaration ? statementBindings(statement.declaration) : []
+		default:
+			return []
+	}
+}
+
 /** The <T> uses that are ours: any default import of this package, used
  * where no each, snippet, let:, @const or await binding shadows that name. */
 export const resolveT = (ast: AST.Root) => {
@@ -225,6 +258,17 @@ export const resolveT = (ast: AST.Root) => {
 						names.add(specifier.local.name)
 					}
 				}
+			}
+		}
+	}
+
+	// The instance script sees the module script; whatever it binds itself
+	// hides the alias for the whole template. Rebinding an alias imported in
+	// the same script is a compile error, so only the module import matters.
+	for (const statement of ast.instance?.content.body ?? []) {
+		for (const name of statementBindings(statement)) {
+			if (!isTImport(statement)) {
+				names.delete(name)
 			}
 		}
 	}
@@ -551,8 +595,7 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 							regular || node.type === 'SvelteElement'
 								? internals.childNamespace(node as SvelteNode, current)
 								: current
-						const svgText =
-							childNamespace === 'svg' && (context.svgText || (regular && SVG_TEXT.has(node.name)))
+						const svgText = childNamespace === 'svg' && (context.svgText || isSvgTextElement(node))
 						const body = {
 							restricted:
 								(regular && RESTRICTED.has(node.name)) || (childNamespace === 'svg' && !svgText),
@@ -690,7 +733,7 @@ const collect = (
 			regular || node.type === 'SvelteElement'
 				? internals.childNamespace(node as SvelteNode, context.namespace)
 				: context.namespace
-		const svgText = namespace === 'svg' && (context.svgText || (regular && SVG_TEXT.has(node.name)))
+		const svgText = namespace === 'svg' && (context.svgText || ('attributes' in node && isSvgTextElement(node)))
 		const inside: Context = {
 			path: [...context.path, node as SvelteNode],
 			namespace,

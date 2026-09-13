@@ -2155,6 +2155,67 @@ describe('compiler namespace and the helper alias', () => {
 	})
 })
 
+describe('instance rebinding and static dynamic tags', () => {
+	it('lets an instance binding hide a module import', async () => {
+		const page = [
+			"<script module>import T from '@awsless/i18n/T'</script>",
+			"<script>import Other from './custom.svelte'\n\tfunction T(...args) { return Other(...args) }</script>",
+			'<T value="OTHER">Hello</T>',
+			'',
+		].join('\n')
+
+		expect(findSvelteTranslatable(page)).toStrictEqual([])
+		const [before] = await ssr(page, {}, ['en'])
+		expect(before).toBe('<em>OTHER</em>')
+		const { code } = await transform(page, table({ Hello: { fr: 'Bonjour' } }))
+		expect(code).toBe(page)
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect((await ssr(code, {}, ['fr']))[0]).toBe(before)
+
+		for (const binding of [
+			'const T = Other',
+			'let T = Other',
+			'class T {}',
+			"import T from './custom.svelte'",
+			'let { T } = $props()',
+		]) {
+			const variant = page.replace('function T(...args) { return Other(...args) }', binding)
+			expect(findSvelteTranslatable(variant)).toStrictEqual([])
+		}
+
+		// The plain instance import is untouched by this.
+		expect(sources('<T>Hello</T>')).toStrictEqual(['Hello'])
+	})
+
+	it('treats a static svelte:element tag like the element it names', async () => {
+		const owned = `<svg><T><svelte:element this={'text'} xmlns="http://www.w3.org/2000/svg">Hello</svelte:element></T></svg>`
+		expect(findSvelteTranslatable(component(owned))).toStrictEqual([
+			{ source: '<1>Hello</1>', kind: 'markup', sealed: [0, 2] },
+		])
+
+		const [baseline] = await ssr(component(owned), {}, ['en'])
+		const { code, warn } = await transform(component(owned), table({ '<1>Hello</1>': { fr: '<1>Bonjour</1>' } }))
+		expect(warn).not.toHaveBeenCalled()
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe('<svg><text xmlns="http://www.w3.org/2000/svg">Bonjour</text></svg>')
+
+		// In an svg component the guard lets the element through without xmlns.
+		const bare = `<svelte:options namespace="svg" /><svg><T><svelte:element this={'text'}>Hello</svelte:element></T></svg>`
+		expect(findSvelteTranslatable(component(bare))[0]?.sealed).toStrictEqual([0, 2])
+		const result = await transform(component(bare), table({ '<1>Hello</1>': { fr: '<1>Bonjour</1>' } }))
+		expect(result.warn).not.toHaveBeenCalled()
+		expect((await ssr(result.code, {}, ['fr'], { namespace: 'svg' }))[0]).toBe('<svg><text>Bonjour</text></svg>')
+
+		// A tag only known at runtime stays sealed under svg.
+		const dynamic = `<svg><T><svelte:element this={tag} xmlns="http://www.w3.org/2000/svg">Hello</svelte:element></T></svg>`
+		expect(findSvelteTranslatable(component(dynamic))[0]?.sealed).toStrictEqual([0, 1, 2])
+		const rejected = await transform(component(dynamic), table({ '<1>Hello</1>': { fr: '<1>Bonjour</1>' } }))
+		expect(rejected.warn).toHaveBeenCalledTimes(1)
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')
