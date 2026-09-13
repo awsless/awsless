@@ -29,8 +29,22 @@ export const loadCache = async (cwd: string): Promise<Cache> => {
 	return mergeCaches(await loadGeneratedCache(cwd), await loadOverrideCache(cwd))
 }
 
+// Leaves the file untouched when nothing changed so watchers don't fire for nothing
 export const saveCache = async (cwd: string, cache: Cache) => {
-	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), undefined, '\t') + '\n')
+	const file = join(cwd, GENERATED_CACHE_FILE)
+	const content = JSON.stringify(cache.toJSON(), undefined, '\t') + '\n'
+
+	try {
+		if ((await readFile(file, 'utf8')) === content) {
+			return false
+		}
+	} catch {
+		// no file yet
+	}
+
+	await writeFile(file, content)
+
+	return true
 }
 
 export const mergeCaches = (...caches: Cache[]) => {
