@@ -44,6 +44,9 @@ type Logger = {
 	warn: (message: string) => void
 }
 
+const outermost = (tagged: Tagged[]) =>
+	tagged.filter(item => !tagged.some(other => other !== item && other.start <= item.start && item.end <= other.end))
+
 // Vite ids keep their query (?svelte&type=style), which extname would not strip.
 const isSvelteFile = (id = '') => extname(id.split('?')[0]!) === '.svelte'
 
@@ -153,7 +156,21 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				sources.add(item.source)
 			}
 
-			const langT = (source: string) => {
+			// Templates inside a template compose from the inside out: the inner
+			// call is spliced into the outer text, and into its translations, at
+			// the offsets oxc reports for that text parsed as a template literal.
+			const compose = (text: string): string => {
+				const inner = outermost(findTypescriptTagged(`\`${text}\``).filter(item => sources.has(item.source)))
+				let result = text
+
+				for (const item of inner.toSorted((a, b) => b.start - a.start)) {
+					result = result.slice(0, item.start - 1) + render(item.source) + result.slice(item.end - 1)
+				}
+
+				return result
+			}
+
+			const render = (source: string): string => {
 				const translations = props.locales
 					.map(locale => {
 						const translation = cache.get(source, locale)
@@ -164,16 +181,20 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 							return
 						}
 
-						return `"${locale}":\`${translation}\``
+						return `"${locale}":\`${compose(translation)}\``
 					})
 					.filter(v => !!v)
 
-				return `lang.t.get(\`${source}\`, {${translations.join(',')}})`
+				return `lang.t.get(\`${compose(source)}\`, {${translations.join(',')}})`
 			}
 
-			// Only templates the cache knows are rewritten, the rest keep working as tagged calls.
+			// Only templates the cache knows are rewritten, the rest keep working
+			// as tagged calls. Nested ones are part of their outermost edit.
 			const rewrites = (tagged: Tagged[]): Edit[] =>
-				tagged.filter(item => sources.has(item.source)).map(item => ({ ...item, text: langT(item.source) }))
+				outermost(tagged.filter(item => sources.has(item.source))).map(item => ({
+					...item,
+					text: render(item.source),
+				}))
 
 			const transformedCode = new MagicString(code)
 

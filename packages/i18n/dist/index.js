@@ -231,7 +231,10 @@ const parseT = (code, file) => {
 					for (const body of blockBodies(node)) nested.push(...build(body, context));
 					break;
 				default: {
-					if (node.type === "Component" && node.name === "T") throw fail(node.start, "nested <T> is not supported inside <T>");
+					if (node.type === "Component" && node.name === "T") {
+						if (node.attributes.some((attribute) => attribute.type === "SpreadAttribute" || attribute.type === "Attribute" && attribute.name === "children")) continue;
+						throw fail(node.start, "nested <T> is not supported inside <T>");
+					}
 					const n = ++tags;
 					const first = node.fragment.nodes[0];
 					const last = node.fragment.nodes.at(-1);
@@ -290,6 +293,7 @@ const parseT = (code, file) => {
 const collect = (nodes, preserve, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && node.name === "T") {
+			if (node.attributes.some((attribute) => attribute.type === "SpreadAttribute" || attribute.type === "Attribute" && attribute.name === "children")) continue;
 			const remove = [];
 			const children = node.fragment.nodes.flatMap((child) => {
 				if (child.type !== "SvelteFragment") return [child];
@@ -700,6 +704,7 @@ const findTranslatableInCode = async (file, code) => {
 //#region src/vite.ts
 const SOURCE_FILE = /\.(svelte|ts|js)$/;
 const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'";
+const outermost = (tagged) => tagged.filter((item) => !tagged.some((other) => other !== item && other.start <= item.start && item.end <= other.end));
 const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
 const i18n = (props) => {
 	let cache;
@@ -756,16 +761,23 @@ const i18n = (props) => {
 			if (!code.includes("lang.t`") && !(svelte && hasT(code))) return;
 			const sources = /* @__PURE__ */ new Set();
 			for (const item of cache.entries()) sources.add(item.source);
-			const langT = (source) => {
-				return `lang.t.get(\`${source}\`, {${props.locales.map((locale) => {
+			const compose = (text) => {
+				const inner = outermost(findTypescriptTagged(`\`${text}\``).filter((item) => sources.has(item.source)));
+				let result = text;
+				for (const item of inner.toSorted((a, b) => b.start - a.start)) result = result.slice(0, item.start - 1) + render(item.source) + result.slice(item.end - 1);
+				return result;
+			};
+			const render = (source) => {
+				const translations = props.locales.map((locale) => {
 					const translation = cache.get(source, locale);
 					if (translation === void 0 || translation === source) return;
-					return `"${locale}":\`${translation}\``;
-				}).filter((v) => !!v).join(",")}})`;
+					return `"${locale}":\`${compose(translation)}\``;
+				}).filter((v) => !!v);
+				return `lang.t.get(\`${compose(source)}\`, {${translations.join(",")}})`;
 			};
-			const rewrites = (tagged) => tagged.filter((item) => sources.has(item.source)).map((item) => ({
+			const rewrites = (tagged) => outermost(tagged.filter((item) => sources.has(item.source))).map((item) => ({
 				...item,
-				text: langT(item.source)
+				text: render(item.source)
 			}));
 			const transformedCode = new MagicString(code);
 			if (svelte) {

@@ -174,6 +174,18 @@ export const parseT = (code: string, file?: string) => {
 						break
 					default: {
 						if (node.type === 'Component' && node.name === 'T') {
+							// With children passed as a prop there is nothing to translate here;
+							// the runtime component renders it.
+							const passed = node.attributes.some(
+								attribute =>
+									attribute.type === 'SpreadAttribute' ||
+									(attribute.type === 'Attribute' && attribute.name === 'children')
+							)
+
+							if (passed) {
+								continue
+							}
+
 							throw fail(node.start, 'nested <T> is not supported inside <T>')
 						}
 
@@ -230,6 +242,18 @@ type Found = (
 const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) => {
 	for (const node of nodes) {
 		if (node.type === 'Component' && node.name === 'T') {
+			// With children passed as a prop there is nothing to translate here;
+			// the runtime component renders it.
+			const passed = node.attributes.some(
+				attribute =>
+					attribute.type === 'SpreadAttribute' ||
+					(attribute.type === 'Attribute' && attribute.name === 'children')
+			)
+
+			if (passed) {
+				continue
+			}
+
 			const remove: Range[] = []
 
 			// <svelte:fragment> only means something to a component, so its
@@ -549,7 +573,7 @@ const placeholdersOf = (tokens: Token[]) =>
 const placeholders = (text: string) =>
 	Array.from(text.matchAll(/\$\{([^{}]*)\}/g), match => match[1]!)
 		.toSorted()
-		.join(' ')
+		.join('\u0000')
 
 /** Returns what is wrong with a lang.t translation, or nothing when it
  * keeps every `${...}` placeholder. Angle brackets are plain text there. */

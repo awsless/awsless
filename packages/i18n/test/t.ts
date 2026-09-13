@@ -3,6 +3,7 @@ import { createRequire } from 'module'
 import { tmpdir } from 'os'
 import { resolve } from 'path'
 import { pathToFileURL } from 'url'
+import { parseSync } from 'oxc-parser'
 import { compile } from 'svelte/compiler'
 import { render } from 'svelte/server'
 import { i18n, Translator } from '../src'
@@ -28,9 +29,14 @@ const table = (translations: Record<string, Record<string, string>>): Translator
 }
 
 // Runs the plugin like a dev server would: a scan at start, then a transform.
-const transform = async (code: string, translate: Translator, override?: Record<string, unknown>) => {
+const transform = async (
+	code: string,
+	translate: Translator,
+	override?: Record<string, unknown>,
+	file = 'page.svelte'
+) => {
 	const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-t-'))
-	const path = resolve(cwd, 'page.svelte')
+	const path = resolve(cwd, file)
 	await writeFile(path, code)
 
 	if (override) {
@@ -850,6 +856,74 @@ describe('lang.t rewriting by AST', () => {
 		expect(code).toBe(
 			'<script>import { lang } from \'@awsless/i18n/svelte\'\n\tconst a = lang.t.get(`x`, {"fr":`z`})</script><p title={lang.t.get(`x`, {"fr":`z`})}>{a}</p>'
 		)
+	})
+})
+
+describe('nested lang.t and passed children', () => {
+	const nested = {
+		'Hello ${0}!': { fr: 'Bonjour ${0} !' },
+		'Hello ${lang.t`world`}': { fr: 'Bonjour ${lang.t`world`}' },
+		world: { fr: 'monde' },
+	}
+	const world = 'lang.t.get(`world`, {"fr":`monde`})'
+	const outer = `lang.t.get(\`Hello \${${world}}\`, {"fr":\`Bonjour \${${world}}\`})`
+
+	it('composes nested templates inside a <T> run', async () => {
+		const { code } = await transform(
+			component('<T>Hello {lang.t`Hello ${lang.t`world`}`}!</T>', "import { lang } from '@awsless/i18n/svelte'"),
+			table(nested)
+		)
+
+		expect(code).toContain(`[(${outer})]`)
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect(() => compile(code, { generate: 'server' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('Hello Hello world!')
+		expect(fr).toBe('Bonjour Bonjour monde !')
+	})
+
+	it('composes nested templates outside a <T>', async () => {
+		const { code } = await transform(
+			component('<p>{lang.t`Hello ${lang.t`world`}`}</p>', "import { lang } from '@awsless/i18n/svelte'"),
+			table(nested)
+		)
+
+		expect(code).toContain(`<p>{${outer}}</p>`)
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect(() => compile(code, { generate: 'server' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('<p>Hello world</p>')
+		expect(fr).toBe('<p>Bonjour monde</p>')
+	})
+
+	it('composes nested templates in a .ts file', async () => {
+		const source =
+			"import { lang } from '@awsless/i18n/svelte'\nexport const text = lang.t`Hello ${lang.t`world`}`\n"
+		const { code } = await transform(source, table(nested), undefined, 'lib.ts')
+
+		expect(code).toBe(`import { lang } from '@awsless/i18n/svelte'\nexport const text = ${outer}\n`)
+		expect(parseSync('lib.ts', code).errors).toStrictEqual([])
+	})
+
+	it('leaves a <T> with passed children to the runtime component', async () => {
+		for (const markup of [
+			'{#snippet greeting()}Hello{/snippet}<T children={greeting}/>',
+			'{#snippet greeting()}Hello{/snippet}<T children={greeting}></T>',
+		]) {
+			const [before] = await ssr(component(markup), {}, ['en'])
+			const { code } = await transform(component(markup), upper)
+
+			expect(before).toBe('Hello')
+			expect(code).toContain(markup)
+			expect(() => compile(code, { generate: 'client' })).not.toThrow()
+
+			const [after] = await ssr(code, {}, ['en'])
+			expect(after).toBe('Hello')
+		}
+
+		expect(sources('<T children={greeting}/><T {...rest}>x</T>')).toStrictEqual([])
 	})
 })
 
