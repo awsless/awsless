@@ -68,7 +68,7 @@ const component = (markup: string, script = "import T from '@awsless/i18n/T'") =
 		"\timport Badge from './badge.svelte'",
 		"\timport Icon from './icon.svelte'",
 		"\timport Card from './card.svelte'",
-		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages } = $props()',
+		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag } = $props()',
 		'</script>',
 		'',
 		markup,
@@ -305,7 +305,7 @@ describe('<T> transform', () => {
 			'{#if true}' +
 				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{name}</b>' +
 				'{__i18n_lang.t.pick([", you have "], {"fr":[", vous avez "]})}' +
-				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [n])}</Badge>. <Icon/>' +
+				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [(n)])}</Badge>. <Icon/>' +
 				'{/if}'
 		)
 		expect(code).not.toContain('<T')
@@ -405,7 +405,7 @@ describe('<T> transform', () => {
 		)
 
 		expect(code).toContain(
-			'{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [lang.t.get(`x`, {"fr":`y`})])}'
+			'{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [(lang.t.get(`x`, {"fr":`y`}))])}'
 		)
 		expect(code).toContain('<p>{lang.t.get(`Bye`, {"fr":`Au revoir`})}</p>')
 	})
@@ -610,6 +610,61 @@ describe('<T> compile and render', () => {
 
 		expect(en).toBe('Hello shadow')
 		expect(fr).toBe('Bonjour shadow')
+	})
+})
+
+describe('<T> wrapper and normalisation', () => {
+	it('keeps a sequence expression as one value', async () => {
+		await check(
+			'<T>Value {(n++, n)} then {n}</T>',
+			{ 'Value ${0} then ${1}': 'Value ${1} then ${0}' },
+			{ n: 1 },
+			{ en: 'Value 2 then 2', fr: 'Value 2 then 2' }
+		)
+	})
+
+	it('keeps a children snippet with parameters and renders it', async () => {
+		const markup = '<T>{#snippet children(x="DEFAULT")}Hello {x}{/snippet}</T>'
+		const translations = { 'Hello ${0}': 'Bonjour ${0}' }
+		const expected = { en: 'Hello DEFAULT', fr: 'Bonjour DEFAULT' }
+
+		const { code } = await check(markup, translations, {}, expected)
+		await check(markup, translations, { x: 'OUTER' }, expected)
+
+		expect(code).toContain(
+			'{#if true}{#snippet children(x="DEFAULT")}{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [(x)])}{/snippet}{@render children()}{/if}'
+		)
+	})
+
+	it('unwraps a svelte:fragment child', async () => {
+		const { code } = await check(
+			'<T><svelte:fragment>Hello</svelte:fragment></T>',
+			{ Hello: 'Bonjour' },
+			{},
+			{ en: 'Hello', fr: 'Bonjour' }
+		)
+		expect(code).not.toContain('svelte:fragment')
+
+		const plain = await check(
+			'<T>a <svelte:fragment>b</svelte:fragment> c<svelte:fragment /></T>',
+			{},
+			{},
+			{
+				en: 'a b c',
+				fr: 'a b c',
+			}
+		)
+		expect(plain.code).toContain('{#if true}a b c{/if}')
+	})
+
+	it('treats svelte:element as whitespace sensitive', async () => {
+		await check(
+			'<T><svelte:element this={tag}>Hello\n  world</svelte:element></T>',
+			{ '<1>Hello\n  world</1>': '<1>Bonjour\n  le monde</1>' },
+			{ tag: 'pre' },
+			{ en: '<pre>Hello\n  world</pre>', fr: '<pre>Bonjour\n  le monde</pre>' }
+		)
+		expect(serializeT('<T><svelte:element this="b">a\n  b</svelte:element></T>')).toStrictEqual(['<1>a\n  b</1>'])
 	})
 })
 

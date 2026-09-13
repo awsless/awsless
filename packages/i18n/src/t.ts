@@ -27,13 +27,16 @@ export type Segment = {
 
 export type TComponent = Range & {
 	/** The pieces of the <T> that make way for the block scope. Absent when empty. */
-	wrap?: { open: Range; close: Range }
+	wrap?: { open: Range; close: Range; tail: string }
+	/** Tags of direct `<svelte:fragment>` children, meaningless outside a component. */
+	remove: Range[]
 	segments: Segment[]
 }
 
 export const hasT = (code: string) => /<T[\s/>]/.test(code)
 
-const PRESERVE = new Set(['pre', 'textarea'])
+// svelte:element may turn out to be a pre at runtime, so it counts as one.
+const PRESERVE = new Set(['pre', 'textarea', 'svelte:element'])
 const ASCII_SPACE = /[ \t\n\r\f]+/g
 
 const isBlank = (node: AST.Fragment['nodes'][number]) =>
@@ -144,11 +147,12 @@ export const parseT = (code: string, file?: string) => {
 		return [segment(normalize(pieces), expressions), ...nested]
 	}
 
-	collect(ast.fragment.nodes, preserveAll, (node, wrap, nodes, preserve) => {
+	collect(ast.fragment.nodes, preserveAll, (node, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
 			wrap,
+			remove,
 			segments: nodes ? build(nodes, preserve) : [],
 		})
 	})
@@ -159,6 +163,7 @@ export const parseT = (code: string, file?: string) => {
 type Found = (
 	node: AST.Component,
 	wrap: TComponent['wrap'],
+	remove: Range[],
 	nodes: AST.Fragment['nodes'] | undefined,
 	preserve: boolean
 ) => void
@@ -166,25 +171,48 @@ type Found = (
 const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) => {
 	for (const node of nodes) {
 		if (node.type === 'Component' && node.name === 'T') {
-			const children = node.fragment.nodes
+			const remove: Range[] = []
+
+			// <svelte:fragment> only means something to a component, so its
+			// tags go and its content stays.
+			const children = node.fragment.nodes.flatMap(child => {
+				if (child.type !== 'SvelteFragment') {
+					return [child]
+				}
+
+				const first = child.fragment.nodes[0]
+				const last = child.fragment.nodes.at(-1)
+
+				if (first && last) {
+					remove.push({ start: child.start, end: first.start }, { start: last.end, end: child.end })
+					return child.fragment.nodes
+				}
+
+				remove.push({ start: child.start, end: child.end })
+				return []
+			})
+
 			const content = children.filter(child => !isBlank(child))
 			const only = content.length === 1 ? content[0] : undefined
+			const snippet = only?.type === 'SnippetBlock' && only.expression.name === 'children' ? only : undefined
 
-			// An explicit children snippet is the content, so its body stays
-			// and the snippet declaration goes with the tags.
-			const body =
-				only?.type === 'SnippetBlock' && only.expression.name === 'children' ? only.body.nodes : children
-			const first = body[0]
-			const last = body.at(-1)
+			// A bare children snippet inlines its body. One with parameters stays
+			// as declared and gets rendered, so its bindings and defaults survive.
+			const inline = snippet !== undefined && snippet.parameters.length === 0 && remove.length === 0
+			const body = inline ? snippet.body.nodes : children
+			const outer = inline ? body : node.fragment.nodes
+			const first = outer[0]
+			const last = outer.at(-1)
 
-			if (first && last) {
+			if (body.length > 0 && first && last) {
 				const wrap = {
 					open: { start: node.start, end: first.start },
 					close: { start: last.end, end: node.end },
+					tail: snippet && !inline ? '{@render children()}' : '',
 				}
-				found(node, wrap, body, preserve)
+				found(node, wrap, remove, body, preserve)
 			} else {
-				found(node, undefined, undefined, preserve)
+				found(node, undefined, [], undefined, preserve)
 			}
 			continue
 		}
@@ -434,8 +462,9 @@ export const transformT = (
 
 	// A block is a real scope for `{@const}` and snippets, and unlike a
 	// snippet it is not handed to an enclosing component as a prop.
+	edits.push(...component.remove.map(range => ({ ...range, text: '' })))
 	edits.push({ ...component.wrap.open, text: '{#if true}' })
-	edits.push({ ...component.wrap.close, text: '{/if}' })
+	edits.push({ ...component.wrap.close, text: `${component.wrap.tail}{/if}` })
 
 	for (const segment of component.segments) {
 		if (segment.source === '') {
@@ -480,7 +509,8 @@ export const transformT = (
 				continue
 			}
 
-			const values = indices.length > 0 ? `, [${indices.map(i => segment.expressions[i]).join(', ')}]` : ''
+			// Parentheses keep a sequence expression as one value.
+			const values = indices.length > 0 ? `, [${indices.map(i => `(${segment.expressions[i]})`).join(', ')}]` : ''
 
 			edits.push({
 				start: run.start,

@@ -96,7 +96,11 @@ const removeUnusedTranslations = (cache, sources, locales) => {
 //#region src/t.ts
 const range = (node) => node;
 const hasT = (code) => /<T[\s/>]/.test(code);
-const PRESERVE = /* @__PURE__ */ new Set(["pre", "textarea"]);
+const PRESERVE = /* @__PURE__ */ new Set([
+	"pre",
+	"textarea",
+	"svelte:element"
+]);
 const ASCII_SPACE = /[ \t\n\r\f]+/g;
 const isBlank = (node) => node.type === "Comment" || node.type === "Text" && node.data.trim() === "";
 const parseT = (code, file) => {
@@ -221,11 +225,12 @@ const parseT = (code, file) => {
 		visit(nodes, preserve);
 		return [segment(normalize(pieces), expressions), ...nested];
 	};
-	collect(ast.fragment.nodes, preserveAll, (node, wrap, nodes, preserve) => {
+	collect(ast.fragment.nodes, preserveAll, (node, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
 			wrap,
+			remove,
 			segments: nodes ? build(nodes, preserve) : []
 		});
 	});
@@ -237,13 +242,36 @@ const parseT = (code, file) => {
 const collect = (nodes, preserve, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && node.name === "T") {
-			const children = node.fragment.nodes;
+			const remove = [];
+			const children = node.fragment.nodes.flatMap((child) => {
+				if (child.type !== "SvelteFragment") return [child];
+				const first = child.fragment.nodes[0];
+				const last = child.fragment.nodes.at(-1);
+				if (first && last) {
+					remove.push({
+						start: child.start,
+						end: first.start
+					}, {
+						start: last.end,
+						end: child.end
+					});
+					return child.fragment.nodes;
+				}
+				remove.push({
+					start: child.start,
+					end: child.end
+				});
+				return [];
+			});
 			const content = children.filter((child) => !isBlank(child));
 			const only = content.length === 1 ? content[0] : void 0;
-			const body = only?.type === "SnippetBlock" && only.expression.name === "children" ? only.body.nodes : children;
-			const first = body[0];
-			const last = body.at(-1);
-			if (first && last) found(node, {
+			const snippet = only?.type === "SnippetBlock" && only.expression.name === "children" ? only : void 0;
+			const inline = snippet !== void 0 && snippet.parameters.length === 0 && remove.length === 0;
+			const body = inline ? snippet.body.nodes : children;
+			const outer = inline ? body : node.fragment.nodes;
+			const first = outer[0];
+			const last = outer.at(-1);
+			if (body.length > 0 && first && last) found(node, {
 				open: {
 					start: node.start,
 					end: first.start
@@ -251,9 +279,10 @@ const collect = (nodes, preserve, found) => {
 				close: {
 					start: last.end,
 					end: node.end
-				}
-			}, body, preserve);
-			else found(node, void 0, void 0, preserve);
+				},
+				tail: snippet && !inline ? "{@render children()}" : ""
+			}, remove, body, preserve);
+			else found(node, void 0, [], void 0, preserve);
 			continue;
 		}
 		const inside = preserve || "name" in node && typeof node.name === "string" && PRESERVE.has(node.name);
@@ -428,13 +457,17 @@ const transformT = (component, locales, lookup, warn) => {
 		}],
 		translated
 	};
+	edits.push(...component.remove.map((range) => ({
+		...range,
+		text: ""
+	})));
 	edits.push({
 		...component.wrap.open,
 		text: "{#if true}"
 	});
 	edits.push({
 		...component.wrap.close,
-		text: "{/if}"
+		text: `${component.wrap.tail}{/if}`
 	});
 	for (const segment of component.segments) {
 		if (segment.source === "") continue;
@@ -462,7 +495,7 @@ const transformT = (component, locales, lookup, warn) => {
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
 			if (changed.length === 0) continue;
-			const values = indices.length > 0 ? `, [${indices.map((i) => segment.expressions[i]).join(", ")}]` : "";
+			const values = indices.length > 0 ? `, [${indices.map((i) => `(${segment.expressions[i]})`).join(", ")}]` : "";
 			edits.push({
 				start: run.start,
 				end: run.end,
