@@ -37,7 +37,8 @@ const transform = async (
 	code: string,
 	translate: Translator,
 	override?: Record<string, unknown>,
-	file = 'page.svelte'
+	file = 'page.svelte',
+	options: Partial<Parameters<typeof i18n>[0]> = {}
 ) => {
 	const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-t-'))
 	const path = resolve(cwd, file)
@@ -51,7 +52,7 @@ const transform = async (
 	process.chdir(cwd)
 
 	try {
-		const plugin = i18n({ locales: ['fr', 'jp'], translate })
+		const plugin = i18n({ locales: ['fr', 'jp'], translate, ...options })
 		const warn = vi.fn()
 		const context = { info() {}, warn, environment: { logger: { info() {}, warn } } }
 
@@ -1762,6 +1763,117 @@ describe('svg text elements', () => {
 		const spans = await parity('<T><svg><text>Hello <tspan>world</tspan></text></svg></T>')
 		expect(spans.baseline).toBe('<svg><text>Hello <tspan>world</tspan></text></svg>')
 		expect(spans.fr).toBe('<svg><text>HELLO <tspan>WORLD</tspan></text></svg>')
+	})
+})
+
+describe('svg text ancestors and global preserveWhitespace', () => {
+	it('treats everything under an svg text element as text', async () => {
+		const link = '<T><svg><text>Hello <a href="/">world</a></text></svg></T>'
+		const linkSource = '<1><2>Hello <3>world</3></2></1>'
+		expect(findSvelteTranslatable(component(link))[0]?.sealed).toStrictEqual([1, 5])
+
+		const [baseline] = await ssr(component(link), {}, ['en'])
+		const { code, warn } = await transform(
+			component(link),
+			table({ [linkSource]: { fr: '<1><2>Bonjour <3>monde</3></2></1>' } })
+		)
+		expect(warn).not.toHaveBeenCalled()
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe('<svg><text>Bonjour <a href="/">monde</a></text></svg>')
+
+		const inner = await parity(
+			'<T><svg><text>Hi <Badge count={1}>there</Badge> <svelte:element this="tspan">you</svelte:element></text></svg></T>'
+		)
+		expect(inner.baseline).toBe(
+			'<svg><text>Hi <span class="badge" data-count="1">there</span> <tspan>you</tspan></text></svg>'
+		)
+		expect(inner.fr).toBe(
+			'<svg><text>HI <span class="badge" data-count="1">THERE</span> <tspan>YOU</tspan></text></svg>'
+		)
+
+		const grouped = component('<T><svg><g><text>Hi</text></g></svg></T>')
+		const under = await transform(
+			grouped,
+			table({ '<1><2><3>Hi</3></2></1>': { fr: '<1><2>Texte <3>Salut</3></2></1>' } })
+		)
+		expect(under.warn).toHaveBeenCalledTimes(1)
+	})
+
+	it('honours the compiler preserveWhitespace default', async () => {
+		const markup = '<T>  Hello  <b>  world  </b>  </T>'
+		const code = component(markup)
+		const preserved = { preserveWhitespace: true }
+
+		expect(findSvelteTranslatable(code, 'page.svelte', true).map(item => item.source)).toStrictEqual([
+			'  Hello  <1>  world  </1>  ',
+		])
+
+		const baseline = compile(code, { generate: 'server', preserveWhitespace: true })
+		expect(baseline.warnings).toStrictEqual([])
+
+		const { code: transformed } = await transform(
+			code,
+			table({ '  Hello  <1>  world  </1>  ': { fr: '  Bonjour  <1>  monde  </1>  ' } }),
+			undefined,
+			'page.svelte',
+			preserved
+		)
+		expect(transformed).toContain('{__i18n_lang.t.pick(["  Hello  "], {"fr":["  Bonjour  "]})}')
+		expect(transformed).toContain('{__i18n_lang.t.pick(["  world  "], {"fr":["  monde  "]})}')
+		expect(() => compile(transformed, { generate: 'client', preserveWhitespace: true })).not.toThrow()
+
+		// The component option overrides the compiler default both ways.
+		const off = `<svelte:options preserveWhitespace={false} />${code}`
+		expect(findSvelteTranslatable(off, 'page.svelte', true).map(item => item.source)).toStrictEqual([
+			'Hello <1>world</1>',
+		])
+		const on = `<svelte:options preserveWhitespace={true} />${code}`
+		expect(findSvelteTranslatable(on, 'page.svelte', false).map(item => item.source)).toStrictEqual([
+			'  Hello  <1>  world  </1>  ',
+		])
+	})
+
+	it('reads preserveWhitespace from the svelte plugin config', async () => {
+		const plugin = i18n({ locales: ['fr'], translate: table({}) })
+		const fake = {
+			name: 'vite-plugin-svelte:config',
+			api: { options: { compilerOptions: { preserveWhitespace: true } } },
+		}
+
+		// @ts-expect-error only the hook body is exercised
+		plugin.configResolved({ plugins: [fake] })
+
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-t-'))
+		const path = resolve(cwd, 'page.svelte')
+		await writeFile(path, component('<T>  Hello  </T>'))
+		const previous = process.cwd()
+		process.chdir(cwd)
+
+		try {
+			const context = { info() {}, warn() {}, environment: { logger: { info() {}, warn() {} } } }
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+			expect(Object.keys((await loadCache(cwd)).toJSON())).toStrictEqual(['  Hello  '])
+		} finally {
+			process.chdir(previous)
+		}
+
+		// An explicit option on i18n() beats the svelte config.
+		const explicit = i18n({ locales: ['fr'], translate: table({}), preserveWhitespace: false })
+		// @ts-expect-error only the hook body is exercised
+		explicit.configResolved({ plugins: [fake] })
+		process.chdir(cwd)
+
+		try {
+			const context = { info() {}, warn() {}, environment: { logger: { info() {}, warn() {} } } }
+			// @ts-expect-error only the hook body is exercised
+			await explicit.buildStart.call(context)
+			expect(Object.keys((await loadCache(cwd)).toJSON())).toStrictEqual(['Hello'])
+		} finally {
+			process.chdir(previous)
+		}
 	})
 })
 

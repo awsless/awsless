@@ -58,8 +58,8 @@ export const findTaggedTemplates = (ast: AST.Root, code: string) => {
 	return found.toSorted((a, b) => a.start - b.start)
 }
 
-export const findSvelteTranslatable = (code: string, file?: string): Source[] => {
-	const { ast, components } = parseT(code, file)
+export const findSvelteTranslatable = (code: string, file?: string, preserveWhitespace = false): Source[] => {
+	const { ast, components } = parseT(code, file, preserveWhitespace)
 
 	return [
 		...findTaggedTemplates(ast, code).map(item => ({ source: item.source, kind: 't' as const })),

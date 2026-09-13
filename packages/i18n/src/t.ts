@@ -19,6 +19,8 @@ type Context = {
 	pre: boolean
 	svg: boolean
 	svgText: boolean
+	/** Inside an svg `<text>`: Svelte keeps whitespace there. */
+	svgWhitespace: boolean
 	/** A component body: its slotted children are not part of the default slot sequence. */
 	component: boolean
 	/** The enclosing element only allows specific children, so no text may be added. */
@@ -75,6 +77,7 @@ const PRESERVE = new Set(['pre', 'textarea'])
 const REMOVABLE = new Set(['select', 'tr', 'table', 'tbody', 'thead', 'tfoot', 'colgroup', 'datalist'])
 const RESTRICTED = new Set([...REMOVABLE, 'optgroup'])
 // The svg elements whose content is text; every other svg element holds shapes.
+// Svelte's whitespace rule only knows `text`, sealing follows the wider set.
 const SVG_TEXT = new Set(['text', 'tspan', 'textPath', 'title', 'desc'])
 const HOISTED = new Set([
 	'ConstTag',
@@ -282,6 +285,7 @@ const rootContext = (preserve: boolean): Context => ({
 	pre: false,
 	svg: false,
 	svgText: false,
+	svgWhitespace: false,
 	component: false,
 	restricted: false,
 })
@@ -299,7 +303,7 @@ const bodyContext = (parent: Context): Context => ({
 // namespace carry on, the rules tied to the immediate parent element do not.
 const blockContext = (parent: Context): Context => ({
 	...parent,
-	removable: parent.svg && !parent.svgText,
+	removable: parent.svg && !parent.svgWhitespace,
 	pre: false,
 	component: false,
 })
@@ -308,25 +312,27 @@ const childContext = (node: AST.ElementLike, parent: Context): Context => {
 	const regular = node.type === 'RegularElement'
 	// Svelte infers namespaces: <svg> starts one, <foreignObject> is HTML again.
 	const svg = regular && node.name === 'foreignObject' ? false : parent.svg || (regular && node.name === 'svg')
-	const svgText = svg && (parent.svgText || (regular && node.name === 'text'))
+	// Once inside a text-bearing svg element, everything below it holds text.
+	const svgText = svg && (parent.svgText || (regular && SVG_TEXT.has(node.name)))
+	const svgWhitespace = svg && (parent.svgWhitespace || (regular && node.name === 'text'))
 
 	return {
 		preserve: parent.preserve || (regular && PRESERVE.has(node.name)),
-		removable: (regular && REMOVABLE.has(node.name)) || (svg && !svgText),
+		removable: (regular && REMOVABLE.has(node.name)) || (svg && !svgWhitespace),
 		pre: regular && node.name === 'pre',
 		svg,
 		svgText,
+		svgWhitespace,
 		component: COMPONENTS.has(node.type),
-		// Whitespace removal follows Svelte's rule above; sealing is about what
-		// the element itself can hold, so an svg text element stays open.
-		restricted: (regular && RESTRICTED.has(node.name)) || (svg && !(regular && SVG_TEXT.has(node.name))),
+		restricted: (regular && RESTRICTED.has(node.name)) || (svg && !svgText),
 	}
 }
 
-export const parseT = (code: string, file?: string) => {
+export const parseT = (code: string, file?: string, preserveWhitespace = false) => {
 	const ast = parse(code, { modern: true })
 	const components: TComponent[] = []
-	const preserveAll = ast.options?.preserveWhitespace === true
+	// The component's own option beats the compiler default.
+	const preserveAll = ast.options?.preserveWhitespace ?? preserveWhitespace
 	const { ours } = resolveT(ast)
 
 	const fail = (offset: number, message: string) => {
@@ -789,7 +795,8 @@ const segment = (pieces: Piece[], expressions: Range[], context: Context): Segme
 	return { source: serialize(tokens), tokens, expressions, runs, sealed }
 }
 
-export const findTComponents = (code: string, file?: string) => parseT(code, file).components
+export const findTComponents = (code: string, file?: string, preserveWhitespace = false) =>
+	parseT(code, file, preserveWhitespace).components
 
 export const collectSources = (component: TComponent) =>
 	component.segments

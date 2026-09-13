@@ -19,6 +19,10 @@ type I18nPluginProps = {
   locales: string[];
   /** Function that performs the translation of a given text. */
   translate: Translator;
+  /** Whether whitespace inside `<T>` is kept as written. Defaults to the
+   * Svelte plugin's `compilerOptions.preserveWhitespace`; a component's own
+   * `<svelte:options preserveWhitespace>` always wins. */
+  preserveWhitespace?: boolean;
 };
 declare const i18n: (props: I18nPluginProps) => Plugin;
 //#endregion

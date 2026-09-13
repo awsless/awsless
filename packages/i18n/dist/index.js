@@ -229,6 +229,7 @@ const rootContext = (preserve) => ({
 	pre: false,
 	svg: false,
 	svgText: false,
+	svgWhitespace: false,
 	component: false,
 	restricted: false
 });
@@ -240,28 +241,30 @@ const bodyContext = (parent) => ({
 });
 const blockContext = (parent) => ({
 	...parent,
-	removable: parent.svg && !parent.svgText,
+	removable: parent.svg && !parent.svgWhitespace,
 	pre: false,
 	component: false
 });
 const childContext = (node, parent) => {
 	const regular = node.type === "RegularElement";
 	const svg = regular && node.name === "foreignObject" ? false : parent.svg || regular && node.name === "svg";
-	const svgText = svg && (parent.svgText || regular && node.name === "text");
+	const svgText = svg && (parent.svgText || regular && SVG_TEXT.has(node.name));
+	const svgWhitespace = svg && (parent.svgWhitespace || regular && node.name === "text");
 	return {
 		preserve: parent.preserve || regular && PRESERVE.has(node.name),
-		removable: regular && REMOVABLE.has(node.name) || svg && !svgText,
+		removable: regular && REMOVABLE.has(node.name) || svg && !svgWhitespace,
 		pre: regular && node.name === "pre",
 		svg,
 		svgText,
+		svgWhitespace,
 		component: COMPONENTS.has(node.type),
-		restricted: regular && RESTRICTED.has(node.name) || svg && !(regular && SVG_TEXT.has(node.name))
+		restricted: regular && RESTRICTED.has(node.name) || svg && !svgText
 	};
 };
-const parseT = (code, file) => {
+const parseT = (code, file, preserveWhitespace = false) => {
 	const ast = parse(code, { modern: true });
 	const components = [];
-	const preserveAll = ast.options?.preserveWhitespace === true;
+	const preserveAll = ast.options?.preserveWhitespace ?? preserveWhitespace;
 	const { ours } = resolveT(ast);
 	const fail = (offset, message) => {
 		const position = lineColumn(code).fromIndex(offset);
@@ -876,8 +879,8 @@ const findTaggedTemplates = (ast, code) => {
 	walk(ast);
 	return found.toSorted((a, b) => a.start - b.start);
 };
-const findSvelteTranslatable = (code, file) => {
-	const { ast, components } = parseT(code, file);
+const findSvelteTranslatable = (code, file, preserveWhitespace = false) => {
+	const { ast, components } = parseT(code, file, preserveWhitespace);
 	return [...findTaggedTemplates(ast, code).map((item) => ({
 		source: item.source,
 		kind: "t"
@@ -911,19 +914,19 @@ const findTypescriptTranslatable = (code) => findTypescriptTagged(code).map((ite
 //#endregion
 //#region src/find.ts
 const isIgnoredPath = (file) => /[\\/](node_modules|\.[^\\/]+)[\\/]/.test(file);
-const findTranslatable = async (cwd) => {
+const findTranslatable = async (cwd, preserveWhitespace = false) => {
 	const files = await glob("**/*.{js,ts,svelte}", {
 		cwd,
 		ignore: ["**/node_modules/**", "**/.*/**"]
 	});
 	const found = [];
-	for (const file of files) found.push(...await findTranslatableInCode(file, await readFile(join(cwd, file), "utf8")));
+	for (const file of files) found.push(...await findTranslatableInCode(file, await readFile(join(cwd, file), "utf8"), preserveWhitespace));
 	return found;
 };
-const findTranslatableInCode = async (file, code) => {
+const findTranslatableInCode = async (file, code, preserveWhitespace = false) => {
 	const svelte = file.endsWith(".svelte");
 	if (!code.includes("lang.t`") && !(svelte && hasT(code))) return [];
-	return svelte ? findSvelteTranslatable(code, file) : findTypescriptTranslatable(code);
+	return svelte ? findSvelteTranslatable(code, file, preserveWhitespace) : findTypescriptTranslatable(code);
 };
 //#endregion
 //#region src/vite.ts
@@ -931,8 +934,16 @@ const SOURCE_FILE = /\.(svelte|ts|js)$/;
 const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'";
 const outermost = (tagged) => tagged.filter((item) => !tagged.some((other) => other !== item && other.start <= item.start && item.end <= other.end));
 const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
+const svelteCompilerPreserve = (plugins) => {
+	for (const plugin of plugins) {
+		const value = plugin.api?.options?.compilerOptions?.preserveWhitespace;
+		if (plugin.name.startsWith("vite-plugin-svelte") && typeof value === "boolean") return value;
+	}
+	return false;
+};
 const i18n = (props) => {
 	let cache;
+	let preserveWhitespace = props.preserveWhitespace ?? false;
 	let generatedCache;
 	let overrideCache;
 	let queue = Promise.resolve();
@@ -964,10 +975,13 @@ const i18n = (props) => {
 	return {
 		name: "awsless/i18n",
 		enforce: "pre",
+		configResolved(config) {
+			preserveWhitespace = props.preserveWhitespace ?? svelteCompilerPreserve(config.plugins);
+		},
 		async buildStart() {
 			const cwd = process.cwd();
 			this.info("Finding all translatable text...");
-			const sources = await findTranslatable(cwd);
+			const sources = await findTranslatable(cwd, preserveWhitespace);
 			generatedCache = await loadGeneratedCache(cwd);
 			overrideCache = await loadOverrideCache(cwd);
 			removeUnusedTranslations(generatedCache, sources.map((item) => item.source), props.locales);
@@ -980,7 +994,7 @@ const i18n = (props) => {
 		},
 		async hotUpdate({ file, read }) {
 			if (!cache || !SOURCE_FILE.test(file) || isIgnoredPath(file)) return;
-			const sources = await findTranslatableInCode(file, await read());
+			const sources = await findTranslatableInCode(file, await read(), preserveWhitespace);
 			if (sources.length > 0) await translateMissing(process.cwd(), sources, this.environment.logger);
 		},
 		transform(code, id) {
@@ -1008,7 +1022,7 @@ const i18n = (props) => {
 			}));
 			const transformedCode = new MagicString(code);
 			if (svelte) {
-				const { ast, components } = parseT(code, id);
+				const { ast, components } = parseT(code, id, preserveWhitespace);
 				const templates = rewrites(findTaggedTemplates(ast, code));
 				const lookup = (source, locale) => cache.get(source, locale);
 				const edits = [];

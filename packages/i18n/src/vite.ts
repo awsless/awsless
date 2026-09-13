@@ -33,6 +33,11 @@ export type I18nPluginProps = {
 
 	/** Function that performs the translation of a given text. */
 	translate: Translator
+
+	/** Whether whitespace inside `<T>` is kept as written. Defaults to the
+	 * Svelte plugin's `compilerOptions.preserveWhitespace`; a component's own
+	 * `<svelte:options preserveWhitespace>` always wins. */
+	preserveWhitespace?: boolean
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
@@ -50,8 +55,24 @@ const outermost = (tagged: Tagged[]) =>
 // Vite ids keep their query (?svelte&type=style), which extname would not strip.
 const isSvelteFile = (id = '') => extname(id.split('?')[0]!) === '.svelte'
 
+// The svelte plugin publishes its resolved options on its `api` once the
+// config is resolved, which is where the compiler default lives.
+const svelteCompilerPreserve = (plugins: readonly Plugin[]) => {
+	for (const plugin of plugins) {
+		const api = plugin.api as { options?: { compilerOptions?: { preserveWhitespace?: boolean } } } | undefined
+		const value = api?.options?.compilerOptions?.preserveWhitespace
+
+		if (plugin.name.startsWith('vite-plugin-svelte') && typeof value === 'boolean') {
+			return value
+		}
+	}
+
+	return false
+}
+
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
+	let preserveWhitespace = props.preserveWhitespace ?? false
 	let generatedCache: Cache
 	let overrideCache: Cache
 
@@ -113,11 +134,14 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	return {
 		name: 'awsless/i18n',
 		enforce: 'pre',
+		configResolved(config) {
+			preserveWhitespace = props.preserveWhitespace ?? svelteCompilerPreserve(config.plugins)
+		},
 		async buildStart() {
 			const cwd = process.cwd()
 
 			this.info('Finding all translatable text...')
-			const sources = await findTranslatable(cwd)
+			const sources = await findTranslatable(cwd, preserveWhitespace)
 
 			generatedCache = await loadGeneratedCache(cwd)
 			overrideCache = await loadOverrideCache(cwd)
@@ -145,7 +169,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				return
 			}
 
-			const sources = await findTranslatableInCode(file, await read())
+			const sources = await findTranslatableInCode(file, await read(), preserveWhitespace)
 
 			if (sources.length > 0) {
 				await translateMissing(process.cwd(), sources, this.environment.logger)
@@ -207,7 +231,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			const transformedCode = new MagicString(code)
 
 			if (svelte) {
-				const { ast, components } = parseT(code, id)
+				const { ast, components } = parseT(code, id, preserveWhitespace)
 				const templates = rewrites(findTaggedTemplates(ast, code))
 				const lookup = (source: string, locale: string) => cache.get(source, locale)
 				const edits: Edit[] = []

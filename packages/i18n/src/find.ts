@@ -15,7 +15,7 @@ export type Tagged = { start: number; end: number; source: string }
 // translate a file the next start would then clean up again.
 export const isIgnoredPath = (file: string) => /[\\/](node_modules|\.[^\\/]+)[\\/]/.test(file)
 
-export const findTranslatable = async (cwd: string) => {
+export const findTranslatable = async (cwd: string, preserveWhitespace = false) => {
 	const files = await glob('**/*.{js,ts,svelte}', {
 		cwd,
 		ignore: [
@@ -28,18 +28,22 @@ export const findTranslatable = async (cwd: string) => {
 	const found: Source[] = []
 
 	for (const file of files) {
-		found.push(...(await findTranslatableInCode(file, await readFile(join(cwd, file), 'utf8'))))
+		found.push(...(await findTranslatableInCode(file, await readFile(join(cwd, file), 'utf8'), preserveWhitespace)))
 	}
 
 	return found
 }
 
-export const findTranslatableInCode = async (file: string, code: string): Promise<Source[]> => {
+export const findTranslatableInCode = async (
+	file: string,
+	code: string,
+	preserveWhitespace = false
+): Promise<Source[]> => {
 	const svelte = file.endsWith('.svelte')
 
 	if (!code.includes('lang.t`') && !(svelte && hasT(code))) {
 		return []
 	}
 
-	return svelte ? findSvelteTranslatable(code, file) : findTypescriptTranslatable(code)
+	return svelte ? findSvelteTranslatable(code, file, preserveWhitespace) : findTypescriptTranslatable(code)
 }
