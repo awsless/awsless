@@ -11,8 +11,11 @@ import { loadCache } from '../src/cache'
 import { findSvelteTranslatable } from '../src/find/svelte'
 import { findTComponents, serialize, tokenize, validatePlaceholders, validateTranslation } from '../src/t'
 
-const serializeT = (markup: string) => findTComponents(markup).flatMap(item => item.segments.map(s => s.source))
-const sources = (code: string) => findSvelteTranslatable(code).map(item => item.source)
+// Only a <T> imported from this package counts, so the fixtures import it.
+const IMPORT_T = "<script>import T from '@awsless/i18n/T'</script>"
+const withT = (markup: string) => (markup.includes('@awsless/i18n/T') ? markup : IMPORT_T + markup)
+const serializeT = (markup: string) => findTComponents(withT(markup)).flatMap(item => item.segments.map(s => s.source))
+const sources = (code: string) => findSvelteTranslatable(withT(code)).map(item => item.source)
 
 const example = 'Hello <1>${0}</1>, you have <2>${1} items</2>. <3/>'
 const exampleMarkup = '<T>Hello <b class="x">{name}</b>, you have <Badge count={n}>{n} items</Badge>. <Icon/></T>'
@@ -68,10 +71,12 @@ const transform = async (
 	}
 }
 
-const component = (markup: string, script = "import T from '@awsless/i18n/T'") => {
+// Every fixture imports T from this package; `script` adds a line after it.
+const component = (markup: string, script = '') => {
 	return [
 		'<script>',
-		`\t${script}`,
+		"\timport T from '@awsless/i18n/T'",
+		...(script ? [`\t${script}`] : []),
 		"\timport Badge from './badge.svelte'",
 		"\timport Icon from './icon.svelte'",
 		"\timport Card from './card.svelte'",
@@ -132,6 +137,7 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 	await emit('panel', '<header><slot name="heading" item="X" pair={{ id: "Y" }} /></header><main><slot /></main>')
 	await emit('required', '<script>let { children } = $props()</script><div>{@render children()}</div>')
 	await emit('legacy', '<div><slot>fallback</slot></div><aside><slot name="side">side-fallback</slot></aside>')
+	await emit('custom', '<script>let { value } = $props()</script><em>{value}</em>')
 
 	const page = await import(pathToFileURL(resolve(dir, 'page.js')).href)
 
@@ -174,7 +180,7 @@ describe('<T> serializer', () => {
 	it('expressions become indexed placeholders', () => {
 		expect(serializeT('<T>Hello {name}!</T>')).toStrictEqual(['Hello ${0}!'])
 		expect(serializeT('<T>{fn({ a: 1 })} {"}"} {(/[{}]/).test(s)}</T>')).toStrictEqual(['${0} ${1} ${2}'])
-		const code = '<T>{a} {b}</T>'
+		const code = withT('<T>{a} {b}</T>')
 		const ranges = findTComponents(code)[0]?.segments[0]?.expressions ?? []
 		expect(ranges.map(item => code.slice(item.start, item.end))).toStrictEqual(['a', 'b'])
 	})
@@ -222,7 +228,7 @@ describe('<T> serializer', () => {
 	})
 
 	it('throws on nested <T>', () => {
-		expect(() => findTComponents('<div>\n<T>a <T>b</T></T>\n</div>', 'page.svelte')).toThrow(
+		expect(() => findTComponents(withT('<div>\n<T>a <T>b</T></T>\n</div>'), 'page.svelte')).toThrow(
 			'page.svelte:2: nested <T> is not supported inside <T>'
 		)
 	})
@@ -293,7 +299,7 @@ describe('lang.t validation', () => {
 		expect(validatePlaceholders('Hi ${name}', 'Salut ${name}')).toBeUndefined()
 		expect(validatePlaceholders('Hi ${name}', 'Salut')).toBeDefined()
 		expect(validatePlaceholders('Hi ${name}', 'Salut ${name} ${name}')).toBeDefined()
-		expect(findSvelteTranslatable('<p>{lang.t`Rank <1>`}</p><T>Hi</T>')).toStrictEqual([
+		expect(findSvelteTranslatable(withT('<p>{lang.t`Rank <1>`}</p><T>Hi</T>'))).toStrictEqual([
 			{ source: 'Rank <1>', kind: 't' },
 			{ source: 'Hi', kind: 'markup' },
 		])
@@ -371,20 +377,28 @@ describe('<T> transform', () => {
 		expect(missing.code.match(/__i18n_lang } from/g)).toHaveLength(1)
 
 		const present = await transform(
-			component('<T>Hello</T>', "import T from '@awsless/i18n/T'\n\timport { lang } from '@awsless/i18n/svelte'"),
+			component('<T>Hello</T>', "import { lang } from '@awsless/i18n/svelte'"),
 			translate
 		)
 		expect(present.code).toContain(head)
 		expect(present.code.match(/@awsless\/i18n\/svelte/g)).toHaveLength(2)
 
-		const sameLine = await transform('<script>let name = "Ann";</script><T>Hello</T>', translate)
+		const sameLine = await transform(
+			'<script>import T from \'@awsless/i18n/T\'; let name = "Ann";</script><T>Hello</T>',
+			translate
+		)
 		expect(sameLine.code).toContain(
-			'<script>import { lang as __i18n_lang } from \'@awsless/i18n/svelte\';\nlet name = "Ann";</script>'
+			"<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte';\nimport T from '@awsless/i18n/T'; let name = \"Ann\";</script>"
 		)
 
-		const noScript = await transform('<p><T>Hello</T></p>\n', translate)
+		// The import may live in the module script, leaving no instance script to extend.
+		const noScript = await transform(
+			"<script module>import T from '@awsless/i18n/T'</script>\n<p><T>Hello</T></p>\n",
+			translate
+		)
 		expect(noScript.code).toBe(
 			"<script>\n\timport { lang as __i18n_lang } from '@awsless/i18n/svelte'\n</script>\n" +
+				"<script module>import T from '@awsless/i18n/T'</script>\n" +
 				'<p>{#if true}{__i18n_lang.t.pick(["Hello"], {"fr":["Bonjour"]})}{/if}</p>\n'
 		)
 		expect(() => compile(noScript.code, { generate: 'client' })).not.toThrow()
@@ -606,11 +620,11 @@ describe('<T> compile and render', () => {
 
 	it('injects the import with a same-line first statement', async () => {
 		const { code } = await transform(
-			'<script>let name = "Ann";</script><T>Hello {name}</T>',
+			'<script>import T from \'@awsless/i18n/T\'; let name = "Ann";</script><T>Hello {name}</T>',
 			table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } })
 		)
 
-		expect(code).toContain("<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte';\nlet name")
+		expect(code).toContain("<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte';\nimport T")
 		expect(() => compile(code, { generate: 'client' })).not.toThrow()
 
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
@@ -628,7 +642,7 @@ describe('<T> compile and render', () => {
 		)
 
 		const { code } = await transform(
-			'<script>let lang = "shadow"</script><T>Hello {lang}</T>',
+			'<script>import T from \'@awsless/i18n/T\'\n\tlet lang = "shadow"</script><T>Hello {lang}</T>',
 			table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } })
 		)
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
@@ -1020,6 +1034,89 @@ describe('slot bindings and empty <T>', () => {
 
 		const [fallback] = await ssr(component('<Legacy></Legacy>'), {}, ['en'])
 		expect(fallback).toBe('<div>fallback</div><aside>side-fallback</aside>')
+	})
+})
+
+describe('binding, named slots and raw text', () => {
+	const script = (imports: string, markup: string) =>
+		`<script>\n\t${imports}\n\tlet { list, name } = $props()\n</script>\n${markup}\n`
+
+	it('only touches the <T> imported from this package', async () => {
+		const custom = script("import T from './custom.svelte'", '<T value="IMPORTANT"/>')
+		expect(findSvelteTranslatable(custom)).toStrictEqual([])
+		const [before] = await ssr(custom, {}, ['en'])
+		const { code } = await transform(custom, upper)
+		expect(code).toBe(custom)
+		expect(before).toBe('<em>IMPORTANT</em>')
+		expect((await ssr(code, {}, ['en']))[0]).toBe(before)
+
+		const none = '<p><T>Hello</T></p>'
+		expect(findSvelteTranslatable(none)).toStrictEqual([])
+		expect((await transform(none, upper)).code).toBe(none)
+	})
+
+	it('skips a shadowed name', async () => {
+		for (const markup of [
+			'{#each list as T}<T/>{/each}',
+			'{#each list as item, T}<T/>{/each}',
+			'{#snippet row(T)}<T/>{/snippet}',
+			'{#await list then T}<T/>{/await}',
+			'<Card let:item={T}><T/></Card>',
+			'{#if list}{@const T = list[0]}<T/>{/if}',
+		]) {
+			const code = script("import T from '@awsless/i18n/T'", `${markup}<T>Hello</T>`)
+			expect(findSvelteTranslatable(code).map(item => item.source)).toStrictEqual(['Hello'])
+			const result = await transform(code, upper)
+			expect(result.code).toContain(markup)
+			expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
+		}
+	})
+
+	it('transforms an aliased import', async () => {
+		const aliased = script("import Trans from '@awsless/i18n/T'", '<Trans>Hello {name}</Trans>')
+		expect(findSvelteTranslatable(aliased).map(item => item.source)).toStrictEqual(['Hello ${0}'])
+
+		const [before] = await ssr(aliased, { name: 'Ann' }, ['en'])
+		const { code } = await transform(aliased, table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } }))
+		expect(code).not.toContain('<Trans')
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, { name: 'Ann' }, ['en', 'fr'])
+		expect(en).toBe(before)
+		expect(fr).toBe('Bonjour Ann')
+	})
+
+	it('leaves a <T> with named slot children to the runtime component', async () => {
+		for (const markup of [
+			'<T><svelte:fragment slot="other">hidden</svelte:fragment>shown</T>',
+			'<T><span slot="other">hidden</span>shown</T>',
+		]) {
+			expect(sources(markup)).toStrictEqual([])
+			const { baseline, code } = await parity(markup)
+			expect(baseline).toBe('shown')
+			expect(code).toContain(markup)
+		}
+	})
+
+	it('keeps script and style bodies opaque', async () => {
+		const cases = [
+			['<T><style>p { color: red }</style>hello</T>', '<1/>hello', '<style>p { color: red }</style>'],
+			[
+				'<T>hello<script type="application/ld+json">{"a": 1}</script></T>',
+				'hello<1/>',
+				'<script type="application/ld+json">{"a": 1}</script>',
+			],
+		] as const
+
+		for (const [markup, source, raw] of cases) {
+			expect(sources(markup)).toStrictEqual([source])
+
+			const { baseline, fr, code } = await parity(markup)
+			expect(code).toContain(raw)
+			expect(baseline).toContain(raw)
+			expect(fr).toContain(raw)
+			expect(fr).toContain('HELLO')
+		}
 	})
 })
 

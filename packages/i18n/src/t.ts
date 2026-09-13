@@ -45,7 +45,9 @@ export type TComponent = Range & {
 	segments: Segment[]
 }
 
-export const hasT = (code: string) => /<T[\s/>]/.test(code)
+export const T_MODULE = '@awsless/i18n/T'
+
+export const hasT = (code: string) => code.includes(T_MODULE)
 
 // Mirrors svelte/compiler phases/3-transform/utils.js clean_nodes.
 const PRESERVE = new Set(['pre', 'textarea'])
@@ -74,6 +76,154 @@ const hasPassedChildren = (node: AST.Component) =>
 	)
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
+
+// Their bodies are code, not text: never extracted, translated or rewritten.
+const RAW = new Set(['script', 'style'])
+
+type Pattern = {
+	type: string
+	name?: string
+	properties?: Pattern[]
+	elements?: (Pattern | null)[]
+	left?: Pattern
+	argument?: Pattern
+	value?: Pattern
+}
+
+const patternNames = (pattern: Pattern | null | undefined, names: string[] = []) => {
+	if (!pattern) {
+		return names
+	}
+
+	switch (pattern.type) {
+		case 'Identifier':
+			names.push(pattern.name!)
+			break
+		case 'ObjectPattern':
+			pattern.properties?.forEach(property =>
+				patternNames(property.type === 'RestElement' ? property.argument : property.value, names)
+			)
+			break
+		case 'ArrayPattern':
+			pattern.elements?.forEach(element => patternNames(element, names))
+			break
+		case 'AssignmentPattern':
+			patternNames(pattern.left, names)
+			break
+		case 'RestElement':
+			patternNames(pattern.argument, names)
+			break
+	}
+
+	return names
+}
+
+const letNames = (node: AST.ElementLike) =>
+	node.attributes.flatMap(attribute =>
+		attribute.type === 'LetDirective'
+			? attribute.expression
+				? patternNames(attribute.expression as Pattern)
+				: [attribute.name]
+			: []
+	)
+
+/** The <T> uses that are ours: the default import of this package, used
+ * where no each, snippet, let:, @const or await binding shadows its name. */
+export const resolveT = (ast: AST.Root) => {
+	const ours = new Set<AST.Component>()
+	let name: string | undefined
+
+	for (const script of [ast.instance, ast.module]) {
+		for (const statement of script?.content.body ?? []) {
+			if (statement.type === 'ImportDeclaration' && statement.source.value === T_MODULE) {
+				for (const specifier of statement.specifiers) {
+					if (
+						specifier.type === 'ImportDefaultSpecifier' ||
+						(specifier.type === 'ImportSpecifier' &&
+							specifier.imported.type === 'Identifier' &&
+							specifier.imported.name === 'default')
+					) {
+						name = specifier.local.name
+					}
+				}
+			}
+		}
+	}
+
+	if (name === undefined) {
+		return { name, ours }
+	}
+
+	const local = name
+
+	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>) => {
+		const inner = new Set(scope)
+
+		for (const node of nodes) {
+			if (node.type === 'ConstTag') {
+				node.declaration.declarations.forEach(declaration =>
+					patternNames(declaration.id as Pattern).forEach(n => inner.add(n))
+				)
+			}
+		}
+
+		const shadowed = inner.has(local)
+
+		const extend = (names: string[]) => new Set([...inner, ...names])
+
+		for (const node of nodes) {
+			switch (node.type) {
+				case 'EachBlock':
+					walk(
+						node.body.nodes,
+						extend([...patternNames(node.context as Pattern), ...(node.index ? [node.index] : [])])
+					)
+					if (node.fallback) {
+						walk(node.fallback.nodes, inner)
+					}
+					break
+				case 'SnippetBlock':
+					walk(
+						node.body.nodes,
+						extend(node.parameters.flatMap(parameter => patternNames(parameter as Pattern)))
+					)
+					break
+				case 'AwaitBlock':
+					if (node.pending) {
+						walk(node.pending.nodes, inner)
+					}
+					if (node.then) {
+						walk(node.then.nodes, extend(patternNames(node.value as Pattern)))
+					}
+					if (node.catch) {
+						walk(node.catch.nodes, extend(patternNames(node.error as Pattern)))
+					}
+					break
+				case 'IfBlock':
+					walk(node.consequent.nodes, inner)
+					if (node.alternate) {
+						walk(node.alternate.nodes, inner)
+					}
+					break
+				case 'KeyBlock':
+					walk(node.fragment.nodes, inner)
+					break
+				default:
+					if ('fragment' in node && node.fragment?.type === 'Fragment') {
+						if (node.type === 'Component' && node.name === local && !shadowed) {
+							ours.add(node)
+						}
+
+						walk(node.fragment.nodes, extend(letNames(node)))
+					}
+			}
+		}
+	}
+
+	walk(ast.fragment.nodes, new Set())
+
+	return { name, ours }
+}
 
 const isBlank = (node: AST.Fragment['nodes'][number]) =>
 	node.type === 'Comment' || (node.type === 'Text' && isBlankText(node.data))
@@ -104,6 +254,7 @@ export const parseT = (code: string, file?: string) => {
 	const ast = parse(code, { modern: true })
 	const components: TComponent[] = []
 	const preserveAll = ast.options?.preserveWhitespace === true
+	const { ours } = resolveT(ast)
 
 	const fail = (offset: number, message: string) => {
 		const position = lineColumn(code).fromIndex(offset)
@@ -186,7 +337,7 @@ export const parseT = (code: string, file?: string) => {
 						}
 						break
 					default: {
-						if (node.type === 'Component' && node.name === 'T') {
+						if (node.type === 'Component' && ours.has(node)) {
 							if (!hasPassedChildren(node)) {
 								throw fail(node.start, 'nested <T> is not supported inside <T>')
 							}
@@ -200,6 +351,11 @@ export const parseT = (code: string, file?: string) => {
 						const first = node.fragment.nodes[0]
 						const last = node.fragment.nodes.at(-1)
 						const hoisted = HOISTED.has(node.type)
+
+						if (node.type === 'RegularElement' && RAW.has(node.name)) {
+							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n } })
+							break
+						}
 
 						if (first && last) {
 							const body = childContext(node, context)
@@ -225,17 +381,24 @@ export const parseT = (code: string, file?: string) => {
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
 	}
 
-	collect(code, ast.fragment.nodes, preserveAll, undefined, (node, head, foot, wrap, remove, nodes, preserve) => {
-		components.push({
-			start: node.start,
-			end: node.end,
-			head,
-			foot,
-			wrap,
-			remove,
-			segments: nodes ? build(nodes, rootContext(preserve)) : [],
-		})
-	})
+	collect(
+		code,
+		ours,
+		ast.fragment.nodes,
+		preserveAll,
+		undefined,
+		(node, head, foot, wrap, remove, nodes, preserve) => {
+			components.push({
+				start: node.start,
+				end: node.end,
+				head,
+				foot,
+				wrap,
+				remove,
+				segments: nodes ? build(nodes, rootContext(preserve)) : [],
+			})
+		}
+	)
 
 	return { ast, components }
 }
@@ -252,14 +415,23 @@ type Found = (
 
 const collect = (
 	code: string,
+	ours: Set<AST.Component>,
 	nodes: AST.Fragment['nodes'],
 	preserve: boolean,
 	parent: AST.Fragment['nodes'][number] | undefined,
 	found: Found
 ) => {
 	for (const node of nodes) {
-		if (node.type === 'Component' && node.name === 'T') {
-			if (hasPassedChildren(node)) {
+		if (node.type === 'Component' && ours.has(node)) {
+			// Named slot content among the children keeps Svelte's slot
+			// semantics only with the runtime component in place.
+			const slotted = node.fragment.nodes.some(
+				child =>
+					'attributes' in child &&
+					child.attributes.some(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
+			)
+
+			if (hasPassedChildren(node) || slotted) {
 				continue
 			}
 
@@ -332,7 +504,7 @@ const collect = (
 		for (const key of ['fragment', 'consequent', 'alternate', 'body', 'fallback', 'pending', 'then', 'catch']) {
 			const fragment = (node as unknown as Record<string, AST.Fragment | null | undefined>)[key]
 			if (fragment?.type === 'Fragment') {
-				collect(code, fragment.nodes, inside, node, found)
+				collect(code, ours, fragment.nodes, inside, node, found)
 			}
 		}
 	}

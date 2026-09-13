@@ -95,7 +95,8 @@ const removeUnusedTranslations = (cache, sources, locales) => {
 //#endregion
 //#region src/t.ts
 const range = (node) => node;
-const hasT = (code) => /<T[\s/>]/.test(code);
+const T_MODULE = "@awsless/i18n/T";
+const hasT = (code) => code.includes(T_MODULE);
 const PRESERVE = /* @__PURE__ */ new Set(["pre", "textarea"]);
 const REMOVABLE = /* @__PURE__ */ new Set([
 	"select",
@@ -127,6 +128,77 @@ const COMPONENTS = /* @__PURE__ */ new Set([
 	"SvelteComponent",
 	"SvelteSelf"
 ]);
+const RAW = /* @__PURE__ */ new Set(["script", "style"]);
+const patternNames = (pattern, names = []) => {
+	if (!pattern) return names;
+	switch (pattern.type) {
+		case "Identifier":
+			names.push(pattern.name);
+			break;
+		case "ObjectPattern":
+			pattern.properties?.forEach((property) => patternNames(property.type === "RestElement" ? property.argument : property.value, names));
+			break;
+		case "ArrayPattern":
+			pattern.elements?.forEach((element) => patternNames(element, names));
+			break;
+		case "AssignmentPattern":
+			patternNames(pattern.left, names);
+			break;
+		case "RestElement": patternNames(pattern.argument, names);
+	}
+	return names;
+};
+const letNames = (node) => node.attributes.flatMap((attribute) => attribute.type === "LetDirective" ? attribute.expression ? patternNames(attribute.expression) : [attribute.name] : []);
+/** The <T> uses that are ours: the default import of this package, used
+* where no each, snippet, let:, @const or await binding shadows its name. */
+const resolveT = (ast) => {
+	const ours = /* @__PURE__ */ new Set();
+	let name;
+	for (const script of [ast.instance, ast.module]) for (const statement of script?.content.body ?? []) if (statement.type === "ImportDeclaration" && statement.source.value === "@awsless/i18n/T") {
+		for (const specifier of statement.specifiers) if (specifier.type === "ImportDefaultSpecifier" || specifier.type === "ImportSpecifier" && specifier.imported.type === "Identifier" && specifier.imported.name === "default") name = specifier.local.name;
+	}
+	if (name === void 0) return {
+		name,
+		ours
+	};
+	const local = name;
+	const walk = (nodes, scope) => {
+		const inner = new Set(scope);
+		for (const node of nodes) if (node.type === "ConstTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
+		const shadowed = inner.has(local);
+		const extend = (names) => /* @__PURE__ */ new Set([...inner, ...names]);
+		for (const node of nodes) switch (node.type) {
+			case "EachBlock":
+				walk(node.body.nodes, extend([...patternNames(node.context), ...node.index ? [node.index] : []]));
+				if (node.fallback) walk(node.fallback.nodes, inner);
+				break;
+			case "SnippetBlock":
+				walk(node.body.nodes, extend(node.parameters.flatMap((parameter) => patternNames(parameter))));
+				break;
+			case "AwaitBlock":
+				if (node.pending) walk(node.pending.nodes, inner);
+				if (node.then) walk(node.then.nodes, extend(patternNames(node.value)));
+				if (node.catch) walk(node.catch.nodes, extend(patternNames(node.error)));
+				break;
+			case "IfBlock":
+				walk(node.consequent.nodes, inner);
+				if (node.alternate) walk(node.alternate.nodes, inner);
+				break;
+			case "KeyBlock":
+				walk(node.fragment.nodes, inner);
+				break;
+			default: if ("fragment" in node && node.fragment?.type === "Fragment") {
+				if (node.type === "Component" && node.name === local && !shadowed) ours.add(node);
+				walk(node.fragment.nodes, extend(letNames(node)));
+			}
+		}
+	};
+	walk(ast.fragment.nodes, /* @__PURE__ */ new Set());
+	return {
+		name,
+		ours
+	};
+};
 const isBlank = (node) => node.type === "Comment" || node.type === "Text" && isBlankText(node.data);
 const rootContext = (preserve) => ({
 	preserve,
@@ -151,6 +223,7 @@ const parseT = (code, file) => {
 	const ast = parse(code, { modern: true });
 	const components = [];
 	const preserveAll = ast.options?.preserveWhitespace === true;
+	const { ours } = resolveT(ast);
 	const fail = (offset, message) => {
 		const position = lineColumn(code).fromIndex(offset);
 		return /* @__PURE__ */ new Error(`${file ?? "component"}:${position?.line ?? 0}: ${message}`);
@@ -237,7 +310,7 @@ const parseT = (code, file) => {
 					for (const body of blockBodies(node)) nested.push(...build(body, context));
 					break;
 				default: {
-					if (node.type === "Component" && node.name === "T") {
+					if (node.type === "Component" && ours.has(node)) {
 						if (!hasPassedChildren(node)) throw fail(node.start, "nested <T> is not supported inside <T>");
 						pieces.push({
 							start: node.start,
@@ -253,6 +326,17 @@ const parseT = (code, file) => {
 					const first = node.fragment.nodes[0];
 					const last = node.fragment.nodes.at(-1);
 					const hoisted = HOISTED.has(node.type);
+					if (node.type === "RegularElement" && RAW.has(node.name)) {
+						pieces.push({
+							start: node.start,
+							end: node.end,
+							token: {
+								type: "self",
+								n
+							}
+						});
+						break;
+					}
 					if (first && last) {
 						const body = childContext(node, context);
 						pieces.push({
@@ -290,7 +374,7 @@ const parseT = (code, file) => {
 		visit(nodes, context);
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
 	};
-	collect(code, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, remove, nodes, preserve) => {
+	collect(code, ours, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
@@ -306,10 +390,11 @@ const parseT = (code, file) => {
 		components
 	};
 };
-const collect = (code, nodes, preserve, parent, found) => {
+const collect = (code, ours, nodes, preserve, parent, found) => {
 	for (const node of nodes) {
-		if (node.type === "Component" && node.name === "T") {
-			if (hasPassedChildren(node)) continue;
+		if (node.type === "Component" && ours.has(node)) {
+			const slotted = node.fragment.nodes.some((child) => "attributes" in child && child.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot"));
+			if (hasPassedChildren(node) || slotted) continue;
 			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
 			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");
@@ -369,7 +454,7 @@ const collect = (code, nodes, preserve, parent, found) => {
 			"catch"
 		]) {
 			const fragment = node[key];
-			if (fragment?.type === "Fragment") collect(code, fragment.nodes, inside, node, found);
+			if (fragment?.type === "Fragment") collect(code, ours, fragment.nodes, inside, node, found);
 		}
 	}
 };
