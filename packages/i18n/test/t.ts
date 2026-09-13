@@ -109,13 +109,19 @@ const CARD =
 type Props = Record<string, unknown> | (() => Record<string, unknown>)
 type Settings = {
 	plugin?: Partial<Parameters<typeof i18n>[0]>
-	compile?: { preserveWhitespace?: boolean; preserveComments?: boolean; namespace?: 'html' | 'svg' | 'mathml' }
+	compile?: {
+		preserveWhitespace?: boolean
+		preserveComments?: boolean
+		namespace?: 'html' | 'svg' | 'mathml'
+		experimental?: { async?: boolean }
+	}
 }
 
 // A props factory gives every render fresh state.
 const ssr = async (code: string, props: Props, locales: string[], compileOptions: Settings['compile'] = {}) => {
 	const dir = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-ssr-'))
 	const internal = createRequire(import.meta.url).resolve('svelte/internal/server')
+	const flags = createRequire(import.meta.url).resolve('svelte/internal/flags/async')
 
 	const emit = async (name: string, source: string) => {
 		const js = compile(source, { generate: 'server', filename: `${name}.svelte`, ...compileOptions }).js.code
@@ -123,6 +129,7 @@ const ssr = async (code: string, props: Props, locales: string[], compileOptions
 			resolve(dir, `${name}.js`),
 			js
 				.replace(/['"]svelte\/internal\/server['"]/, JSON.stringify(internal))
+				.replace(/['"]svelte\/internal\/flags\/async['"]/, JSON.stringify(flags))
 				.replace(/['"]@awsless\/i18n\/svelte['"]/g, "'./lang.js'")
 				.replace(/['"]@awsless\/i18n\/T['"]/g, "'./T.js'")
 				.replace(/\.svelte(['"])/g, '.js$1')
@@ -165,12 +172,21 @@ const ssr = async (code: string, props: Props, locales: string[], compileOptions
 
 	const page = await import(pathToFileURL(resolve(dir, 'page.js')).href)
 
-	return locales.map(locale => {
+	const output: string[] = []
+
+	for (const locale of locales) {
 		Object.assign(globalThis, { __locale: locale })
-		// Svelte's hydration markers are comments too, but not ones the user wrote.
 		const value = typeof props === 'function' ? props() : props
-		return render(page.default, { props: value }).body.replace(/<!--(?:\[(?:!|-?\d+)?|\]|)-->/g, '')
-	})
+		// An async build renders to a thenable; a hang here must fail, not wait forever.
+		const rendered = await Promise.race([
+			Promise.resolve(render(page.default, { props: value })),
+			new Promise<never>((_, reject) => setTimeout(() => reject(new Error('render timed out')), 2000)),
+		])
+		// Svelte's hydration markers are comments too, but not ones the user wrote.
+		output.push(rendered.body.replace(/<!--(?:\[(?:!|-?\d+)?|\]|)-->/g, ''))
+	}
+
+	return output
 }
 
 // One round for a finding: the translated component must compile for the
@@ -2276,6 +2292,47 @@ describe('hoisted var bindings and snippets beside kept whitespace', () => {
 		const preserved = await parity(body, {}, global)
 		expect(preserved.baseline).toBe('\n\n\n\n')
 		expect(preserved.code).not.toContain('{@render children()}')
+	})
+})
+
+describe('await inside a <T>', () => {
+	const settings = { compile: { experimental: { async: true } } }
+
+	// b resolves a, so the two awaits must run concurrently, as Svelte runs them.
+	const props = () => {
+		let release = () => {}
+		const gate = new Promise<void>(resolve => (release = resolve))
+		return { a: () => gate.then(() => 'A'), b: async () => (release(), 'B') }
+	}
+
+	it('keeps the runtime component when a body awaits', async () => {
+		const markup = '<T>Hello {await a()} {await b()}</T>'
+		expect(findSvelteTranslatable(component(markup), 'page.svelte')).toStrictEqual([])
+
+		const { baseline, code } = await parity(markup, props, settings)
+		expect(baseline).toBe('Hello A B')
+		expect(code).toBe(component(markup))
+
+		const translated = await transform(component(markup), table({ 'Hello ${0} ${1}': { fr: 'Bonjour ${0} ${1}' } }))
+		expect(translated.code).toBe(component(markup))
+		expect((await ssr(translated.code, props, ['fr'], settings.compile))[0]).toBe('Hello A B')
+
+		for (const nested of [
+			'<T>Hi <b>{await a()}</b></T>',
+			'<T>{#if true}{await a()}{/if}</T>',
+			'<T x={await a()}>Hi</T>',
+		]) {
+			expect(sources(nested)).toStrictEqual([])
+		}
+	})
+
+	it('still transforms a body without a template await', async () => {
+		const markup = '<T>Hello {items.map(async item => await item)}</T>'
+		expect(sources(markup)).toStrictEqual(['Hello ${0}'])
+
+		const { baseline, fr } = await parity('<T>Hello {name}</T>', { name: 'Ann' }, settings)
+		expect(baseline).toBe('Hello Ann')
+		expect(fr).toBe('HELLO Ann')
 	})
 })
 

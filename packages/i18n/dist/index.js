@@ -286,7 +286,21 @@ const hasExposedDynamicElement = (nodes) => nodes.some((node) => {
 		default: return false;
 	}
 });
-const isRuntimeOnly = (node, path, componentNamespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace;
+const FUNCTIONS = /* @__PURE__ */ new Set([
+	"FunctionExpression",
+	"ArrowFunctionExpression",
+	"FunctionDeclaration"
+]);
+const hasAwait = (value, seen = /* @__PURE__ */ new Set()) => {
+	if (!value || typeof value !== "object" || seen.has(value)) return false;
+	seen.add(value);
+	if (Array.isArray(value)) return value.some((item) => hasAwait(item, seen));
+	const node = value;
+	if (node.type === "AwaitExpression") return true;
+	if (node.type !== void 0 && FUNCTIONS.has(node.type)) return false;
+	return Object.values(node).some((item) => hasAwait(item, seen));
+};
+const isRuntimeOnly = (node, path, componentNamespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace || hasAwait(node.fragment.nodes);
 const COMPONENTS = /* @__PURE__ */ new Set([
 	"Component",
 	"SvelteComponent",

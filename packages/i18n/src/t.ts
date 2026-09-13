@@ -147,13 +147,44 @@ const hasExposedDynamicElement = (nodes: AST.Fragment['nodes']): boolean =>
 // not: a <svelte:element> without a static xmlns gets the component's own
 // namespace now and the surrounding one once unwrapped. When those differ,
 // the runtime component has to stay. `path` is the <T>'s ancestry.
+// Svelte runs the awaits of a body concurrently, while a values array would
+// run them one after the other, which can deadlock. Awaits inside a function
+// are not the template's own and do not count.
+const FUNCTIONS = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'FunctionDeclaration'])
+
+const hasAwait = (value: unknown, seen = new Set<object>()): boolean => {
+	if (!value || typeof value !== 'object' || seen.has(value)) {
+		return false
+	}
+
+	seen.add(value)
+
+	if (Array.isArray(value)) {
+		return value.some(item => hasAwait(item, seen))
+	}
+
+	const node = value as { type?: string }
+
+	if (node.type === 'AwaitExpression') {
+		return true
+	}
+
+	if (node.type !== undefined && FUNCTIONS.has(node.type)) {
+		return false
+	}
+
+	return Object.values(node).some(item => hasAwait(item, seen))
+}
+
 const isRuntimeOnly = (node: AST.Component, path: SvelteNode[], componentNamespace: Namespace) =>
 	node.attributes.some(
 		attribute =>
 			!(attribute.type === 'LetDirective' || (attribute.type === 'Attribute' && attribute.name === 'slot'))
 	) ||
 	node.fragment.nodes.some(hasSlotAttribute) ||
-	(hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace)
+	(hasExposedDynamicElement(node.fragment.nodes) &&
+		lookupNamespace(path, componentNamespace) !== componentNamespace) ||
+	hasAwait(node.fragment.nodes)
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
 
