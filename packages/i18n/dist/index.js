@@ -161,33 +161,38 @@ const resolveT = (ast) => {
 		names,
 		ours
 	};
-	const walk = (nodes, scope) => {
+	const hasSlot = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
+	const walk = (nodes, scope, lets = []) => {
 		const inner = new Set(scope);
 		for (const node of nodes) if (node.type === "ConstTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
-		const extend = (names) => /* @__PURE__ */ new Set([...inner, ...names]);
-		for (const node of nodes) switch (node.type) {
-			case "EachBlock":
-				walk(node.body.nodes, extend([...patternNames(node.context), ...node.index ? [node.index] : []]));
-				if (node.fallback) walk(node.fallback.nodes, inner);
-				break;
-			case "SnippetBlock":
-				walk(node.body.nodes, extend(node.parameters.flatMap((parameter) => patternNames(parameter))));
-				break;
-			case "AwaitBlock":
-				if (node.pending) walk(node.pending.nodes, inner);
-				if (node.then) walk(node.then.nodes, extend(patternNames(node.value)));
-				if (node.catch) walk(node.catch.nodes, extend(patternNames(node.error)));
-				break;
-			case "IfBlock":
-				walk(node.consequent.nodes, inner);
-				if (node.alternate) walk(node.alternate.nodes, inner);
-				break;
-			case "KeyBlock":
-				walk(node.fragment.nodes, inner);
-				break;
-			default: if ("fragment" in node && node.fragment?.type === "Fragment") {
-				if (node.type === "Component" && names.has(node.name) && !inner.has(node.name)) ours.add(node);
-				walk(node.fragment.nodes, extend(letNames(node)));
+		const withLets = /* @__PURE__ */ new Set([...inner, ...lets]);
+		for (const node of nodes) {
+			const current = hasSlot(node) ? inner : withLets;
+			const extend = (names) => /* @__PURE__ */ new Set([...current, ...names]);
+			switch (node.type) {
+				case "EachBlock":
+					walk(node.body.nodes, extend([...patternNames(node.context), ...node.index ? [node.index] : []]));
+					if (node.fallback) walk(node.fallback.nodes, current);
+					break;
+				case "SnippetBlock":
+					walk(node.body.nodes, extend(node.parameters.flatMap((parameter) => patternNames(parameter))));
+					break;
+				case "AwaitBlock":
+					if (node.pending) walk(node.pending.nodes, current);
+					if (node.then) walk(node.then.nodes, extend(patternNames(node.value)));
+					if (node.catch) walk(node.catch.nodes, extend(patternNames(node.error)));
+					break;
+				case "IfBlock":
+					walk(node.consequent.nodes, current);
+					if (node.alternate) walk(node.alternate.nodes, current);
+					break;
+				case "KeyBlock":
+					walk(node.fragment.nodes, current);
+					break;
+				default: if ("fragment" in node && node.fragment?.type === "Fragment") {
+					if (node.type === "Component" && names.has(node.name) && !current.has(node.name)) ours.add(node);
+					walk(node.fragment.nodes, current, letNames(node));
+				}
 			}
 		}
 	};
@@ -727,7 +732,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 //#region src/find/svelte.ts
 const isLangT = (tag) => {
 	const node = tag;
-	return node.type === "MemberExpression" && node.object?.type === "Identifier" && node.object.name === "lang" && node.property?.type === "Identifier" && node.property.name === "t";
+	return node.type === "MemberExpression" && node.computed === false && node.object?.type === "Identifier" && node.object.name === "lang" && node.property?.type === "Identifier" && node.property.name === "t";
 };
 const findTaggedTemplates = (ast, code) => {
 	const found = [];
@@ -770,7 +775,7 @@ const findTypescriptTagged = (code) => {
 	const found = [];
 	const ast = parseSync("module.ts", code);
 	walk(ast.program, { enter(node) {
-		if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t") {
+		if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.computed === false && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t") {
 			const { start, end } = node;
 			const quasi = node.quasi;
 			found.push({

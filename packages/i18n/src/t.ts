@@ -154,7 +154,13 @@ export const resolveT = (ast: AST.Root) => {
 		return { names, ours }
 	}
 
-	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>) => {
+	const hasSlot = (node: AST.Fragment['nodes'][number]) =>
+		'attributes' in node &&
+		node.attributes.some(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
+
+	// `lets` are a component's let: bindings: they reach its default slot
+	// children only, a child with a slot attribute sees the scope without them.
+	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>, lets: string[] = []) => {
 		const inner = new Set(scope)
 
 		for (const node of nodes) {
@@ -165,9 +171,12 @@ export const resolveT = (ast: AST.Root) => {
 			}
 		}
 
-		const extend = (names: string[]) => new Set([...inner, ...names])
+		const withLets = new Set([...inner, ...lets])
 
 		for (const node of nodes) {
+			const current = hasSlot(node) ? inner : withLets
+			const extend = (names: string[]) => new Set([...current, ...names])
+
 			switch (node.type) {
 				case 'EachBlock':
 					walk(
@@ -175,7 +184,7 @@ export const resolveT = (ast: AST.Root) => {
 						extend([...patternNames(node.context as Pattern), ...(node.index ? [node.index] : [])])
 					)
 					if (node.fallback) {
-						walk(node.fallback.nodes, inner)
+						walk(node.fallback.nodes, current)
 					}
 					break
 				case 'SnippetBlock':
@@ -186,7 +195,7 @@ export const resolveT = (ast: AST.Root) => {
 					break
 				case 'AwaitBlock':
 					if (node.pending) {
-						walk(node.pending.nodes, inner)
+						walk(node.pending.nodes, current)
 					}
 					if (node.then) {
 						walk(node.then.nodes, extend(patternNames(node.value as Pattern)))
@@ -196,21 +205,21 @@ export const resolveT = (ast: AST.Root) => {
 					}
 					break
 				case 'IfBlock':
-					walk(node.consequent.nodes, inner)
+					walk(node.consequent.nodes, current)
 					if (node.alternate) {
-						walk(node.alternate.nodes, inner)
+						walk(node.alternate.nodes, current)
 					}
 					break
 				case 'KeyBlock':
-					walk(node.fragment.nodes, inner)
+					walk(node.fragment.nodes, current)
 					break
 				default:
 					if ('fragment' in node && node.fragment?.type === 'Fragment') {
-						if (node.type === 'Component' && names.has(node.name) && !inner.has(node.name)) {
+						if (node.type === 'Component' && names.has(node.name) && !current.has(node.name)) {
 							ours.add(node)
 						}
 
-						walk(node.fragment.nodes, extend(letNames(node)))
+						walk(node.fragment.nodes, current, letNames(node))
 					}
 			}
 		}

@@ -4,15 +4,18 @@ import { collectSources, parseT } from '../t'
 
 type Range = { start: number; end: number }
 
+// Only a plain `lang.t`; `lang[t]` is somebody else's call.
 const isLangT = (tag: unknown) => {
 	const node = tag as {
 		type?: string
+		computed?: boolean
 		object?: { type?: string; name?: string }
 		property?: { type?: string; name?: string }
 	}
 
 	return (
 		node.type === 'MemberExpression' &&
+		node.computed === false &&
 		node.object?.type === 'Identifier' &&
 		node.object.name === 'lang' &&
 		node.property?.type === 'Identifier' &&

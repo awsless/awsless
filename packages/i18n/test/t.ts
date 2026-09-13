@@ -9,6 +9,7 @@ import { render } from 'svelte/server'
 import { i18n, Translator } from '../src'
 import { loadCache } from '../src/cache'
 import { findSvelteTranslatable } from '../src/find/svelte'
+import { findTypescriptTranslatable } from '../src/find/typescript'
 import { findTComponents, serialize, tokenize, validatePlaceholders, validateTranslation } from '../src/t'
 
 // Only a <T> imported from this package counts, so the fixtures import it.
@@ -1161,6 +1162,52 @@ describe('children snippet identity and import aliases', () => {
 			'{#each list as T}<T/>{#if true}{__i18n_lang.t.pick(["World"], {"fr":["Monde"]})}{/if}{/each}'
 		)
 		expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
+	})
+})
+
+describe('computed members and slot scoped let:', () => {
+	it('ignores lang[t] and only rewrites lang.t', async () => {
+		const markup = [
+			'<script>',
+			"\timport T from '@awsless/i18n/T'",
+			"\tconst t = 'other'",
+			"\tconst lang = { other: () => 'Other' }",
+			'</script>',
+			'<p>{lang[t]`Hello`}</p><T>Hi</T>',
+			'',
+		].join('\n')
+
+		expect(findSvelteTranslatable(markup)).toStrictEqual([{ source: 'Hi', kind: 'markup' }])
+
+		const { code } = await transform(markup, table({ Hello: { fr: 'Bonjour' }, Hi: { fr: 'Salut' } }))
+		expect(code).toContain('<p>{lang[t]`Hello`}</p>')
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('<p>Other</p>Hi')
+		expect(fr).toBe('<p>Other</p>Salut')
+
+		const ts = "const t = 'other'\nexport const a = lang[t]`x`\nexport const b = lang.t`y`\n"
+		expect(findTypescriptTranslatable(ts)).toStrictEqual([{ source: 'y', kind: 't' }])
+		const result = await transform(ts, table({ x: { fr: 'X' }, y: { fr: 'Y' } }), undefined, 'lib.ts')
+		expect(result.code).toBe(
+			'const t = \'other\'\nexport const a = lang[t]`x`\nexport const b = lang.t.get(`y`, {"fr":`Y`})\n'
+		)
+	})
+
+	it('scopes let: bindings to the default slot only', async () => {
+		const slotted = component('<Panel let:T><T slot="heading">Hello</T></Panel>')
+		expect(findSvelteTranslatable(slotted).map(item => item.source)).toStrictEqual(['Hello'])
+
+		const { code } = await transform(slotted, table({ Hello: { fr: 'Bonjour' } }))
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('<header>Hello</header><main></main>')
+		expect(fr).toBe('<header>Bonjour</header><main></main>')
+
+		const shadowed = component('<Panel let:T><T>Hello</T></Panel>')
+		expect(findSvelteTranslatable(shadowed)).toStrictEqual([])
+		expect((await transform(shadowed, upper)).code).toBe(shadowed)
 	})
 })
 

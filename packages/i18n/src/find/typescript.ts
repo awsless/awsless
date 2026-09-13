@@ -11,6 +11,8 @@ export const findTypescriptTagged = (code: string) => {
 			if (
 				node.type === 'TaggedTemplateExpression' &&
 				node.tag.type === 'MemberExpression' &&
+				// `lang[t]` is somebody else's call.
+				node.tag.computed === false &&
 				node.tag.object.type === 'Identifier' &&
 				node.tag.object.name === 'lang' &&
 				node.tag.property.type === 'Identifier' &&
