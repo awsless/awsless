@@ -3,8 +3,8 @@ declare const $derived: { by: <T>(c: () => T) => T }
 
 type StringArgs = Array<string | number | { toString(): string }>
 
-// Text, or the position of a value. Values arrive already evaluated, so a
-// translation can reorder them without running an expression twice.
+// Text, or the position of a value. Values arrive evaluated and stringified,
+// so a translation can reorder them without running an expression twice.
 type Part = string | number
 
 type Translate = {
@@ -22,12 +22,15 @@ let t: Translate = $derived.by(() => {
 		return translations[locale] ?? og
 	}
 
-	api.pick = (source: Part[], translations: Record<string, Part[]>, values: unknown[] = []) => {
+	// Coerces like Svelte does for `{value}`: nullish is empty, symbols stringify.
+	api.str = (value: unknown) => (value == null ? '' : String(value))
+
+	// Values arrive as strings already, so reordering them is safe.
+	api.pick = (source: Part[], translations: Record<string, Part[]>, values: string[] = []) => {
 		let result = ''
 
 		for (const part of translations[locale] ?? source) {
-			// Coerced like Svelte does for `{value}`: nullish is empty, symbols stringify.
-			result += typeof part === 'number' ? (values[part] == null ? '' : String(values[part])) : part
+			result += typeof part === 'number' ? (values[part] ?? '') : part
 		}
 
 		return result

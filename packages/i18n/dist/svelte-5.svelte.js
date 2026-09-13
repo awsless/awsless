@@ -7,9 +7,10 @@ let t = $derived.by(() => {
 	api.get = (og, translations) => {
 		return translations[locale] ?? og;
 	};
+	api.str = (value) => value == null ? "" : String(value);
 	api.pick = (source, translations, values = []) => {
 		let result = "";
-		for (const part of translations[locale] ?? source) result += typeof part === "number" ? values[part] == null ? "" : String(values[part]) : part;
+		for (const part of translations[locale] ?? source) result += typeof part === "number" ? values[part] ?? "" : part;
 		return result;
 	};
 	return api;

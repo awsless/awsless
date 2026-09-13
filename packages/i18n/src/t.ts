@@ -23,6 +23,8 @@ type Piece = Range & {
 	body?: Context
 }
 
+export type Edit = Range & { text: string }
+
 // The text between two tag boundaries: translated and emitted as one call.
 export type Run = Range & { tokens: Token[] }
 
@@ -40,8 +42,8 @@ export type TComponent = Range & {
 	foot: string
 	/** The pieces of the <T> that make way for the block scope. Absent when empty. */
 	wrap?: { open: Range; close: Range; tail: string }
-	/** Tags of direct `<svelte:fragment>` children, meaningless outside a component. */
-	remove: Range[]
+	/** Edits inside the body: unslotted `<svelte:fragment>` tags become their own `{#if true}` blocks. */
+	extra: Edit[]
 	segments: Segment[]
 }
 
@@ -307,7 +309,7 @@ export const parseT = (code: string, file?: string) => {
 		}
 	}
 
-	const build = (nodes: AST.Fragment['nodes'], context: Context): Segment[] => {
+	const build = (nodes: AST.Fragment['nodes'], context: Context, extra: Edit[]): Segment[] => {
 		const pieces: Piece[] = []
 		const expressions: Range[] = []
 		const nested: Segment[] = []
@@ -355,7 +357,7 @@ export const parseT = (code: string, file?: string) => {
 						})
 
 						for (const body of blockBodies(node)) {
-							nested.push(...build(body, context))
+							nested.push(...build(body, context, extra))
 						}
 						break
 					default: {
@@ -366,6 +368,24 @@ export const parseT = (code: string, file?: string) => {
 
 							// Opaque like a block, so the runs around it never merge across it.
 							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
+							break
+						}
+
+						if (node.type === 'SvelteFragment') {
+							// Only a component gives the fragment meaning; as its own block it
+							// keeps its scope and is a segment of its own.
+							const first = node.fragment.nodes[0]
+							const last = node.fragment.nodes.at(-1)
+
+							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
+
+							if (first && last) {
+								extra.push({ start: node.start, end: first.start, text: '{#if true}' })
+								extra.push({ start: last.end, end: node.end, text: '{/if}' })
+								nested.push(...build(node.fragment.nodes, context, extra))
+							} else {
+								extra.push({ start: node.start, end: node.end, text: '{#if true}{/if}' })
+							}
 							break
 						}
 
@@ -403,24 +423,19 @@ export const parseT = (code: string, file?: string) => {
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
 	}
 
-	collect(
-		code,
-		ours,
-		ast.fragment.nodes,
-		preserveAll,
-		undefined,
-		(node, head, foot, wrap, remove, nodes, preserve) => {
-			components.push({
-				start: node.start,
-				end: node.end,
-				head,
-				foot,
-				wrap,
-				remove,
-				segments: nodes ? build(nodes, rootContext(preserve)) : [],
-			})
-		}
-	)
+	collect(code, ours, ast.fragment.nodes, preserveAll, undefined, (node, head, foot, wrap, nodes, preserve) => {
+		const extra: Edit[] = []
+
+		components.push({
+			start: node.start,
+			end: node.end,
+			head,
+			foot,
+			wrap,
+			extra,
+			segments: nodes ? build(nodes, rootContext(preserve), extra) : [],
+		})
+	})
 
 	return { ast, components }
 }
@@ -430,7 +445,6 @@ type Found = (
 	head: string,
 	foot: string,
 	wrap: TComponent['wrap'],
-	remove: Range[],
 	nodes: AST.Fragment['nodes'] | undefined,
 	preserve: boolean
 ) => void
@@ -465,27 +479,7 @@ const collect = (
 				: ''
 			const foot = slot ? '</svelte:fragment>' : ''
 
-			const remove: Range[] = []
-
-			// <svelte:fragment> only means something to a component, so its
-			// tags go and its content stays.
-			const children = node.fragment.nodes.flatMap(child => {
-				if (child.type !== 'SvelteFragment') {
-					return [child]
-				}
-
-				const first = child.fragment.nodes[0]
-				const last = child.fragment.nodes.at(-1)
-
-				if (first && last) {
-					remove.push({ start: child.start, end: first.start }, { start: last.end, end: child.end })
-					return child.fragment.nodes
-				}
-
-				remove.push({ start: child.start, end: child.end })
-				return []
-			})
-
+			const children = node.fragment.nodes
 			const content = children.filter(child => !isBlank(child))
 
 			// An explicit children snippet stays as declared and gets rendered, so
@@ -500,9 +494,9 @@ const collect = (
 					close: { start: last.end, end: node.end },
 					tail: snippet ? '{@render children()}' : '',
 				}
-				found(node, head, foot, wrap, remove, children, preserve)
+				found(node, head, foot, wrap, children, preserve)
 			} else {
-				found(node, head, foot, undefined, [], undefined, preserve)
+				found(node, head, foot, undefined, undefined, preserve)
 			}
 			continue
 		}
@@ -810,9 +804,8 @@ export const validateTranslation = (source: string, translation: string) => {
 }
 
 // ---------------------------------------------------------------------------
-// Emitting: `{__i18n_lang.t.pick(["Hello ", 0], {"fr":["Bonjour ", 0]}, [(name)])}`
+// Emitting: `{__i18n_lang.t.pick(["Hello ", 0], {"fr":["Bonjour ", 0]}, [__i18n_lang.t.str((name))])}`
 
-export type Edit = Range & { text: string }
 export type Lookup = (source: string, locale: string) => string | undefined
 
 // Parts are text or the position of a value, so a translation can reorder
@@ -870,7 +863,7 @@ export const transformT = (
 
 	// A block is a real scope for `{@const}` and snippets, and unlike a
 	// snippet it is not handed to an enclosing component as a prop.
-	edits.push(...component.remove.map(range => ({ ...range, text: '' })))
+	edits.push(...component.extra)
 	edits.push({ ...component.wrap.open, text: `${component.head}{#if true}` })
 	edits.push({ ...component.wrap.close, text: `${component.wrap.tail}{/if}${component.foot}` })
 
@@ -917,10 +910,13 @@ export const transformT = (
 				continue
 			}
 
-			// Parentheses keep a sequence expression as one value.
+			// Each value is stringified right where Svelte would have, in source
+			// order; parentheses keep a sequence expression as one value.
 			const values =
 				indices.length > 0
-					? `, [${indices.map(i => `(${spliced(code, segment.expressions[i]!, rewrites)})`).join(', ')}]`
+					? `, [${indices
+							.map(i => `__i18n_lang.t.str((${spliced(code, segment.expressions[i]!, rewrites)}))`)
+							.join(', ')}]`
 					: ''
 
 			edits.push({

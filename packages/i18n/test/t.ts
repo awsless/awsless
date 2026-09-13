@@ -85,7 +85,7 @@ const component = (markup: string, script = '') => {
 		"\timport Required from './required.svelte'",
 		"\timport Legacy from './legacy.svelte'",
 		"\timport Host from './host.svelte'",
-		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item, value } = $props()',
+		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item, value, mutate } = $props()',
 		'</script>',
 		'',
 		markup,
@@ -103,7 +103,10 @@ const CARD =
 // Compiles for the server and renders once per locale. The real `lang`
 // module needs the svelte plugin for its runes, so a stub with the same
 // `get`/`pick` semantics stands in and reads the locale from globalThis.
-const ssr = async (code: string, props: Record<string, unknown>, locales: string[]) => {
+type Props = Record<string, unknown> | (() => Record<string, unknown>)
+
+// A props factory gives every render fresh state.
+const ssr = async (code: string, props: Props, locales: string[]) => {
 	const dir = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-ssr-'))
 	const internal = createRequire(import.meta.url).resolve('svelte/internal/server')
 
@@ -125,8 +128,9 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 			'const locale = () => globalThis.__locale',
 			'export const lang = { t: {',
 			'\tget: (og, translations) => translations[locale()] ?? og,',
+			'\tstr: value => value == null ? "" : String(value),',
 			'\tpick: (source, translations, values = []) => (translations[locale()] ?? source)',
-			'\t\t.map(part => typeof part === "number" ? (values[part] == null ? "" : String(values[part])) : part).join(""),',
+			'\t\t.map(part => typeof part === "number" ? values[part] ?? "" : part).join(""),',
 			'} }',
 			'',
 		].join('\n')
@@ -153,7 +157,8 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 	return locales.map(locale => {
 		Object.assign(globalThis, { __locale: locale })
 		// Hydration markers are comments and not part of what the user sees.
-		return render(page.default, { props }).body.replace(/<!--[^]*?-->/g, '')
+		const value = typeof props === 'function' ? props() : props
+		return render(page.default, { props: value }).body.replace(/<!--[^]*?-->/g, '')
 	})
 }
 
@@ -345,7 +350,7 @@ describe('<T> transform', () => {
 			'{#if true}' +
 				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{name}</b>' +
 				'{__i18n_lang.t.pick([", you have "], {"fr":[", vous avez "]})}' +
-				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [(n)])}</Badge>. <Icon/>' +
+				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [__i18n_lang.t.str((n))])}</Badge>. <Icon/>' +
 				'{/if}'
 		)
 		expect(code).not.toContain('<T')
@@ -453,7 +458,7 @@ describe('<T> transform', () => {
 		)
 
 		expect(code).toContain(
-			'{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [(lang.t.get(`x`, {"fr":`y`}))])}'
+			'{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [__i18n_lang.t.str((lang.t.get(`x`, {"fr":`y`})))])}'
 		)
 		expect(code).toContain('<p>{lang.t.get(`Bye`, {"fr":`Au revoir`})}</p>')
 	})
@@ -681,7 +686,7 @@ describe('<T> wrapper and normalisation', () => {
 		await check(markup, translations, { x: 'OUTER' }, expected)
 
 		expect(code).toContain(
-			'{#if true}{#snippet children(x="DEFAULT")}{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [(x)])}{/snippet}{@render children()}{/if}'
+			'{#if true}{#snippet children(x="DEFAULT")}{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [__i18n_lang.t.str((x))])}{/snippet}{@render children()}{/if}'
 		)
 	})
 
@@ -703,7 +708,7 @@ describe('<T> wrapper and normalisation', () => {
 				fr: 'a b c',
 			}
 		)
-		expect(plain.code).toContain('{#if true}a b c{/if}')
+		expect(plain.code).toContain('{#if true}a {#if true}b{/if} c{#if true}{/if}{/if}')
 	})
 
 	it('treats svelte:element as whitespace sensitive', async () => {
@@ -792,7 +797,7 @@ const upper: Translator = (_, list) =>
 
 // Renders the markup untransformed with the real T.svelte and transformed with
 // a translation present; Svelte's whitespace handling must come out the same.
-const parity = async (markup: string, props: Record<string, unknown> = {}) => {
+const parity = async (markup: string, props: Props = {}) => {
 	const [baseline] = await ssr(component(markup), props, ['en'])
 	const { code } = await transform(component(markup), upper)
 
@@ -904,7 +909,7 @@ describe('nested lang.t and passed children', () => {
 			table(nested)
 		)
 
-		expect(code).toContain(`[(${outer})]`)
+		expect(code).toContain(`[__i18n_lang.t.str((${outer}))]`)
 		expect(() => compile(code, { generate: 'client' })).not.toThrow()
 		expect(() => compile(code, { generate: 'server' })).not.toThrow()
 
@@ -1324,6 +1329,65 @@ describe('value coercion, snippet names and nested runtime <T>', () => {
 		expect(code).toContain('<T><span slot="unused">hidden</span>Inner</T>')
 
 		expect(() => findTComponents(withT('<T>a <T>b</T></T>'))).toThrow('nested <T> is not supported')
+	})
+})
+
+describe('fragment scopes and evaluation order', () => {
+	it('gives each svelte:fragment its own scope and segment', async () => {
+		const consts =
+			'<T><svelte:fragment>{@const x = "A"}{x}</svelte:fragment><svelte:fragment>{@const x = "B"}{x}</svelte:fragment></T>'
+		expect(sources(consts)).toStrictEqual(['<1/><2/>', '<1/>${0}', '<1/>${0}'])
+		const { baseline, code } = await parity(consts)
+		expect(baseline).toBe('AB')
+		expect(code).toContain('{#if true}{#if true}{@const x = "A"}{x}{/if}{#if true}{@const x = "B"}{x}{/if}{/if}')
+
+		const sibling = await parity('<T><svelte:fragment>{@const x = "A"}{x}</svelte:fragment>{x}</T>', { x: 'OUTER' })
+		expect(sibling.baseline).toBe('AOUTER')
+
+		const text = '<T><svelte:fragment>{@const x = "A"}Hello {x}</svelte:fragment> tail</T>'
+		expect(sources(text)).toStrictEqual(['<1/> tail', '<1/>Hello ${0}'])
+		const { code: translated } = await transform(
+			component(text),
+			table({ '<1/> tail': { fr: '<1/> fin' }, '<1/>Hello ${0}': { fr: '<1/>Bonjour ${0}' } })
+		)
+		const [en, fr] = await ssr(translated, {}, ['en', 'fr'])
+		expect(en).toBe('Hello A tail')
+		expect(fr).toBe('Bonjour A fin')
+	})
+
+	it('keeps a children snippet inside a fragment as a plain declaration', async () => {
+		const markup =
+			'<T><svelte:fragment>{#snippet children()}inner{/snippet}{@render children()}</svelte:fragment></T>'
+		const { baseline, code } = await parity(markup)
+		expect(baseline).toBe('inner')
+		expect(code).toContain('{#if true}{#if true}{#snippet children()}')
+		// Only the markup's own render call; none is appended at the <T> level.
+		expect(code.match(/\{@render children\(\)\}/g)).toHaveLength(1)
+	})
+
+	it('stringifies each value before the next expression runs', async () => {
+		const props = () => {
+			const state = { label: 'first' }
+			return {
+				value: { toString: () => state.label },
+				mutate: () => {
+					state.label = 'second'
+					return '!'
+				},
+			}
+		}
+
+		const { baseline, fr, code } = await parity('<T>Hello {value}{mutate()}</T>', props)
+		expect(baseline).toBe('Hello first!')
+		expect(fr).toBe('HELLO first!')
+		expect(code).toContain('[__i18n_lang.t.str((value)), __i18n_lang.t.str((mutate()))]')
+
+		const dates = () => {
+			const date = new Date(2000, 0, 1)
+			return { value: date, mutate: () => (date.setFullYear(2001), '') }
+		}
+		const { baseline: shown } = await parity('<T>On {value}{mutate()}</T>', dates)
+		expect(shown).toContain('2000')
 	})
 })
 

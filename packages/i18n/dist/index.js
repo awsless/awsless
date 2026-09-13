@@ -255,7 +255,7 @@ const parseT = (code, file) => {
 			case "SnippetBlock": return [node.body.nodes];
 		}
 	};
-	const build = (nodes, context) => {
+	const build = (nodes, context, extra) => {
 		const pieces = [];
 		const expressions = [];
 		const nested = [];
@@ -317,7 +317,7 @@ const parseT = (code, file) => {
 						},
 						hoisted: HOISTED.has(node.type)
 					});
-					for (const body of blockBodies(node)) nested.push(...build(body, context));
+					for (const body of blockBodies(node)) nested.push(...build(body, context, extra));
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
@@ -329,6 +329,36 @@ const parseT = (code, file) => {
 								type: "self",
 								n: ++tags
 							}
+						});
+						break;
+					}
+					if (node.type === "SvelteFragment") {
+						const first = node.fragment.nodes[0];
+						const last = node.fragment.nodes.at(-1);
+						pieces.push({
+							start: node.start,
+							end: node.end,
+							token: {
+								type: "self",
+								n: ++tags
+							}
+						});
+						if (first && last) {
+							extra.push({
+								start: node.start,
+								end: first.start,
+								text: "{#if true}"
+							});
+							extra.push({
+								start: last.end,
+								end: node.end,
+								text: "{/if}"
+							});
+							nested.push(...build(node.fragment.nodes, context, extra));
+						} else extra.push({
+							start: node.start,
+							end: node.end,
+							text: "{#if true}{/if}"
 						});
 						break;
 					}
@@ -384,15 +414,16 @@ const parseT = (code, file) => {
 		visit(nodes, context);
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
 	};
-	collect(code, ours, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, remove, nodes, preserve) => {
+	collect(code, ours, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, nodes, preserve) => {
+		const extra = [];
 		components.push({
 			start: node.start,
 			end: node.end,
 			head,
 			foot,
 			wrap,
-			remove,
-			segments: nodes ? build(nodes, rootContext(preserve)) : []
+			extra,
+			segments: nodes ? build(nodes, rootContext(preserve), extra) : []
 		});
 	});
 	return {
@@ -409,27 +440,7 @@ const collect = (code, ours, nodes, preserve, parent, found) => {
 			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");
 			const head = slot ? `<svelte:fragment ${carried.map((item) => code.slice(item.start, item.end)).join(" ")}>` : "";
 			const foot = slot ? "</svelte:fragment>" : "";
-			const remove = [];
-			const children = node.fragment.nodes.flatMap((child) => {
-				if (child.type !== "SvelteFragment") return [child];
-				const first = child.fragment.nodes[0];
-				const last = child.fragment.nodes.at(-1);
-				if (first && last) {
-					remove.push({
-						start: child.start,
-						end: first.start
-					}, {
-						start: last.end,
-						end: child.end
-					});
-					return child.fragment.nodes;
-				}
-				remove.push({
-					start: child.start,
-					end: child.end
-				});
-				return [];
-			});
+			const children = node.fragment.nodes;
 			const snippet = children.filter((child) => !isBlank(child)).find((child) => child.type === "SnippetBlock" && child.expression.name === "children");
 			const first = node.fragment.nodes[0];
 			const last = node.fragment.nodes.at(-1);
@@ -443,8 +454,8 @@ const collect = (code, ours, nodes, preserve, parent, found) => {
 					end: node.end
 				},
 				tail: snippet ? "{@render children()}" : ""
-			}, remove, children, preserve);
-			else found(node, head, foot, void 0, [], void 0, preserve);
+			}, children, preserve);
+			else found(node, head, foot, void 0, void 0, preserve);
 			continue;
 		}
 		const inside = preserve || node.type === "RegularElement" && PRESERVE.has(node.name);
@@ -682,10 +693,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 			translated
 		};
 	}
-	edits.push(...component.remove.map((range) => ({
-		...range,
-		text: ""
-	})));
+	edits.push(...component.extra);
 	edits.push({
 		...component.wrap.open,
 		text: `${component.head}{#if true}`
@@ -720,7 +728,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
 			if (changed.length === 0) continue;
-			const values = indices.length > 0 ? `, [${indices.map((i) => `(${spliced(code, segment.expressions[i], rewrites)})`).join(", ")}]` : "";
+			const values = indices.length > 0 ? `, [${indices.map((i) => `__i18n_lang.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
 			edits.push({
 				start: run.start,
 				end: run.end,
