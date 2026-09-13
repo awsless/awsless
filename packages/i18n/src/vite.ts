@@ -6,7 +6,8 @@ import { findNewTranslations, removeUnusedTranslations } from './diff'
 import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source, Tagged } from './find'
 import { findTaggedTemplates } from './find/svelte'
 import { findTypescriptTagged } from './find/typescript'
-import { Edit, hasT, parseT, transformT, validatePlaceholders, validateTranslation } from './t'
+import { svelteInternals } from './svelte-internal'
+import { Edit, hasT, parseT, TOptions, transformT, validatePlaceholders, validateTranslation } from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -38,6 +39,10 @@ export type I18nPluginProps = {
 	 * Svelte plugin's `compilerOptions.preserveWhitespace`; a component's own
 	 * `<svelte:options preserveWhitespace>` always wins. */
 	preserveWhitespace?: boolean
+
+	/** Whether comments inside `<T>` stay in the output. Defaults to the
+	 * Svelte plugin's `compilerOptions.preserveComments`. */
+	preserveComments?: boolean
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
@@ -56,23 +61,22 @@ const outermost = (tagged: Tagged[]) =>
 const isSvelteFile = (id = '') => extname(id.split('?')[0]!) === '.svelte'
 
 // The svelte plugin publishes its resolved options on its `api` once the
-// config is resolved, which is where the compiler default lives.
-const svelteCompilerPreserve = (plugins: readonly Plugin[]) => {
+// config is resolved, which is where the compiler defaults live.
+const svelteCompilerOptions = (plugins: readonly Plugin[]): TOptions => {
 	for (const plugin of plugins) {
-		const api = plugin.api as { options?: { compilerOptions?: { preserveWhitespace?: boolean } } } | undefined
-		const value = api?.options?.compilerOptions?.preserveWhitespace
+		const api = plugin.api as { options?: { compilerOptions?: TOptions } } | undefined
 
-		if (plugin.name.startsWith('vite-plugin-svelte') && typeof value === 'boolean') {
-			return value
+		if (plugin.name.startsWith('vite-plugin-svelte') && api?.options?.compilerOptions) {
+			return api.options.compilerOptions
 		}
 	}
 
-	return false
+	return {}
 }
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
-	let preserveWhitespace = props.preserveWhitespace ?? false
+	let options: TOptions = { preserveWhitespace: props.preserveWhitespace, preserveComments: props.preserveComments }
 	let generatedCache: Cache
 	let overrideCache: Cache
 
@@ -135,13 +139,21 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 		name: 'awsless/i18n',
 		enforce: 'pre',
 		configResolved(config) {
-			preserveWhitespace = props.preserveWhitespace ?? svelteCompilerPreserve(config.plugins)
+			// Fails here, with the svelte version named, rather than on the first file.
+			svelteInternals()
+
+			const compiler = svelteCompilerOptions(config.plugins)
+
+			options = {
+				preserveWhitespace: props.preserveWhitespace ?? compiler.preserveWhitespace,
+				preserveComments: props.preserveComments ?? compiler.preserveComments,
+			}
 		},
 		async buildStart() {
 			const cwd = process.cwd()
 
 			this.info('Finding all translatable text...')
-			const sources = await findTranslatable(cwd, preserveWhitespace)
+			const sources = await findTranslatable(cwd, options)
 
 			generatedCache = await loadGeneratedCache(cwd)
 			overrideCache = await loadOverrideCache(cwd)
@@ -169,7 +181,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				return
 			}
 
-			const sources = await findTranslatableInCode(file, await read(), preserveWhitespace)
+			const sources = await findTranslatableInCode(file, await read(), options)
 
 			if (sources.length > 0) {
 				await translateMissing(process.cwd(), sources, this.environment.logger)
@@ -231,7 +243,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			const transformedCode = new MagicString(code)
 
 			if (svelte) {
-				const { ast, components } = parseT(code, id, preserveWhitespace)
+				const { ast, components } = parseT(code, id, options)
 				const templates = rewrites(findTaggedTemplates(ast, code))
 				const lookup = (source: string, locale: string) => cache.get(source, locale)
 				const edits: Edit[] = []

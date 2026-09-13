@@ -1,7 +1,8 @@
-import { extname } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, extname, join } from "node:path";
 import MagicString from "magic-string";
 import { readFile, stat, writeFile } from "fs/promises";
-import { join } from "path";
+import { join as join$1 } from "path";
 import { glob } from "glob";
 import lineColumn from "line-column";
 import { parse } from "svelte/compiler";
@@ -14,7 +15,7 @@ import { z } from "zod";
 const GENERATED_CACHE_FILE = "i18n.generated.json";
 const OVERRIDE_CACHE_FILE = "i18n.json";
 const loadFile = async (cwd, fileName) => {
-	const file = join(cwd, fileName);
+	const file = join$1(cwd, fileName);
 	try {
 		await stat(file);
 	} catch {
@@ -30,7 +31,7 @@ const loadOverrideCache = async (cwd) => {
 	return loadFile(cwd, OVERRIDE_CACHE_FILE);
 };
 const saveCache = async (cwd, cache) => {
-	const file = join(cwd, GENERATED_CACHE_FILE);
+	const file = join$1(cwd, GENERATED_CACHE_FILE);
 	const content = JSON.stringify(cache.toJSON(), void 0, "	") + "\n";
 	try {
 		if (await readFile(file, "utf8") === content) return false;
@@ -93,12 +94,153 @@ const removeUnusedTranslations = (cache, sources, locales) => {
 	for (const item of cache.entries()) if (!locales.includes(item.locale) || !sources.includes(item.source)) cache.delete(item.source, item.locale);
 };
 //#endregion
+//#region src/svelte-internal.ts
+const state = (preserveComments) => ({
+	analysis: { runes: true },
+	options: {
+		hmr: false,
+		preserveComments
+	}
+});
+const isCleaned = (value) => typeof value === "object" && value !== null && Array.isArray(value.hoisted) && Array.isArray(value.trimmed);
+let loaded;
+/** Svelte's whitespace cleaning is not public API, so it is taken from the
+* compiler sources shipped in the package and checked once up front, so a
+* Svelte release that moves it fails with a clear message instead of odd output. */
+const svelteInternals = () => {
+	if (loaded) return loaded;
+	const require = createRequire(import.meta.url);
+	const manifest = require.resolve("svelte/package.json");
+	const { version } = require(manifest);
+	const root = dirname(manifest);
+	const fail = (reason) => /* @__PURE__ */ new Error(`@awsless/i18n mirrors svelte's whitespace handling through its compiler internals, but svelte ${version} ${reason}.`);
+	let transform;
+	let utils;
+	try {
+		transform = require(join(root, "src/compiler/phases/3-transform/utils.js"));
+		utils = require(join(root, "src/utils.js"));
+	} catch (error) {
+		throw fail(`does not ship them where expected (${error instanceof Error ? error.message : String(error)})`);
+	}
+	const { clean_nodes, infer_namespace, determine_namespace_for_children } = transform;
+	const { is_svg, is_mathml } = utils;
+	if ([
+		clean_nodes,
+		infer_namespace,
+		determine_namespace_for_children,
+		is_svg,
+		is_mathml
+	].some((fn) => typeof fn !== "function")) throw fail("is missing clean_nodes, infer_namespace, determine_namespace_for_children, is_svg or is_mathml");
+	let probe;
+	try {
+		probe = clean_nodes({
+			type: "Fragment",
+			nodes: []
+		}, [], [], "html", state(false), false, false);
+	} catch (error) {
+		throw fail(`rejects clean_nodes(parent, nodes, path, namespace, state, preserveWhitespace, preserveComments) (${error instanceof Error ? error.message : String(error)})`);
+	}
+	if (!isCleaned(probe)) throw fail("returns an unexpected shape from clean_nodes");
+	loaded = {
+		version,
+		cleanNodes: (parent, nodes, path, namespace, preserveWhitespace, preserveComments) => {
+			const { hoisted, trimmed } = clean_nodes(parent, nodes, path, namespace, state(preserveComments), preserveWhitespace, preserveComments);
+			return {
+				hoisted,
+				trimmed
+			};
+		},
+		inferNamespace: infer_namespace,
+		childNamespace: determine_namespace_for_children,
+		isSvg: is_svg,
+		isMathml: is_mathml
+	};
+	return loaded;
+};
+const NAMESPACE_SVG = "http://www.w3.org/2000/svg";
+const NAMESPACE_MATHML = "http://www.w3.org/1998/Math/MathML";
+const SLOT_RESET = /* @__PURE__ */ new Set([
+	"Component",
+	"SvelteComponent",
+	"SvelteFragment",
+	"SnippetBlock"
+]);
+/** parse() hands out the AST without the metadata the analysis phase adds,
+* and the cleaning reads two bits of it: the element namespace, computed here
+* the way svelte/src/compiler/phases/2-analyze/visitors/RegularElement.js and
+* SvelteElement.js do, and `dynamic` on components and render tags, which
+* only steers an anchor optimisation and stays false. */
+const annotate = (root, namespace, internals) => {
+	const meta = (node) => node;
+	const walk = (nodes, path) => {
+		for (const node of nodes) {
+			if (node.type === "RegularElement") {
+				const nearest = path.findLast((ancestor) => ancestor.type === "RegularElement");
+				const inherited = nearest ? meta(nearest).metadata?.svg === true : false;
+				meta(node).metadata = {
+					svg: internals.isSvg(node.name) || (node.name === "a" || node.name === "title") && inherited,
+					mathml: internals.isMathml(node.name)
+				};
+				walk(node.fragment.nodes, [...path, node]);
+				if (node.name === "a" && !nearest) {
+					const svgChild = node.fragment.nodes.some((child) => child.type === "RegularElement" && child.name !== "svg" && meta(child).metadata?.svg);
+					meta(node).metadata.svg ||= svgChild;
+				}
+				continue;
+			}
+			if (node.type === "SvelteElement") {
+				const xmlns = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "xmlns" && Array.isArray(attribute.value) && attribute.value.length === 1 && attribute.value[0]?.type === "Text");
+				if (xmlns && xmlns.type === "Attribute" && Array.isArray(xmlns.value) && xmlns.value[0]?.type === "Text") {
+					const value = xmlns.value[0].data;
+					meta(node).metadata = {
+						svg: value === NAMESPACE_SVG,
+						mathml: value === NAMESPACE_MATHML
+					};
+				} else {
+					let svg = namespace === "svg";
+					let mathml = namespace === "mathml";
+					for (let i = path.length - 1; i >= 0; i--) {
+						const ancestor = path[i];
+						if (i === 0 || SLOT_RESET.has(ancestor.type)) break;
+						if (ancestor.type === "RegularElement" || ancestor.type === "SvelteElement") {
+							const foreign = ancestor.type === "RegularElement" && ancestor.name === "foreignObject";
+							svg = foreign ? false : meta(ancestor).metadata?.svg === true;
+							mathml = foreign ? false : meta(ancestor).metadata?.mathml === true;
+							break;
+						}
+					}
+					meta(node).metadata = {
+						svg,
+						mathml
+					};
+				}
+				walk(node.fragment.nodes, [...path, node]);
+				continue;
+			}
+			if (node.type === "Component" || node.type === "SvelteComponent" || node.type === "SvelteSelf" || node.type === "RenderTag") meta(node).metadata = { dynamic: false };
+			for (const key of [
+				"fragment",
+				"consequent",
+				"alternate",
+				"body",
+				"fallback",
+				"pending",
+				"then",
+				"catch"
+			]) {
+				const fragment = node[key];
+				if (fragment?.type === "Fragment") walk(fragment.nodes, [...path, node]);
+			}
+		}
+	};
+	walk(root.fragment.nodes, [root]);
+};
+//#endregion
 //#region src/t.ts
 const range = (node) => node;
 const T_MODULE = "@awsless/i18n/T";
 const hasT = (code) => code.includes(T_MODULE);
-const PRESERVE = /* @__PURE__ */ new Set(["pre", "textarea"]);
-const REMOVABLE = /* @__PURE__ */ new Set([
+const RESTRICTED = /* @__PURE__ */ new Set([
 	"select",
 	"tr",
 	"table",
@@ -106,9 +248,9 @@ const REMOVABLE = /* @__PURE__ */ new Set([
 	"thead",
 	"tfoot",
 	"colgroup",
-	"datalist"
+	"datalist",
+	"optgroup"
 ]);
-const RESTRICTED = /* @__PURE__ */ new Set([...REMOVABLE, "optgroup"]);
 const SVG_TEXT = /* @__PURE__ */ new Set([
 	"text",
 	"tspan",
@@ -116,20 +258,6 @@ const SVG_TEXT = /* @__PURE__ */ new Set([
 	"title",
 	"desc"
 ]);
-const HOISTED = /* @__PURE__ */ new Set([
-	"ConstTag",
-	"DeclarationTag",
-	"DebugTag",
-	"SvelteBody",
-	"SvelteWindow",
-	"SvelteDocument",
-	"SvelteHead",
-	"TitleElement",
-	"SnippetBlock"
-]);
-const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/;
-const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/;
-const isBlankText = (value) => !/[^ \t\r\n]/.test(value);
 const hasSlotAttribute = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 const isRuntimeOnly = (node) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute);
 const COMPONENTS = /* @__PURE__ */ new Set([
@@ -222,50 +350,22 @@ const resolveT = (ast) => {
 		ours
 	};
 };
-const isBlank = (node) => node.type === "Comment" || node.type === "Text" && isBlankText(node.data);
-const rootContext = (preserve) => ({
-	preserve,
-	removable: false,
-	pre: false,
-	svg: false,
-	svgText: false,
-	svgWhitespace: false,
-	component: false,
-	restricted: false
-});
-const bodyContext = (parent) => ({
-	...parent,
-	removable: false,
-	pre: false,
-	component: false
-});
-const blockContext = (parent) => ({
-	...parent,
-	removable: parent.svg && !parent.svgWhitespace,
-	pre: false,
-	component: false
-});
-const childContext = (node, parent) => {
-	const regular = node.type === "RegularElement";
-	const svg = regular && node.name === "foreignObject" ? false : parent.svg || regular && node.name === "svg";
-	const svgText = svg && (parent.svgText || regular && SVG_TEXT.has(node.name));
-	const svgWhitespace = svg && (parent.svgWhitespace || regular && node.name === "text");
-	return {
-		preserve: parent.preserve || regular && PRESERVE.has(node.name),
-		removable: regular && REMOVABLE.has(node.name) || svg && !svgWhitespace,
-		pre: regular && node.name === "pre",
-		svg,
-		svgText,
-		svgWhitespace,
-		component: COMPONENTS.has(node.type),
-		restricted: regular && RESTRICTED.has(node.name) || svg && !svgText
-	};
+const isBlank = (node) => node.type === "Comment" || node.type === "Text" && node.data.trim() === "";
+const slotName = (node) => {
+	if (!("attributes" in node)) return "default";
+	const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
+	const value = slot?.type === "Attribute" && Array.isArray(slot.value) ? slot.value[0] : void 0;
+	return value?.type === "Text" ? value.data : "default";
 };
-const parseT = (code, file, preserveWhitespace = false) => {
+const parseT = (code, file, options = {}) => {
+	const internals = svelteInternals();
 	const ast = parse(code, { modern: true });
 	const components = [];
-	const preserveAll = ast.options?.preserveWhitespace ?? preserveWhitespace;
+	const preserveAll = ast.options?.preserveWhitespace ?? options.preserveWhitespace ?? false;
+	const preserveComments = options.preserveComments ?? false;
+	const namespace = ast.options?.namespace ?? "html";
 	const { ours } = resolveT(ast);
+	annotate(ast, namespace, internals);
 	const fail = (offset, message) => {
 		const position = lineColumn(code).fromIndex(offset);
 		return /* @__PURE__ */ new Error(`${file ?? "component"}:${position?.line ?? 0}: ${message}`);
@@ -287,24 +387,85 @@ const parseT = (code, file, preserveWhitespace = false) => {
 			case "SnippetBlock": return [node.body.nodes];
 		}
 	};
-	const build = (nodes, context, extra, direct = false) => {
+	const clean = (owner, nodes, context) => {
+		const namespace = internals.inferNamespace(context.namespace, owner, nodes);
+		const { trimmed } = internals.cleanNodes(owner, nodes, [...context.path, owner], namespace, context.preserve, preserveComments);
+		return {
+			kept: new Set(trimmed),
+			namespace
+		};
+	};
+	const bodies = (owner, nodes, context) => {
+		const kept = /* @__PURE__ */ new Set();
+		const namespaces = /* @__PURE__ */ new Map();
+		const groups = /* @__PURE__ */ new Map();
+		if (COMPONENTS.has(owner.type)) {
+			for (const node of nodes) if (node.type !== "SnippetBlock") groups.set(slotName(node), [...groups.get(slotName(node)) ?? [], node]);
+		} else groups.set("default", nodes);
+		for (const group of groups.values()) {
+			const cleaned = clean(owner, group, context);
+			for (const node of cleaned.kept) {
+				kept.add(node);
+				namespaces.set(node, cleaned.namespace);
+			}
+		}
+		return {
+			kept,
+			namespaces
+		};
+	};
+	const build = (owner, nodes, context, extra, direct = false) => {
 		const pieces = [];
 		const expressions = [];
 		const nested = [];
 		let tags = 0;
-		const visit = (nodes, context, direct) => {
+		const visit = (owner, nodes, context, direct) => {
+			const { kept, namespaces } = bodies(owner, nodes, context);
+			const inner = [...context.path, owner];
+			const first = nodes[0];
+			let lead = 0;
+			if (owner.type === "RegularElement" && owner.name === "textarea" && first?.type === "Text" && kept.has(first)) {
+				lead = /^(\r?\n)+/.exec(code.slice(first.start, first.end))?.[0].length ?? 0;
+				first.data = first.data.replace(/^(\r?\n)+/, "");
+			}
+			const below = (node, overrides) => ({
+				...context,
+				path: inner,
+				namespace: namespaces.get(node) ?? context.namespace,
+				...overrides
+			});
 			for (const node of nodes) switch (node.type) {
-				case "Text":
-					pieces.push({
-						start: node.start,
+				case "Text": {
+					const start = node === first ? node.start + lead : node.start;
+					if (kept.has(node) && node.data !== "") pieces.push({
+						start,
 						end: node.end,
 						token: {
 							type: "text",
 							value: node.data
 						}
 					});
+					else pieces.push({
+						start,
+						end: node.end,
+						token: {
+							type: "text",
+							value: ""
+						},
+						dropped: true
+					});
 					break;
-				case "Comment": break;
+				}
+				case "Comment":
+					if (kept.has(node)) pieces.push({
+						start: node.start,
+						end: node.end,
+						token: {
+							type: "self",
+							n: ++tags
+						}
+					});
+					break;
 				case "ExpressionTag":
 					pieces.push({
 						start: node.start,
@@ -331,8 +492,7 @@ const parseT = (code, file, preserveWhitespace = false) => {
 						token: {
 							type: "self",
 							n: ++tags
-						},
-						hoisted: HOISTED.has(node.type)
+						}
 					});
 					break;
 				case "IfBlock":
@@ -347,10 +507,9 @@ const parseT = (code, file, preserveWhitespace = false) => {
 							type: "self",
 							n: ++tags
 						},
-						hoisted: HOISTED.has(node.type),
 						snippet: node.type === "SnippetBlock"
 					});
-					for (const body of blockBodies(node)) nested.push(...build(body, blockContext(context), extra));
+					for (const body of blockBodies(node)) nested.push(...build(node, body, below(node, {}), extra));
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
@@ -366,7 +525,7 @@ const parseT = (code, file, preserveWhitespace = false) => {
 						break;
 					}
 					if (node.type === "SvelteFragment" && direct) {
-						const first = node.fragment.nodes[0];
+						const head = node.fragment.nodes[0];
 						const last = node.fragment.nodes.at(-1);
 						pieces.push({
 							start: node.start,
@@ -376,10 +535,10 @@ const parseT = (code, file, preserveWhitespace = false) => {
 								n: ++tags
 							}
 						});
-						if (first && last) {
+						if (head && last) {
 							extra.push({
 								start: node.start,
-								end: first.start,
+								end: head.start,
 								text: "{#if true}"
 							});
 							extra.push({
@@ -387,7 +546,7 @@ const parseT = (code, file, preserveWhitespace = false) => {
 								end: node.end,
 								text: "{/if}"
 							});
-							nested.push(...build(node.fragment.nodes, context, extra));
+							nested.push(...build(node, node.fragment.nodes, below(node, {}), extra));
 						} else extra.push({
 							start: node.start,
 							end: node.end,
@@ -396,9 +555,8 @@ const parseT = (code, file, preserveWhitespace = false) => {
 						break;
 					}
 					const n = ++tags;
-					const first = node.fragment.nodes[0];
+					const head = node.fragment.nodes[0];
 					const last = node.fragment.nodes.at(-1);
-					const hoisted = HOISTED.has(node.type);
 					const slotted = hasSlotAttribute(node);
 					if (node.type === "RegularElement" && RAW.has(node.name)) {
 						pieces.push({
@@ -411,46 +569,65 @@ const parseT = (code, file, preserveWhitespace = false) => {
 						});
 						break;
 					}
-					if (first && last) {
-						const body = childContext(node, context);
+					if (!head || !last) {
 						pieces.push({
 							start: node.start,
-							end: first.start,
-							token: {
-								type: "open",
-								n
-							},
-							hoisted,
-							slotted,
-							body
-						});
-						visit(node.fragment.nodes, body, false);
-						pieces.push({
-							start: last.end,
 							end: node.end,
 							token: {
-								type: "close",
+								type: "self",
 								n
 							},
-							hoisted
+							slotted
 						});
-					} else pieces.push({
+						break;
+					}
+					const regular = node.type === "RegularElement";
+					const current = namespaces.get(node) ?? context.namespace;
+					const childNamespace = regular || node.type === "SvelteElement" ? internals.childNamespace(node, current) : current;
+					const svgText = childNamespace === "svg" && (context.svgText || regular && SVG_TEXT.has(node.name));
+					const body = {
+						restricted: regular && RESTRICTED.has(node.name) || childNamespace === "svg" && !svgText,
+						component: COMPONENTS.has(node.type)
+					};
+					pieces.push({
 						start: node.start,
-						end: node.end,
+						end: head.start,
 						token: {
-							type: "self",
+							type: "open",
 							n
 						},
-						hoisted,
+						slotted,
+						body
+					});
+					visit(node, node.fragment.nodes, below(node, {
+						namespace: childNamespace,
+						preserve: context.preserve || regular && (node.name === "pre" || node.name === "textarea"),
+						restricted: body.restricted,
+						svgText
+					}), false);
+					pieces.push({
+						start: last.end,
+						end: node.end,
+						token: {
+							type: "close",
+							n
+						},
 						slotted
 					});
 				}
 			}
 		};
-		visit(nodes, context, direct);
-		return [segment(merge(normalize(pieces, context)), expressions, context), ...nested];
+		visit(owner, nodes, context, direct);
+		return [segment(merge(pieces), expressions, context.restricted), ...nested];
 	};
-	collect(code, ours, ast.fragment.nodes, rootContext(preserveAll), void 0, (node, head, foot, wrap, nodes, context) => {
+	const root = {
+		path: [ast],
+		namespace,
+		preserve: preserveAll,
+		restricted: false,
+		svgText: false
+	};
+	collect(code, ours, internals, ast.fragment.nodes, root, void 0, (node, head, foot, wrap, nodes, context) => {
 		const extra = [];
 		components.push({
 			start: node.start,
@@ -459,7 +636,7 @@ const parseT = (code, file, preserveWhitespace = false) => {
 			foot,
 			wrap,
 			extra,
-			segments: nodes ? build(nodes, bodyContext(context), extra, true) : []
+			segments: nodes ? build(node, nodes, context, extra, true) : []
 		});
 	});
 	return {
@@ -467,7 +644,7 @@ const parseT = (code, file, preserveWhitespace = false) => {
 		components
 	};
 };
-const collect = (code, ours, nodes, context, parent, found) => {
+const collect = (code, ours, internals, nodes, context, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && ours.has(node)) {
 			if (isRuntimeOnly(node)) continue;
@@ -494,7 +671,16 @@ const collect = (code, ours, nodes, context, parent, found) => {
 			else found(node, head, foot, void 0, void 0, context);
 			continue;
 		}
-		const inside = "fragment" in node && "attributes" in node ? childContext(node, context) : blockContext(context);
+		const regular = node.type === "RegularElement";
+		const namespace = regular || node.type === "SvelteElement" ? internals.childNamespace(node, context.namespace) : context.namespace;
+		const svgText = namespace === "svg" && (context.svgText || regular && SVG_TEXT.has(node.name));
+		const inside = {
+			path: [...context.path, node],
+			namespace,
+			preserve: context.preserve || regular && (node.name === "pre" || node.name === "textarea"),
+			restricted: regular && RESTRICTED.has(node.name) || namespace === "svg" && !svgText,
+			svgText
+		};
 		for (const key of [
 			"fragment",
 			"consequent",
@@ -506,68 +692,15 @@ const collect = (code, ours, nodes, context, parent, found) => {
 			"catch"
 		]) {
 			const fragment = node[key];
-			if (fragment?.type === "Fragment") collect(code, ours, fragment.nodes, inside, node, found);
-		}
-	}
-};
-const normalize = (pieces, context) => {
-	const items = [];
-	for (let i = 0; i < pieces.length; i++) {
-		const piece = pieces[i];
-		if (piece.token.type === "open") {
-			const n = piece.token.n;
-			let j = i + 1;
-			while (!(pieces[j].token.type === "close" && pieces[j].token.n === n)) j++;
-			items.push({
-				piece,
-				inner: pieces.slice(i + 1, j),
-				close: pieces[j]
-			});
-			i = j;
-		} else items.push({ piece });
-	}
-	const dropped = /* @__PURE__ */ new Set();
-	const text = (item) => item?.piece.token.type === "text" ? item.piece.token : void 0;
-	let regular = items.filter((item) => !item.piece.hoisted && !(context.component && item.piece.slotted));
-	if (!context.preserve) {
-		while (regular.length > 0 && text(regular[0]) && isBlankText(text(regular[0]).value)) dropped.add(regular.shift());
-		while (regular.length > 0 && text(regular.at(-1)) && isBlankText(text(regular.at(-1)).value)) dropped.add(regular.pop());
-		const first = text(regular[0]);
-		const last = text(regular.at(-1));
-		if (first) first.value = first.value.replace(STARTS_WITH_WHITESPACE, "");
-		if (last) last.value = last.value.replace(ENDS_WITH_WHITESPACE, "");
-		for (const [index, item] of regular.entries()) {
-			const token = text(item);
-			if (!token) continue;
-			const previous = regular[index - 1]?.piece.token;
-			const next = regular[index + 1]?.piece.token;
-			if (previous?.type !== "expr") {
-				const afterSpace = previous?.type === "text" && ENDS_WITH_WHITESPACE.test(previous.value);
-				token.value = token.value.replace(STARTS_WITH_WHITESPACE, afterSpace ? "" : " ");
+			if (fragment?.type === "Fragment") {
+				const inferred = internals.inferNamespace(inside.namespace, node, fragment.nodes);
+				collect(code, ours, internals, fragment.nodes, {
+					...inside,
+					namespace: inferred
+				}, node, found);
 			}
-			if (next?.type !== "expr") token.value = token.value.replace(ENDS_WITH_WHITESPACE, " ");
-			if (token.value === "" || token.value === " " && context.removable) dropped.add(item);
 		}
-		regular = regular.filter((item) => !dropped.has(item));
 	}
-	const first = text(regular[0]);
-	if (context.pre && first && (first.value === "\n" || first.value === "\r\n")) dropped.add(regular[0]);
-	return items.flatMap((item) => {
-		if (dropped.has(item)) return [{
-			...item.piece,
-			token: {
-				type: "text",
-				value: ""
-			},
-			dropped: true
-		}];
-		if (item.inner && item.close) return [
-			item.piece,
-			...normalize(item.inner, item.piece.body),
-			item.close
-		];
-		return [item.piece];
-	});
 };
 const merge = (pieces) => {
 	const merged = [];
@@ -585,7 +718,7 @@ const merge = (pieces) => {
 	return merged;
 };
 const isRunToken = (token) => token.type === "text" || token.type === "expr";
-const segment = (pieces, expressions, context) => {
+const segment = (pieces, expressions, restricted) => {
 	const tokens = pieces.filter((piece) => !piece.dropped).map((piece) => piece.token);
 	const runs = [];
 	const sealed = [];
@@ -598,7 +731,7 @@ const segment = (pieces, expressions, context) => {
 	};
 	const stack = [{
 		n: 0,
-		sealed: context.restricted
+		sealed: restricted
 	}];
 	const direct = (index) => {
 		const open = pieces[index];
@@ -879,8 +1012,8 @@ const findTaggedTemplates = (ast, code) => {
 	walk(ast);
 	return found.toSorted((a, b) => a.start - b.start);
 };
-const findSvelteTranslatable = (code, file, preserveWhitespace = false) => {
-	const { ast, components } = parseT(code, file, preserveWhitespace);
+const findSvelteTranslatable = (code, file, options = {}) => {
+	const { ast, components } = parseT(code, file, options);
 	return [...findTaggedTemplates(ast, code).map((item) => ({
 		source: item.source,
 		kind: "t"
@@ -914,19 +1047,19 @@ const findTypescriptTranslatable = (code) => findTypescriptTagged(code).map((ite
 //#endregion
 //#region src/find.ts
 const isIgnoredPath = (file) => /[\\/](node_modules|\.[^\\/]+)[\\/]/.test(file);
-const findTranslatable = async (cwd, preserveWhitespace = false) => {
+const findTranslatable = async (cwd, options = {}) => {
 	const files = await glob("**/*.{js,ts,svelte}", {
 		cwd,
 		ignore: ["**/node_modules/**", "**/.*/**"]
 	});
 	const found = [];
-	for (const file of files) found.push(...await findTranslatableInCode(file, await readFile(join(cwd, file), "utf8"), preserveWhitespace));
+	for (const file of files) found.push(...await findTranslatableInCode(file, await readFile(join$1(cwd, file), "utf8"), options));
 	return found;
 };
-const findTranslatableInCode = async (file, code, preserveWhitespace = false) => {
+const findTranslatableInCode = async (file, code, options = {}) => {
 	const svelte = file.endsWith(".svelte");
 	if (!code.includes("lang.t`") && !(svelte && hasT(code))) return [];
-	return svelte ? findSvelteTranslatable(code, file, preserveWhitespace) : findTypescriptTranslatable(code);
+	return svelte ? findSvelteTranslatable(code, file, options) : findTypescriptTranslatable(code);
 };
 //#endregion
 //#region src/vite.ts
@@ -934,16 +1067,19 @@ const SOURCE_FILE = /\.(svelte|ts|js)$/;
 const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'";
 const outermost = (tagged) => tagged.filter((item) => !tagged.some((other) => other !== item && other.start <= item.start && item.end <= other.end));
 const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
-const svelteCompilerPreserve = (plugins) => {
+const svelteCompilerOptions = (plugins) => {
 	for (const plugin of plugins) {
-		const value = plugin.api?.options?.compilerOptions?.preserveWhitespace;
-		if (plugin.name.startsWith("vite-plugin-svelte") && typeof value === "boolean") return value;
+		const api = plugin.api;
+		if (plugin.name.startsWith("vite-plugin-svelte") && api?.options?.compilerOptions) return api.options.compilerOptions;
 	}
-	return false;
+	return {};
 };
 const i18n = (props) => {
 	let cache;
-	let preserveWhitespace = props.preserveWhitespace ?? false;
+	let options = {
+		preserveWhitespace: props.preserveWhitespace,
+		preserveComments: props.preserveComments
+	};
 	let generatedCache;
 	let overrideCache;
 	let queue = Promise.resolve();
@@ -976,12 +1112,17 @@ const i18n = (props) => {
 		name: "awsless/i18n",
 		enforce: "pre",
 		configResolved(config) {
-			preserveWhitespace = props.preserveWhitespace ?? svelteCompilerPreserve(config.plugins);
+			svelteInternals();
+			const compiler = svelteCompilerOptions(config.plugins);
+			options = {
+				preserveWhitespace: props.preserveWhitespace ?? compiler.preserveWhitespace,
+				preserveComments: props.preserveComments ?? compiler.preserveComments
+			};
 		},
 		async buildStart() {
 			const cwd = process.cwd();
 			this.info("Finding all translatable text...");
-			const sources = await findTranslatable(cwd, preserveWhitespace);
+			const sources = await findTranslatable(cwd, options);
 			generatedCache = await loadGeneratedCache(cwd);
 			overrideCache = await loadOverrideCache(cwd);
 			removeUnusedTranslations(generatedCache, sources.map((item) => item.source), props.locales);
@@ -994,7 +1135,7 @@ const i18n = (props) => {
 		},
 		async hotUpdate({ file, read }) {
 			if (!cache || !SOURCE_FILE.test(file) || isIgnoredPath(file)) return;
-			const sources = await findTranslatableInCode(file, await read(), preserveWhitespace);
+			const sources = await findTranslatableInCode(file, await read(), options);
 			if (sources.length > 0) await translateMissing(process.cwd(), sources, this.environment.logger);
 		},
 		transform(code, id) {
@@ -1022,7 +1163,7 @@ const i18n = (props) => {
 			}));
 			const transformedCode = new MagicString(code);
 			if (svelte) {
-				const { ast, components } = parseT(code, id, preserveWhitespace);
+				const { ast, components } = parseT(code, id, options);
 				const templates = rewrites(findTaggedTemplates(ast, code));
 				const lookup = (source, locale) => cache.get(source, locale);
 				const edits = [];

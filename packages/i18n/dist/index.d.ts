@@ -23,6 +23,9 @@ type I18nPluginProps = {
    * Svelte plugin's `compilerOptions.preserveWhitespace`; a component's own
    * `<svelte:options preserveWhitespace>` always wins. */
   preserveWhitespace?: boolean;
+  /** Whether comments inside `<T>` stay in the output. Defaults to the
+   * Svelte plugin's `compilerOptions.preserveComments`. */
+  preserveComments?: boolean;
 };
 declare const i18n: (props: I18nPluginProps) => Plugin;
 //#endregion

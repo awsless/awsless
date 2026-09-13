@@ -10,6 +10,7 @@ import { i18n, Translator } from '../src'
 import { loadCache } from '../src/cache'
 import { findSvelteTranslatable } from '../src/find/svelte'
 import { findTypescriptTranslatable } from '../src/find/typescript'
+import { svelteInternals } from '../src/svelte-internal'
 import { findTComponents, serialize, tokenize, validatePlaceholders, validateTranslation } from '../src/t'
 
 // Only a <T> imported from this package counts, so the fixtures import it.
@@ -106,14 +107,18 @@ const CARD =
 // module needs the svelte plugin for its runes, so a stub with the same
 // `get`/`pick` semantics stands in and reads the locale from globalThis.
 type Props = Record<string, unknown> | (() => Record<string, unknown>)
+type Settings = {
+	plugin?: Partial<Parameters<typeof i18n>[0]>
+	compile?: { preserveWhitespace?: boolean; preserveComments?: boolean }
+}
 
 // A props factory gives every render fresh state.
-const ssr = async (code: string, props: Props, locales: string[]) => {
+const ssr = async (code: string, props: Props, locales: string[], compileOptions: Settings['compile'] = {}) => {
 	const dir = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-ssr-'))
 	const internal = createRequire(import.meta.url).resolve('svelte/internal/server')
 
 	const emit = async (name: string, source: string) => {
-		const js = compile(source, { generate: 'server', filename: `${name}.svelte` }).js.code
+		const js = compile(source, { generate: 'server', filename: `${name}.svelte`, ...compileOptions }).js.code
 		await writeFile(
 			resolve(dir, `${name}.js`),
 			js
@@ -162,9 +167,9 @@ const ssr = async (code: string, props: Props, locales: string[]) => {
 
 	return locales.map(locale => {
 		Object.assign(globalThis, { __locale: locale })
-		// Hydration markers are comments and not part of what the user sees.
+		// Svelte's hydration markers are comments too, but not ones the user wrote.
 		const value = typeof props === 'function' ? props() : props
-		return render(page.default, { props: value }).body.replace(/<!--[^]*?-->/g, '')
+		return render(page.default, { props: value }).body.replace(/<!--(?:\[(?:!|-?\d+)?|\]|)-->/g, '')
 	})
 }
 
@@ -803,13 +808,13 @@ const upper: Translator = (_, list) =>
 
 // Renders the markup untransformed with the real T.svelte and transformed with
 // a translation present; Svelte's whitespace handling must come out the same.
-const parity = async (markup: string, props: Props = {}) => {
-	const [baseline] = await ssr(component(markup), props, ['en'])
-	const { code } = await transform(component(markup), upper)
+const parity = async (markup: string, props: Props = {}, settings: Settings = {}) => {
+	const [baseline] = await ssr(component(markup), props, ['en'], settings.compile)
+	const { code } = await transform(component(markup), upper, undefined, 'page.svelte', settings.plugin)
 
-	expect(() => compile(code, { generate: 'client', filename: 'page.svelte' })).not.toThrow()
+	expect(() => compile(code, { generate: 'client', filename: 'page.svelte', ...settings.compile })).not.toThrow()
 
-	const [en, fr] = await ssr(code, props, ['en', 'fr'])
+	const [en, fr] = await ssr(code, props, ['en', 'fr'], settings.compile)
 
 	expect(en).toBe(baseline)
 	expect(fr!.toLowerCase()).toBe(baseline!.toLowerCase())
@@ -852,7 +857,16 @@ describe('<T> whitespace parity with svelte', () => {
 		expect(baseline).toBe('x<pre>\nHello\n  world\n</pre>')
 		const lone = await parity('<T><pre>\n</pre><pre>\nx</pre></T>')
 		expect(lone.baseline).toBe('<pre></pre><pre>\nx</pre>')
-		await parity('<T><textarea>\n a\n</textarea></T>')
+		// A static textarea keeps its first newline in the markup for the browser
+		// to drop; once translated the content is dynamic, so it is dropped up
+		// front the way Svelte does it, and the value the user sees is the same.
+		const [staticArea] = await ssr(component('<T><textarea>\n a\n</textarea></T>'), {}, ['en'])
+		expect(staticArea).toBe('<textarea>\n a\n</textarea>')
+		const { code: areaCode } = await transform(component('<T><textarea>\n a\n</textarea></T>'), upper)
+		expect(await ssr(areaCode, {}, ['en', 'fr'])).toStrictEqual([
+			'<textarea> a\n</textarea>',
+			'<textarea> A\n</textarea>',
+		])
 		const dynamic = await parity('<T><svelte:element this={tag}>\nHello\n  world\n</svelte:element></T>', {
 			tag: 'pre',
 		})
@@ -1806,9 +1820,9 @@ describe('svg text ancestors and global preserveWhitespace', () => {
 		const code = component(markup)
 		const preserved = { preserveWhitespace: true }
 
-		expect(findSvelteTranslatable(code, 'page.svelte', true).map(item => item.source)).toStrictEqual([
-			'  Hello  <1>  world  </1>  ',
-		])
+		expect(
+			findSvelteTranslatable(code, 'page.svelte', { preserveWhitespace: true }).map(item => item.source)
+		).toStrictEqual(['  Hello  <1>  world  </1>  '])
 
 		const baseline = compile(code, { generate: 'server', preserveWhitespace: true })
 		expect(baseline.warnings).toStrictEqual([])
@@ -1826,13 +1840,13 @@ describe('svg text ancestors and global preserveWhitespace', () => {
 
 		// The component option overrides the compiler default both ways.
 		const off = `<svelte:options preserveWhitespace={false} />${code}`
-		expect(findSvelteTranslatable(off, 'page.svelte', true).map(item => item.source)).toStrictEqual([
-			'Hello <1>world</1>',
-		])
+		expect(
+			findSvelteTranslatable(off, 'page.svelte', { preserveWhitespace: true }).map(item => item.source)
+		).toStrictEqual(['Hello <1>world</1>'])
 		const on = `<svelte:options preserveWhitespace={true} />${code}`
-		expect(findSvelteTranslatable(on, 'page.svelte', false).map(item => item.source)).toStrictEqual([
-			'  Hello  <1>  world  </1>  ',
-		])
+		expect(
+			findSvelteTranslatable(on, 'page.svelte', { preserveWhitespace: false }).map(item => item.source)
+		).toStrictEqual(['  Hello  <1>  world  </1>  '])
 	})
 
 	it('reads preserveWhitespace from the svelte plugin config', async () => {
@@ -1874,6 +1888,103 @@ describe('svg text ancestors and global preserveWhitespace', () => {
 		} finally {
 			process.chdir(previous)
 		}
+	})
+})
+
+describe('textarea, preserveComments and the compiler internals', () => {
+	it('drops the leading newline of a textarea like svelte does for dynamic content', async () => {
+		expect(sources('<T><textarea>\nHello {x}</textarea></T>')).toStrictEqual(['<1>Hello ${0}</1>'])
+		expect(sources('<T><textarea>\r\nHello {x}</textarea></T>')).toStrictEqual(['<1>Hello ${0}</1>'])
+		// Every leading newline stays in the markup, none of them is text to translate.
+		expect(sources('<T><textarea>\n\nHello {x}</textarea></T>')).toStrictEqual(['<1>Hello ${0}</1>'])
+
+		const { baseline, code } = await parity('<T><textarea>\nHello {x}</textarea></T>', { x: 'X' })
+		expect(baseline).toBe('<textarea>Hello X</textarea>')
+		expect(code).toContain('pick(["Hello ",0]')
+
+		// On the client the value is set from the call alone; the static newline
+		// is dropped by Svelte, as for any dynamic textarea content.
+		const client = compile(code, { generate: 'client', filename: 'page.svelte' }).js.code
+		expect(client).toContain('$.from_html(`<textarea></textarea>`)')
+		expect(client).toMatch(/set_value\(textarea, `\$\{\$0 \?\? ''\}`\)/)
+
+		const double = await parity('<T><textarea>\n\nHello {x}</textarea></T>', { x: 'X' })
+		// Svelte's server output keeps both newlines, the browser drops one of them.
+		expect(double.baseline).toBe('<textarea>\n\nHello X</textarea>')
+		expect(double.code).toContain('<textarea>\n\n{__i18n_lang.t.pick(["Hello ",0]')
+	})
+
+	it('keeps comments as boundaries when preserveComments is on', async () => {
+		const markup = '<p><T>Hello <!--c--></T>world</p>'
+		const on: Settings = { plugin: { preserveComments: true }, compile: { preserveComments: true } }
+
+		expect(
+			findSvelteTranslatable(component(markup), 'page.svelte', { preserveComments: true }).map(
+				item => item.source
+			)
+		).toStrictEqual(['Hello <1/>'])
+		expect(sources(markup)).toStrictEqual(['Hello'])
+
+		const { baseline, code } = await parity(markup, {}, on)
+		expect(baseline).toBe('<p>Hello <!--c-->world</p>')
+		expect(code).toContain('{__i18n_lang.t.pick(["Hello "], {"fr":["HELLO "],"jp":["HELLO "]})}<!--c-->')
+
+		const { code: translated } = await transform(
+			component(markup),
+			table({ 'Hello <1/>': { fr: 'Bonjour <1/>' } }),
+			undefined,
+			'page.svelte',
+			on.plugin
+		)
+		const [, fr] = await ssr(translated, {}, ['en', 'fr'], on.compile)
+		expect(fr).toBe('<p>Bonjour <!--c-->world</p>')
+
+		// Without the comment the space becomes a trailing one, which Svelte trims.
+		const { baseline: off } = await parity(markup)
+		expect(off).toBe('<p>Helloworld</p>')
+
+		const spaced = await parity('<p><T>\n  <!--c-->\n  Hello\n</T></p>', {}, on)
+		expect(spaced.baseline).toBe('<p><!--c--> Hello</p>')
+	})
+
+	it('reads preserveComments from the svelte plugin config', async () => {
+		const plugin = i18n({ locales: ['fr'], translate: table({}) })
+		const fake = {
+			name: 'vite-plugin-svelte:config',
+			api: { options: { compilerOptions: { preserveComments: true } } },
+		}
+
+		// @ts-expect-error only the hook body is exercised
+		plugin.configResolved({ plugins: [fake] })
+
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-t-'))
+		await writeFile(resolve(cwd, 'page.svelte'), component('<T>Hello <!--c--></T>'))
+		const previous = process.cwd()
+		process.chdir(cwd)
+
+		try {
+			const context = { info() {}, warn() {}, environment: { logger: { info() {}, warn() {} } } }
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+			expect(Object.keys((await loadCache(cwd)).toJSON())).toStrictEqual(['Hello <1/>'])
+		} finally {
+			process.chdir(previous)
+		}
+	})
+
+	it('checks the svelte internals once, naming the version', async () => {
+		const internals = svelteInternals()
+		const { version } = JSON.parse(
+			await readFile(resolve(__dirname, '../node_modules/svelte/package.json'), 'utf8')
+		)
+
+		expect(internals.version).toBe(version)
+		expect(internals.cleanNodes({ type: 'Fragment' }, [], [], 'html', false, false)).toStrictEqual({
+			hoisted: [],
+			trimmed: [],
+		})
+		expect(internals.isSvg('text')).toBe(true)
+		expect(internals.childNamespace({ type: 'RegularElement', name: 'foreignObject' }, 'svg')).toBe('html')
 	})
 })
 

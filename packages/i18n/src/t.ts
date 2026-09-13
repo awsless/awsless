@@ -1,5 +1,6 @@
 import lineColumn from 'line-column'
 import { AST, parse } from 'svelte/compiler'
+import { annotate, Namespace, svelteInternals, SvelteNode } from './svelte-internal'
 
 // Svelte puts offsets on every node, the estree types just don't declare them.
 type Range = { start: number; end: number }
@@ -12,28 +13,30 @@ export type Token =
 	| { type: 'expr'; index: number }
 	| { type: 'open' | 'close' | 'self'; n: number }
 
-// What Svelte's clean_nodes knows about the body a text node sits in.
+/** The compiler options the cleaning depends on, as the Svelte plugin has them. */
+export type TOptions = {
+	preserveWhitespace?: boolean
+	preserveComments?: boolean
+}
+
+// Where a body sits: what Svelte's visitors carry down to clean it, plus
+// what sealing needs to know about the element around it.
 type Context = {
+	/** The ancestors of the body's owner, the way Svelte's visitors carry them. */
+	path: SvelteNode[]
+	namespace: Namespace
 	preserve: boolean
-	removable: boolean
-	pre: boolean
-	svg: boolean
-	svgText: boolean
-	/** Inside an svg `<text>`: Svelte keeps whitespace there. */
-	svgWhitespace: boolean
-	/** A component body: its slotted children are not part of the default slot sequence. */
-	component: boolean
 	/** The enclosing element only allows specific children, so no text may be added. */
 	restricted: boolean
+	/** Inside an svg text element, where text is allowed again. */
+	svgText: boolean
 }
 
 type Piece = Range & {
 	token: Token
-	/** Svelte hoists these nodes out of the body, so they don't take part in whitespace. */
-	hoisted?: boolean
-	/** The body an `open` token starts. */
-	body?: Context
-	/** Whitespace Svelte would drop; it stays in the source, so an edit must take it along. */
+	/** What sealing needs to know about the body an `open` token starts. */
+	body?: { restricted: boolean; component: boolean }
+	/** Whitespace Svelte drops; it stays in the source, so an edit must take it along. */
 	dropped?: boolean
 	/** Carries a slot attribute, so under a component it belongs to another slot. */
 	slotted?: boolean
@@ -72,27 +75,11 @@ export const T_MODULE = '@awsless/i18n/T'
 
 export const hasT = (code: string) => code.includes(T_MODULE)
 
-// Mirrors svelte/compiler phases/3-transform/utils.js clean_nodes.
-const PRESERVE = new Set(['pre', 'textarea'])
-const REMOVABLE = new Set(['select', 'tr', 'table', 'tbody', 'thead', 'tfoot', 'colgroup', 'datalist'])
-const RESTRICTED = new Set([...REMOVABLE, 'optgroup'])
+// Elements that only allow specific children, so a translation may not put
+// text between them. The svg ones are decided by namespace below.
+const RESTRICTED = new Set(['select', 'tr', 'table', 'tbody', 'thead', 'tfoot', 'colgroup', 'datalist', 'optgroup'])
 // The svg elements whose content is text; every other svg element holds shapes.
-// Svelte's whitespace rule only knows `text`, sealing follows the wider set.
 const SVG_TEXT = new Set(['text', 'tspan', 'textPath', 'title', 'desc'])
-const HOISTED = new Set([
-	'ConstTag',
-	'DeclarationTag',
-	'DebugTag',
-	'SvelteBody',
-	'SvelteWindow',
-	'SvelteDocument',
-	'SvelteHead',
-	'TitleElement',
-	'SnippetBlock',
-])
-const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/
-const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/
-const isBlankText = (value: string) => !/[^ \t\r\n]/.test(value)
 
 const hasSlotAttribute = (node: AST.Fragment['nodes'][number]) =>
 	'attributes' in node &&
@@ -277,63 +264,30 @@ export const resolveT = (ast: AST.Root) => {
 }
 
 const isBlank = (node: AST.Fragment['nodes'][number]) =>
-	node.type === 'Comment' || (node.type === 'Text' && isBlankText(node.data))
+	node.type === 'Comment' || (node.type === 'Text' && node.data.trim() === '')
 
-const rootContext = (preserve: boolean): Context => ({
-	preserve,
-	removable: false,
-	pre: false,
-	svg: false,
-	svgText: false,
-	svgWhitespace: false,
-	component: false,
-	restricted: false,
-})
-
-// The <T> body: to Svelte it is a component's (then a block's) children, so
-// the rules of the element around it don't apply, only what it allows inside.
-const bodyContext = (parent: Context): Context => ({
-	...parent,
-	removable: false,
-	pre: false,
-	component: false,
-})
-
-// A block body is its own fragment to Svelte: whitespace preservation and the
-// namespace carry on, the rules tied to the immediate parent element do not.
-const blockContext = (parent: Context): Context => ({
-	...parent,
-	removable: parent.svg && !parent.svgWhitespace,
-	pre: false,
-	component: false,
-})
-
-const childContext = (node: AST.ElementLike, parent: Context): Context => {
-	const regular = node.type === 'RegularElement'
-	// Svelte infers namespaces: <svg> starts one, <foreignObject> is HTML again.
-	const svg = regular && node.name === 'foreignObject' ? false : parent.svg || (regular && node.name === 'svg')
-	// Once inside a text-bearing svg element, everything below it holds text.
-	const svgText = svg && (parent.svgText || (regular && SVG_TEXT.has(node.name)))
-	const svgWhitespace = svg && (parent.svgWhitespace || (regular && node.name === 'text'))
-
-	return {
-		preserve: parent.preserve || (regular && PRESERVE.has(node.name)),
-		removable: (regular && REMOVABLE.has(node.name)) || (svg && !svgWhitespace),
-		pre: regular && node.name === 'pre',
-		svg,
-		svgText,
-		svgWhitespace,
-		component: COMPONENTS.has(node.type),
-		restricted: (regular && RESTRICTED.has(node.name)) || (svg && !svgText),
+const slotName = (node: AST.Fragment['nodes'][number]) => {
+	if (!('attributes' in node)) {
+		return 'default'
 	}
+
+	const slot = node.attributes.find(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
+	const value = slot?.type === 'Attribute' && Array.isArray(slot.value) ? slot.value[0] : undefined
+
+	return value?.type === 'Text' ? value.data : 'default'
 }
 
-export const parseT = (code: string, file?: string, preserveWhitespace = false) => {
+export const parseT = (code: string, file?: string, options: TOptions = {}) => {
+	const internals = svelteInternals()
 	const ast = parse(code, { modern: true })
 	const components: TComponent[] = []
-	// The component's own option beats the compiler default.
-	const preserveAll = ast.options?.preserveWhitespace ?? preserveWhitespace
+	// The component's own options beat the compiler defaults.
+	const preserveAll = ast.options?.preserveWhitespace ?? options.preserveWhitespace ?? false
+	const preserveComments = options.preserveComments ?? false
+	const namespace = (ast.options?.namespace as Namespace | undefined) ?? 'html'
 	const { ours } = resolveT(ast)
+
+	annotate(ast, namespace, internals)
 
 	const fail = (offset: number, message: string) => {
 		const position = lineColumn(code).fromIndex(offset)
@@ -364,21 +318,107 @@ export const parseT = (code: string, file?: string, preserveWhitespace = false) 
 		}
 	}
 
+	// The call Svelte's Fragment visitor makes for a body: the namespace is
+	// re-inferred from the children and the text nodes come back trimmed and
+	// collapsed, in place, exactly as they will render.
+	const clean = (owner: SvelteNode, nodes: Nodes, context: Context) => {
+		const namespace = internals.inferNamespace(context.namespace, owner, nodes as unknown as SvelteNode[])
+		const { trimmed } = internals.cleanNodes(
+			owner,
+			nodes as unknown as SvelteNode[],
+			[...context.path, owner],
+			namespace,
+			context.preserve,
+			preserveComments
+		)
+
+		return { kept: new Set(trimmed as unknown as Nodes), namespace }
+	}
+
+	// A component's children are cleaned per slot, and its snippets are props
+	// that take no part, which is how Svelte's component visitor groups them.
+	const bodies = (owner: SvelteNode, nodes: Nodes, context: Context) => {
+		const kept = new Set<Nodes[number]>()
+		const namespaces = new Map<Nodes[number], Namespace>()
+
+		const groups = new Map<string, Nodes>()
+
+		if (COMPONENTS.has(owner.type)) {
+			for (const node of nodes) {
+				if (node.type !== 'SnippetBlock') {
+					groups.set(slotName(node), [...(groups.get(slotName(node)) ?? []), node])
+				}
+			}
+		} else {
+			groups.set('default', nodes)
+		}
+
+		for (const group of groups.values()) {
+			const cleaned = clean(owner, group, context)
+
+			for (const node of cleaned.kept) {
+				kept.add(node)
+				namespaces.set(node, cleaned.namespace)
+			}
+		}
+
+		return { kept, namespaces }
+	}
+
 	// `direct` marks the <T> body itself, where an unslotted <svelte:fragment>
 	// would be meaningless once the component is gone.
-	const build = (nodes: AST.Fragment['nodes'], context: Context, extra: Edit[], direct = false): Segment[] => {
+	const build = (owner: SvelteNode, nodes: Nodes, context: Context, extra: Edit[], direct = false): Segment[] => {
 		const pieces: Piece[] = []
 		const expressions: Range[] = []
 		const nested: Segment[] = []
 		let tags = 0
 
-		const visit = (nodes: AST.Fragment['nodes'], context: Context, direct: boolean) => {
+		// One body: its children cleaned the way Svelte cleans them, then walked
+		// in source order, with element children staying in this segment.
+		const visit = (owner: SvelteNode, nodes: Nodes, context: Context, direct: boolean) => {
+			const { kept, namespaces } = bodies(owner, nodes, context)
+			const inner = [...context.path, owner]
+			const first = nodes[0]
+
+			// A textarea's leading newlines stay in the markup, so the browser and
+			// Svelte's server value handling drop and restore them as they do for
+			// the untranslated markup; the run starts after them.
+			let lead = 0
+
+			if (
+				owner.type === 'RegularElement' &&
+				owner.name === 'textarea' &&
+				first?.type === 'Text' &&
+				kept.has(first)
+			) {
+				lead = /^(\r?\n)+/.exec(code.slice(first.start, first.end))?.[0].length ?? 0
+				first.data = first.data.replace(/^(\r?\n)+/, '')
+			}
+
+			const below = (node: Nodes[number], overrides: Partial<Context>): Context => ({
+				...context,
+				path: inner,
+				namespace: namespaces.get(node) ?? context.namespace,
+				...overrides,
+			})
+
 			for (const node of nodes) {
 				switch (node.type) {
-					case 'Text':
-						pieces.push({ start: node.start, end: node.end, token: { type: 'text', value: node.data } })
+					case 'Text': {
+						const start = node === first ? node.start + lead : node.start
+
+						if (kept.has(node) && node.data !== '') {
+							pieces.push({ start, end: node.end, token: { type: 'text', value: node.data } })
+						} else {
+							pieces.push({ start, end: node.end, token: { type: 'text', value: '' }, dropped: true })
+						}
 						break
+					}
 					case 'Comment':
+						// A kept comment is a boundary, as Svelte treats it.
+						if (kept.has(node)) {
+							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
+						}
 						break
 					case 'ExpressionTag':
 						pieces.push({
@@ -394,12 +434,7 @@ export const parseT = (code: string, file?: string, preserveWhitespace = false) 
 					case 'DebugTag':
 					case 'AttachTag':
 					case 'DeclarationTag':
-						pieces.push({
-							start: node.start,
-							end: node.end,
-							token: { type: 'self', n: ++tags },
-							hoisted: HOISTED.has(node.type),
-						})
+						pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
 						break
 					case 'IfBlock':
 					case 'EachBlock':
@@ -410,12 +445,11 @@ export const parseT = (code: string, file?: string, preserveWhitespace = false) 
 							start: node.start,
 							end: node.end,
 							token: { type: 'self', n: ++tags },
-							hoisted: HOISTED.has(node.type),
 							snippet: node.type === 'SnippetBlock',
 						})
 
 						for (const body of blockBodies(node)) {
-							nested.push(...build(body, blockContext(context), extra))
+							nested.push(...build(node as SvelteNode, body, below(node, {}), extra))
 						}
 						break
 					default: {
@@ -432,15 +466,15 @@ export const parseT = (code: string, file?: string, preserveWhitespace = false) 
 						if (node.type === 'SvelteFragment' && direct) {
 							// Without the component it belonged to, the fragment becomes its
 							// own block: it keeps its scope and is a segment of its own.
-							const first = node.fragment.nodes[0]
+							const head = node.fragment.nodes[0]
 							const last = node.fragment.nodes.at(-1)
 
 							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
 
-							if (first && last) {
-								extra.push({ start: node.start, end: first.start, text: '{#if true}' })
+							if (head && last) {
+								extra.push({ start: node.start, end: head.start, text: '{#if true}' })
 								extra.push({ start: last.end, end: node.end, text: '{/if}' })
-								nested.push(...build(node.fragment.nodes, context, extra))
+								nested.push(...build(node as SvelteNode, node.fragment.nodes, below(node, {}), extra))
 							} else {
 								extra.push({ start: node.start, end: node.end, text: '{#if true}{/if}' })
 							}
@@ -448,9 +482,8 @@ export const parseT = (code: string, file?: string, preserveWhitespace = false) 
 						}
 
 						const n = ++tags
-						const first = node.fragment.nodes[0]
+						const head = node.fragment.nodes[0]
 						const last = node.fragment.nodes.at(-1)
-						const hoisted = HOISTED.has(node.type)
 						const slotted = hasSlotAttribute(node)
 
 						if (node.type === 'RegularElement' && RAW.has(node.name)) {
@@ -458,60 +491,76 @@ export const parseT = (code: string, file?: string, preserveWhitespace = false) 
 							break
 						}
 
-						if (first && last) {
-							const body = childContext(node, context)
-							pieces.push({
-								start: node.start,
-								end: first.start,
-								token: { type: 'open', n },
-								hoisted,
-								slotted,
-								body,
-							})
-							visit(node.fragment.nodes, body, false)
-							pieces.push({ start: last.end, end: node.end, token: { type: 'close', n }, hoisted })
-						} else {
-							pieces.push({
-								start: node.start,
-								end: node.end,
-								token: { type: 'self', n },
-								hoisted,
-								slotted,
-							})
+						if (!head || !last) {
+							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n }, slotted })
+							break
 						}
+
+						const regular = node.type === 'RegularElement'
+						const current = namespaces.get(node) ?? context.namespace
+						const childNamespace =
+							regular || node.type === 'SvelteElement'
+								? internals.childNamespace(node as SvelteNode, current)
+								: current
+						const svgText =
+							childNamespace === 'svg' && (context.svgText || (regular && SVG_TEXT.has(node.name)))
+						const body = {
+							restricted:
+								(regular && RESTRICTED.has(node.name)) || (childNamespace === 'svg' && !svgText),
+							component: COMPONENTS.has(node.type),
+						}
+
+						pieces.push({ start: node.start, end: head.start, token: { type: 'open', n }, slotted, body })
+						visit(
+							node as SvelteNode,
+							node.fragment.nodes,
+							below(node, {
+								namespace: childNamespace,
+								// Svelte's element visitor keeps whitespace inside these two.
+								preserve:
+									context.preserve || (regular && (node.name === 'pre' || node.name === 'textarea')),
+								restricted: body.restricted,
+								svgText,
+							}),
+							false
+						)
+						pieces.push({ start: last.end, end: node.end, token: { type: 'close', n }, slotted })
 					}
 				}
 			}
 		}
 
-		visit(nodes, context, direct)
+		visit(owner, nodes, context, direct)
 
-		return [segment(merge(normalize(pieces, context)), expressions, context), ...nested]
+		return [segment(merge(pieces), expressions, context.restricted), ...nested]
 	}
 
-	collect(
-		code,
-		ours,
-		ast.fragment.nodes,
-		rootContext(preserveAll),
-		undefined,
-		(node, head, foot, wrap, nodes, context) => {
-			const extra: Edit[] = []
+	const root: Context = {
+		path: [ast as unknown as SvelteNode],
+		namespace,
+		preserve: preserveAll,
+		restricted: false,
+		svgText: false,
+	}
 
-			components.push({
-				start: node.start,
-				end: node.end,
-				head,
-				foot,
-				wrap,
-				extra,
-				segments: nodes ? build(nodes, bodyContext(context), extra, true) : [],
-			})
-		}
-	)
+	collect(code, ours, internals, ast.fragment.nodes, root, undefined, (node, head, foot, wrap, nodes, context) => {
+		const extra: Edit[] = []
+
+		components.push({
+			start: node.start,
+			end: node.end,
+			head,
+			foot,
+			wrap,
+			extra,
+			segments: nodes ? build(node as SvelteNode, nodes, context, extra, true) : [],
+		})
+	})
 
 	return { ast, components }
 }
+
+type Nodes = AST.Fragment['nodes']
 
 type Found = (
 	node: AST.Component,
@@ -525,6 +574,7 @@ type Found = (
 const collect = (
 	code: string,
 	ours: Set<AST.Component>,
+	internals: ReturnType<typeof svelteInternals>,
 	nodes: AST.Fragment['nodes'],
 	context: Context,
 	parent: AST.Fragment['nodes'][number] | undefined,
@@ -574,115 +624,34 @@ const collect = (
 			continue
 		}
 
-		const inside = 'fragment' in node && 'attributes' in node ? childContext(node, context) : blockContext(context)
+		// The same descent Svelte's visitors make on the way to the <T>: the
+		// element namespace and its whitespace rule, and ours for sealing.
+		const regular = node.type === 'RegularElement'
+		const namespace =
+			regular || node.type === 'SvelteElement'
+				? internals.childNamespace(node as SvelteNode, context.namespace)
+				: context.namespace
+		const svgText = namespace === 'svg' && (context.svgText || (regular && SVG_TEXT.has(node.name)))
+		const inside: Context = {
+			path: [...context.path, node as SvelteNode],
+			namespace,
+			preserve: context.preserve || (regular && (node.name === 'pre' || node.name === 'textarea')),
+			restricted: (regular && RESTRICTED.has(node.name)) || (namespace === 'svg' && !svgText),
+			svgText,
+		}
 
 		for (const key of ['fragment', 'consequent', 'alternate', 'body', 'fallback', 'pending', 'then', 'catch']) {
 			const fragment = (node as unknown as Record<string, AST.Fragment | null | undefined>)[key]
 			if (fragment?.type === 'Fragment') {
-				collect(code, ours, fragment.nodes, inside, node, found)
+				const inferred = internals.inferNamespace(
+					inside.namespace,
+					node as SvelteNode,
+					fragment.nodes as unknown as SvelteNode[]
+				)
+				collect(code, ours, internals, fragment.nodes, { ...inside, namespace: inferred }, node, found)
 			}
 		}
 	}
-}
-
-// Reproduces what clean_nodes does to the text of one body, so the emitted
-// text equals what Svelte would have rendered from the markup: the body's
-// edges lose whitespace, a text node's own edges collapse to one space
-// unless an expression is next to them, and interior whitespace stays.
-const normalize = (pieces: Piece[], context: Context): Piece[] => {
-	type Item = { piece: Piece; inner?: Piece[]; close?: Piece }
-
-	const items: Item[] = []
-
-	for (let i = 0; i < pieces.length; i++) {
-		const piece = pieces[i]!
-
-		if (piece.token.type === 'open') {
-			const n = piece.token.n
-			let j = i + 1
-
-			while (!(pieces[j]!.token.type === 'close' && (pieces[j]!.token as { n: number }).n === n)) {
-				j++
-			}
-
-			items.push({ piece, inner: pieces.slice(i + 1, j), close: pieces[j] })
-			i = j
-		} else {
-			items.push({ piece })
-		}
-	}
-
-	const dropped = new Set<Item>()
-	const text = (item: Item | undefined) => (item?.piece.token.type === 'text' ? item.piece.token : undefined)
-	// Like Svelte, a component's slotted children are cleaned as their own
-	// slots; the default slot sequence runs right past them.
-	let regular = items.filter(item => !item.piece.hoisted && !(context.component && item.piece.slotted))
-
-	if (!context.preserve) {
-		while (regular.length > 0 && text(regular[0]) && isBlankText(text(regular[0])!.value)) {
-			dropped.add(regular.shift()!)
-		}
-
-		while (regular.length > 0 && text(regular.at(-1)) && isBlankText(text(regular.at(-1))!.value)) {
-			dropped.add(regular.pop()!)
-		}
-
-		const first = text(regular[0])
-		const last = text(regular.at(-1))
-
-		if (first) {
-			first.value = first.value.replace(STARTS_WITH_WHITESPACE, '')
-		}
-
-		if (last) {
-			last.value = last.value.replace(ENDS_WITH_WHITESPACE, '')
-		}
-
-		for (const [index, item] of regular.entries()) {
-			const token = text(item)
-
-			if (!token) {
-				continue
-			}
-
-			const previous = regular[index - 1]?.piece.token
-			const next = regular[index + 1]?.piece.token
-
-			if (previous?.type !== 'expr') {
-				const afterSpace = previous?.type === 'text' && ENDS_WITH_WHITESPACE.test(previous.value)
-				token.value = token.value.replace(STARTS_WITH_WHITESPACE, afterSpace ? '' : ' ')
-			}
-
-			if (next?.type !== 'expr') {
-				token.value = token.value.replace(ENDS_WITH_WHITESPACE, ' ')
-			}
-
-			if (token.value === '' || (token.value === ' ' && context.removable)) {
-				dropped.add(item)
-			}
-		}
-
-		regular = regular.filter(item => !dropped.has(item))
-	}
-
-	// The browser drops a newline right after <pre>, so Svelte does too.
-	const first = text(regular[0])
-
-	if (context.pre && first && (first.value === '\n' || first.value === '\r\n')) {
-		dropped.add(regular[0]!)
-	}
-
-	return items.flatMap(item => {
-		if (dropped.has(item)) {
-			return [{ ...item.piece, token: { type: 'text' as const, value: '' }, dropped: true }]
-		}
-
-		if (item.inner && item.close) {
-			return [item.piece, ...normalize(item.inner, item.piece.body!), item.close]
-		}
-
-		return [item.piece]
-	})
 }
 
 // Text nodes split by a comment count as one run.
@@ -709,7 +678,7 @@ const isRunToken = (token: Token) => token.type === 'text' || token.type === 'ex
 
 // Runs are the gaps between tag tokens; an empty gap still gets a position
 // so a translation that moves text into it has somewhere to go.
-const segment = (pieces: Piece[], expressions: Range[], context: Context): Segment => {
+const segment = (pieces: Piece[], expressions: Range[], restricted: boolean): Segment => {
 	const tokens = pieces.filter(piece => !piece.dropped).map(piece => piece.token)
 	const runs: Run[] = []
 	const sealed: number[] = []
@@ -721,7 +690,7 @@ const segment = (pieces: Piece[], expressions: Range[], context: Context): Segme
 	// Runs are sealed where text may not be added: inside an element that only
 	// allows specific children, and inside a component whose direct children
 	// are only snippets or slotted children, so it has no default slot.
-	const stack: { n: number; sealed: boolean }[] = [{ n: 0, sealed: context.restricted }]
+	const stack: { n: number; sealed: boolean }[] = [{ n: 0, sealed: restricted }]
 	const direct = (index: number) => {
 		const open = pieces[index]!
 		let depth = 0
@@ -795,8 +764,8 @@ const segment = (pieces: Piece[], expressions: Range[], context: Context): Segme
 	return { source: serialize(tokens), tokens, expressions, runs, sealed }
 }
 
-export const findTComponents = (code: string, file?: string, preserveWhitespace = false) =>
-	parseT(code, file, preserveWhitespace).components
+export const findTComponents = (code: string, file?: string, options: TOptions = {}) =>
+	parseT(code, file, options).components
 
 export const collectSources = (component: TComponent) =>
 	component.segments

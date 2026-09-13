@@ -1,6 +1,6 @@
 import { AST } from 'svelte/compiler'
 import { Source, Tagged } from '../find'
-import { collectSources, parseT } from '../t'
+import { collectSources, parseT, TOptions } from '../t'
 
 type Range = { start: number; end: number }
 
@@ -58,8 +58,8 @@ export const findTaggedTemplates = (ast: AST.Root, code: string) => {
 	return found.toSorted((a, b) => a.start - b.start)
 }
 
-export const findSvelteTranslatable = (code: string, file?: string, preserveWhitespace = false): Source[] => {
-	const { ast, components } = parseT(code, file, preserveWhitespace)
+export const findSvelteTranslatable = (code: string, file?: string, options: TOptions = {}): Source[] => {
+	const { ast, components } = parseT(code, file, options)
 
 	return [
 		...findTaggedTemplates(ast, code).map(item => ({ source: item.source, kind: 't' as const })),
