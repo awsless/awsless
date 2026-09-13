@@ -96,8 +96,8 @@ const removeUnusedTranslations = (cache, sources, locales) => {
 //#region src/t.ts
 const range = (node) => node;
 const hasT = (code) => /<T[\s/>]/.test(code);
-const collapse = (text) => text.replace(/[ \t\n\r\f]+/g, " ");
 const PRESERVE = /* @__PURE__ */ new Set(["pre", "textarea"]);
+const ASCII_SPACE = /[ \t\n\r\f]+/g;
 const isBlank = (node) => node.type === "Comment" || node.type === "Text" && node.data.trim() === "";
 const parseT = (code, file) => {
 	const ast = parse(code, { modern: true });
@@ -107,148 +107,51 @@ const parseT = (code, file) => {
 		const position = lineColumn(code).fromIndex(offset);
 		return /* @__PURE__ */ new Error(`${file ?? "component"}:${position?.line ?? 0}: ${message}`);
 	};
-	const tagEnd = (node) => {
-		const first = node.fragment.nodes[0];
-		if (first) return first.start;
-		const last = node.attributes.at(-1);
-		return code.indexOf(">", last ? last.end : node.start + node.name.length + 1) + 1;
-	};
 	const blockBodies = (node) => {
-		const bodies = [];
-		let closeStart = node.end;
-		const afterBrace = (from) => code.indexOf("}", from) + 1;
-		const separator = (keyword, body, next) => code.lastIndexOf(`{:${keyword}`, body.nodes[0]?.start ?? next);
 		switch (node.type) {
 			case "IfBlock": {
-				closeStart = code.lastIndexOf("{/if", node.end);
-				let current = node;
-				while (true) {
-					bodies.push({
-						sepStart: current.elseif ? current.start : void 0,
-						bodyStart: afterBrace(range(current.test).end),
-						nodes: current.consequent.nodes
-					});
-					const alternate = current.alternate;
-					const first = alternate?.nodes[0];
-					if (!alternate) break;
-					if (first?.type === "IfBlock" && first.elseif) {
-						current = first;
-						continue;
-					}
-					const sepStart = separator("else", alternate, closeStart);
-					bodies.push({
-						sepStart,
-						bodyStart: afterBrace(sepStart),
-						nodes: alternate.nodes
-					});
-					break;
-				}
-				break;
+				const first = node.alternate?.nodes[0];
+				const rest = !node.alternate ? [] : first?.type === "IfBlock" && first.elseif ? blockBodies(first) : [node.alternate.nodes];
+				return [node.consequent.nodes, ...rest];
 			}
-			case "EachBlock": {
-				closeStart = code.lastIndexOf("{/each", node.end);
-				const anchor = Math.max(range(node.expression).end, node.context ? range(node.context).end : 0, node.key ? range(node.key).end : 0);
-				bodies.push({
-					bodyStart: afterBrace(anchor),
-					nodes: node.body.nodes
-				});
-				if (node.fallback) {
-					const sepStart = separator("else", node.fallback, closeStart);
-					bodies.push({
-						sepStart,
-						bodyStart: afterBrace(sepStart),
-						nodes: node.fallback.nodes
-					});
-				}
-				break;
-			}
-			case "AwaitBlock": {
-				closeStart = code.lastIndexOf("{/await", node.end);
-				const order = [
-					"pending",
-					"then",
-					"catch"
-				].filter((key) => node[key]);
-				const patternOf = (key) => key === "then" ? node.value : key === "catch" ? node.error : null;
-				let next = closeStart;
-				for (let i = order.length - 1; i >= 0; i--) {
-					const key = order[i];
-					const body = node[key];
-					const pattern = patternOf(key);
-					if (i === 0) {
-						const anchor = Math.max(range(node.expression).end, pattern ? range(pattern).end : 0);
-						bodies.unshift({
-							bodyStart: afterBrace(anchor),
-							nodes: body.nodes
-						});
-					} else {
-						const sepStart = separator(key, body, next);
-						const anchor = pattern && range(pattern).start > sepStart ? range(pattern).end : sepStart;
-						bodies.unshift({
-							sepStart,
-							bodyStart: afterBrace(anchor),
-							nodes: body.nodes
-						});
-						next = sepStart;
-					}
-				}
-				break;
-			}
-			case "KeyBlock":
-				closeStart = code.lastIndexOf("{/key", node.end);
-				bodies.push({
-					bodyStart: afterBrace(range(node.expression).end),
-					nodes: node.fragment.nodes
-				});
-				break;
-			case "SnippetBlock": {
-				closeStart = code.lastIndexOf("{/snippet", node.end);
-				const anchor = Math.max(range(node.expression).end, ...node.parameters.map((p) => range(p).end));
-				bodies.push({
-					bodyStart: afterBrace(anchor),
-					nodes: node.body.nodes
-				});
-				break;
-			}
+			case "EachBlock": return node.fallback ? [node.body.nodes, node.fallback.nodes] : [node.body.nodes];
+			case "AwaitBlock": return [
+				node.pending,
+				node.then,
+				node.catch
+			].flatMap((body) => body ? [body.nodes] : []);
+			case "KeyBlock": return [node.fragment.nodes];
+			case "SnippetBlock": return [node.body.nodes];
 		}
-		return bodies.map((body, index) => ({
-			nodes: body.nodes,
-			start: body.bodyStart,
-			end: bodies[index + 1]?.sepStart ?? closeStart
-		}));
 	};
-	const segments = (body, preserve) => {
-		const items = [];
+	const build = (nodes, preserve) => {
+		const pieces = [];
 		const expressions = [];
 		const nested = [];
 		let tags = 0;
-		let run = {
-			start: body.start,
-			text: "",
-			preserve
-		};
-		const open = (position, preserve) => {
-			run = {
-				start: position,
-				text: "",
-				preserve
-			};
-		};
-		const close = (position) => {
-			items.push({ run: {
-				...run,
-				end: position,
-				source: ""
-			} });
-		};
 		const visit = (nodes, preserve) => {
 			for (const node of nodes) switch (node.type) {
 				case "Text":
-					run.text += node.data;
+					pieces.push({
+						start: node.start,
+						end: node.end,
+						token: {
+							type: "text",
+							value: node.data,
+							preserve
+						}
+					});
 					break;
 				case "Comment": break;
 				case "ExpressionTag":
-					run.text += `\${${expressions.length}}`;
+					pieces.push({
+						start: node.start,
+						end: node.end,
+						token: {
+							type: "expr",
+							index: expressions.length
+						}
+					});
 					expressions.push(code.slice(range(node.expression).start, range(node.expression).end));
 					break;
 				case "HtmlTag":
@@ -257,183 +160,284 @@ const parseT = (code, file) => {
 				case "DebugTag":
 				case "AttachTag":
 				case "DeclarationTag":
-					close(node.start);
-					items.push({ tag: `<${++tags}/>` });
-					open(node.end, preserve);
+					pieces.push({
+						start: node.start,
+						end: node.end,
+						token: {
+							type: "self",
+							n: ++tags
+						}
+					});
 					break;
 				case "IfBlock":
 				case "EachBlock":
 				case "AwaitBlock":
 				case "KeyBlock":
 				case "SnippetBlock":
-					close(node.start);
-					items.push({ tag: `<${++tags}/>` });
-					for (const branch of blockBodies(node)) nested.push(...segments(branch, preserve));
-					open(node.end, preserve);
+					pieces.push({
+						start: node.start,
+						end: node.end,
+						token: {
+							type: "self",
+							n: ++tags
+						}
+					});
+					for (const body of blockBodies(node)) nested.push(...build(body, preserve));
 					break;
 				default: {
 					if (node.type === "Component" && node.name === "T") throw fail(node.start, "nested <T> is not supported inside <T>");
-					const number = ++tags;
+					const n = ++tags;
+					const first = node.fragment.nodes[0];
 					const last = node.fragment.nodes.at(-1);
-					close(node.start);
-					if (last) {
-						items.push({ tag: `<${number}>` });
-						open(tagEnd(node), preserve || PRESERVE.has(node.name));
+					if (first && last) {
+						pieces.push({
+							start: node.start,
+							end: first.start,
+							token: {
+								type: "open",
+								n
+							}
+						});
 						visit(node.fragment.nodes, preserve || PRESERVE.has(node.name));
-						close(last.end);
-						items.push({ tag: `</${number}>` });
-					} else items.push({ tag: `<${number}/>` });
-					open(node.end, preserve);
+						pieces.push({
+							start: last.end,
+							end: node.end,
+							token: {
+								type: "close",
+								n
+							}
+						});
+					} else pieces.push({
+						start: node.start,
+						end: node.end,
+						token: {
+							type: "self",
+							n
+						}
+					});
 				}
 			}
 		};
-		visit(body.nodes, preserve);
-		close(body.end);
-		const runs = items.flatMap((item) => "run" in item ? [item.run] : []);
-		const first = runs[0];
-		const last = runs.at(-1);
-		for (const run of runs) run.source = run.preserve ? run.text : collapse(run.text);
-		if (!first.preserve) first.source = first.source.trimStart();
-		if (!last.preserve) last.source = last.source.trimEnd();
-		return [{
-			source: items.map((item) => "tag" in item ? item.tag : item.run.source).join(""),
-			expressions,
-			runs: runs.map(({ start, end, source }) => ({
-				start,
-				end,
-				source
-			}))
-		}, ...nested];
+		visit(nodes, preserve);
+		return [segment(normalize(pieces), expressions), ...nested];
 	};
-	const collect = (nodes, preserve) => {
-		for (const node of nodes) {
-			if (node.type === "Component" && node.name === "T") {
-				const children = node.fragment.nodes;
-				const content = children.filter((child) => !isBlank(child));
-				const only = content.length === 1 ? content[0] : void 0;
-				if (children.length === 0) components.push({
-					remove: [node],
-					segments: []
-				});
-				else if (only?.type === "SnippetBlock" && only.expression.name === "children") {
-					const body = blockBodies(only)[0];
-					components.push({
-						remove: [{
-							start: node.start,
-							end: body.start
-						}, {
-							start: body.end,
-							end: node.end
-						}],
-						segments: segments(body, preserve)
-					});
-				} else {
-					const body = {
-						nodes: children,
-						start: tagEnd(node),
-						end: children.at(-1).end
-					};
-					components.push({
-						remove: [{
-							start: node.start,
-							end: body.start
-						}, {
-							start: body.end,
-							end: node.end
-						}],
-						segments: segments(body, preserve)
-					});
-				}
-				continue;
-			}
-			const inside = preserve || "name" in node && typeof node.name === "string" && PRESERVE.has(node.name);
-			for (const key of [
-				"fragment",
-				"consequent",
-				"alternate",
-				"body",
-				"fallback",
-				"pending",
-				"then",
-				"catch"
-			]) {
-				const fragment = node[key];
-				if (fragment?.type === "Fragment") collect(fragment.nodes, inside);
-			}
-		}
-	};
-	collect(ast.fragment.nodes, preserveAll);
+	collect(ast.fragment.nodes, preserveAll, (node, wrap, nodes, preserve) => {
+		components.push({
+			start: node.start,
+			end: node.end,
+			wrap,
+			segments: nodes ? build(nodes, preserve) : []
+		});
+	});
 	return {
 		ast,
 		components
 	};
 };
-const findTComponents = (code, file) => parseT(code, file).components;
-const collectSources = (component) => component.segments.map((segment) => segment.source).filter((source) => source !== "");
-const TOKEN = /\$\{([^{}]*)\}|<(\/?)(\d+)\s*(\/?)>/g;
-const shape = (text) => {
-	const tags = [];
-	const gaps = [{
-		text: "",
-		placeholders: []
-	}];
-	let cursor = 0;
-	for (const match of text.matchAll(TOKEN)) {
-		const gap = gaps.at(-1);
-		gap.text += text.slice(cursor, match.index);
-		cursor = match.index + match[0].length;
-		if (match[1] !== void 0) {
-			gap.text += `\${${match[1]}}`;
-			gap.placeholders.push(match[1]);
-		} else if (match[2] && match[4]) gap.text += match[0];
-		else {
-			tags.push(match[2] ? `</${match[3]}>` : match[4] ? `<${match[3]}/>` : `<${match[3]}>`);
-			gaps.push({
-				text: "",
-				placeholders: []
-			});
+const collect = (nodes, preserve, found) => {
+	for (const node of nodes) {
+		if (node.type === "Component" && node.name === "T") {
+			const children = node.fragment.nodes;
+			const content = children.filter((child) => !isBlank(child));
+			const only = content.length === 1 ? content[0] : void 0;
+			const body = only?.type === "SnippetBlock" && only.expression.name === "children" ? only.body.nodes : children;
+			const first = body[0];
+			const last = body.at(-1);
+			if (first && last) found(node, {
+				open: {
+					start: node.start,
+					end: first.start
+				},
+				close: {
+					start: last.end,
+					end: node.end
+				}
+			}, body, preserve);
+			else found(node, void 0, void 0, preserve);
+			continue;
+		}
+		const inside = preserve || "name" in node && typeof node.name === "string" && PRESERVE.has(node.name);
+		for (const key of [
+			"fragment",
+			"consequent",
+			"alternate",
+			"body",
+			"fallback",
+			"pending",
+			"then",
+			"catch"
+		]) {
+			const fragment = node[key];
+			if (fragment?.type === "Fragment") collect(fragment.nodes, inside, found);
 		}
 	}
-	gaps.at(-1).text += text.slice(cursor);
+};
+const normalize = (pieces) => {
+	const merged = [];
+	for (const piece of pieces) {
+		const previous = merged.at(-1);
+		if (piece.token.type === "text" && previous?.token.type === "text") {
+			previous.token.value += piece.token.value;
+			previous.end = piece.end;
+		} else merged.push({
+			...piece,
+			token: { ...piece.token }
+		});
+	}
+	const first = merged[0]?.token;
+	const last = merged.at(-1)?.token;
+	for (const { token } of merged) if (token.type === "text" && !token.preserve) token.value = token.value.replace(ASCII_SPACE, " ");
+	if (first?.type === "text" && !first.preserve) first.value = first.value.replace(/^[ \t\n\r\f]+/, "");
+	if (last?.type === "text" && !last.preserve) last.value = last.value.replace(/[ \t\n\r\f]+$/, "");
+	return merged.filter((piece) => piece.token.type !== "text" || piece.token.value !== "");
+};
+const isRunToken = (token) => token.type === "text" || token.type === "expr";
+const segment = (pieces, expressions) => {
+	const tokens = pieces.map((piece) => piece.token);
+	const runs = [];
+	if (pieces.length === 0) return {
+		source: "",
+		tokens,
+		expressions,
+		runs
+	};
+	let current = [];
+	let boundary = pieces[0].start;
+	const flush = (next) => {
+		const first = current[0];
+		const last = current.at(-1);
+		runs.push(first && last ? {
+			start: first.start,
+			end: last.end,
+			tokens: current.map((piece) => piece.token)
+		} : {
+			start: boundary,
+			end: boundary,
+			tokens: []
+		});
+		current = [];
+		boundary = next;
+	};
+	for (const piece of pieces) if (isRunToken(piece.token)) current.push(piece);
+	else flush(piece.end);
+	flush(boundary);
 	return {
-		tags,
-		gaps
+		source: serialize(tokens),
+		tokens,
+		expressions,
+		runs
 	};
 };
+const findTComponents = (code, file) => parseT(code, file).components;
+const collectSources = (component) => component.segments.map((segment) => segment.source).filter((source) => source !== "");
+const escapeText = (text) => text.replace(/[\\$<>]/g, (char) => `\\${char}`);
+const serialize = (tokens) => tokens.map((token) => {
+	switch (token.type) {
+		case "text": return escapeText(token.value);
+		case "expr": return `\${${token.index}}`;
+		case "open": return `<${token.n}>`;
+		case "close": return `</${token.n}>`;
+		case "self": return `<${token.n}/>`;
+	}
+}).join("");
+const tokenize = (text) => {
+	const tokens = [];
+	let buffer = "";
+	let i = 0;
+	const flush = () => {
+		if (buffer !== "") {
+			tokens.push({
+				type: "text",
+				value: buffer,
+				preserve: false
+			});
+			buffer = "";
+		}
+	};
+	while (i < text.length) {
+		const char = text[i];
+		if (char === "\\" && i + 1 < text.length) {
+			buffer += text[i + 1];
+			i += 2;
+			continue;
+		}
+		const placeholder = char === "$" ? /^\$\{(\d+)\}/.exec(text.slice(i)) : null;
+		if (placeholder) {
+			flush();
+			tokens.push({
+				type: "expr",
+				index: Number(placeholder[1])
+			});
+			i += placeholder[0].length;
+			continue;
+		}
+		const tag = char === "<" ? /^<(\/?)(\d+)\s*(\/?)>/.exec(text.slice(i)) : null;
+		if (tag && !(tag[1] && tag[3])) {
+			flush();
+			tokens.push({
+				type: tag[1] ? "close" : tag[3] ? "self" : "open",
+				n: Number(tag[2])
+			});
+			i += tag[0].length;
+			continue;
+		}
+		buffer += char;
+		i++;
+	}
+	flush();
+	return tokens;
+};
+const splitRuns = (tokens) => {
+	const runs = [[]];
+	const tags = [];
+	for (const token of tokens) if (isRunToken(token)) runs.at(-1).push(token);
+	else {
+		tags.push(`${token.type}${token.n}`);
+		runs.push([]);
+	}
+	return {
+		tags,
+		runs
+	};
+};
+const placeholdersOf = (tokens) => tokens.flatMap((token) => token.type === "expr" ? [token.index] : []).toSorted((a, b) => a - b).join(" ");
 /** Returns what is wrong with the translation, or nothing when it keeps
 * the tags of the source in order and every placeholder in its own run. */
 const validateTranslation = (source, translation) => {
-	const expected = shape(source);
-	const actual = shape(translation);
-	if (expected.tags.join("") !== actual.tags.join("")) return "the numbered tags differ from the source";
-	for (const [index, gap] of expected.gaps.entries()) {
-		const placeholders = actual.gaps[index].placeholders;
-		if (gap.placeholders.toSorted().join("\0") !== placeholders.toSorted().join("\0")) return "a placeholder is missing, duplicated or moved across a tag";
-	}
+	const expected = splitRuns(tokenize(source));
+	const actual = splitRuns(tokenize(translation));
+	if (expected.tags.join(" ") !== actual.tags.join(" ")) return "the numbered tags differ from the source";
+	for (const [index, run] of expected.runs.entries()) if (placeholdersOf(run) !== placeholdersOf(actual.runs[index])) return "a placeholder is missing, duplicated or moved across a tag";
 };
-const escape = (text) => text.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
-const literal = (text, expressions) => {
-	return `\`${text.split(/(\$\{\d+\})/).map((part, index) => {
-		if (index % 2 === 0) return escape(part);
-		const expression = expressions[Number(part.slice(2, -1))];
-		if (expression === void 0) throw new Error(`Placeholder ${part} does not exist in the source.`);
-		return `\${${expression}}`;
-	}).join("")}\``;
-};
-/** The edits turning a <T> into its children with translated text runs.
-* An edit without text removes, one without length inserts. */
+const partsOf = (tokens, positions) => tokens.map((token) => {
+	if (token.type === "text") return token.value;
+	if (token.type !== "expr" || !positions.has(token.index)) throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`);
+	return positions.get(token.index);
+});
+/** The edits turning a <T> into an `{#if true}` block with translated text
+* runs, and whether any of them calls the runtime. An edit without text
+* removes, one without length inserts. */
 const transformT = (component, locales, lookup, warn) => {
-	const edits = component.remove.map(({ start, end }) => ({
-		start,
-		end,
-		text: ""
-	}));
+	const edits = [];
+	let translated = false;
+	if (!component.wrap) return {
+		edits: [{
+			start: component.start,
+			end: component.end,
+			text: ""
+		}],
+		translated
+	};
+	edits.push({
+		...component.wrap.open,
+		text: "{#if true}"
+	});
+	edits.push({
+		...component.wrap.close,
+		text: "{/if}"
+	});
 	for (const segment of component.segments) {
 		if (segment.source === "") continue;
-		if (shape(segment.source).gaps.length !== segment.runs.length) {
-			warn(`Skipped "${segment.source}": its text looks like a placeholder or numbered tag.`);
-			continue;
-		}
 		const translations = [];
 		for (const locale of locales) {
 			const translation = lookup(segment.source, locale);
@@ -445,21 +449,32 @@ const transformT = (component, locales, lookup, warn) => {
 			}
 			translations.push({
 				locale,
-				gaps: shape(translation).gaps
+				runs: splitRuns(tokenize(translation)).runs
 			});
 		}
+		if (translations.length === 0) continue;
 		for (const [index, run] of segment.runs.entries()) {
-			const changed = translations.filter((item) => item.gaps[index].text !== run.source);
+			const indices = run.tokens.flatMap((token) => token.type === "expr" ? [token.index] : []);
+			const positions = new Map(indices.map((expression, position) => [expression, position]));
+			const source = JSON.stringify(partsOf(run.tokens, positions));
+			const changed = translations.flatMap((item) => {
+				const parts = JSON.stringify(partsOf(item.runs[index], positions));
+				return parts === source ? [] : [`"${item.locale}":${parts}`];
+			});
 			if (changed.length === 0) continue;
-			const values = changed.map((item) => `"${item.locale}":${literal(item.gaps[index].text, segment.expressions)}`);
+			const values = indices.length > 0 ? `, [${indices.map((i) => segment.expressions[i]).join(", ")}]` : "";
 			edits.push({
 				start: run.start,
 				end: run.end,
-				text: `{lang.t.get(${literal(run.source, segment.expressions)}, {${values.join(",")}})}`
+				text: `{__i18n_lang.t.pick(${source}, {${changed.join(",")}}${values})}`
 			});
+			translated = true;
 		}
 	}
-	return edits;
+	return {
+		edits,
+		translated
+	};
 };
 //#endregion
 //#region src/find/svelte.ts
@@ -514,12 +529,8 @@ const findTranslatableInCode = async (file, code) => {
 //#endregion
 //#region src/vite.ts
 const SOURCE_FILE = /\.(svelte|ts|js)$/;
-const LANG_IMPORT = "import { lang } from '@awsless/i18n/svelte'";
+const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'";
 const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
-const importsLang = (ast) => {
-	for (const script of [ast.instance, ast.module]) for (const node of script?.content.body ?? []) if (node.type === "ImportDeclaration" && node.specifiers.some((item) => item.local.name === "lang")) return true;
-	return false;
-};
 const i18n = (props) => {
 	let cache;
 	let generatedCache;
@@ -592,20 +603,23 @@ const i18n = (props) => {
 				const { ast, components } = parseT(code, id);
 				const lookup = (source, locale) => cache.get(source, locale);
 				let called = false;
-				for (const component of components) for (const edit of transformT(component, props.locales, lookup, (message) => this.warn(message))) if (edit.text === "") {
-					if (edit.end > edit.start) transformedCode.remove(edit.start, edit.end);
-				} else if (edit.start === edit.end) {
-					transformedCode.appendLeft(edit.start, rewriteLangT(edit.text));
-					called = true;
-				} else {
-					transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text));
-					replaced.push(edit);
-					called = true;
+				for (const component of components) {
+					const result = transformT(component, props.locales, lookup, (message) => this.warn(message));
+					called ||= result.translated;
+					for (const edit of result.edits) if (edit.text === "") {
+						if (edit.end > edit.start) transformedCode.remove(edit.start, edit.end);
+					} else if (edit.start === edit.end) transformedCode.appendLeft(edit.start, rewriteLangT(edit.text));
+					else {
+						transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text));
+						replaced.push(edit);
+					}
 				}
-				if (called && !importsLang(ast)) {
+				if (called) {
 					if (ast.instance) {
 						const { start } = ast.instance.content;
-						transformedCode.appendLeft(start, `\n\t${LANG_IMPORT}`);
+						const first = ast.instance.content.body[0];
+						const sameLine = !code.slice(start, first?.start ?? start).includes("\n");
+						transformedCode.appendLeft(start, `${LANG_IMPORT}${sameLine ? ";\n" : ""}`);
 					} else transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n<\/script>\n`);
 				}
 			}
@@ -641,6 +655,7 @@ const ai = (props) => {
 				prompt: [
 					`You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.`,
 					"Keep every numbered <n>...</n> or <n/> tag in the same order and nesting as the source, and keep every ${n} placeholder inside the same tag it came from. Translate only the text around them.",
+					"A backslash escapes a literal character: \\$ \\< \\> and \\\\ stand for $, <, > and a backslash. Keep those escapes as they are.",
 					...props?.rules ?? [],
 					"",
 					`JSON FILE:`,

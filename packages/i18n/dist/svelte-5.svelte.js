@@ -7,6 +7,11 @@ let t = $derived.by(() => {
 	api.get = (og, translations) => {
 		return translations[locale] ?? og;
 	};
+	api.pick = (source, translations, values = []) => {
+		let result = "";
+		for (const part of translations[locale] ?? source) result += typeof part === "number" ? `${values[part] ?? ""}` : part;
+		return result;
+	};
 	return api;
 });
 const lang = {

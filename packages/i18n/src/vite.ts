@@ -1,6 +1,5 @@
 import { extname } from 'node:path'
 import MagicString from 'magic-string'
-import { AST } from 'svelte/compiler'
 import { Plugin } from 'vite'
 import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
@@ -35,7 +34,8 @@ export type I18nPluginProps = {
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
-const LANG_IMPORT = "import { lang } from '@awsless/i18n/svelte'"
+// A private alias, so a `lang` of the component itself can't shadow the calls.
+const LANG_IMPORT = "import { lang as __i18n_lang } from '@awsless/i18n/svelte'"
 
 type Logger = {
 	info: (message: string) => void
@@ -44,18 +44,6 @@ type Logger = {
 
 // Vite ids keep their query (?svelte&type=style), which extname would not strip.
 const isSvelteFile = (id = '') => extname(id.split('?')[0]!) === '.svelte'
-
-const importsLang = (ast: AST.Root) => {
-	for (const script of [ast.instance, ast.module]) {
-		for (const node of script?.content.body ?? []) {
-			if (node.type === 'ImportDeclaration' && node.specifiers.some(item => item.local.name === 'lang')) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
@@ -186,27 +174,32 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				let called = false
 
 				for (const component of components) {
-					for (const edit of transformT(component, props.locales, lookup, message => this.warn(message))) {
+					const result = transformT(component, props.locales, lookup, message => this.warn(message))
+					called ||= result.translated
+
+					for (const edit of result.edits) {
 						if (edit.text === '') {
 							if (edit.end > edit.start) {
 								transformedCode.remove(edit.start, edit.end)
 							}
 						} else if (edit.start === edit.end) {
 							transformedCode.appendLeft(edit.start, rewriteLangT(edit.text))
-							called = true
 						} else {
 							transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text))
 							replaced.push(edit)
-							called = true
 						}
 					}
 				}
 
-				if (called && !importsLang(ast)) {
+				if (called) {
 					if (ast.instance) {
-						// The program starts right after the `<script ...>` tag.
+						// Right after the `<script ...>` tag; a semicolon only when the
+						// first statement would otherwise share the import's line.
 						const { start } = ast.instance.content as unknown as { start: number }
-						transformedCode.appendLeft(start, `\n\t${LANG_IMPORT}`)
+						const first = ast.instance.content.body[0] as unknown as { start: number } | undefined
+						const sameLine = !code.slice(start, first?.start ?? start).includes('\n')
+
+						transformedCode.appendLeft(start, `${LANG_IMPORT}${sameLine ? ';\n' : ''}`)
 					} else {
 						transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n</script>\n`)
 					}

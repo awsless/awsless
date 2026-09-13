@@ -3,6 +3,10 @@ declare const $derived: { by: <T>(c: () => T) => T }
 
 type StringArgs = Array<string | number | { toString(): string }>
 
+// Text, or the position of a value. Values arrive already evaluated, so a
+// translation can reorder them without running an expression twice.
+type Part = string | number
+
 type Translate = {
 	(template: TemplateStringsArray, ...args: StringArgs): string
 }
@@ -16,6 +20,17 @@ let t: Translate = $derived.by(() => {
 
 	api.get = (og: string, translations: Record<string, string>) => {
 		return translations[locale] ?? og
+	}
+
+	api.pick = (source: Part[], translations: Record<string, Part[]>, values: unknown[] = []) => {
+		let result = ''
+
+		for (const part of translations[locale] ?? source) {
+			// Nullish renders empty, like Svelte does for `{null}`.
+			result += typeof part === 'number' ? `${values[part] ?? ''}` : part
+		}
+
+		return result
 	}
 
 	return api
