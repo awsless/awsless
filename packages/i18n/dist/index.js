@@ -290,10 +290,12 @@ const parseT = (code, file) => {
 		visit(nodes, context);
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
 	};
-	collect(code, ast.fragment.nodes, preserveAll, void 0, (node, wrap, remove, nodes, preserve) => {
+	collect(code, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
+			head,
+			foot,
 			wrap,
 			remove,
 			segments: nodes ? build(nodes, rootContext(preserve)) : []
@@ -310,6 +312,9 @@ const collect = (code, nodes, preserve, parent, found) => {
 			if (hasPassedChildren(node)) continue;
 			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
+			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");
+			const head = slot ? `<svelte:fragment ${carried.map((item) => code.slice(item.start, item.end)).join(" ")}>` : "";
+			const foot = slot ? "</svelte:fragment>" : "";
 			const remove = [];
 			const children = node.fragment.nodes.flatMap((child) => {
 				if (child.type !== "SvelteFragment") return [child];
@@ -338,7 +343,7 @@ const collect = (code, nodes, preserve, parent, found) => {
 			const outer = inline ? body : node.fragment.nodes;
 			const first = outer[0];
 			const last = outer.at(-1);
-			if (body.length > 0 && first && last) found(node, {
+			if (body.length > 0 && first && last) found(node, head, foot, {
 				open: {
 					start: node.start,
 					end: first.start
@@ -347,11 +352,9 @@ const collect = (code, nodes, preserve, parent, found) => {
 					start: last.end,
 					end: node.end
 				},
-				head: slot ? `<svelte:fragment ${code.slice(slot.start, slot.end)}>` : "",
-				tail: snippet && !inline ? "{@render children()}" : "",
-				foot: slot ? "</svelte:fragment>" : ""
+				tail: snippet && !inline ? "{@render children()}" : ""
 			}, remove, body, preserve);
-			else found(node, void 0, [], void 0, preserve);
+			else found(node, head, foot, void 0, [], void 0, preserve);
 			continue;
 		}
 		const inside = preserve || node.type === "RegularElement" && PRESERVE.has(node.name);
@@ -578,25 +581,28 @@ const spliced = (code, target, rewrites) => {
 const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 	const edits = [];
 	let translated = false;
-	if (!component.wrap) return {
-		edits: [{
-			start: component.start,
-			end: component.end,
-			text: ""
-		}],
-		translated
-	};
+	if (!component.wrap) {
+		const text = `${component.head}{#if true}{/if}${component.foot}`;
+		return {
+			edits: [{
+				start: component.start,
+				end: component.end,
+				text
+			}],
+			translated
+		};
+	}
 	edits.push(...component.remove.map((range) => ({
 		...range,
 		text: ""
 	})));
 	edits.push({
 		...component.wrap.open,
-		text: `${component.wrap.head}{#if true}`
+		text: `${component.head}{#if true}`
 	});
 	edits.push({
 		...component.wrap.close,
-		text: `${component.wrap.tail}{/if}${component.wrap.foot}`
+		text: `${component.wrap.tail}{/if}${component.foot}`
 	});
 	for (const segment of component.segments) {
 		if (segment.source === "") continue;

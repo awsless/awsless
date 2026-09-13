@@ -35,8 +35,11 @@ export type Segment = {
 }
 
 export type TComponent = Range & {
+	/** What goes around the block: a `<svelte:fragment>` for named slot content, else nothing. */
+	head: string
+	foot: string
 	/** The pieces of the <T> that make way for the block scope. Absent when empty. */
-	wrap?: { open: Range; close: Range; head: string; tail: string; foot: string }
+	wrap?: { open: Range; close: Range; tail: string }
 	/** Tags of direct `<svelte:fragment>` children, meaningless outside a component. */
 	remove: Range[]
 	segments: Segment[]
@@ -222,10 +225,12 @@ export const parseT = (code: string, file?: string) => {
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
 	}
 
-	collect(code, ast.fragment.nodes, preserveAll, undefined, (node, wrap, remove, nodes, preserve) => {
+	collect(code, ast.fragment.nodes, preserveAll, undefined, (node, head, foot, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
+			head,
+			foot,
 			wrap,
 			remove,
 			segments: nodes ? build(nodes, rootContext(preserve)) : [],
@@ -237,6 +242,8 @@ export const parseT = (code: string, file?: string) => {
 
 type Found = (
 	node: AST.Component,
+	head: string,
+	foot: string,
 	wrap: TComponent['wrap'],
 	remove: Range[],
 	nodes: AST.Fragment['nodes'] | undefined,
@@ -264,6 +271,13 @@ const collect = (
 			if (slot && !(parent && COMPONENTS.has(parent.type))) {
 				continue
 			}
+
+			// The fragment takes the slot and its let: bindings as written.
+			const carried = node.attributes.filter(attribute => attribute === slot || attribute.type === 'LetDirective')
+			const head = slot
+				? `<svelte:fragment ${carried.map(item => code.slice(item.start, item.end)).join(' ')}>`
+				: ''
+			const foot = slot ? '</svelte:fragment>' : ''
 
 			const remove: Range[] = []
 
@@ -304,13 +318,11 @@ const collect = (
 				const wrap = {
 					open: { start: node.start, end: first.start },
 					close: { start: last.end, end: node.end },
-					head: slot ? `<svelte:fragment ${code.slice(slot.start, slot.end)}>` : '',
 					tail: snippet && !inline ? '{@render children()}' : '',
-					foot: slot ? '</svelte:fragment>' : '',
 				}
-				found(node, wrap, remove, body, preserve)
+				found(node, head, foot, wrap, remove, body, preserve)
 			} else {
-				found(node, undefined, [], undefined, preserve)
+				found(node, head, foot, undefined, [], undefined, preserve)
 			}
 			continue
 		}
@@ -668,15 +680,19 @@ export const transformT = (
 	const edits: Edit[] = []
 	let translated = false
 
+	// An empty <T> still leaves an empty block behind, so the parent keeps
+	// getting children content: a children prop stays defined and legacy
+	// slot fallbacks stay suppressed.
 	if (!component.wrap) {
-		return { edits: [{ start: component.start, end: component.end, text: '' }], translated }
+		const text = `${component.head}{#if true}{/if}${component.foot}`
+		return { edits: [{ start: component.start, end: component.end, text }], translated }
 	}
 
 	// A block is a real scope for `{@const}` and snippets, and unlike a
 	// snippet it is not handed to an enclosing component as a prop.
 	edits.push(...component.remove.map(range => ({ ...range, text: '' })))
-	edits.push({ ...component.wrap.open, text: `${component.wrap.head}{#if true}` })
-	edits.push({ ...component.wrap.close, text: `${component.wrap.tail}{/if}${component.wrap.foot}` })
+	edits.push({ ...component.wrap.open, text: `${component.head}{#if true}` })
+	edits.push({ ...component.wrap.close, text: `${component.wrap.tail}{/if}${component.foot}` })
 
 	for (const segment of component.segments) {
 		if (segment.source === '') {

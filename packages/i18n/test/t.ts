@@ -76,7 +76,9 @@ const component = (markup: string, script = "import T from '@awsless/i18n/T'") =
 		"\timport Icon from './icon.svelte'",
 		"\timport Card from './card.svelte'",
 		"\timport Panel from './panel.svelte'",
-		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag } = $props()',
+		"\timport Required from './required.svelte'",
+		"\timport Legacy from './legacy.svelte'",
+		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag, item } = $props()',
 		'</script>',
 		'',
 		markup,
@@ -127,7 +129,9 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 	await emit('badge', BADGE)
 	await emit('icon', ICON)
 	await emit('card', CARD)
-	await emit('panel', '<header><slot name="heading" /></header><main><slot /></main>')
+	await emit('panel', '<header><slot name="heading" item="X" pair={{ id: "Y" }} /></header><main><slot /></main>')
+	await emit('required', '<script>let { children } = $props()</script><div>{@render children()}</div>')
+	await emit('legacy', '<div><slot>fallback</slot></div><aside><slot name="side">side-fallback</slot></aside>')
 
 	const page = await import(pathToFileURL(resolve(dir, 'page.js')).href)
 
@@ -972,6 +976,50 @@ describe('<T> inside <T> and slot placement', () => {
 
 		const { code } = await transform(component(markup), table({ Hello: { fr: 'Bonjour' } }))
 		expect(code).toContain(markup)
+	})
+})
+
+describe('slot bindings and empty <T>', () => {
+	it('carries let: directives onto the fragment', async () => {
+		const cases = [
+			['<Panel><T slot="heading" let:item>Hello {item}</T></Panel>', 'X', 'let:item'],
+			['<Panel><T slot="heading" let:item={thing}>Hello {thing}</T></Panel>', 'X', 'let:item={thing}'],
+			['<Panel><T slot="heading" let:pair={{ id }}>Hello {id}</T></Panel>', 'Y', 'let:pair={{ id }}'],
+		] as const
+
+		for (const [markup, value, directive] of cases) {
+			// An outer `item` prop must not leak into the slot scope.
+			const { baseline } = await parity(markup, { item: 'OUTER' })
+			expect(baseline).toBe(`<header>Hello ${value}</header><main></main>`)
+
+			const { code } = await transform(component(markup), table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } }))
+			expect(code).toContain(`<svelte:fragment slot="heading" ${directive}>{#if true}`)
+
+			const [en, fr] = await ssr(code, { item: 'OUTER' }, ['en', 'fr'])
+			expect(en).toBe(baseline)
+			expect(fr).toBe(`<header>Bonjour ${value}</header><main></main>`)
+		}
+	})
+
+	it('leaves an empty block where an empty <T> was', async () => {
+		for (const markup of [
+			'<Required><T /></Required>',
+			'<Required><T></T></Required>',
+			'<Required><T>{#snippet children()}{/snippet}</T></Required>',
+		]) {
+			const { baseline, code } = await parity(markup)
+			expect(baseline).toBe('<div></div>')
+			expect(code).toContain('<Required>{#if true}{/if}</Required>')
+		}
+
+		const { baseline, code } = await parity('<Legacy><T /><T slot="side" let:item /></Legacy>')
+		expect(baseline).toBe('<div></div><aside></aside>')
+		expect(code).toContain(
+			'<Legacy>{#if true}{/if}<svelte:fragment slot="side" let:item>{#if true}{/if}</svelte:fragment></Legacy>'
+		)
+
+		const [fallback] = await ssr(component('<Legacy></Legacy>'), {}, ['en'])
+		expect(fallback).toBe('<div>fallback</div><aside>side-fallback</aside>')
 	})
 })
 
