@@ -3,8 +3,8 @@ import MagicString from 'magic-string'
 import { Plugin } from 'vite'
 import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
-import { findTranslatable, findTranslatableInCode, isIgnoredPath } from './find'
-import { hasT, parseT, transformT, validateTranslation } from './t'
+import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source } from './find'
+import { hasT, parseT, transformT, validatePlaceholders, validateTranslation } from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -54,13 +54,21 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	// previous one translated instead of asking for the same texts again.
 	let queue: Promise<void> = Promise.resolve()
 
-	const translateMissing = (cwd: string, sourceTexts: string[], log: Logger) => {
-		queue = queue.catch(() => {}).then(() => translateNow(cwd, sourceTexts, log))
+	const translateMissing = (cwd: string, sources: Source[], log: Logger) => {
+		queue = queue.catch(() => {}).then(() => translateNow(cwd, sources, log))
 		return queue
 	}
 
-	const translateNow = async (cwd: string, sourceTexts: string[], log: Logger) => {
-		const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales)
+	const translateNow = async (cwd: string, sources: Source[], log: Logger) => {
+		const newSourceTexts = findNewTranslations(
+			cache,
+			sources.map(item => item.source),
+			props.locales
+		)
+
+		// Numbered tags only mean something in markup; the same text found as
+		// both is held to the markup rules.
+		const markup = new Set(sources.filter(item => item.kind === 'markup').map(item => item.source))
 
 		if (newSourceTexts.length > 0) {
 			log.info(`Translating ${newSourceTexts.length} new texts.`)
@@ -72,7 +80,8 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			for (const item of translations) {
 				// A translation that lost a placeholder or tag would break the
 				// markup, so the source text is shown for that locale instead.
-				const problem = validateTranslation(item.source, item.translation)
+				const validate = markup.has(item.source) ? validateTranslation : validatePlaceholders
+				const problem = validate(item.source, item.translation)
 
 				if (problem) {
 					log.warn(`Skipped the "${item.locale}" translation of "${item.source}": ${problem}.`)
@@ -95,17 +104,21 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			const cwd = process.cwd()
 
 			this.info('Finding all translatable text...')
-			const sourceTexts = await findTranslatable(cwd)
+			const sources = await findTranslatable(cwd)
 
 			generatedCache = await loadGeneratedCache(cwd)
 			overrideCache = await loadOverrideCache(cwd)
 
 			// Clean up the unused transations from the cache
-			removeUnusedTranslations(generatedCache, sourceTexts, props.locales)
+			removeUnusedTranslations(
+				generatedCache,
+				sources.map(item => item.source),
+				props.locales
+			)
 
 			cache = mergeCaches(generatedCache, overrideCache)
 
-			await translateMissing(cwd, sourceTexts, {
+			await translateMissing(cwd, sources, {
 				info: message => this.info(message),
 				warn: message => this.warn(message),
 			})
@@ -119,10 +132,10 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				return
 			}
 
-			const sourceTexts = await findTranslatableInCode(file, await read())
+			const sources = await findTranslatableInCode(file, await read())
 
-			if (sourceTexts.length > 0) {
-				await translateMissing(process.cwd(), sourceTexts, this.environment.logger)
+			if (sources.length > 0) {
+				await translateMissing(process.cwd(), sources, this.environment.logger)
 			}
 		},
 		transform(code, id) {

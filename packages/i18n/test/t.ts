@@ -8,9 +8,10 @@ import { render } from 'svelte/server'
 import { i18n, Translator } from '../src'
 import { loadCache } from '../src/cache'
 import { findSvelteTranslatable } from '../src/find/svelte'
-import { findTComponents, serialize, tokenize, validateTranslation } from '../src/t'
+import { findTComponents, serialize, tokenize, validatePlaceholders, validateTranslation } from '../src/t'
 
 const serializeT = (markup: string) => findTComponents(markup).flatMap(item => item.segments.map(s => s.source))
+const sources = (code: string) => findSvelteTranslatable(code).map(item => item.source)
 
 const example = 'Hello <1>${0}</1>, you have <2>${1} items</2>. <3/>'
 const exampleMarkup = '<T>Hello <b class="x">{name}</b>, you have <Badge count={n}>{n} items</Badge>. <Icon/></T>'
@@ -180,7 +181,12 @@ describe('<T> serializer', () => {
 	})
 
 	it('collapses whitespace', () => {
-		expect(serializeT('<T>\n\tHello\n\t<b>\n\t\tworld\n\t</b>\n</T>')).toStrictEqual(['Hello <1> world </1>'])
+		expect(serializeT('<T>\n\tHello\n\t<b>\n\t\tworld\n\t</b>\n</T>')).toStrictEqual(['Hello <1>world</1>'])
+		expect(serializeT('<T><b>\nHello\n</b>!</T>')).toStrictEqual(['<1>Hello</1>!'])
+		expect(serializeT('<T>\n\t<b>\n\t\tHello\n\t</b>\n\t<i>\n\t\tthere\n\t</i>\n</T>')).toStrictEqual([
+			'<1>Hello</1> <2>there</2>',
+		])
+		expect(serializeT('<T>a <b>b</b> <i>c</i> d</T>')).toStrictEqual(['a <1>b</1> <2>c</2> d'])
 	})
 
 	it('keeps whitespace in pre, textarea, preserveWhitespace and non-breaking spaces', () => {
@@ -213,28 +219,23 @@ describe('<T> serializer', () => {
 	it('blocks become self-closing tags with their own segments', () => {
 		const code = '<T>You have {#if n === 0}no items{:else}<b>{n}</b> items{/if} left.</T>'
 
-		expect(findSvelteTranslatable(code)).toStrictEqual(['You have <1/> left.', 'no items', '<1>${0}</1> items'])
+		expect(sources(code)).toStrictEqual(['You have <1/> left.', 'no items', '<1>${0}</1> items'])
 	})
 
 	it('nested blocks', () => {
-		expect(findSvelteTranslatable('<T>{#if a}{#if b}x{/if}{/if}</T>')).toStrictEqual(['<1/>', '<1/>', 'x'])
-		expect(findSvelteTranslatable('<T>{#each rows as r}{#each r as c}{c}!{/each}{/each}</T>')).toStrictEqual([
+		expect(sources('<T>{#if a}{#if b}x{/if}{/if}</T>')).toStrictEqual(['<1/>', '<1/>', 'x'])
+		expect(sources('<T>{#each rows as r}{#each r as c}{c}!{/each}{/each}</T>')).toStrictEqual([
 			'<1/>',
 			'<1/>',
 			'${0}!',
 		])
-		expect(findSvelteTranslatable('<T>{#if a}{#if b}x{/if}{:else}y{/if} z</T>')).toStrictEqual([
-			'<1/> z',
-			'<1/>',
-			'x',
-			'y',
-		])
+		expect(sources('<T>{#if a}{#if b}x{/if}{:else}y{/if} z</T>')).toStrictEqual(['<1/> z', '<1/>', 'x', 'y'])
 	})
 
 	it('each with else', () => {
 		const code = '<T>Items: {#each items as item, i (item.id)}<li>{item.name}</li>{:else}No items{/each}</T>'
 
-		expect(findSvelteTranslatable(code)).toStrictEqual(['Items: <1/>', '<1>${0}</1>', 'No items'])
+		expect(sources(code)).toStrictEqual(['Items: <1/>', '<1>${0}</1>', 'No items'])
 	})
 
 	it('else if chain, await and key', () => {
@@ -246,7 +247,7 @@ describe('<T> serializer', () => {
 			'</T>',
 		].join('\n')
 
-		expect(findSvelteTranslatable(code)).toStrictEqual([
+		expect(sources(code)).toStrictEqual([
 			'<1/> <2/> <3/>',
 			'one',
 			'two',
@@ -260,18 +261,31 @@ describe('<T> serializer', () => {
 	it('html, render and const produce no segment', () => {
 		const code = '<T>{@const x = 1}Hi {@html html} {@render s()}</T>'
 
-		expect(findSvelteTranslatable(code)).toStrictEqual(['<1/>Hi <2/> <3/>'])
+		expect(sources(code)).toStrictEqual(['<1/>Hi <2/> <3/>'])
 	})
 
 	it('uses the body of an explicit children snippet', () => {
 		const code = '<T>\n\t{#snippet children()}Hello <b>{name}</b>{/snippet}\n</T>'
 
-		expect(findSvelteTranslatable(code)).toStrictEqual(['Hello <1>${0}</1>'])
-		expect(findSvelteTranslatable('<T>{#snippet other()}Hi{/snippet}</T>')).toStrictEqual(['<1/>', 'Hi'])
+		expect(sources(code)).toStrictEqual(['Hello <1>${0}</1>'])
+		expect(sources('<T>{#snippet other()}Hi{/snippet}</T>')).toStrictEqual(['<1/>', 'Hi'])
 	})
 
 	it('skips empty <T>', () => {
-		expect(findSvelteTranslatable('<T></T><T />')).toStrictEqual([])
+		expect(sources('<T></T><T />')).toStrictEqual([])
+	})
+})
+
+describe('lang.t validation', () => {
+	it('checks placeholders only and treats angle brackets as text', () => {
+		expect(validatePlaceholders('Rank <1>', 'Rang inférieur à 1')).toBeUndefined()
+		expect(validatePlaceholders('Hi ${name}', 'Salut ${name}')).toBeUndefined()
+		expect(validatePlaceholders('Hi ${name}', 'Salut')).toBeDefined()
+		expect(validatePlaceholders('Hi ${name}', 'Salut ${name} ${name}')).toBeDefined()
+		expect(findSvelteTranslatable('<p>{lang.t`Rank <1>`}</p><T>Hi</T>')).toStrictEqual([
+			{ source: 'Rank <1>', kind: 't' },
+			{ source: 'Hi', kind: 'markup' },
+		])
 	})
 })
 
@@ -665,6 +679,67 @@ describe('<T> wrapper and normalisation', () => {
 			{ en: '<pre>Hello\n  world</pre>', fr: '<pre>Bonjour\n  le monde</pre>' }
 		)
 		expect(serializeT('<T><svelte:element this="b">a\n  b</svelte:element></T>')).toStrictEqual(['<1>a\n  b</1>'])
+	})
+})
+
+describe('<T> snippets, whitespace and lang.t', () => {
+	it('keeps helper snippets next to the children snippet', async () => {
+		const markup =
+			'<T>{#snippet helper()}world{/snippet}{#snippet children()}Hello {@render helper()}{/snippet}</T>'
+		const { code } = await check(
+			markup,
+			{ 'Hello <1/>': 'Bonjour <1/>' },
+			{},
+			{ en: 'Hello world', fr: 'Bonjour world' }
+		)
+
+		expect(code).toContain(
+			'{#snippet helper()}world{/snippet}{#snippet children()}{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}{@render helper()}{/snippet}{@render children()}{/if}'
+		)
+	})
+
+	it('trims element boundaries like Svelte does', async () => {
+		const baseline = await ssr(component('<b>\nHello\n</b>!'), {}, ['en'])
+		expect(baseline[0]).toBe('<b>Hello</b>!')
+
+		await check(
+			'<T><b>\nHello\n</b>!</T>',
+			{ '<1>Hello</1>!': '<1>Bonjour</1>!' },
+			{},
+			{
+				en: '<b>Hello</b>!',
+				fr: '<b>Bonjour</b>!',
+			}
+		)
+
+		const indented = '\n\t<b>\n\t\tHello\n\t</b>\n\t<i>\n\t\tthere\n\t</i>\n'
+		const [plain] = await ssr(component(indented), {}, ['en'])
+		expect(plain).toBe('<b>Hello</b> <i>there</i>')
+
+		await check(
+			`<T>${indented}</T>`,
+			{ '<1>Hello</1> <2>there</2>': '<1>Bonjour</1> <2>toi</2>' },
+			{},
+			{
+				en: '<b>Hello</b> <i>there</i>',
+				fr: '<b>Bonjour</b> <i>toi</i>',
+			}
+		)
+	})
+
+	it('stores a lang.t translation with angle brackets', async () => {
+		const { code, cache, warn } = await transform(
+			component('<p>{lang.t`Rank <1>`}</p>', "import { lang } from '@awsless/i18n/svelte'"),
+			table({ 'Rank <1>': { fr: 'Rang inférieur à 1' } })
+		)
+
+		expect(warn).not.toHaveBeenCalled()
+		expect(cache.get('Rank <1>', 'fr')).toBe('Rang inférieur à 1')
+		expect(code).toContain('{lang.t.get(`Rank <1>`, {"fr":`Rang inférieur à 1`})}')
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('<p>Rank &lt;1></p>')
+		expect(fr).toBe('<p>Rang inférieur à 1</p>')
 	})
 })
 

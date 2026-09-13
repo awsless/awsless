@@ -193,12 +193,14 @@ const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) 
 			})
 
 			const content = children.filter(child => !isBlank(child))
-			const only = content.length === 1 ? content[0] : undefined
-			const snippet = only?.type === 'SnippetBlock' && only.expression.name === 'children' ? only : undefined
+			const snippets = content.filter(child => child.type === 'SnippetBlock')
+			const snippet = snippets.find(child => child.expression.name === 'children')
 
-			// A bare children snippet inlines its body. One with parameters stays
-			// as declared and gets rendered, so its bindings and defaults survive.
-			const inline = snippet !== undefined && snippet.parameters.length === 0 && remove.length === 0
+			// A lone, parameterless children snippet inlines its body. Otherwise
+			// every declaration stays as written and children gets rendered, so
+			// parameters, defaults and helper snippets keep working.
+			const inline =
+				snippet !== undefined && snippet.parameters.length === 0 && content.length === 1 && remove.length === 0
 			const body = inline ? snippet.body.nodes : children
 			const outer = inline ? body : node.fragment.nodes
 			const first = outer[0]
@@ -228,8 +230,11 @@ const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) 
 	}
 }
 
-// Whitespace is a token level pass: only ASCII spaces collapse and trim, and
-// none of it inside pre, textarea or a preserveWhitespace component.
+// Whitespace follows Svelte's rules at the token level, since the emitted
+// text is dynamic and Svelte can't trim it any more: every body (the <T>
+// itself and each element) loses ASCII whitespace at its start and end,
+// interior runs collapse to one space, and none of it inside pre, textarea
+// or a preserveWhitespace component.
 const normalize = (pieces: Piece[]) => {
 	const merged: Piece[] = []
 
@@ -244,21 +249,23 @@ const normalize = (pieces: Piece[]) => {
 		}
 	}
 
-	const first = merged[0]?.token
-	const last = merged.at(-1)?.token
-
-	for (const { token } of merged) {
-		if (token.type === 'text' && !token.preserve) {
-			token.value = token.value.replace(ASCII_SPACE, ' ')
+	for (const [index, { token }] of merged.entries()) {
+		if (token.type !== 'text' || token.preserve) {
+			continue
 		}
-	}
 
-	if (first?.type === 'text' && !first.preserve) {
-		first.value = first.value.replace(/^[ \t\n\r\f]+/, '')
-	}
+		const before = merged[index - 1]?.token.type ?? 'open'
+		const after = merged[index + 1]?.token.type ?? 'close'
 
-	if (last?.type === 'text' && !last.preserve) {
-		last.value = last.value.replace(/[ \t\n\r\f]+$/, '')
+		token.value = token.value.replace(ASCII_SPACE, ' ')
+
+		if (before === 'open') {
+			token.value = token.value.replace(/^[ \t\n\r\f]+/, '')
+		}
+
+		if (after === 'close') {
+			token.value = token.value.replace(/[ \t\n\r\f]+$/, '')
+		}
 	}
 
 	return merged.filter(piece => piece.token.type !== 'text' || piece.token.value !== '')
@@ -404,7 +411,23 @@ const placeholdersOf = (tokens: Token[]) =>
 		.toSorted((a, b) => a - b)
 		.join(' ')
 
-/** Returns what is wrong with the translation, or nothing when it keeps
+// lang.t placeholders hold arbitrary code, so only `${...}` without braces inside counts.
+const placeholders = (text: string) =>
+	Array.from(text.matchAll(/\$\{([^{}]*)\}/g), match => match[1]!)
+		.toSorted()
+		.join('\u0000')
+
+/** Returns what is wrong with a lang.t translation, or nothing when it
+ * keeps every `${...}` placeholder. Angle brackets are plain text there. */
+export const validatePlaceholders = (source: string, translation: string) => {
+	if (placeholders(source) !== placeholders(translation)) {
+		return 'a placeholder is missing, duplicated or changed'
+	}
+
+	return
+}
+
+/** Returns what is wrong with a <T> translation, or nothing when it keeps
  * the tags of the source in order and every placeholder in its own run. */
 export const validateTranslation = (source: string, translation: string) => {
 	const expected = splitRuns(tokenize(source))

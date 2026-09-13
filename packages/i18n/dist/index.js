@@ -264,9 +264,8 @@ const collect = (nodes, preserve, found) => {
 				return [];
 			});
 			const content = children.filter((child) => !isBlank(child));
-			const only = content.length === 1 ? content[0] : void 0;
-			const snippet = only?.type === "SnippetBlock" && only.expression.name === "children" ? only : void 0;
-			const inline = snippet !== void 0 && snippet.parameters.length === 0 && remove.length === 0;
+			const snippet = content.filter((child) => child.type === "SnippetBlock").find((child) => child.expression.name === "children");
+			const inline = snippet !== void 0 && snippet.parameters.length === 0 && content.length === 1 && remove.length === 0;
 			const body = inline ? snippet.body.nodes : children;
 			const outer = inline ? body : node.fragment.nodes;
 			const first = outer[0];
@@ -313,11 +312,14 @@ const normalize = (pieces) => {
 			token: { ...piece.token }
 		});
 	}
-	const first = merged[0]?.token;
-	const last = merged.at(-1)?.token;
-	for (const { token } of merged) if (token.type === "text" && !token.preserve) token.value = token.value.replace(ASCII_SPACE, " ");
-	if (first?.type === "text" && !first.preserve) first.value = first.value.replace(/^[ \t\n\r\f]+/, "");
-	if (last?.type === "text" && !last.preserve) last.value = last.value.replace(/[ \t\n\r\f]+$/, "");
+	for (const [index, { token }] of merged.entries()) {
+		if (token.type !== "text" || token.preserve) continue;
+		const before = merged[index - 1]?.token.type ?? "open";
+		const after = merged[index + 1]?.token.type ?? "close";
+		token.value = token.value.replace(ASCII_SPACE, " ");
+		if (before === "open") token.value = token.value.replace(/^[ \t\n\r\f]+/, "");
+		if (after === "close") token.value = token.value.replace(/[ \t\n\r\f]+$/, "");
+	}
 	return merged.filter((piece) => piece.token.type !== "text" || piece.token.value !== "");
 };
 const isRunToken = (token) => token.type === "text" || token.type === "expr";
@@ -430,7 +432,13 @@ const splitRuns = (tokens) => {
 	};
 };
 const placeholdersOf = (tokens) => tokens.flatMap((token) => token.type === "expr" ? [token.index] : []).toSorted((a, b) => a - b).join(" ");
-/** Returns what is wrong with the translation, or nothing when it keeps
+const placeholders = (text) => Array.from(text.matchAll(/\$\{([^{}]*)\}/g), (match) => match[1]).toSorted().join("\0");
+/** Returns what is wrong with a lang.t translation, or nothing when it
+* keeps every `${...}` placeholder. Angle brackets are plain text there. */
+const validatePlaceholders = (source, translation) => {
+	if (placeholders(source) !== placeholders(translation)) return "a placeholder is missing, duplicated or changed";
+};
+/** Returns what is wrong with a <T> translation, or nothing when it keeps
 * the tags of the source in order and every placeholder in its own run. */
 const validateTranslation = (source, translation) => {
 	const expected = splitRuns(tokenize(source));
@@ -520,13 +528,19 @@ const findSvelteTranslatable = (code, file) => {
 			const start = node.quasi.loc.start;
 			const end = node.quasi.loc.end;
 			const content = code.substring(origin.toIndex(start.line, start.column) + 2, origin.toIndex(end.line, end.column));
-			found.push(content);
+			found.push({
+				source: content,
+				kind: "t"
+			});
 		}
 	};
 	walk(ast.html, { enter });
 	if (ast.instance) walk(ast.instance.content, { enter });
 	if (ast.module) walk(ast.module.content, { enter });
-	if (hasT(code)) for (const component of findTComponents(code, file)) found.push(...collectSources(component));
+	if (hasT(code)) for (const component of findTComponents(code, file)) found.push(...collectSources(component).map((source) => ({
+		source,
+		kind: "markup"
+	})));
 	return found;
 };
 //#endregion
@@ -537,7 +551,10 @@ const findTypescriptTranslatable = async (code) => {
 	walk(ast.program, { enter(node) {
 		if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t") {
 			const quasi = node.quasi;
-			found.push(code.slice(quasi.start + 1, quasi.end - 1));
+			found.push({
+				source: code.slice(quasi.start + 1, quasi.end - 1),
+				kind: "t"
+			});
 		}
 	} });
 	return found;
@@ -569,18 +586,19 @@ const i18n = (props) => {
 	let generatedCache;
 	let overrideCache;
 	let queue = Promise.resolve();
-	const translateMissing = (cwd, sourceTexts, log) => {
-		queue = queue.catch(() => {}).then(() => translateNow(cwd, sourceTexts, log));
+	const translateMissing = (cwd, sources, log) => {
+		queue = queue.catch(() => {}).then(() => translateNow(cwd, sources, log));
 		return queue;
 	};
-	const translateNow = async (cwd, sourceTexts, log) => {
-		const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales);
+	const translateNow = async (cwd, sources, log) => {
+		const newSourceTexts = findNewTranslations(cache, sources.map((item) => item.source), props.locales);
+		const markup = new Set(sources.filter((item) => item.kind === "markup").map((item) => item.source));
 		if (newSourceTexts.length > 0) {
 			log.info(`Translating ${newSourceTexts.length} new texts.`);
 			const translations = await props.translate(props.default ?? "en", newSourceTexts);
 			log.info(`Translated ${translations.length} texts.`);
 			for (const item of translations) {
-				const problem = validateTranslation(item.source, item.translation);
+				const problem = (markup.has(item.source) ? validateTranslation : validatePlaceholders)(item.source, item.translation);
 				if (problem) {
 					log.warn(`Skipped the "${item.locale}" translation of "${item.source}": ${problem}.`);
 					continue;
@@ -597,12 +615,12 @@ const i18n = (props) => {
 		async buildStart() {
 			const cwd = process.cwd();
 			this.info("Finding all translatable text...");
-			const sourceTexts = await findTranslatable(cwd);
+			const sources = await findTranslatable(cwd);
 			generatedCache = await loadGeneratedCache(cwd);
 			overrideCache = await loadOverrideCache(cwd);
-			removeUnusedTranslations(generatedCache, sourceTexts, props.locales);
+			removeUnusedTranslations(generatedCache, sources.map((item) => item.source), props.locales);
 			cache = mergeCaches(generatedCache, overrideCache);
-			await translateMissing(cwd, sourceTexts, {
+			await translateMissing(cwd, sources, {
 				info: (message) => this.info(message),
 				warn: (message) => this.warn(message)
 			});
@@ -610,8 +628,8 @@ const i18n = (props) => {
 		},
 		async hotUpdate({ file, read }) {
 			if (!cache || !SOURCE_FILE.test(file) || isIgnoredPath(file)) return;
-			const sourceTexts = await findTranslatableInCode(file, await read());
-			if (sourceTexts.length > 0) await translateMissing(process.cwd(), sourceTexts, this.environment.logger);
+			const sources = await findTranslatableInCode(file, await read());
+			if (sources.length > 0) await translateMissing(process.cwd(), sources, this.environment.logger);
 		},
 		transform(code, id) {
 			const withLangT = code.includes("lang.t`");
