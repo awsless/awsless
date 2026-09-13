@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import lineColumn from 'line-column'
 import { AST, parse } from 'svelte/compiler'
 import { annotate, lookupNamespace, Namespace, svelteInternals, SvelteNode } from './svelte-internal'
@@ -147,44 +148,13 @@ const hasExposedDynamicElement = (nodes: AST.Fragment['nodes']): boolean =>
 // not: a <svelte:element> without a static xmlns gets the component's own
 // namespace now and the surrounding one once unwrapped. When those differ,
 // the runtime component has to stay. `path` is the <T>'s ancestry.
-// Svelte runs the awaits of a body concurrently, while a values array would
-// run them one after the other, which can deadlock. Awaits inside a function
-// are not the template's own and do not count.
-const FUNCTIONS = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'FunctionDeclaration'])
-
-const hasAwait = (value: unknown, seen = new Set<object>()): boolean => {
-	if (!value || typeof value !== 'object' || seen.has(value)) {
-		return false
-	}
-
-	seen.add(value)
-
-	if (Array.isArray(value)) {
-		return value.some(item => hasAwait(item, seen))
-	}
-
-	const node = value as { type?: string }
-
-	if (node.type === 'AwaitExpression') {
-		return true
-	}
-
-	if (node.type !== undefined && FUNCTIONS.has(node.type)) {
-		return false
-	}
-
-	return Object.values(node).some(item => hasAwait(item, seen))
-}
-
 const isRuntimeOnly = (node: AST.Component, path: SvelteNode[], componentNamespace: Namespace) =>
 	node.attributes.some(
 		attribute =>
 			!(attribute.type === 'LetDirective' || (attribute.type === 'Attribute' && attribute.name === 'slot'))
 	) ||
 	node.fragment.nodes.some(hasSlotAttribute) ||
-	(hasExposedDynamicElement(node.fragment.nodes) &&
-		lookupNamespace(path, componentNamespace) !== componentNamespace) ||
-	hasAwait(node.fragment.nodes)
+	(hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace)
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
 
@@ -1051,11 +1021,10 @@ const splitRuns = (tokens: Token[]) => {
 	return { tags, runs }
 }
 
+// The expressions stay where they are in the markup, so a translation has to
+// keep them in the source's order.
 const placeholdersOf = (tokens: Token[]) =>
-	tokens
-		.flatMap(token => (token.type === 'expr' ? [token.index] : []))
-		.toSorted((a, b) => a - b)
-		.join(' ')
+	tokens.flatMap(token => (token.type === 'expr' ? [token.index] : [])).join(' ')
 
 // lang.t placeholders hold arbitrary code, so only `${...}` without braces inside counts.
 const placeholders = (text: string) =>
@@ -1090,7 +1059,7 @@ export const validateTranslation = (source: string, translation: string, sealed:
 
 	for (const [index, run] of expected.runs.entries()) {
 		if (placeholdersOf(run) !== placeholdersOf(actual.runs[index]!)) {
-			return 'a placeholder is missing, duplicated or moved across a tag'
+			return 'a placeholder is missing, duplicated, reordered or moved across a tag'
 		}
 	}
 
@@ -1098,7 +1067,7 @@ export const validateTranslation = (source: string, translation: string, sealed:
 }
 
 // ---------------------------------------------------------------------------
-// Emitting: `{__i18n_lang.t.pick(["Hello ", 0], {"fr":["Bonjour ", 0]}, [__i18n_lang.t.str((name))])}`
+// Emitting: `{__i18n_lang.t.part("3f2a9c1e", 0)}{name}{__i18n_lang.t.part("3f2a9c1e", 1)}`
 
 /** A name for the imported `lang` that nothing in the file uses: every
  * identifier in the scripts and the template counts, bound or not. */
@@ -1149,20 +1118,30 @@ export const aliasFor = (ast: AST.Root, base = '__i18n_lang') => {
 
 export type Lookup = (source: string, locale: string) => string | undefined
 
-// Parts are text or the position of a value, so a translation can reorder
-// expressions while each one is still evaluated only once.
-const partsOf = (tokens: Token[], positions: Map<number, number>) =>
-	tokens.map(token => {
-		if (token.type === 'text') {
-			return token.value
-		}
+// The text between a run's expressions: one slice more than there are
+// expressions, with adjacent text tokens joined.
+const slicesOf = (tokens: Token[]) => {
+	const slices = ['']
 
-		if (token.type !== 'expr' || !positions.has(token.index)) {
+	for (const token of tokens) {
+		if (token.type === 'text') {
+			slices[slices.length - 1] += token.value
+		} else if (token.type === 'expr') {
+			slices.push('')
+		} else {
 			throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`)
 		}
+	}
 
-		return positions.get(token.index)!
-	})
+	return slices
+}
+
+// Stable across builds, so server and client agree on it.
+export const runId = (source: string, index: number) =>
+	createHash('sha1').update(`${source}\u0000${index}`).digest('hex').slice(0, 8)
+
+/** The per-locale text slices of the runs a component emits, keyed by run id. */
+export type Runs = Record<string, [source: string[], translations: Record<string, string[]>]>
 
 // Normalised text put back as markup: what entity decoding undid is redone.
 const escapeMarkup = (text: string) =>
@@ -1197,6 +1176,7 @@ export const transformT = (
 	alias = '__i18n_lang'
 ) => {
 	const edits: Edit[] = []
+	const runs: Runs = {}
 	let translated = false
 
 	// An empty <T> still leaves an empty block behind, so the parent keeps
@@ -1204,7 +1184,7 @@ export const transformT = (
 	// slot fallbacks stay suppressed.
 	if (!component.wrap) {
 		const text = `${component.head}{#if true}{/if}${component.foot}`
-		return { edits: [{ start: component.start, end: component.end, text }], translated }
+		return { edits: [{ start: component.start, end: component.end, text }], runs, translated }
 	}
 
 	// A block is a real scope for `{@const}` and snippets, and unlike a
@@ -1243,40 +1223,50 @@ export const transformT = (
 		}
 
 		const calls = segment.runs.map((run, index) => {
+			const source = slicesOf(run.tokens)
+			const changed: Record<string, string[]> = {}
+
+			for (const item of translations) {
+				const slices = slicesOf(item.runs[index]!)
+
+				if (slices.join('\u0000') !== source.join('\u0000')) {
+					changed[item.locale] = slices
+				}
+			}
+
+			const mustache = (i: number) => `{${spliced(code, segment.expressions[i]!, rewrites)}}`
 			const indices = run.tokens.flatMap(token => (token.type === 'expr' ? [token.index] : []))
-			const positions = new Map(indices.map((expression, position) => [expression, position]))
-			const source = JSON.stringify(partsOf(run.tokens, positions))
-
-			const changed = translations.flatMap(item => {
-				const parts = JSON.stringify(partsOf(item.runs[index]!, positions))
-				return parts === source ? [] : [`"${item.locale}":${parts}`]
-			})
-
-			// Each value is stringified right where Svelte would have, in source
-			// order; parentheses keep a sequence expression as one value.
-			const values =
-				indices.length > 0
-					? `, [${indices
-							.map(i => `${alias}.t.str((${spliced(code, segment.expressions[i]!, rewrites)}))`)
-							.join(', ')}]`
-					: ''
 
 			// An unchanged run stays markup, since a call is not allowed everywhere
 			// (table rows, beside an explicit children snippet).
 			const literal = run.tokens
 				.map(token =>
-					token.type === 'text'
-						? escapeMarkup(token.value)
-						: `{${spliced(code, segment.expressions[(token as { index: number }).index]!, rewrites)}}`
+					token.type === 'text' ? escapeMarkup(token.value) : mustache((token as { index: number }).index)
 				)
 				.join('')
 
-			const text = changed.length > 0 ? `{${alias}.t.pick(${source}, {${changed.join(',')}}${values})}` : literal
+			if (Object.keys(changed).length === 0) {
+				return { run, changed, text: literal }
+			}
 
-			return { run, changed, text }
+			// Each text slice is its own call and each expression stays its own
+			// mustache, so Svelte evaluates, coerces and awaits them as before.
+			const id = runId(segment.source, index)
+			const slice = (n: number) =>
+				source[n] === '' && Object.values(changed).every(slices => slices[n] === '')
+					? ''
+					: `{${alias}.t.part("${id}", ${n})}`
+
+			runs[id] = [source, changed]
+
+			return {
+				run,
+				changed,
+				text: slice(0) + indices.map((expression, n) => mustache(expression) + slice(n + 1)).join(''),
+			}
 		})
 
-		if (!calls.some(call => call.changed.length > 0)) {
+		if (!calls.some(call => Object.keys(call.changed).length > 0)) {
 			continue
 		}
 
@@ -1287,15 +1277,15 @@ export const transformT = (
 			// A gap that is empty in the source still gets a call when a
 			// translation puts text there; it lands at the gap's offset, or
 			// over the whitespace that was normalised away.
-			if (run.tokens.length === 0 && changed.length === 0) {
+			if (run.tokens.length === 0 && Object.keys(changed).length === 0) {
 				edits.push(...run.dropped.map(range => ({ ...range, text: '' })))
 				continue
 			}
 
 			edits.push({ start: run.start, end: run.end, text })
-			translated ||= changed.length > 0
+			translated ||= Object.keys(changed).length > 0
 		}
 	}
 
-	return { edits, translated }
+	return { edits, runs, translated }
 }

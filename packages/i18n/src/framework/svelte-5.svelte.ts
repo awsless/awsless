@@ -3,9 +3,11 @@ declare const $derived: { by: <T>(c: () => T) => T }
 
 type StringArgs = Array<string | number | { toString(): string }>
 
-// Text, or the position of a value. Values arrive evaluated and stringified,
-// so a translation can reorder them without running an expression twice.
-type Part = string | number
+// The text slices of one translated run, between its expressions: the
+// source's own and one list per locale. Registered once per component file.
+type Run = [source: string[], translations: Record<string, string[]>]
+
+const runs = new Map<string, Run>()
 
 type Translate = {
 	(template: TemplateStringsArray, ...args: StringArgs): string
@@ -22,18 +24,18 @@ let t: Translate = $derived.by(() => {
 		return translations[locale] ?? og
 	}
 
-	// Coerces like Svelte does for `{value}`: nullish is empty, symbols stringify.
-	api.str = (value: unknown) => (value == null ? '' : String(value))
-
-	// Values arrive as strings already, so reordering them is safe.
-	api.pick = (source: Part[], translations: Record<string, Part[]>, values: string[] = []) => {
-		let result = ''
-
-		for (const part of translations[locale] ?? source) {
-			result += typeof part === 'number' ? (values[part] ?? '') : part
+	api.runs = (table: Record<string, Run>) => {
+		for (const [id, run] of Object.entries(table)) {
+			runs.set(id, run)
 		}
+	}
 
-		return result
+	// The n-th text slice of a run in the active locale. The expressions in
+	// between stay Svelte's own, so it schedules them as it always does.
+	api.part = (id: string, index: number) => {
+		const run = runs.get(id)
+
+		return run ? ((run[1][locale] ?? run[0])[index] ?? '') : ''
 	}
 
 	return api

@@ -7,7 +7,17 @@ import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source, Tagged
 import { findTaggedTemplates } from './find/svelte'
 import { findTypescriptTagged } from './find/typescript'
 import { svelteInternals } from './svelte-internal'
-import { aliasFor, Edit, hasT, parseT, TOptions, transformT, validatePlaceholders, validateTranslation } from './t'
+import {
+	aliasFor,
+	Edit,
+	hasT,
+	parseT,
+	Runs,
+	TOptions,
+	transformT,
+	validatePlaceholders,
+	validateTranslation,
+} from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -50,8 +60,10 @@ export type I18nPluginProps = {
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
-// A private alias, so a `lang` of the component itself can't shadow the calls.
-const langImport = (alias: string) => `import { lang as ${alias} } from '@awsless/i18n/svelte'`
+// A private alias, so a `lang` of the component itself can't shadow the calls,
+// followed by the one-time registration of the file's translated runs.
+const langImport = (alias: string, runs: Runs) =>
+	`import { lang as ${alias} } from '@awsless/i18n/svelte'\n${alias}.t.runs(${JSON.stringify(runs)})`
 
 type Logger = {
 	info: (message: string) => void
@@ -257,6 +269,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				const templates = rewrites(findTaggedTemplates(ast, code))
 				const lookup = (source: string, locale: string) => cache.get(source, locale)
 				const edits: Edit[] = []
+				const runs: Runs = {}
 				let called = false
 
 				for (const component of components) {
@@ -270,6 +283,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 						alias
 					)
 					edits.push(...result.edits)
+					Object.assign(runs, result.runs)
 					called ||= result.translated
 				}
 
@@ -305,9 +319,11 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 						const first = ast.instance.content.body[0] as unknown as { start: number } | undefined
 						const sameLine = !code.slice(start, first?.start ?? start).includes('\n')
 
-						transformedCode.appendLeft(start, `${langImport(alias)}${sameLine ? ';\n' : ''}`)
+						transformedCode.appendLeft(start, `${langImport(alias, runs)}${sameLine ? ';\n' : ''}`)
 					} else {
-						transformedCode.prepend(`<script>\n\t${langImport(alias)}\n</script>\n`)
+						transformedCode.prepend(
+							`<script>\n\t${langImport(alias, runs).replace('\n', '\n\t')}\n</script>\n`
+						)
 					}
 				}
 			} else {

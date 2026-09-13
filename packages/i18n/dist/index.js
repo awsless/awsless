@@ -4,6 +4,7 @@ import MagicString from "magic-string";
 import { readFile, stat, writeFile } from "fs/promises";
 import { join as join$1 } from "path";
 import { glob } from "glob";
+import { createHash } from "node:crypto";
 import lineColumn from "line-column";
 import { parse } from "svelte/compiler";
 import { walk } from "estree-walker";
@@ -286,21 +287,7 @@ const hasExposedDynamicElement = (nodes) => nodes.some((node) => {
 		default: return false;
 	}
 });
-const FUNCTIONS = /* @__PURE__ */ new Set([
-	"FunctionExpression",
-	"ArrowFunctionExpression",
-	"FunctionDeclaration"
-]);
-const hasAwait = (value, seen = /* @__PURE__ */ new Set()) => {
-	if (!value || typeof value !== "object" || seen.has(value)) return false;
-	seen.add(value);
-	if (Array.isArray(value)) return value.some((item) => hasAwait(item, seen));
-	const node = value;
-	if (node.type === "AwaitExpression") return true;
-	if (node.type !== void 0 && FUNCTIONS.has(node.type)) return false;
-	return Object.values(node).some((item) => hasAwait(item, seen));
-};
-const isRuntimeOnly = (node, path, componentNamespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace || hasAwait(node.fragment.nodes);
+const isRuntimeOnly = (node, path, componentNamespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace;
 const COMPONENTS = /* @__PURE__ */ new Set([
 	"Component",
 	"SvelteComponent",
@@ -944,7 +931,7 @@ const splitRuns = (tokens) => {
 		runs
 	};
 };
-const placeholdersOf = (tokens) => tokens.flatMap((token) => token.type === "expr" ? [token.index] : []).toSorted((a, b) => a - b).join(" ");
+const placeholdersOf = (tokens) => tokens.flatMap((token) => token.type === "expr" ? [token.index] : []).join(" ");
 const placeholders = (text) => Array.from(text.matchAll(/\$\{([^{}]*)\}/g), (match) => match[1]).toSorted().join("\0");
 /** Returns what is wrong with a lang.t translation, or nothing when it
 * keeps every `${...}` placeholder. Angle brackets are plain text there. */
@@ -959,7 +946,7 @@ const validateTranslation = (source, translation, sealed = []) => {
 	const actual = splitRuns(tokenize(translation));
 	if (expected.tags.join(" ") !== actual.tags.join(" ")) return "the numbered tags differ from the source";
 	if (sealed.some((index) => serialize(actual.runs[index] ?? []) !== serialize(expected.runs[index]))) return "text was changed where the surrounding element or component allows none";
-	for (const [index, run] of expected.runs.entries()) if (placeholdersOf(run) !== placeholdersOf(actual.runs[index])) return "a placeholder is missing, duplicated or moved across a tag";
+	for (const [index, run] of expected.runs.entries()) if (placeholdersOf(run) !== placeholdersOf(actual.runs[index])) return "a placeholder is missing, duplicated, reordered or moved across a tag";
 };
 /** A name for the imported `lang` that nothing in the file uses: every
 * identifier in the scripts and the template counts, bound or not. */
@@ -984,11 +971,14 @@ const aliasFor = (ast, base = "__i18n_lang") => {
 	for (let suffix = 1; taken.has(alias); suffix++) alias = `${base}${suffix}`;
 	return alias;
 };
-const partsOf = (tokens, positions) => tokens.map((token) => {
-	if (token.type === "text") return token.value;
-	if (token.type !== "expr" || !positions.has(token.index)) throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`);
-	return positions.get(token.index);
-});
+const slicesOf = (tokens) => {
+	const slices = [""];
+	for (const token of tokens) if (token.type === "text") slices[slices.length - 1] += token.value;
+	else if (token.type === "expr") slices.push("");
+	else throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`);
+	return slices;
+};
+const runId = (source, index) => createHash("sha1").update(`${source}\u0000${index}`).digest("hex").slice(0, 8);
 const escapeMarkup = (text) => text.replace(/[&<{}]/g, (char) => ({
 	"&": "&amp;",
 	"<": "&lt;",
@@ -1009,6 +999,7 @@ const spliced = (code, target, rewrites) => {
 * removes, one without length inserts. */
 const transformT = (component, code, locales, lookup, warn, rewrites = [], alias = "__i18n_lang") => {
 	const edits = [];
+	const runs = {};
 	let translated = false;
 	if (!component.wrap) {
 		const text = `${component.head}{#if true}{/if}${component.foot}`;
@@ -1018,6 +1009,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = [], alias
 				end: component.end,
 				text
 			}],
+			runs,
 			translated
 		};
 	}
@@ -1048,24 +1040,32 @@ const transformT = (component, code, locales, lookup, warn, rewrites = [], alias
 		}
 		if (translations.length === 0) continue;
 		const calls = segment.runs.map((run, index) => {
+			const source = slicesOf(run.tokens);
+			const changed = {};
+			for (const item of translations) {
+				const slices = slicesOf(item.runs[index]);
+				if (slices.join("\0") !== source.join("\0")) changed[item.locale] = slices;
+			}
+			const mustache = (i) => `{${spliced(code, segment.expressions[i], rewrites)}}`;
 			const indices = run.tokens.flatMap((token) => token.type === "expr" ? [token.index] : []);
-			const positions = new Map(indices.map((expression, position) => [expression, position]));
-			const source = JSON.stringify(partsOf(run.tokens, positions));
-			const changed = translations.flatMap((item) => {
-				const parts = JSON.stringify(partsOf(item.runs[index], positions));
-				return parts === source ? [] : [`"${item.locale}":${parts}`];
-			});
-			const values = indices.length > 0 ? `, [${indices.map((i) => `${alias}.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
-			const literal = run.tokens.map((token) => token.type === "text" ? escapeMarkup(token.value) : `{${spliced(code, segment.expressions[token.index], rewrites)}}`).join("");
+			const literal = run.tokens.map((token) => token.type === "text" ? escapeMarkup(token.value) : mustache(token.index)).join("");
+			if (Object.keys(changed).length === 0) return {
+				run,
+				changed,
+				text: literal
+			};
+			const id = runId(segment.source, index);
+			const slice = (n) => source[n] === "" && Object.values(changed).every((slices) => slices[n] === "") ? "" : `{${alias}.t.part("${id}", ${n})}`;
+			runs[id] = [source, changed];
 			return {
 				run,
 				changed,
-				text: changed.length > 0 ? `{${alias}.t.pick(${source}, {${changed.join(",")}}${values})}` : literal
+				text: slice(0) + indices.map((expression, n) => mustache(expression) + slice(n + 1)).join("")
 			};
 		});
-		if (!calls.some((call) => call.changed.length > 0)) continue;
+		if (!calls.some((call) => Object.keys(call.changed).length > 0)) continue;
 		for (const { run, changed, text } of calls) {
-			if (run.tokens.length === 0 && changed.length === 0) {
+			if (run.tokens.length === 0 && Object.keys(changed).length === 0) {
 				edits.push(...run.dropped.map((range) => ({
 					...range,
 					text: ""
@@ -1077,11 +1077,12 @@ const transformT = (component, code, locales, lookup, warn, rewrites = [], alias
 				end: run.end,
 				text
 			});
-			translated ||= changed.length > 0;
+			translated ||= Object.keys(changed).length > 0;
 		}
 	}
 	return {
 		edits,
+		runs,
 		translated
 	};
 };
@@ -1168,7 +1169,7 @@ const findTranslatableInCode = async (file, code, options = {}) => {
 //#endregion
 //#region src/vite.ts
 const SOURCE_FILE = /\.(svelte|ts|js)$/;
-const langImport = (alias) => `import { lang as ${alias} } from '@awsless/i18n/svelte'`;
+const langImport = (alias, runs) => `import { lang as ${alias} } from '@awsless/i18n/svelte'\n${alias}.t.runs(${JSON.stringify(runs)})`;
 const outermost = (tagged) => tagged.filter((item) => !tagged.some((other) => other !== item && other.start <= item.start && item.end <= other.end));
 const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
 const svelteCompilerOptions = (plugins) => {
@@ -1274,10 +1275,12 @@ const i18n = (props) => {
 				const templates = rewrites(findTaggedTemplates(ast, code));
 				const lookup = (source, locale) => cache.get(source, locale);
 				const edits = [];
+				const runs = {};
 				let called = false;
 				for (const component of components) {
 					const result = transformT(component, code, props.locales, lookup, (message) => this.warn(message), templates, alias);
 					edits.push(...result.edits);
+					Object.assign(runs, result.runs);
 					called ||= result.translated;
 				}
 				for (const edit of edits) if (edit.text === "") {
@@ -1290,8 +1293,8 @@ const i18n = (props) => {
 						const { start } = ast.instance.content;
 						const first = ast.instance.content.body[0];
 						const sameLine = !code.slice(start, first?.start ?? start).includes("\n");
-						transformedCode.appendLeft(start, `${langImport(alias)}${sameLine ? ";\n" : ""}`);
-					} else transformedCode.prepend(`<script>\n\t${langImport(alias)}\n<\/script>\n`);
+						transformedCode.appendLeft(start, `${langImport(alias, runs)}${sameLine ? ";\n" : ""}`);
+					} else transformedCode.prepend(`<script>\n\t${langImport(alias, runs).replace("\n", "\n	")}\n<\/script>\n`);
 				}
 			} else for (const template of rewrites(findTypescriptTagged(code))) transformedCode.overwrite(template.start, template.end, template.text);
 			return {

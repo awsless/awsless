@@ -11,12 +11,21 @@ import { loadCache } from '../src/cache'
 import { findSvelteTranslatable } from '../src/find/svelte'
 import { findTypescriptTranslatable } from '../src/find/typescript'
 import { svelteInternals } from '../src/svelte-internal'
-import { findTComponents, serialize, tokenize, validatePlaceholders, validateTranslation } from '../src/t'
+import { findTComponents, runId, serialize, tokenize, validatePlaceholders, validateTranslation } from '../src/t'
 
 // Only a <T> imported from this package counts, so the fixtures import it.
 const IMPORT_T = "<script>import T from '@awsless/i18n/T'</script>"
 const withT = (markup: string) => (markup.includes('@awsless/i18n/T') ? markup : IMPORT_T + markup)
 const serializeT = (markup: string) => findTComponents(withT(markup)).flatMap(item => item.segments.map(s => s.source))
+
+// The emitted call for the n-th text slice of a run, and the registration line.
+const part = (source: string, run: number, slice: number, alias = '__i18n_lang') =>
+	`{${alias}.t.part("${runId(source, run)}", ${slice})}`
+const runs = (
+	entries: [source: string, run: number, slices: string[], translations: Record<string, string[]>][],
+	alias = '__i18n_lang'
+) =>
+	`${alias}.t.runs(${JSON.stringify(Object.fromEntries(entries.map(([source, run, slices, translations]) => [runId(source, run), [slices, translations]])))})`
 const sources = (code: string) => findSvelteTranslatable(withT(code)).map(item => item.source)
 
 const example = 'Hello <1>${0}</1>, you have <2>${1} items</2>. <3/>'
@@ -142,9 +151,8 @@ const ssr = async (code: string, props: Props, locales: string[], compileOptions
 			'const locale = () => globalThis.__locale',
 			'export const lang = { t: {',
 			'\tget: (og, translations) => translations[locale()] ?? og,',
-			'\tstr: value => value == null ? "" : String(value),',
-			'\tpick: (source, translations, values = []) => (translations[locale()] ?? source)',
-			'\t\t.map(part => typeof part === "number" ? values[part] ?? "" : part).join(""),',
+			'\truns: table => Object.assign(globalThis.__runs ??= {}, table),',
+			'\tpart: (id, index) => { const run = globalThis.__runs?.[id]; return run ? (run[1][locale()] ?? run[0])[index] ?? "" : "" },',
 			'} }',
 			'',
 		].join('\n')
@@ -348,10 +356,12 @@ describe('lang.t validation', () => {
 })
 
 describe('<T> validation', () => {
-	it('accepts moved text, reordered placeholders in a run and kept structure', () => {
+	it('accepts moved text and kept structure, but no reordered placeholders', () => {
 		expect(validateTranslation(example, exampleFr)).toBeUndefined()
 		expect(validateTranslation('<1>a</1> b', '<1></1> a b')).toBeUndefined()
-		expect(validateTranslation('${0} ${1}', '${1} ${0}')).toBeUndefined()
+		expect(validateTranslation('${0} ${1}', '${0} et ${1}')).toBeUndefined()
+		// The expressions keep their place in the markup, so they cannot swap.
+		expect(validateTranslation('${0} ${1}', '${1} ${0}')).toBeDefined()
 		expect(validateTranslation('\\${0} \\<1\\>', '\\${0} et \\<1\\>')).toBeUndefined()
 	})
 
@@ -375,10 +385,17 @@ describe('<T> transform', () => {
 
 		expect(code).toContain(
 			'{#if true}' +
-				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{name}</b>' +
-				'{__i18n_lang.t.pick([", you have "], {"fr":[", vous avez "]})}' +
-				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [__i18n_lang.t.str((n))])}</Badge>. <Icon/>' +
+				`${part(example, 0, 0)}<b class="x">{name}</b>` +
+				`${part(example, 2, 0)}` +
+				`<Badge count={n}>{n}${part(example, 3, 1)}</Badge>. <Icon/>` +
 				'{/if}'
+		)
+		expect(code).toContain(
+			runs([
+				[example, 0, ['Hello '], { fr: ['Bonjour '] }],
+				[example, 2, [', you have '], { fr: [', vous avez '] }],
+				[example, 3, ['', ' items'], { fr: ['', ' articles'] }],
+			])
 		)
 		expect(code).not.toContain('<T')
 		expect(code.match(/<Badge/g)).toHaveLength(1)
@@ -399,10 +416,10 @@ describe('<T> transform', () => {
 
 		expect(code).toContain(
 			'{#if true}' +
-				'{__i18n_lang.t.pick(["You have "], {"fr":["Il vous reste "]})}' +
-				'{#if n === 0}{__i18n_lang.t.pick(["no items"], {"fr":["aucun article"]})}' +
-				'{:else}<b>{n}</b>{__i18n_lang.t.pick([" items"], {"fr":[" articles"]})}{/if}' +
-				'{__i18n_lang.t.pick([" left."], {"fr":["."]})}' +
+				part('You have <1/> left.', 0, 0) +
+				`{#if n === 0}${part('no items', 0, 0)}` +
+				`{:else}<b>{n}</b>${part('<1>${0}</1> items', 2, 0)}{/if}` +
+				part('You have <1/> left.', 1, 0) +
 				'{/if}'
 		)
 		expect(() => compile(code, { generate: 'client' })).not.toThrow()
@@ -411,7 +428,9 @@ describe('<T> transform', () => {
 	it('injects the aliased import on its own line, once', async () => {
 		const translate = table({ Hello: { fr: 'Bonjour' } })
 		const head =
-			"<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte'\n\timport T from '@awsless/i18n/T'"
+			"<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte'\n" +
+			runs([['Hello', 0, ['Hello'], { fr: ['Bonjour'] }]]) +
+			"\n\timport T from '@awsless/i18n/T'"
 
 		const missing = await transform(component('<T>Hello</T>'), translate)
 		expect(missing.code).toContain(head)
@@ -429,7 +448,9 @@ describe('<T> transform', () => {
 			translate
 		)
 		expect(sameLine.code).toContain(
-			"<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte';\nimport T from '@awsless/i18n/T'; let name = \"Ann\";</script>"
+			"<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte'\n" +
+				runs([['Hello', 0, ['Hello'], { fr: ['Bonjour'] }]]) +
+				';\nimport T from \'@awsless/i18n/T\'; let name = "Ann";</script>'
 		)
 
 		// The import may live in the module script, leaving no instance script to extend.
@@ -438,9 +459,11 @@ describe('<T> transform', () => {
 			translate
 		)
 		expect(noScript.code).toBe(
-			"<script>\n\timport { lang as __i18n_lang } from '@awsless/i18n/svelte'\n</script>\n" +
+			"<script>\n\timport { lang as __i18n_lang } from '@awsless/i18n/svelte'\n\t" +
+				runs([['Hello', 0, ['Hello'], { fr: ['Bonjour'] }]]) +
+				'\n</script>\n' +
 				"<script module>import T from '@awsless/i18n/T'</script>\n" +
-				'<p>{#if true}{__i18n_lang.t.pick(["Hello"], {"fr":["Bonjour"]})}{/if}</p>\n'
+				`<p>{#if true}${part('Hello', 0, 0)}{/if}</p>\n`
 		)
 		expect(() => compile(noScript.code, { generate: 'client' })).not.toThrow()
 	})
@@ -466,7 +489,15 @@ describe('<T> transform', () => {
 		expect(warn).toHaveBeenCalledTimes(1)
 		expect(warn.mock.calls[0]?.[0]).toContain(`"fr" translation of "${example}"`)
 		expect(cache.get(example, 'fr')).toBeUndefined()
-		expect(code).toContain('{__i18n_lang.t.pick(["Hello "], {"jp":["こんにちは "]})}')
+		expect(code).toContain(part(example, 0, 0))
+		expect(code).toContain(
+			runs([
+				[example, 0, ['Hello '], { jp: ['こんにちは '] }],
+				[example, 2, [', you have '], { jp: ['、'] }],
+				[example, 3, ['', ' items'], { jp: ['', ' 件'] }],
+				[example, 4, ['. '], { jp: ['。'] }],
+			])
+		)
 	})
 
 	it('warns about a broken override and keeps the source', async () => {
@@ -484,9 +515,8 @@ describe('<T> transform', () => {
 			table({ 'Hello ${0}': { fr: 'Bonjour ${0}' }, Bye: { fr: 'Au revoir' }, x: { fr: 'y' } })
 		)
 
-		expect(code).toContain(
-			'{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [__i18n_lang.t.str((lang.t.get(`x`, {"fr":`y`})))])}'
-		)
+		expect(code).toContain(`${part('Hello ${0}', 0, 0)}{lang.t.get(\`x\`, {"fr":\`y\`})}`)
+		expect(code).toContain(runs([['Hello ${0}', 0, ['Hello ', ''], { fr: ['Bonjour ', ''] }]]))
 		expect(code).toContain('<p>{lang.t.get(`Bye`, {"fr":`Au revoir`})}</p>')
 	})
 })
@@ -509,9 +539,9 @@ describe('<T> compile and render', () => {
 	it('renders braces and regex literals inside expressions', async () => {
 		await check(
 			'<T>Got {"}"} and {(/[{}]/).test(s) ? "braces" : "none"}!</T>',
-			{ 'Got ${0} and ${1}!': 'Reçu ${1} et ${0} !' },
+			{ 'Got ${0} and ${1}!': 'Reçu ${0} et ${1} !' },
 			{ s: '{x}' },
-			{ en: 'Got } and braces!', fr: 'Reçu braces et } !' }
+			{ en: 'Got } and braces!', fr: 'Reçu } et braces !' }
 		)
 	})
 
@@ -666,7 +696,11 @@ describe('<T> compile and render', () => {
 			table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } })
 		)
 
-		expect(code).toContain("<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte';\nimport T")
+		expect(code).toContain(
+			"<script>import { lang as __i18n_lang } from '@awsless/i18n/svelte'\n" +
+				runs([['Hello ${0}', 0, ['Hello ', ''], { fr: ['Bonjour ', ''] }]]) +
+				';\nimport T'
+		)
 		expect(() => compile(code, { generate: 'client' })).not.toThrow()
 
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
@@ -713,7 +747,7 @@ describe('<T> wrapper and normalisation', () => {
 		await check(markup, translations, { x: 'OUTER' }, expected)
 
 		expect(code).toContain(
-			'{#if true}{#snippet children(x="DEFAULT")}{__i18n_lang.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [__i18n_lang.t.str((x))])}{/snippet}{@render children()}{/if}'
+			`{#if true}{#snippet children(x="DEFAULT")}${part('Hello ${0}', 0, 0)}{x}{/snippet}{@render children()}{/if}`
 		)
 	})
 
@@ -761,7 +795,7 @@ describe('<T> snippets, whitespace and lang.t', () => {
 		)
 
 		expect(code).toContain(
-			'{#snippet helper()}world{/snippet}{#snippet children()}{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}{@render helper()}{/snippet}{@render children()}{/if}'
+			`{#snippet helper()}world{/snippet}{#snippet children()}${part('Hello <1/>', 0, 0)}{@render helper()}{/snippet}{@render children()}{/if}`
 		)
 	})
 
@@ -848,7 +882,7 @@ describe('<T> whitespace parity with svelte', () => {
 	it('indented multi-line markup', async () => {
 		const { baseline, code } = await parity('<T>\n\t<b>\n\t\tHello\n\t</b>\n\t<i>\n\t\tthere\n\t</i>\n</T>')
 		expect(baseline).toBe('<b>Hello</b> <i>there</i>')
-		expect(code).toContain('__i18n_lang.t.pick')
+		expect(code).toContain('__i18n_lang.t.part')
 	})
 
 	it('text next to blocks, components and expressions', async () => {
@@ -945,7 +979,7 @@ describe('nested lang.t and passed children', () => {
 			table(nested)
 		)
 
-		expect(code).toContain(`[__i18n_lang.t.str((${outer}))]`)
+		expect(code).toContain(`${part('Hello ${0}!', 0, 0)}{${outer}}${part('Hello ${0}!', 0, 1)}`)
 		expect(() => compile(code, { generate: 'client' })).not.toThrow()
 		expect(() => compile(code, { generate: 'server' })).not.toThrow()
 
@@ -1026,7 +1060,7 @@ describe('<T> inside <T> and slot placement', () => {
 
 		const { code } = await transform(component(markup), table({ Hello: { fr: 'Bonjour' } }))
 		expect(code).toContain(
-			'<Panel><svelte:fragment slot="heading">{#if true}{__i18n_lang.t.pick(["Hello"], {"fr":["Bonjour"]})}{/if}</svelte:fragment><p>Body</p></Panel>'
+			`<Panel><svelte:fragment slot="heading">{#if true}${part('Hello', 0, 0)}{/if}</svelte:fragment><p>Body</p></Panel>`
 		)
 
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
@@ -1207,9 +1241,7 @@ describe('children snippet identity and import aliases', () => {
 		const shadowed = page('{#each list as T}<T/><Translate>World</Translate>{/each}')
 		expect(findSvelteTranslatable(shadowed).map(item => item.source)).toStrictEqual(['World'])
 		const result = await transform(shadowed, translate)
-		expect(result.code).toContain(
-			'{#each list as T}<T/>{#if true}{__i18n_lang.t.pick(["World"], {"fr":["Monde"]})}{/if}{/each}'
-		)
+		expect(result.code).toContain(`{#each list as T}<T/>{#if true}${part('World', 0, 0)}{/if}{/each}`)
 		expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
 	})
 })
@@ -1416,7 +1448,8 @@ describe('fragment scopes and evaluation order', () => {
 		const { baseline, fr, code } = await parity('<T>Hello {value}{mutate()}</T>', props)
 		expect(baseline).toBe('Hello first!')
 		expect(fr).toBe('HELLO first!')
-		expect(code).toContain('[__i18n_lang.t.str((value)), __i18n_lang.t.str((mutate()))]')
+		// The expressions are Svelte's own mustaches, evaluated in order as before.
+		expect(code).toContain(`${part('Hello ${0}${1}', 0, 0)}{value}{mutate()}`)
 
 		const dates = () => {
 			const date = new Date(2000, 0, 1)
@@ -1565,9 +1598,7 @@ describe('whole-body emission and block contexts', () => {
 		expect(baseline).toBe('<p style="white-space: pre-wrap">Hello world</p>')
 
 		const partial = await transform(component(pre), table({ 'Hello <1/>world': { fr: 'Bonjour <1/>world' } }))
-		expect(partial.code).toContain(
-			'{#if true}{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}{@const x = 1}world{/if}'
-		)
+		expect(partial.code).toContain(`{#if true}${part('Hello <1/>world', 0, 0)}{@const x = 1}world{/if}`)
 		const [en, fr] = await ssr(partial.code, {}, ['en', 'fr'])
 		expect(en).toBe(baseline)
 		expect(fr).toBe('<p style="white-space: pre-wrap">Bonjour world</p>')
@@ -1652,7 +1683,14 @@ describe('text translated into empty gaps', () => {
 			'Bonjour <1>ami</1> !',
 			'<p style="white-space: pre-wrap">Bonjour <b>ami</b> !</p>'
 		)
-		expect(code).toContain('{#if true}{__i18n_lang.t.pick([], {"fr":["Bonjour "]})}<b>')
+		expect(code).toContain(`{#if true}${part('<1>Hello</1>', 0, 0)}<b>`)
+		expect(code).toContain(
+			runs([
+				['<1>Hello</1>', 0, [''], { fr: ['Bonjour '] }],
+				['<1>Hello</1>', 1, ['Hello'], { fr: ['ami'] }],
+				['<1>Hello</1>', 2, [''], { fr: [' !'] }],
+			])
+		)
 	})
 })
 
@@ -1850,8 +1888,14 @@ describe('svg text ancestors and global preserveWhitespace', () => {
 			'page.svelte',
 			preserved
 		)
-		expect(transformed).toContain('{__i18n_lang.t.pick(["  Hello  "], {"fr":["  Bonjour  "]})}')
-		expect(transformed).toContain('{__i18n_lang.t.pick(["  world  "], {"fr":["  monde  "]})}')
+		const preservedSource = '  Hello  <1>  world  </1>  '
+		expect(transformed).toContain(part(preservedSource, 0, 0))
+		expect(transformed).toContain(
+			runs([
+				[preservedSource, 0, ['  Hello  '], { fr: ['  Bonjour  '] }],
+				[preservedSource, 1, ['  world  '], { fr: ['  monde  '] }],
+			])
+		)
 		expect(() => compile(transformed, { generate: 'client', preserveWhitespace: true })).not.toThrow()
 
 		// The component option overrides the compiler default both ways.
@@ -1916,18 +1960,19 @@ describe('textarea, preserveComments and the compiler internals', () => {
 
 		const { baseline, code } = await parity('<T><textarea>\nHello {x}</textarea></T>', { x: 'X' })
 		expect(baseline).toBe('<textarea>Hello X</textarea>')
-		expect(code).toContain('pick(["Hello ",0]')
+		expect(code).toContain(`<textarea>\n${part('<1>Hello ${0}</1>', 1, 0, '__i18n_lang')}{x}</textarea>`)
 
 		// On the client the value is set from the call alone; the static newline
 		// is dropped by Svelte, as for any dynamic textarea content.
 		const client = compile(code, { generate: 'client', filename: 'page.svelte' }).js.code
 		expect(client).toContain('$.from_html(`<textarea></textarea>`)')
-		expect(client).toMatch(/set_value\(textarea, `\$\{\$0 \?\? ''\}`\)/)
+		// The value is the translated slice and the user's own mustache, nothing more.
+		expect(client).toMatch(/set_value\(textarea, `\$\{\$0 \?\? ''\}\$\{\$\$props\.x \?\? ''\}`\)/)
 
 		const double = await parity('<T><textarea>\n\nHello {x}</textarea></T>', { x: 'X' })
 		// Svelte's server output keeps both newlines, the browser drops one of them.
 		expect(double.baseline).toBe('<textarea>\n\nHello X</textarea>')
-		expect(double.code).toContain('<textarea>\n\n{__i18n_lang.t.pick(["Hello ",0]')
+		expect(double.code).toContain(`<textarea>\n\n${part('<1>Hello ${0}</1>', 1, 0)}{x}</textarea>`)
 	})
 
 	it('keeps comments as boundaries when preserveComments is on', async () => {
@@ -1943,7 +1988,7 @@ describe('textarea, preserveComments and the compiler internals', () => {
 
 		const { baseline, code } = await parity(markup, {}, on)
 		expect(baseline).toBe('<p>Hello <!--c-->world</p>')
-		expect(code).toContain('{__i18n_lang.t.pick(["Hello "], {"fr":["HELLO "],"jp":["HELLO "]})}<!--c-->')
+		expect(code).toContain(`${part('Hello <1/>', 0, 0)}<!--c-->`)
 
 		const { code: translated } = await transform(
 			component(markup),
@@ -2147,7 +2192,8 @@ describe('compiler namespace and the helper alias', () => {
 		const each = '{#each [1] as __i18n_lang}<T>Hello</T>{/each}'
 		const { code } = await transform(component(each), table({ Hello: { fr: 'Bonjour' } }))
 		expect(code).toContain("import { lang as __i18n_lang1 } from '@awsless/i18n/svelte'")
-		expect(code).toContain('{__i18n_lang1.t.pick(["Hello"], {"fr":["Bonjour"]})}')
+		expect(code).toContain(part('Hello', 0, 0, '__i18n_lang1'))
+		expect(code).toContain(runs([['Hello', 0, ['Hello'], { fr: ['Bonjour'] }]], '__i18n_lang1'))
 		expect(() => compile(code, { generate: 'client' })).not.toThrow()
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
 		expect(en).toBe('Hello')
@@ -2157,9 +2203,7 @@ describe('compiler namespace and the helper alias', () => {
 			component('<T>Hello {__i18n_lang}</T>', 'let __i18n_lang = 1'),
 			table({ 'Hello ${0}': { fr: 'Bonjour ${0}' } })
 		)
-		expect(script.code).toContain(
-			'__i18n_lang1.t.pick(["Hello ",0], {"fr":["Bonjour ",0]}, [__i18n_lang1.t.str((__i18n_lang))])'
-		)
+		expect(script.code).toContain(`${part('Hello ${0}', 0, 0, '__i18n_lang1')}{__i18n_lang}`)
 		expect(() => compile(script.code, { generate: 'client' })).not.toThrow()
 		expect(await ssr(script.code, {}, ['en', 'fr'])).toStrictEqual(['Hello 1', 'Bonjour 1'])
 
@@ -2295,44 +2339,66 @@ describe('hoisted var bindings and snippets beside kept whitespace', () => {
 	})
 })
 
-describe('await inside a <T>', () => {
+describe('await with experimental async', () => {
 	const settings = { compile: { experimental: { async: true } } }
+	const translations = table({ 'Hello ${0} ${1}': { fr: 'Bonjour ${0} ${1}' } })
 
-	// b resolves a, so the two awaits must run concurrently, as Svelte runs them.
-	const props = () => {
+	// b resolves a, so the two awaits have to run concurrently, as Svelte runs them.
+	const gated = () => {
 		let release = () => {}
 		const gate = new Promise<void>(resolve => (release = resolve))
 		return { a: () => gate.then(() => 'A'), b: async () => (release(), 'B') }
 	}
 
-	it('keeps the runtime component when a body awaits', async () => {
+	it('keeps each awaited expression its own mustache', async () => {
 		const markup = '<T>Hello {await a()} {await b()}</T>'
-		expect(findSvelteTranslatable(component(markup), 'page.svelte')).toStrictEqual([])
+		expect(sources(markup)).toStrictEqual(['Hello ${0} ${1}'])
 
-		const { baseline, code } = await parity(markup, props, settings)
+		const { baseline, code } = await parity(markup, gated, settings)
 		expect(baseline).toBe('Hello A B')
-		expect(code).toBe(component(markup))
+		expect(code).toContain(`${part('Hello ${0} ${1}', 0, 0)}{await a()}${part('Hello ${0} ${1}', 0, 1)}{await b()}`)
 
-		const translated = await transform(component(markup), table({ 'Hello ${0} ${1}': { fr: 'Bonjour ${0} ${1}' } }))
-		expect(translated.code).toBe(component(markup))
-		expect((await ssr(translated.code, props, ['fr'], settings.compile))[0]).toBe('Hello A B')
+		const translated = await transform(component(markup), translations)
+		expect(await ssr(translated.code, gated, ['en', 'fr'], settings.compile)).toStrictEqual([
+			'Hello A B',
+			'Bonjour A B',
+		])
+	})
 
-		for (const nested of [
-			'<T>Hi <b>{await a()}</b></T>',
-			'<T>{#if true}{await a()}{/if}</T>',
-			'<T x={await a()}>Hi</T>',
-		]) {
-			expect(sources(nested)).toStrictEqual([])
+	it('works with an await in the script', async () => {
+		const props = { a: async () => 'A', b: () => 'B' }
+
+		for (const script of ['const y = await a()', 'const y = $derived(await a())']) {
+			// The props have to exist before the script awaits one of them.
+			const code = [
+				'<script>',
+				"\timport T from '@awsless/i18n/T'",
+				'\tlet { a, b } = $props()',
+				`\t${script}`,
+				'</script>',
+				'<T>Hello {y} {b()}</T>',
+				'',
+			].join('\n')
+			const [baseline] = await ssr(code, props, ['en'], settings.compile)
+			expect(baseline).toBe('Hello A B')
+
+			const { code: transformed } = await transform(code, translations)
+			expect(() => compile(transformed, { generate: 'client', ...settings.compile })).not.toThrow()
+			expect(await ssr(transformed, props, ['en', 'fr'], settings.compile)).toStrictEqual([
+				'Hello A B',
+				'Bonjour A B',
+			])
 		}
 	})
 
-	it('still transforms a body without a template await', async () => {
-		const markup = '<T>Hello {items.map(async item => await item)}</T>'
-		expect(sources(markup)).toStrictEqual(['Hello ${0}'])
-
-		const { baseline, fr } = await parity('<T>Hello {name}</T>', { name: 'Ann' }, settings)
-		expect(baseline).toBe('Hello Ann')
-		expect(fr).toBe('HELLO Ann')
+	it('rejects a translation that reorders the expressions', async () => {
+		const { code, warn } = await transform(
+			component('<T>Hello {await a()} {await b()}</T>'),
+			table({ 'Hello ${0} ${1}': { fr: 'Bonjour ${1} ${0}' } })
+		)
+		expect(warn).toHaveBeenCalledTimes(1)
+		expect(warn.mock.calls[0]?.[0]).toContain('reordered')
+		expect(await ssr(code, gated, ['fr'], settings.compile)).toStrictEqual(['Hello A B'])
 	})
 })
 
