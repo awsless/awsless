@@ -95,10 +95,6 @@ type SharedEntries = {
 		'user-pool-id': Output<string>
 	}
 
-	instance: {
-		'security-group-id': { name: string; id: Output<string> }
-	}
-
 	rest: {
 		id: Output<string>
 		permission: aws.lambda.Permission

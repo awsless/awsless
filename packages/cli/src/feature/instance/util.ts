@@ -325,7 +325,6 @@ exec /usr/app/program`,
 	})
 
 	// The caches open their ingress to every registered instance.
-	ctx.shared.add('instance', 'security-group-id', name, { name, id: securityGroup.id })
 
 	const clusterName = ctx.shared.get('instance', 'cluster-name')
 	const clusterArn = ctx.shared.get('instance', 'cluster-arn')

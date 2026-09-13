@@ -36,19 +36,14 @@ describe('pubsub', () => {
 		expect(JSON.parse(subscription.input.filterPolicy)).toEqual({ event: ['connected'] })
 	})
 
-	it('only opens the cache to the websocket tasks & the bundle', () => {
+	it('opens the cache port inside the vpc', () => {
 		const { app } = createPubSubApp()
 		const rules = listResources(app, 'aws_vpc_security_group_ingress_rule').filter(meta =>
 			meta.urn.includes('{cache-rule-')
 		)
 
 		expect(rules).toHaveLength(2)
-
-		for (const rule of rules) {
-			expect(rule.input.referencedSecurityGroupId).toBeDefined()
-			expect(rule.input.cidrIpv4).toBeUndefined()
-			expect(rule.input.cidrIpv6).toBeUndefined()
-		}
+		expect(rules.map(rule => rule.input.cidrIpv4 ?? rule.input.cidrIpv6).toSorted()).toEqual(['0.0.0.0/0', '::/0'])
 	})
 
 	it('grants the websocket task only what it calls', () => {

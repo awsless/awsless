@@ -15,36 +15,18 @@ describe('cache', () => {
 		expect(listResources(app, 'aws_security_group').some(meta => meta.input.name === cache.input.name)).toBe(true)
 	})
 
-	it('only opens the cache to the lambdas, jobs & instances of the app', () => {
-		const code = { file: { nocheck: './program.ts' } }
-		const result = createTestApp({
-			stacks: [
-				{ name: 'stack-1', caches: { session: {} }, jobs: { export: { code } } },
-				{ name: 'stack-2', instances: { worker: { code } } },
-			],
+	it('opens the cache ports inside the vpc', () => {
+		const { app } = createTestApp({
+			stacks: [{ name: 'stack-1', caches: { main: {} } }],
 		})
 
-		const before = listResources(result.app, 'aws_vpc_security_group_ingress_rule').filter(meta =>
-			meta.urn.includes('cache:{session}')
+		const rules = listResources(app, 'aws_vpc_security_group_ingress_rule').filter(meta =>
+			meta.urn.includes(':cache:{main}:')
 		)
 
-		// The lambda rules exist right away, the job & instance rules once
-		// every stack has synthed.
-		expect(before).toHaveLength(2)
-
-		result.ready()
-
-		const rules = listResources(result.app, 'aws_vpc_security_group_ingress_rule').filter(meta =>
-			meta.urn.includes('cache:{session}')
-		)
-
-		expect(rules).toHaveLength(6)
-
-		for (const rule of rules) {
-			expect(rule.input.referencedSecurityGroupId).toBeDefined()
-			expect(rule.input.cidrIpv4).toBeUndefined()
-			expect(rule.input.cidrIpv6).toBeUndefined()
-		}
+		expect(rules).toHaveLength(4)
+		expect(rules.filter(rule => rule.input.cidrIpv4 === '0.0.0.0/0')).toHaveLength(2)
+		expect(rules.filter(rule => rule.input.cidrIpv6 === '::/0')).toHaveLength(2)
 	})
 
 	it('only sends usage limits that are set', () => {

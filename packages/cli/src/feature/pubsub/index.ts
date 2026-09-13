@@ -200,21 +200,23 @@ export const pubsubFeature = defineFeature({
 				description: `${name}-task`,
 			})
 
-			// Only the websocket tasks & the bundle's publisher route reach
-			// the cache, the bundle through the shared vpc security group.
-			for (const [client, clientSecurityGroupId] of [
-				['task', taskSecurityGroup.id],
-				['lambda', ctx.shared.get('vpc', 'security-group-id')],
-			] as const) {
-				new aws.vpc.SecurityGroupIngressRule(group, `cache-rule-${client}`, {
-					securityGroupId: cacheSecurityGroup.id,
-					description: redisPort.pipe(port => `Allow ${client} on port: ${port}`),
-					ipProtocol: 'tcp',
-					referencedSecurityGroupId: clientSecurityGroupId,
-					fromPort: redisPort,
-					toPort: redisPort,
-				})
-			}
+			new aws.vpc.SecurityGroupIngressRule(group, 'cache-rule-ip-v4', {
+				securityGroupId: cacheSecurityGroup.id,
+				description: redisPort.pipe(port => `Allow ipv4 on port: ${port}`),
+				ipProtocol: 'tcp',
+				cidrIpv4: '0.0.0.0/0',
+				fromPort: redisPort,
+				toPort: redisPort,
+			})
+
+			new aws.vpc.SecurityGroupIngressRule(group, 'cache-rule-ip-v6', {
+				securityGroupId: cacheSecurityGroup.id,
+				description: redisPort.pipe(port => `Allow ipv6 on port: ${port}`),
+				ipProtocol: 'tcp',
+				cidrIpv6: '::/0',
+				fromPort: redisPort,
+				toPort: redisPort,
+			})
 
 			const channel = `pubsub:${id}`
 
