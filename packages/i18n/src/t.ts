@@ -127,11 +127,11 @@ const letNames = (node: AST.ElementLike) =>
 			: []
 	)
 
-/** The <T> uses that are ours: the default import of this package, used
- * where no each, snippet, let:, @const or await binding shadows its name. */
+/** The <T> uses that are ours: any default import of this package, used
+ * where no each, snippet, let:, @const or await binding shadows that name. */
 export const resolveT = (ast: AST.Root) => {
 	const ours = new Set<AST.Component>()
-	let name: string | undefined
+	const names = new Set<string>()
 
 	for (const script of [ast.instance, ast.module]) {
 		for (const statement of script?.content.body ?? []) {
@@ -143,18 +143,16 @@ export const resolveT = (ast: AST.Root) => {
 							specifier.imported.type === 'Identifier' &&
 							specifier.imported.name === 'default')
 					) {
-						name = specifier.local.name
+						names.add(specifier.local.name)
 					}
 				}
 			}
 		}
 	}
 
-	if (name === undefined) {
-		return { name, ours }
+	if (names.size === 0) {
+		return { names, ours }
 	}
-
-	const local = name
 
 	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>) => {
 		const inner = new Set(scope)
@@ -166,8 +164,6 @@ export const resolveT = (ast: AST.Root) => {
 				)
 			}
 		}
-
-		const shadowed = inner.has(local)
 
 		const extend = (names: string[]) => new Set([...inner, ...names])
 
@@ -210,7 +206,7 @@ export const resolveT = (ast: AST.Root) => {
 					break
 				default:
 					if ('fragment' in node && node.fragment?.type === 'Fragment') {
-						if (node.type === 'Component' && node.name === local && !shadowed) {
+						if (node.type === 'Component' && names.has(node.name) && !inner.has(node.name)) {
 							ours.add(node)
 						}
 
@@ -222,7 +218,7 @@ export const resolveT = (ast: AST.Root) => {
 
 	walk(ast.fragment.nodes, new Set())
 
-	return { name, ours }
+	return { names, ours }
 }
 
 const isBlank = (node: AST.Fragment['nodes'][number]) =>
@@ -473,26 +469,20 @@ const collect = (
 			})
 
 			const content = children.filter(child => !isBlank(child))
-			const snippets = content.filter(child => child.type === 'SnippetBlock')
-			const snippet = snippets.find(child => child.expression.name === 'children')
 
-			// A lone, parameterless children snippet inlines its body. Otherwise
-			// every declaration stays as written and children gets rendered, so
-			// parameters, defaults and helper snippets keep working.
-			const inline =
-				snippet !== undefined && snippet.parameters.length === 0 && content.length === 1 && remove.length === 0
-			const body = inline ? snippet.body.nodes : children
-			const outer = inline ? body : node.fragment.nodes
-			const first = outer[0]
-			const last = outer.at(-1)
+			// An explicit children snippet stays as declared and gets rendered, so
+			// its parameters, self references and helper snippets keep working.
+			const snippet = content.find(child => child.type === 'SnippetBlock' && child.expression.name === 'children')
+			const first = node.fragment.nodes[0]
+			const last = node.fragment.nodes.at(-1)
 
-			if (body.length > 0 && first && last) {
+			if (children.length > 0 && first && last) {
 				const wrap = {
 					open: { start: node.start, end: first.start },
 					close: { start: last.end, end: node.end },
-					tail: snippet && !inline ? '{@render children()}' : '',
+					tail: snippet ? '{@render children()}' : '',
 				}
-				found(node, head, foot, wrap, remove, body, preserve)
+				found(node, head, foot, wrap, remove, children, preserve)
 			} else {
 				found(node, head, foot, undefined, [], undefined, preserve)
 			}

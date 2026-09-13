@@ -281,10 +281,10 @@ describe('<T> serializer', () => {
 		expect(sources(code)).toStrictEqual(['<1/>Hi <2/> <3/>'])
 	})
 
-	it('uses the body of an explicit children snippet', () => {
+	it('keeps an explicit children snippet as a block with its own segment', () => {
 		const code = '<T>\n\t{#snippet children()}Hello <b>{name}</b>{/snippet}\n</T>'
 
-		expect(sources(code)).toStrictEqual(['Hello <1>${0}</1>'])
+		expect(sources(code)).toStrictEqual(['<1/>', 'Hello <1>${0}</1>'])
 		expect(sources('<T>{#snippet other()}Hi{/snippet}</T>')).toStrictEqual(['<1/>', 'Hi'])
 	})
 
@@ -517,7 +517,8 @@ describe('<T> compile and render', () => {
 			{ en: 'Hello <b>Ann</b>', fr: 'Hello, <b>Ann</b>' }
 		)
 
-		expect(code).not.toContain('{#snippet children()}')
+		expect(code).toContain('{#snippet children()}{@const greeting = "Hello"}')
+		expect(code).toContain('{/snippet}\n{@render children()}{/if}')
 	})
 
 	it('renders translated block bodies in place', async () => {
@@ -1016,15 +1017,17 @@ describe('slot bindings and empty <T>', () => {
 	})
 
 	it('leaves an empty block where an empty <T> was', async () => {
-		for (const markup of [
-			'<Required><T /></Required>',
-			'<Required><T></T></Required>',
-			'<Required><T>{#snippet children()}{/snippet}</T></Required>',
-		]) {
+		for (const markup of ['<Required><T /></Required>', '<Required><T></T></Required>']) {
 			const { baseline, code } = await parity(markup)
 			expect(baseline).toBe('<div></div>')
 			expect(code).toContain('<Required>{#if true}{/if}</Required>')
 		}
+
+		const empty = await parity('<Required><T>{#snippet children()}{/snippet}</T></Required>')
+		expect(empty.baseline).toBe('<div></div>')
+		expect(empty.code).toContain(
+			'<Required>{#if true}{#snippet children()}{/snippet}{@render children()}{/if}</Required>'
+		)
 
 		const { baseline, code } = await parity('<Legacy><T /><T slot="side" let:item /></Legacy>')
 		expect(baseline).toBe('<div></div><aside></aside>')
@@ -1117,6 +1120,47 @@ describe('binding, named slots and raw text', () => {
 			expect(fr).toContain(raw)
 			expect(fr).toContain('HELLO')
 		}
+	})
+})
+
+describe('children snippet identity and import aliases', () => {
+	it('keeps the children snippet declaration, so it can refer to itself', async () => {
+		const { baseline, code } = await parity('<T>{#snippet children()}<p>{children.name}</p>{/snippet}</T>')
+		expect(baseline).toBe('<p>children</p>')
+		expect(code).toContain(
+			'{#if true}{#snippet children()}<p>{children.name}</p>{/snippet}{@render children()}{/if}'
+		)
+
+		const recursive = await parity(
+			'<T>{#snippet children(n = 2)}{#if n > 0}<Badge count={n}>{@render children(n - 1)}</Badge>{:else}done{/if}{/snippet}</T>'
+		)
+		expect(recursive.baseline).toBe(
+			'<span class="badge" data-count="2"><span class="badge" data-count="1">done</span></span>'
+		)
+		expect(recursive.fr).toContain('DONE')
+	})
+
+	it('resolves every default import alias on its own', async () => {
+		const imports = "import T from '@awsless/i18n/T'\n\timport Translate from '@awsless/i18n/T'"
+		const page = (markup: string) => `<script>\n\t${imports}\n\tlet { list } = $props()\n</script>\n${markup}\n`
+		const translate = table({ Hello: { fr: 'Bonjour' }, World: { fr: 'Monde' } })
+
+		const both = page('<T>Hello</T><Translate>World</Translate>')
+		expect(findSvelteTranslatable(both).map(item => item.source)).toStrictEqual(['Hello', 'World'])
+
+		const { code } = await transform(both, translate)
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('HelloWorld')
+		expect(fr).toBe('BonjourMonde')
+
+		const shadowed = page('{#each list as T}<T/><Translate>World</Translate>{/each}')
+		expect(findSvelteTranslatable(shadowed).map(item => item.source)).toStrictEqual(['World'])
+		const result = await transform(shadowed, translate)
+		expect(result.code).toContain(
+			'{#each list as T}<T/>{#if true}{__i18n_lang.t.pick(["World"], {"fr":["Monde"]})}{/if}{/each}'
+		)
+		expect(() => compile(result.code, { generate: 'client' })).not.toThrow()
 	})
 })
 

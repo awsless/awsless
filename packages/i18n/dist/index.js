@@ -149,23 +149,21 @@ const patternNames = (pattern, names = []) => {
 	return names;
 };
 const letNames = (node) => node.attributes.flatMap((attribute) => attribute.type === "LetDirective" ? attribute.expression ? patternNames(attribute.expression) : [attribute.name] : []);
-/** The <T> uses that are ours: the default import of this package, used
-* where no each, snippet, let:, @const or await binding shadows its name. */
+/** The <T> uses that are ours: any default import of this package, used
+* where no each, snippet, let:, @const or await binding shadows that name. */
 const resolveT = (ast) => {
 	const ours = /* @__PURE__ */ new Set();
-	let name;
+	const names = /* @__PURE__ */ new Set();
 	for (const script of [ast.instance, ast.module]) for (const statement of script?.content.body ?? []) if (statement.type === "ImportDeclaration" && statement.source.value === "@awsless/i18n/T") {
-		for (const specifier of statement.specifiers) if (specifier.type === "ImportDefaultSpecifier" || specifier.type === "ImportSpecifier" && specifier.imported.type === "Identifier" && specifier.imported.name === "default") name = specifier.local.name;
+		for (const specifier of statement.specifiers) if (specifier.type === "ImportDefaultSpecifier" || specifier.type === "ImportSpecifier" && specifier.imported.type === "Identifier" && specifier.imported.name === "default") names.add(specifier.local.name);
 	}
-	if (name === void 0) return {
-		name,
+	if (names.size === 0) return {
+		names,
 		ours
 	};
-	const local = name;
 	const walk = (nodes, scope) => {
 		const inner = new Set(scope);
 		for (const node of nodes) if (node.type === "ConstTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
-		const shadowed = inner.has(local);
 		const extend = (names) => /* @__PURE__ */ new Set([...inner, ...names]);
 		for (const node of nodes) switch (node.type) {
 			case "EachBlock":
@@ -188,14 +186,14 @@ const resolveT = (ast) => {
 				walk(node.fragment.nodes, inner);
 				break;
 			default: if ("fragment" in node && node.fragment?.type === "Fragment") {
-				if (node.type === "Component" && node.name === local && !shadowed) ours.add(node);
+				if (node.type === "Component" && names.has(node.name) && !inner.has(node.name)) ours.add(node);
 				walk(node.fragment.nodes, extend(letNames(node)));
 			}
 		}
 	};
 	walk(ast.fragment.nodes, /* @__PURE__ */ new Set());
 	return {
-		name,
+		names,
 		ours
 	};
 };
@@ -421,14 +419,10 @@ const collect = (code, ours, nodes, preserve, parent, found) => {
 				});
 				return [];
 			});
-			const content = children.filter((child) => !isBlank(child));
-			const snippet = content.filter((child) => child.type === "SnippetBlock").find((child) => child.expression.name === "children");
-			const inline = snippet !== void 0 && snippet.parameters.length === 0 && content.length === 1 && remove.length === 0;
-			const body = inline ? snippet.body.nodes : children;
-			const outer = inline ? body : node.fragment.nodes;
-			const first = outer[0];
-			const last = outer.at(-1);
-			if (body.length > 0 && first && last) found(node, head, foot, {
+			const snippet = children.filter((child) => !isBlank(child)).find((child) => child.type === "SnippetBlock" && child.expression.name === "children");
+			const first = node.fragment.nodes[0];
+			const last = node.fragment.nodes.at(-1);
+			if (children.length > 0 && first && last) found(node, head, foot, {
 				open: {
 					start: node.start,
 					end: first.start
@@ -437,8 +431,8 @@ const collect = (code, ours, nodes, preserve, parent, found) => {
 					start: last.end,
 					end: node.end
 				},
-				tail: snippet && !inline ? "{@render children()}" : ""
-			}, remove, body, preserve);
+				tail: snippet ? "{@render children()}" : ""
+			}, remove, children, preserve);
 			else found(node, head, foot, void 0, [], void 0, preserve);
 			continue;
 		}
