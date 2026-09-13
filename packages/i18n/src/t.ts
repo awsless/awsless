@@ -221,19 +221,50 @@ const letNames = (node: AST.ElementLike) =>
 const isTImport = (statement: AST.Script['content']['body'][number]) =>
 	statement.type === 'ImportDeclaration' && statement.source.value === T_MODULE
 
-// The names a top level script statement binds: declarations, classes,
-// functions, imports and destructured `$props()`.
-const statementBindings = (statement: AST.Script['content']['body'][number]): string[] => {
+type Statement = { type: string } & Record<string, unknown>
+
+// The names a script statement binds in the instance scope: declarations,
+// classes, functions, imports and destructured `$props()` at the top, and
+// `var`, which hoists out of nested blocks but not out of functions or classes.
+const statementBindings = (statement: Statement, top = true): string[] => {
+	const nested = (value: unknown) => (value ? statementBindings(value as Statement, false) : [])
+	const list = (value: unknown) => (Array.isArray(value) ? value.flatMap(nested) : [])
+
 	switch (statement.type) {
 		case 'VariableDeclaration':
-			return statement.declarations.flatMap(declaration => patternNames(declaration.id as Pattern))
+			return top || statement.kind === 'var'
+				? (statement.declarations as { id: Pattern }[]).flatMap(declaration => patternNames(declaration.id))
+				: []
 		case 'FunctionDeclaration':
 		case 'ClassDeclaration':
-			return statement.id ? [statement.id.name] : []
+			return top && statement.id ? [(statement.id as { name: string }).name] : []
 		case 'ImportDeclaration':
-			return statement.specifiers.map(specifier => specifier.local.name)
+			return top
+				? (statement.specifiers as { local: { name: string } }[]).map(specifier => specifier.local.name)
+				: []
 		case 'ExportNamedDeclaration':
-			return statement.declaration ? statementBindings(statement.declaration) : []
+			return top && statement.declaration ? statementBindings(statement.declaration as Statement) : []
+		case 'BlockStatement':
+			return list(statement.body)
+		case 'IfStatement':
+			return [...nested(statement.consequent), ...nested(statement.alternate)]
+		case 'ForStatement':
+			return [...nested(statement.init), ...nested(statement.body)]
+		case 'ForInStatement':
+		case 'ForOfStatement':
+			return [...nested(statement.left), ...nested(statement.body)]
+		case 'WhileStatement':
+		case 'DoWhileStatement':
+		case 'LabeledStatement':
+			return nested(statement.body)
+		case 'SwitchStatement':
+			return (statement.cases as { consequent: unknown[] }[]).flatMap(item => list(item.consequent))
+		case 'TryStatement':
+			return [
+				...nested(statement.block),
+				...nested((statement.handler as { body?: unknown } | null)?.body),
+				...nested(statement.finalizer),
+			]
 		default:
 			return []
 	}
@@ -266,10 +297,8 @@ export const resolveT = (ast: AST.Root) => {
 	// hides the alias for the whole template. Rebinding an alias imported in
 	// the same script is a compile error, so only the module import matters.
 	for (const statement of ast.instance?.content.body ?? []) {
-		for (const name of statementBindings(statement)) {
-			if (!isTImport(statement)) {
-				names.delete(name)
-			}
+		if (!isTImport(statement)) {
+			statementBindings(statement as Statement).forEach(name => names.delete(name))
 		}
 	}
 
@@ -460,17 +489,30 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 
 	// `direct` marks the <T> body itself, where an unslotted <svelte:fragment>
 	// would be meaningless once the component is gone.
-	const build = (owner: SvelteNode, nodes: Nodes, context: Context, extra: Edit[], direct = false): Segment[] => {
+	const build = (
+		owner: SvelteNode,
+		nodes: Nodes,
+		context: Context,
+		extra: Edit[],
+		direct = false
+	): { segments: Segment[]; content: boolean } => {
 		const pieces: Piece[] = []
 		const expressions: Range[] = []
 		const nested: Segment[] = []
 		let tags = 0
+		let content = false
 
 		// One body: its children cleaned the way Svelte cleans them, then walked
 		// in source order, with element children staying in this segment.
 		const visit = (owner: SvelteNode, nodes: Nodes, context: Context, direct: boolean) => {
 			const { kept, namespaces } = bodies(owner, nodes, context)
 			const inner = [...context.path, owner]
+
+			// What the default slot still holds once cleaned; for the <T> itself
+			// that decides whether an explicit children snippet is used at all.
+			if (direct && kept.size > 0) {
+				content = true
+			}
 			const first = nodes[0]
 
 			// A textarea's leading newlines stay in the markup, so the browser and
@@ -542,7 +584,7 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 						})
 
 						for (const body of blockBodies(node)) {
-							nested.push(...build(node as SvelteNode, body, below(node, {}), extra))
+							nested.push(...build(node as SvelteNode, body, below(node, {}), extra).segments)
 						}
 						break
 					default: {
@@ -567,7 +609,9 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 							if (head && last) {
 								extra.push({ start: node.start, end: head.start, text: '{#if true}' })
 								extra.push({ start: last.end, end: node.end, text: '{/if}' })
-								nested.push(...build(node as SvelteNode, node.fragment.nodes, below(node, {}), extra))
+								nested.push(
+									...build(node as SvelteNode, node.fragment.nodes, below(node, {}), extra).segments
+								)
 							} else {
 								extra.push({ start: node.start, end: node.end, text: '{#if true}{/if}' })
 							}
@@ -624,7 +668,7 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 
 		visit(owner, nodes, context, direct)
 
-		return [segment(merge(pieces), expressions, context.restricted), ...nested]
+		return { segments: [segment(merge(pieces), expressions, context.restricted), ...nested], content }
 	}
 
 	const root: Context = {
@@ -645,15 +689,20 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 		undefined,
 		(node, head, foot, wrap, nodes, context) => {
 			const extra: Edit[] = []
+			const built = nodes
+				? build(node as SvelteNode, nodes, context, extra, true)
+				: { segments: [], content: false }
 
+			// Svelte ignores an explicit children snippet when the default slot
+			// still has content once cleaned, such as whitespace kept in a <pre>.
 			components.push({
 				start: node.start,
 				end: node.end,
 				head,
 				foot,
-				wrap,
+				wrap: wrap && { ...wrap, tail: wrap.snippet && !built.content ? '{@render children()}' : '' },
 				extra,
-				segments: nodes ? build(node as SvelteNode, nodes, context, extra, true) : [],
+				segments: built.segments,
 			})
 		}
 	)
@@ -667,7 +716,7 @@ type Found = (
 	node: AST.Component,
 	head: string,
 	foot: string,
-	wrap: TComponent['wrap'],
+	wrap: { open: Range; close: Range; snippet: boolean } | undefined,
 	nodes: AST.Fragment['nodes'] | undefined,
 	context: Context
 ) => void
@@ -717,7 +766,7 @@ const collect = (
 				const wrap = {
 					open: { start: node.start, end: first.start },
 					close: { start: last.end, end: node.end },
-					tail: snippet ? '{@render children()}' : '',
+					snippet: snippet !== undefined,
 				}
 				found(node, head, foot, wrap, children, context)
 			} else {

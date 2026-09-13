@@ -2216,6 +2216,69 @@ describe('instance rebinding and static dynamic tags', () => {
 	})
 })
 
+describe('hoisted var bindings and snippets beside kept whitespace', () => {
+	it('lets a hoisted var hide the module import, but not a block let', async () => {
+		const page = (statement: string, markup = '<T value="OTHER">Hello</T>') =>
+			[
+				"<script module>import T from '@awsless/i18n/T'</script>",
+				`<script>import Custom from './custom.svelte'\n\t${statement}</script>`,
+				markup,
+				'',
+			].join('\n')
+
+		for (const statement of [
+			'if (true) { var T = Custom }',
+			'for (var T of [Custom]) {}',
+			'for (var i = 0; i < 1; i++) { var T = Custom }',
+			'try { var T = Custom } catch {}',
+			'label: { var T = Custom }',
+			'switch (1) { default: var T = Custom }',
+		]) {
+			const code = page(statement)
+			expect(findSvelteTranslatable(code)).toStrictEqual([])
+			const [before] = await ssr(code, {}, ['en'])
+			expect(before).toBe('<em>OTHER</em>')
+			const result = await transform(code, table({ Hello: { fr: 'Bonjour' } }))
+			expect(result.code).toBe(code)
+			expect((await ssr(result.code, {}, ['fr']))[0]).toBe(before)
+		}
+
+		// A block scoped let, or a var inside a function or class, binds nothing at the top.
+		for (const statement of [
+			'if (true) { let T = Custom }',
+			'function f() { var T = Custom }',
+			'class C { T = Custom }',
+		]) {
+			expect(findSvelteTranslatable(page(statement, '<T>Hello</T>')).map(item => item.source)).toStrictEqual([
+				'Hello',
+			])
+		}
+	})
+
+	it('skips the children snippet when kept whitespace is the default content', async () => {
+		const body = '<T>\n{#snippet children()}<strong>Hello</strong>{/snippet}\n</T>'
+		const translations = table({ '<1>Hello</1>': { fr: '<1>Bonjour</1>' } })
+
+		const { baseline, code } = await parity(`<pre>${body}</pre>`)
+		expect(baseline).toBe('<pre>\n\n</pre>')
+		expect(code).not.toContain('{@render children()}')
+		const kept = await transform(component(`<pre>${body}</pre>`), translations)
+		expect((await ssr(kept.code, {}, ['fr']))[0]).toBe('<pre>\n\n</pre>')
+
+		const loose = await parity(body)
+		expect(loose.baseline).toBe('<strong>Hello</strong>')
+		expect(loose.code).toContain('{/snippet}\n{@render children()}{/if}')
+		const rendered = await transform(component(body), translations)
+		expect((await ssr(rendered.code, {}, ['fr']))[0]).toBe('<strong>Bonjour</strong>')
+
+		const global = { plugin: { preserveWhitespace: true }, compile: { preserveWhitespace: true } }
+		// The root keeps its two newlines and the implicit children add theirs.
+		const preserved = await parity(body, {}, global)
+		expect(preserved.baseline).toBe('\n\n\n\n')
+		expect(preserved.code).not.toContain('{@render children()}')
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')

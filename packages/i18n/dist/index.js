@@ -318,13 +318,29 @@ const patternNames = (pattern, names = []) => {
 };
 const letNames = (node) => node.attributes.flatMap((attribute) => attribute.type === "LetDirective" ? attribute.expression ? patternNames(attribute.expression) : [attribute.name] : []);
 const isTImport = (statement) => statement.type === "ImportDeclaration" && statement.source.value === "@awsless/i18n/T";
-const statementBindings = (statement) => {
+const statementBindings = (statement, top = true) => {
+	const nested = (value) => value ? statementBindings(value, false) : [];
+	const list = (value) => Array.isArray(value) ? value.flatMap(nested) : [];
 	switch (statement.type) {
-		case "VariableDeclaration": return statement.declarations.flatMap((declaration) => patternNames(declaration.id));
+		case "VariableDeclaration": return top || statement.kind === "var" ? statement.declarations.flatMap((declaration) => patternNames(declaration.id)) : [];
 		case "FunctionDeclaration":
-		case "ClassDeclaration": return statement.id ? [statement.id.name] : [];
-		case "ImportDeclaration": return statement.specifiers.map((specifier) => specifier.local.name);
-		case "ExportNamedDeclaration": return statement.declaration ? statementBindings(statement.declaration) : [];
+		case "ClassDeclaration": return top && statement.id ? [statement.id.name] : [];
+		case "ImportDeclaration": return top ? statement.specifiers.map((specifier) => specifier.local.name) : [];
+		case "ExportNamedDeclaration": return top && statement.declaration ? statementBindings(statement.declaration) : [];
+		case "BlockStatement": return list(statement.body);
+		case "IfStatement": return [...nested(statement.consequent), ...nested(statement.alternate)];
+		case "ForStatement": return [...nested(statement.init), ...nested(statement.body)];
+		case "ForInStatement":
+		case "ForOfStatement": return [...nested(statement.left), ...nested(statement.body)];
+		case "WhileStatement":
+		case "DoWhileStatement":
+		case "LabeledStatement": return nested(statement.body);
+		case "SwitchStatement": return statement.cases.flatMap((item) => list(item.consequent));
+		case "TryStatement": return [
+			...nested(statement.block),
+			...nested(statement.handler?.body),
+			...nested(statement.finalizer)
+		];
 		default: return [];
 	}
 };
@@ -336,7 +352,7 @@ const resolveT = (ast) => {
 	for (const script of [ast.instance, ast.module]) for (const statement of script?.content.body ?? []) if (statement.type === "ImportDeclaration" && statement.source.value === "@awsless/i18n/T") {
 		for (const specifier of statement.specifiers) if (specifier.type === "ImportDefaultSpecifier" || specifier.type === "ImportSpecifier" && specifier.imported.type === "Identifier" && specifier.imported.name === "default") names.add(specifier.local.name);
 	}
-	for (const statement of ast.instance?.content.body ?? []) for (const name of statementBindings(statement)) if (!isTImport(statement)) names.delete(name);
+	for (const statement of ast.instance?.content.body ?? []) if (!isTImport(statement)) statementBindings(statement).forEach((name) => names.delete(name));
 	if (names.size === 0) return {
 		names,
 		ours
@@ -458,9 +474,11 @@ const parseT = (code, file, options = {}) => {
 		const expressions = [];
 		const nested = [];
 		let tags = 0;
+		let content = false;
 		const visit = (owner, nodes, context, direct) => {
 			const { kept, namespaces } = bodies(owner, nodes, context);
 			const inner = [...context.path, owner];
+			if (direct && kept.size > 0) content = true;
 			const first = nodes[0];
 			let lead = 0;
 			if (owner.type === "RegularElement" && owner.name === "textarea" && first?.type === "Text" && kept.has(first)) {
@@ -548,7 +566,7 @@ const parseT = (code, file, options = {}) => {
 						},
 						snippet: node.type === "SnippetBlock"
 					});
-					for (const body of blockBodies(node)) nested.push(...build(node, body, below(node, {}), extra));
+					for (const body of blockBodies(node)) nested.push(...build(node, body, below(node, {}), extra).segments);
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
@@ -585,7 +603,7 @@ const parseT = (code, file, options = {}) => {
 								end: node.end,
 								text: "{/if}"
 							});
-							nested.push(...build(node, node.fragment.nodes, below(node, {}), extra));
+							nested.push(...build(node, node.fragment.nodes, below(node, {}), extra).segments);
 						} else extra.push({
 							start: node.start,
 							end: node.end,
@@ -657,7 +675,10 @@ const parseT = (code, file, options = {}) => {
 			}
 		};
 		visit(owner, nodes, context, direct);
-		return [segment(merge(pieces), expressions, context.restricted), ...nested];
+		return {
+			segments: [segment(merge(pieces), expressions, context.restricted), ...nested],
+			content
+		};
 	};
 	const root = {
 		path: [ast],
@@ -668,14 +689,21 @@ const parseT = (code, file, options = {}) => {
 	};
 	collect(code, ours, internals, namespace, ast.fragment.nodes, root, void 0, (node, head, foot, wrap, nodes, context) => {
 		const extra = [];
+		const built = nodes ? build(node, nodes, context, extra, true) : {
+			segments: [],
+			content: false
+		};
 		components.push({
 			start: node.start,
 			end: node.end,
 			head,
 			foot,
-			wrap,
+			wrap: wrap && {
+				...wrap,
+				tail: wrap.snippet && !built.content ? "{@render children()}" : ""
+			},
 			extra,
-			segments: nodes ? build(node, nodes, context, extra, true) : []
+			segments: built.segments
 		});
 	});
 	return {
@@ -705,7 +733,7 @@ const collect = (code, ours, internals, componentNamespace, nodes, context, pare
 					start: last.end,
 					end: node.end
 				},
-				tail: snippet ? "{@render children()}" : ""
+				snippet: snippet !== void 0
 			}, children, context);
 			else found(node, head, foot, void 0, void 0, context);
 			continue;
