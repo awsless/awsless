@@ -166,15 +166,20 @@ const resolveT = (ast) => {
 		names,
 		ours
 	};
-	const walk = (nodes, scope, lets = []) => {
+	const walk = (nodes, scope, lets = [], component = false) => {
 		const inner = new Set(scope);
+		const declared = [];
 		for (const node of nodes) {
-			if (node.type === "ConstTag" || node.type === "DeclarationTag") node.declaration.declarations.forEach((declaration) => patternNames(declaration.id).forEach((n) => inner.add(n)));
+			if (node.type === "ConstTag" || node.type === "DeclarationTag") node.declaration.declarations.forEach((declaration) => declared.push(...patternNames(declaration.id)));
 			if (node.type === "SnippetBlock") inner.add(node.expression.name);
 		}
-		const withLets = /* @__PURE__ */ new Set([...inner, ...lets]);
+		const full = /* @__PURE__ */ new Set([
+			...inner,
+			...declared,
+			...lets
+		]);
 		for (const node of nodes) {
-			const current = hasSlotAttribute(node) ? inner : withLets;
+			const current = component && hasSlotAttribute(node) ? inner : full;
 			const extend = (names) => /* @__PURE__ */ new Set([...current, ...names]);
 			switch (node.type) {
 				case "EachBlock":
@@ -198,7 +203,7 @@ const resolveT = (ast) => {
 					break;
 				default: if ("fragment" in node && node.fragment?.type === "Fragment") {
 					if (node.type === "Component" && names.has(node.name) && !current.has(node.name)) ours.add(node);
-					walk(node.fragment.nodes, current, letNames(node));
+					walk(node.fragment.nodes, current, letNames(node), COMPONENTS.has(node.type));
 				}
 			}
 		}
@@ -517,7 +522,14 @@ const normalize = (pieces, context) => {
 	const first = text(regular[0]);
 	if (context.pre && first && (first.value === "\n" || first.value === "\r\n")) dropped.add(regular[0]);
 	return items.flatMap((item) => {
-		if (dropped.has(item)) return [];
+		if (dropped.has(item)) return [{
+			...item.piece,
+			token: {
+				type: "text",
+				value: ""
+			},
+			dropped: true
+		}];
 		if (item.inner && item.close) return [
 			item.piece,
 			...normalize(item.inner, item.piece.body),
@@ -530,7 +542,8 @@ const merge = (pieces) => {
 	const merged = [];
 	for (const piece of pieces) {
 		const previous = merged.at(-1);
-		if (piece.token.type === "text" && previous?.token.type === "text") {
+		if (piece.dropped) merged.push({ ...piece });
+		else if (piece.token.type === "text" && previous?.token.type === "text" && !previous.dropped) {
 			previous.token.value += piece.token.value;
 			previous.end = piece.end;
 		} else merged.push({
@@ -542,7 +555,7 @@ const merge = (pieces) => {
 };
 const isRunToken = (token) => token.type === "text" || token.type === "expr";
 const segment = (pieces, expressions) => {
-	const tokens = pieces.map((piece) => piece.token);
+	const tokens = pieces.filter((piece) => !piece.dropped).map((piece) => piece.token);
 	const runs = [];
 	if (pieces.length === 0) return {
 		source: "",
@@ -555,14 +568,21 @@ const segment = (pieces, expressions) => {
 	const flush = (next) => {
 		const first = current[0];
 		const last = current.at(-1);
+		const kept = current.filter((piece) => !piece.dropped);
+		const dropped = current.filter((piece) => piece.dropped).map(({ start, end }) => ({
+			start,
+			end
+		}));
 		runs.push(first && last ? {
 			start: first.start,
 			end: last.end,
-			tokens: current.map((piece) => piece.token)
+			tokens: kept.map((piece) => piece.token),
+			dropped
 		} : {
 			start: boundary,
 			end: boundary,
-			tokens: []
+			tokens: [],
+			dropped
 		});
 		current = [];
 		boundary = next;
@@ -727,7 +747,13 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 				const parts = JSON.stringify(partsOf(item.runs[index], positions));
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
-			if (changed.length === 0) continue;
+			if (changed.length === 0) {
+				edits.push(...run.dropped.map((range) => ({
+					...range,
+					text: ""
+				})));
+				continue;
+			}
 			const values = indices.length > 0 ? `, [${indices.map((i) => `__i18n_lang.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
 			edits.push({
 				start: run.start,

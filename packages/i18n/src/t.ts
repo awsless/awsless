@@ -21,12 +21,14 @@ type Piece = Range & {
 	hoisted?: boolean
 	/** The body an `open` token starts. */
 	body?: Context
+	/** Whitespace Svelte would drop; it stays in the source, so an edit must take it along. */
+	dropped?: boolean
 }
 
 export type Edit = Range & { text: string }
 
 // The text between two tag boundaries: translated and emitted as one call.
-export type Run = Range & { tokens: Token[] }
+export type Run = Range & { tokens: Token[]; dropped: Range[] }
 
 // One translatable string: the <T> children or a block branch body.
 export type Segment = {
@@ -174,15 +176,16 @@ export const resolveT = (ast: AST.Root) => {
 
 	// `lets` are a component's let: bindings: they reach its default slot
 	// children only, a child with a slot attribute sees the scope without them.
-	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>, lets: string[] = []) => {
+	const walk = (nodes: AST.Fragment['nodes'], scope: Set<string>, lets: string[] = [], component = false) => {
 		const inner = new Set(scope)
+		const declared: string[] = []
 
-		// Declarations and snippets bind in the enclosing fragment.
+		// Declarations and snippets bind in the enclosing fragment. Under a
+		// component, declarations reach its default slot only, like let: does.
 		for (const node of nodes) {
-			// `{@const}` and the `{const ...}` / `{let ...}` declaration tags alike.
 			if (node.type === 'ConstTag' || node.type === 'DeclarationTag') {
 				node.declaration.declarations.forEach(declaration =>
-					patternNames(declaration.id as Pattern).forEach(n => inner.add(n))
+					declared.push(...patternNames(declaration.id as Pattern))
 				)
 			}
 
@@ -191,10 +194,10 @@ export const resolveT = (ast: AST.Root) => {
 			}
 		}
 
-		const withLets = new Set([...inner, ...lets])
+		const full = new Set([...inner, ...declared, ...lets])
 
 		for (const node of nodes) {
-			const current = hasSlotAttribute(node) ? inner : withLets
+			const current = component && hasSlotAttribute(node) ? inner : full
 			const extend = (names: string[]) => new Set([...current, ...names])
 
 			switch (node.type) {
@@ -239,7 +242,7 @@ export const resolveT = (ast: AST.Root) => {
 							ours.add(node)
 						}
 
-						walk(node.fragment.nodes, current, letNames(node))
+						walk(node.fragment.nodes, current, letNames(node), COMPONENTS.has(node.type))
 					}
 			}
 		}
@@ -602,7 +605,7 @@ const normalize = (pieces: Piece[], context: Context): Piece[] => {
 
 	return items.flatMap(item => {
 		if (dropped.has(item)) {
-			return []
+			return [{ ...item.piece, token: { type: 'text' as const, value: '' }, dropped: true }]
 		}
 
 		if (item.inner && item.close) {
@@ -620,7 +623,9 @@ const merge = (pieces: Piece[]) => {
 	for (const piece of pieces) {
 		const previous = merged.at(-1)
 
-		if (piece.token.type === 'text' && previous?.token.type === 'text') {
+		if (piece.dropped) {
+			merged.push({ ...piece })
+		} else if (piece.token.type === 'text' && previous?.token.type === 'text' && !previous.dropped) {
 			previous.token.value += piece.token.value
 			previous.end = piece.end
 		} else {
@@ -636,7 +641,7 @@ const isRunToken = (token: Token) => token.type === 'text' || token.type === 'ex
 // Runs are the gaps between tag tokens; an empty gap still gets a position
 // so a translation that moves text into it has somewhere to go.
 const segment = (pieces: Piece[], expressions: Range[]): Segment => {
-	const tokens = pieces.map(piece => piece.token)
+	const tokens = pieces.filter(piece => !piece.dropped).map(piece => piece.token)
 	const runs: Run[] = []
 
 	if (pieces.length === 0) {
@@ -650,10 +655,13 @@ const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 		const first = current[0]
 		const last = current.at(-1)
 
+		const kept = current.filter(piece => !piece.dropped)
+		const dropped = current.filter(piece => piece.dropped).map(({ start, end }) => ({ start, end }))
+
 		runs.push(
 			first && last
-				? { start: first.start, end: last.end, tokens: current.map(piece => piece.token) }
-				: { start: boundary, end: boundary, tokens: [] }
+				? { start: first.start, end: last.end, tokens: kept.map(piece => piece.token), dropped }
+				: { start: boundary, end: boundary, tokens: [], dropped }
 		)
 		current = []
 		boundary = next
@@ -910,6 +918,8 @@ export const transformT = (
 			})
 
 			if (changed.length === 0) {
+				// A call next door turns this whitespace into text Svelte keeps, so it goes.
+				edits.push(...run.dropped.map(range => ({ ...range, text: '' })))
 				continue
 			}
 

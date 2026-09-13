@@ -1434,6 +1434,42 @@ describe('template declarations', () => {
 	})
 })
 
+describe('dropped whitespace and slot-scoped declarations', () => {
+	it('takes whitespace svelte drops along with the translated run', async () => {
+		const pre = '<p style="white-space: pre-wrap"><T>Hello {@const x = 1}\n   {value}</T></p>'
+		const { baseline, fr } = await parity(pre, { value: 'X' })
+		expect(baseline).toBe('<p style="white-space: pre-wrap">Hello X</p>')
+		expect(fr).toBe('<p style="white-space: pre-wrap">HELLO X</p>')
+
+		const comment = await parity('<T>a <!-- c --> b</T>')
+		expect(comment.baseline).toBe('a b')
+		expect(comment.fr).toBe('A B')
+
+		const edges = await parity('<p style="white-space: pre-wrap"><T>\n  <b>Hi</b> <!-- c -->\n</T></p>')
+		expect(edges.baseline).toBe('<p style="white-space: pre-wrap"><b>Hi</b></p>')
+		expect(edges.fr).toBe('<p style="white-space: pre-wrap"><b>HI</b></p>')
+	})
+
+	it('scopes a component child declaration to the default slot', async () => {
+		for (const declaration of ['{let T = Host}', '{const T = Host}', '{@const T = Host}']) {
+			const slotted = component(`<Host>${declaration}<T slot="heading">Hello</T></Host>`)
+			expect(findSvelteTranslatable(slotted).map(item => item.source)).toStrictEqual(['Hello'])
+
+			const [before] = await ssr(slotted, {}, ['en'])
+			const { code } = await transform(slotted, table({ Hello: { fr: 'Bonjour' } }))
+			expect(() => compile(code, { generate: 'client' })).not.toThrow()
+			const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+			expect(en).toBe(before)
+			expect(en).toBe('<header>Hello</header><main></main>')
+			expect(fr).toBe('<header>Bonjour</header><main></main>')
+
+			const shadowed = component(`<Host>${declaration}<T>Fallback</T></Host>`)
+			expect(findSvelteTranslatable(shadowed)).toStrictEqual([])
+			expect((await transform(shadowed, upper)).code).toBe(shadowed)
+		}
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')
