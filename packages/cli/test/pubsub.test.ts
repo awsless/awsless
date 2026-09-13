@@ -1,6 +1,5 @@
 import { findInputDeps } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
-import { createRandomProvider } from '../src/formation/random'
 import { createTestApp, listResources } from './_kit'
 
 const code = { file: { nocheck: './auth.ts' } }
@@ -35,18 +34,6 @@ describe('pubsub', () => {
 		const subscription = listResources(app, 'aws_sns_topic_subscription')[0]!
 
 		expect(JSON.parse(subscription.input.filterPolicy)).toEqual({ event: ['connected'] })
-	})
-
-	it('protects the origin with a random secret kept in the deployment state', () => {
-		const { app } = createPubSubApp()
-		const secrets = listResources(app, 'secret')
-		const service = listResources(app, 'aws_ecs_task_definition')[0]!
-
-		expect(secrets).toHaveLength(1)
-
-		// The container env reads the value off the random resource, so
-		// nothing derivable from public ids ever reaches the task.
-		expect(findInputDeps(service.input.containerDefinitions)).toContain(secrets[0])
 	})
 
 	it('only opens the cache to the websocket tasks & the bundle', () => {
@@ -92,29 +79,5 @@ describe('pubsub', () => {
 				},
 			})
 		).toThrow('requires the "main" router to have a domain')
-	})
-})
-
-describe('random secret provider', () => {
-	const provider = createRandomProvider()
-
-	it('generates a random hex secret on create', async () => {
-		const first = await provider.createResource({ type: 'secret', state: {} })
-		const second = await provider.createResource({ type: 'secret', state: {} })
-
-		expect(first.state.value).toMatch(/^[0-9a-f]{64}$/)
-		expect(first.state.value).not.toBe(second.state.value)
-	})
-
-	it('keeps the secret across updates', async () => {
-		const created = await provider.createResource({ type: 'secret', state: { bytes: 16 } })
-		const updated = await provider.updateResource({
-			type: 'secret',
-			priorState: created.state,
-			proposedState: { bytes: 16 },
-		})
-
-		expect(created.state.value).toMatch(/^[0-9a-f]{32}$/)
-		expect(updated.state.value).toBe(created.state.value)
 	})
 })

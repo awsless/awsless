@@ -16,7 +16,6 @@ import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
 import { createOpenSearchProvider } from '../formation/open-search.js'
-import { createRandomProvider } from '../formation/random.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
@@ -69,7 +68,6 @@ export const createWorkSpace = async (props: BackendProps) => {
 			createS3Provider(props),
 			createNameServersProvider(props),
 			createOpenSearchProvider(props),
-			createRandomProvider(),
 			// Backwards compatibility for old states, can be removed later.
 			createCustomProvider('cloudfront', {
 				invalidation: {},
