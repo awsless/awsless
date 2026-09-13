@@ -1,6 +1,6 @@
 import lineColumn from 'line-column'
 import { AST, parse } from 'svelte/compiler'
-import { annotate, Namespace, svelteInternals, SvelteNode } from './svelte-internal'
+import { annotate, lookupNamespace, Namespace, svelteInternals, SvelteNode } from './svelte-internal'
 
 // Svelte puts offsets on every node, the estree types just don't declare them.
 type Range = { start: number; end: number }
@@ -98,46 +98,49 @@ const hasStaticXmlns = (node: AST.SvelteElement) =>
 			attribute.value[0]?.type === 'Text'
 	)
 
-// A component resets the namespace its children see, the block wrapper does
-// not. A <svelte:element> without a static xmlns takes the namespace of what
-// is around it, so inside svg or mathml it would change once unwrapped. The
-// walk stops where Svelte's own namespace lookup stops: at an element with a
-// namespace of its own, a component or a snippet.
-const unwrapChangesNamespace = (nodes: AST.Fragment['nodes']): boolean =>
+// The <svelte:element>s whose namespace is looked up through the <T>: the
+// walk stops where Svelte's own lookup stops, at an element with a namespace
+// of its own, a component or a snippet, and passes through what does not
+// shield it: blocks, a direct fragment and a boundary.
+const hasExposedDynamicElement = (nodes: AST.Fragment['nodes']): boolean =>
 	nodes.some(node => {
 		switch (node.type) {
 			case 'SvelteElement':
 				return !hasStaticXmlns(node)
 			case 'SvelteFragment':
-				return unwrapChangesNamespace(node.fragment.nodes)
+			case 'SvelteBoundary':
+			case 'KeyBlock':
+				return hasExposedDynamicElement(node.fragment.nodes)
 			case 'IfBlock':
 				return (
-					unwrapChangesNamespace(node.consequent.nodes) ||
-					(node.alternate !== null && unwrapChangesNamespace(node.alternate.nodes))
+					hasExposedDynamicElement(node.consequent.nodes) ||
+					(node.alternate !== null && hasExposedDynamicElement(node.alternate.nodes))
 				)
 			case 'EachBlock':
 				return (
-					unwrapChangesNamespace(node.body.nodes) ||
-					(node.fallback !== undefined && unwrapChangesNamespace(node.fallback.nodes))
+					hasExposedDynamicElement(node.body.nodes) ||
+					(node.fallback !== undefined && hasExposedDynamicElement(node.fallback.nodes))
 				)
 			case 'AwaitBlock':
 				return [node.pending, node.then, node.catch].some(
-					body => body !== null && unwrapChangesNamespace(body.nodes)
+					body => body !== null && hasExposedDynamicElement(body.nodes)
 				)
-			case 'KeyBlock':
-				return unwrapChangesNamespace(node.fragment.nodes)
 			default:
 				return false
 		}
 	})
 
-const isRuntimeOnly = (node: AST.Component, namespace: Namespace) =>
+// A component resets the namespace its children see, the block wrapper does
+// not: a <svelte:element> without a static xmlns gets the component's own
+// namespace now and the surrounding one once unwrapped. When those differ,
+// the runtime component has to stay. `path` is the <T>'s ancestry.
+const isRuntimeOnly = (node: AST.Component, path: SvelteNode[], componentNamespace: Namespace) =>
 	node.attributes.some(
 		attribute =>
 			!(attribute.type === 'LetDirective' || (attribute.type === 'Attribute' && attribute.name === 'slot'))
 	) ||
 	node.fragment.nodes.some(hasSlotAttribute) ||
-	(namespace !== 'html' && unwrapChangesNamespace(node.fragment.nodes))
+	(hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace)
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
 
@@ -499,7 +502,7 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 						break
 					default: {
 						if (node.type === 'Component' && ours.has(node)) {
-							if (!isRuntimeOnly(node, namespaces.get(node) ?? context.namespace)) {
+							if (!isRuntimeOnly(node, inner, namespace)) {
 								throw fail(node.start, 'nested <T> is not supported inside <T>')
 							}
 
@@ -588,19 +591,28 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 		svgText: false,
 	}
 
-	collect(code, ours, internals, ast.fragment.nodes, root, undefined, (node, head, foot, wrap, nodes, context) => {
-		const extra: Edit[] = []
+	collect(
+		code,
+		ours,
+		internals,
+		namespace,
+		ast.fragment.nodes,
+		root,
+		undefined,
+		(node, head, foot, wrap, nodes, context) => {
+			const extra: Edit[] = []
 
-		components.push({
-			start: node.start,
-			end: node.end,
-			head,
-			foot,
-			wrap,
-			extra,
-			segments: nodes ? build(node as SvelteNode, nodes, context, extra, true) : [],
-		})
-	})
+			components.push({
+				start: node.start,
+				end: node.end,
+				head,
+				foot,
+				wrap,
+				extra,
+				segments: nodes ? build(node as SvelteNode, nodes, context, extra, true) : [],
+			})
+		}
+	)
 
 	return { ast, components }
 }
@@ -620,6 +632,7 @@ const collect = (
 	code: string,
 	ours: Set<AST.Component>,
 	internals: ReturnType<typeof svelteInternals>,
+	componentNamespace: Namespace,
 	nodes: AST.Fragment['nodes'],
 	context: Context,
 	parent: AST.Fragment['nodes'][number] | undefined,
@@ -627,7 +640,7 @@ const collect = (
 ) => {
 	for (const node of nodes) {
 		if (node.type === 'Component' && ours.has(node)) {
-			if (isRuntimeOnly(node, context.namespace)) {
+			if (isRuntimeOnly(node, context.path, componentNamespace)) {
 				continue
 			}
 
@@ -693,7 +706,16 @@ const collect = (
 					node as SvelteNode,
 					fragment.nodes as unknown as SvelteNode[]
 				)
-				collect(code, ours, internals, fragment.nodes, { ...inside, namespace: inferred }, node, found)
+				collect(
+					code,
+					ours,
+					internals,
+					componentNamespace,
+					fragment.nodes,
+					{ ...inside, namespace: inferred },
+					node,
+					found
+				)
 			}
 		}
 	}

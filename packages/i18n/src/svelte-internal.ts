@@ -130,14 +130,40 @@ const NAMESPACE_MATHML = 'http://www.w3.org/1998/Math/MathML'
 
 const SLOT_RESET = new Set(['Component', 'SvelteComponent', 'SvelteFragment', 'SnippetBlock'])
 
+const meta = (node: unknown) => node as Annotated
+
+/** The namespace a <svelte:element> without xmlns gets from its ancestors, the
+ * way svelte/src/compiler/phases/2-analyze/visitors/SvelteElement.js looks it
+ * up: the nearest element's own, or the component's at a slot, a snippet or
+ * the root. `path` starts at the root. */
+export const lookupNamespace = (path: SvelteNode[], componentNamespace: Namespace): Namespace => {
+	for (let i = path.length - 1; i >= 0; i--) {
+		const ancestor = path[i]!
+
+		if (i === 0 || SLOT_RESET.has(ancestor.type)) {
+			return componentNamespace
+		}
+
+		if (ancestor.type === 'RegularElement' || ancestor.type === 'SvelteElement') {
+			if (ancestor.type === 'RegularElement' && ancestor.name === 'foreignObject') {
+				return 'html'
+			}
+
+			const metadata = meta(ancestor).metadata
+
+			return metadata?.svg ? 'svg' : metadata?.mathml ? 'mathml' : 'html'
+		}
+	}
+
+	return componentNamespace
+}
+
 /** parse() hands out the AST without the metadata the analysis phase adds,
  * and the cleaning reads two bits of it: the element namespace, computed here
  * the way svelte/src/compiler/phases/2-analyze/visitors/RegularElement.js and
  * SvelteElement.js do, and `dynamic` on components and render tags, which
  * only steers an anchor optimisation and stays false. */
 export const annotate = (root: AST.Root, namespace: Namespace, internals: SvelteInternals) => {
-	const meta = (node: unknown) => node as Annotated
-
 	const walk = (nodes: Nodes, path: SvelteNode[]) => {
 		for (const node of nodes) {
 			if (node.type === 'RegularElement') {
@@ -180,26 +206,8 @@ export const annotate = (root: AST.Root, namespace: Namespace, internals: Svelte
 					const value = xmlns.value[0].data
 					meta(node).metadata = { svg: value === NAMESPACE_SVG, mathml: value === NAMESPACE_MATHML }
 				} else {
-					let svg = namespace === 'svg'
-					let mathml = namespace === 'mathml'
-
-					for (let i = path.length - 1; i >= 0; i--) {
-						const ancestor = path[i]!
-
-						// A slot, snippet or the root resets to the component's namespace.
-						if (i === 0 || SLOT_RESET.has(ancestor.type)) {
-							break
-						}
-
-						if (ancestor.type === 'RegularElement' || ancestor.type === 'SvelteElement') {
-							const foreign = ancestor.type === 'RegularElement' && ancestor.name === 'foreignObject'
-							svg = foreign ? false : meta(ancestor).metadata?.svg === true
-							mathml = foreign ? false : meta(ancestor).metadata?.mathml === true
-							break
-						}
-					}
-
-					meta(node).metadata = { svg, mathml }
+					const found = lookupNamespace(path, namespace)
+					meta(node).metadata = { svg: found === 'svg', mathml: found === 'mathml' }
 				}
 
 				walk(node.fragment.nodes, [...path, node as SvelteNode])

@@ -165,13 +165,29 @@ const SLOT_RESET = /* @__PURE__ */ new Set([
 	"SvelteFragment",
 	"SnippetBlock"
 ]);
+const meta = (node) => node;
+/** The namespace a <svelte:element> without xmlns gets from its ancestors, the
+* way svelte/src/compiler/phases/2-analyze/visitors/SvelteElement.js looks it
+* up: the nearest element's own, or the component's at a slot, a snippet or
+* the root. `path` starts at the root. */
+const lookupNamespace = (path, componentNamespace) => {
+	for (let i = path.length - 1; i >= 0; i--) {
+		const ancestor = path[i];
+		if (i === 0 || SLOT_RESET.has(ancestor.type)) return componentNamespace;
+		if (ancestor.type === "RegularElement" || ancestor.type === "SvelteElement") {
+			if (ancestor.type === "RegularElement" && ancestor.name === "foreignObject") return "html";
+			const metadata = meta(ancestor).metadata;
+			return metadata?.svg ? "svg" : metadata?.mathml ? "mathml" : "html";
+		}
+	}
+	return componentNamespace;
+};
 /** parse() hands out the AST without the metadata the analysis phase adds,
 * and the cleaning reads two bits of it: the element namespace, computed here
 * the way svelte/src/compiler/phases/2-analyze/visitors/RegularElement.js and
 * SvelteElement.js do, and `dynamic` on components and render tags, which
 * only steers an anchor optimisation and stays false. */
 const annotate = (root, namespace, internals) => {
-	const meta = (node) => node;
 	const walk = (nodes, path) => {
 		for (const node of nodes) {
 			if (node.type === "RegularElement") {
@@ -197,21 +213,10 @@ const annotate = (root, namespace, internals) => {
 						mathml: value === NAMESPACE_MATHML
 					};
 				} else {
-					let svg = namespace === "svg";
-					let mathml = namespace === "mathml";
-					for (let i = path.length - 1; i >= 0; i--) {
-						const ancestor = path[i];
-						if (i === 0 || SLOT_RESET.has(ancestor.type)) break;
-						if (ancestor.type === "RegularElement" || ancestor.type === "SvelteElement") {
-							const foreign = ancestor.type === "RegularElement" && ancestor.name === "foreignObject";
-							svg = foreign ? false : meta(ancestor).metadata?.svg === true;
-							mathml = foreign ? false : meta(ancestor).metadata?.mathml === true;
-							break;
-						}
-					}
+					const found = lookupNamespace(path, namespace);
 					meta(node).metadata = {
-						svg,
-						mathml
+						svg: found === "svg",
+						mathml: found === "mathml"
 					};
 				}
 				walk(node.fragment.nodes, [...path, node]);
@@ -260,22 +265,23 @@ const SVG_TEXT = /* @__PURE__ */ new Set([
 ]);
 const hasSlotAttribute = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 const hasStaticXmlns = (node) => node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "xmlns" && Array.isArray(attribute.value) && attribute.value.length === 1 && attribute.value[0]?.type === "Text");
-const unwrapChangesNamespace = (nodes) => nodes.some((node) => {
+const hasExposedDynamicElement = (nodes) => nodes.some((node) => {
 	switch (node.type) {
 		case "SvelteElement": return !hasStaticXmlns(node);
-		case "SvelteFragment": return unwrapChangesNamespace(node.fragment.nodes);
-		case "IfBlock": return unwrapChangesNamespace(node.consequent.nodes) || node.alternate !== null && unwrapChangesNamespace(node.alternate.nodes);
-		case "EachBlock": return unwrapChangesNamespace(node.body.nodes) || node.fallback !== void 0 && unwrapChangesNamespace(node.fallback.nodes);
+		case "SvelteFragment":
+		case "SvelteBoundary":
+		case "KeyBlock": return hasExposedDynamicElement(node.fragment.nodes);
+		case "IfBlock": return hasExposedDynamicElement(node.consequent.nodes) || node.alternate !== null && hasExposedDynamicElement(node.alternate.nodes);
+		case "EachBlock": return hasExposedDynamicElement(node.body.nodes) || node.fallback !== void 0 && hasExposedDynamicElement(node.fallback.nodes);
 		case "AwaitBlock": return [
 			node.pending,
 			node.then,
 			node.catch
-		].some((body) => body !== null && unwrapChangesNamespace(body.nodes));
-		case "KeyBlock": return unwrapChangesNamespace(node.fragment.nodes);
+		].some((body) => body !== null && hasExposedDynamicElement(body.nodes));
 		default: return false;
 	}
 });
-const isRuntimeOnly = (node, namespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || namespace !== "html" && unwrapChangesNamespace(node.fragment.nodes);
+const isRuntimeOnly = (node, path, componentNamespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || hasExposedDynamicElement(node.fragment.nodes) && lookupNamespace(path, componentNamespace) !== componentNamespace;
 const COMPONENTS = /* @__PURE__ */ new Set([
 	"Component",
 	"SvelteComponent",
@@ -529,7 +535,7 @@ const parseT = (code, file, options = {}) => {
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
-						if (!isRuntimeOnly(node, namespaces.get(node) ?? context.namespace)) throw fail(node.start, "nested <T> is not supported inside <T>");
+						if (!isRuntimeOnly(node, inner, namespace)) throw fail(node.start, "nested <T> is not supported inside <T>");
 						pieces.push({
 							start: node.start,
 							end: node.end,
@@ -643,7 +649,7 @@ const parseT = (code, file, options = {}) => {
 		restricted: false,
 		svgText: false
 	};
-	collect(code, ours, internals, ast.fragment.nodes, root, void 0, (node, head, foot, wrap, nodes, context) => {
+	collect(code, ours, internals, namespace, ast.fragment.nodes, root, void 0, (node, head, foot, wrap, nodes, context) => {
 		const extra = [];
 		components.push({
 			start: node.start,
@@ -660,10 +666,10 @@ const parseT = (code, file, options = {}) => {
 		components
 	};
 };
-const collect = (code, ours, internals, nodes, context, parent, found) => {
+const collect = (code, ours, internals, componentNamespace, nodes, context, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && ours.has(node)) {
-			if (isRuntimeOnly(node, context.namespace)) continue;
+			if (isRuntimeOnly(node, context.path, componentNamespace)) continue;
 			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
 			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");
@@ -710,7 +716,7 @@ const collect = (code, ours, internals, nodes, context, parent, found) => {
 			const fragment = node[key];
 			if (fragment?.type === "Fragment") {
 				const inferred = internals.inferNamespace(inside.namespace, node, fragment.nodes);
-				collect(code, ours, internals, fragment.nodes, {
+				collect(code, ours, internals, componentNamespace, fragment.nodes, {
 					...inside,
 					namespace: inferred
 				}, node, found);

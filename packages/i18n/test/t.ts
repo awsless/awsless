@@ -2037,6 +2037,52 @@ describe('namespace reset of the component wrapper', () => {
 	})
 })
 
+describe('namespace lookup through the wrapper', () => {
+	const body = '<svelte:element this={tag}><tspan>Hello</tspan> <tspan>world</tspan></svelte:element>'
+	const translations = table({ '<1><2>Hello</2> <3>world</3></1>': { fr: '<1><2>Bonjour</2> <3>monde</3></1>' } })
+
+	// Untouched with and without translations, rendering as before.
+	const untouched = async (markup: string, props: Record<string, unknown>, expected: string) => {
+		expect(sources(markup)).toStrictEqual([])
+
+		const { baseline, code } = await parity(markup, props)
+		expect(baseline).toBe(expected)
+		expect(code).toBe(component(markup))
+
+		const translated = await transform(component(markup), translations)
+		expect(translated.code).toBe(component(markup))
+		expect((await ssr(translated.code, props, ['fr']))[0]).toBe(expected)
+	}
+
+	it('looks through a boundary', async () => {
+		await untouched(
+			`<svg><T><svelte:boundary>${body}</svelte:boundary></T></svg>`,
+			{ tag: 'text' },
+			'<svg><text><tspan>Hello</tspan> <tspan>world</tspan></text></svg>'
+		)
+	})
+
+	it('compares against the component namespace', async () => {
+		const html =
+			'<svelte:options namespace="svg" /><svg><foreignObject><T><svelte:element this={tag}><span>Hello</span> <span>world</span></svelte:element></T></foreignObject></svg>'
+		// The element takes the component's svg namespace, so the blank goes: the
+		// very behaviour that would change once unwrapped into html.
+		await untouched(
+			html,
+			{ tag: 'div' },
+			'<svg><foreignObject><div><span>Hello</span><span>world</span></div></foreignObject></svg>'
+		)
+
+		// Same namespace before and after, so this one is transformed. Its
+		// children are svg, where Svelte drops the blank between the tspans.
+		const same = `<svelte:options namespace="svg" /><svg><T>${body}</T></svg>`
+		expect(sources(same)).toStrictEqual(['<1><2>Hello</2><3>world</3></1>'])
+		const { baseline, fr } = await parity(same, { tag: 'text' })
+		expect(baseline).toBe('<svg><text><tspan>Hello</tspan><tspan>world</tspan></text></svg>')
+		expect(fr).toBe('<svg><text><tspan>HELLO</tspan><tspan>WORLD</tspan></text></svg>')
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')
