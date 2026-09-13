@@ -23,11 +23,8 @@ export const withTestEnvironment = async (
 	const manifest = createTestManifest(appConfig, stackConfigs)
 	const manifestFile = join(directories.output, 'test', 'manifest.json')
 
-	// The heavy resource servers boot ONCE for the whole test
-	// run & every test file namespaces into them, so test
-	// files never race each other over ports. Tables run as a
-	// cheap in-process server per test file instead, so their
-	// stream consumers settle inside the write calls.
+	// Booted once per run & namespaced per test file, so files never
+	// race over ports. Tables stay in-process so streams settle inline.
 	let redis: RedisServer | undefined
 	let search: OpenSearchServer | undefined
 	let booting: Promise<void> | undefined

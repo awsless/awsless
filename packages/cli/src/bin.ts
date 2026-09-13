@@ -1,15 +1,6 @@
 #!/usr/bin/env bun
 
-import { clearDebugLog } from './cli/debug.js'
 import { program } from './cli/program.js'
-// @ts-ignore
-
-// import stayAwake from 'stay-awake'
-// stayAwake.prevent()
-
-// process.env.AWSLESS_CLI = '1'
-
-clearDebugLog()
 
 const interrupt = (signal: NodeJS.Signals, code: number) => () => {
 	// A signal skips the spinner teardown that would show the cursor again.

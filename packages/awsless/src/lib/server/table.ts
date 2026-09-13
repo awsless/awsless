@@ -1,7 +1,7 @@
 import { define, GenericMapSchema } from '@awsless/dynamodb'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { bindLocalResourceName, getStack, IS_TEST } from './util.js'
+import { bindLocalResourceName, getStack, isTest } from './util.js'
 
 export const getTableName = bindLocalResourceName('table')
 
@@ -20,12 +20,28 @@ export const getTableProps = (name: string, stack: string = getStack()) => {
 	} as const
 }
 
+// A drifted schema fails loud instead of writing items missing their key attributes.
+export const assertKeyAttributes = (label: string, keys: TableKeys, schema: GenericMapSchema) => {
+	const attributes = [
+		keys.hash,
+		keys.sort,
+		...Object.values(keys.indexes ?? {}).flatMap(index => [index.hash, index.sort]),
+	]
+		.flat()
+		.filter(attribute => typeof attribute === 'string')
+
+	for (const attribute of attributes) {
+		if (!schema.walk?.(attribute)) {
+			throw new Error(
+				`The schema of table "${label}" is missing the "${attribute}" key field declared in the stack file.`
+			)
+		}
+	}
+}
+
 export interface TableResources {}
 
-// The table keys & indexes live in the stack config - app code only
-// supplies the runtime schema:
-//
-//   export const tasks = Table.todo.tasks.define(object({ ... }))
+// The keys & indexes live in the stack config, app code only supplies the schema.
 export const Table: TableResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
 		return {
@@ -39,29 +55,11 @@ export const Table: TableResources = /*@__PURE__*/ createProxy(stack => {
 					)
 				}
 
-				// Tests verify the code schema against the stack file, so
-				// a drifted schema fails loud instead of writing items
-				// missing their key attributes.
-				if (IS_TEST) {
-					const attributes = [
-						keys.hash,
-						keys.sort,
-						...Object.values(keys.indexes ?? {}).flatMap(index => [index.hash, index.sort]),
-					]
-						.flat()
-						.filter(attribute => typeof attribute === 'string')
-
-					for (const attribute of attributes) {
-						if (!schema.walk?.(attribute)) {
-							throw new Error(
-								`The schema of table "${stack}.${name}" is missing the "${attribute}" key field declared in the stack file.`
-							)
-						}
-					}
+				if (isTest()) {
+					assertKeyAttributes(`${stack}.${name}`, keys, schema)
 				}
 
-				// The runtime values come from the stack config, while
-				// the generated per table types carry the literals.
+				// The generated per table types carry the literal key names.
 				return define(tableName, {
 					hash: keys.hash,
 					sort: keys.sort,

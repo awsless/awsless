@@ -68,11 +68,6 @@ export class TypeFile {
 					return `\tinterface ${name} ${type}`
 				})
 				.join('\n\n'),
-
-			// ...Array.from(this.types.entries()).map(([propName, type]) => { // `\tinterface ${this.interfaceName} {`,
-			// 	return `\t\t${this.readonly ? 'readonly ' : ''}${propName}: ${type}`
-			// }),
-			// `\t}`,
 			`}`,
 			'',
 

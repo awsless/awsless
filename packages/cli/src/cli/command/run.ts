@@ -1,36 +1,28 @@
 import { prompt } from '@awsless/clui'
 import { DynamoDBClient, dynamoDBClient } from '@awsless/dynamodb'
-import { constantCase } from 'change-case'
 import { iotClient, IoTDataPlaneClient } from '@awsless/iot'
 import { LambdaClient, lambdaClient } from '@awsless/lambda'
 import { S3Client, s3Client } from '@awsless/s3'
 import { SNSClient, snsClient } from '@awsless/sns'
 import { SQSClient, sqsClient } from '@awsless/sqs'
+import { constantCase } from 'change-case'
 import { Command as CliCommand } from 'commander'
 import { createApp } from '../../app.js'
 import { Command, CommandHandler } from '../../command.js'
 import { ExpectedError } from '../../error.js'
 import { formatTableKeys } from '../../feature/table/util.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
-// import { task } from '../ui/util.js'
-
-// @ts-ignore
-// import { tsImport } from 'tsx/esm/api'
+import { createClients } from './util.js'
 
 export const run = (program: CliCommand) => {
 	program
 		.command('run')
-		// .allowExcessArguments(true)
 		.allowUnknownOption(true)
-		// .passThroughOptions(true)
 		.argument('[command]', 'The command you want to run')
 		.description('Run one of your defined commands.')
 		.action(async (selected: string | undefined) => {
 			await layout(`run ${selected ?? ''}`, async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const credentials = await getCredentials(appConfig.profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId } = await createClients(appConfig)
 				const { commands, appId } = createApp({ appConfig, stackConfigs, accountId })
 
 				// ---------------------------------------------------
@@ -84,20 +76,6 @@ export const run = (program: CliCommand) => {
 
 				// ---------------------------------------------------
 				// Import the command
-
-				// let module: any
-
-				// try {
-				// 	module = await tsImport(command.file, {
-				// 		parentURL: import.meta.url,
-				// 	})
-				// } catch (error) {
-				// 	if (typeof error === 'object' && error !== null && 'message' in error) {
-				// 		throw error.message
-				// 	}
-
-				// 	throw new ExpectedError(`Failed to import: ${command.file}`)
-				// }
 
 				const module = await import(command.file)
 

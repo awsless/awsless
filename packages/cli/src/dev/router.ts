@@ -11,6 +11,9 @@ type CompiledRoute = {
 	routeKey?: string
 	proxy?: string
 	rewrite?: { regex: string; to: string }
+	// Raw keys are the static asset routes, which the deployed viewer
+	// only serves for GET & HEAD (they are s3 origins).
+	readOnly: boolean
 }
 
 type RouteMatch = {
@@ -24,7 +27,7 @@ type RouteMatch = {
 // route store only holds the exact path, the first path segment
 // wildcard (/root/*) & the catch-all (/*), with an optional regex for
 // patterns that are more specific than their store key.
-const compileRoutes = (routes: DevRoute[]) => {
+export const compileRoutes = (routes: DevRoute[]) => {
 	const store = new Map<string, CompiledRoute[]>()
 
 	for (const route of routes) {
@@ -39,6 +42,7 @@ const compileRoutes = (routes: DevRoute[]) => {
 			routeKey: route.routeKey,
 			proxy: route.proxy,
 			rewrite: route.rewrite,
+			readOnly: Boolean(route.rawKey),
 		})
 
 		store.set(compiled.key, list)
@@ -72,9 +76,17 @@ const compileRoutes = (routes: DevRoute[]) => {
 		return [path, `/${root}/*`, '/*']
 	}
 
-	return (path: string): RouteMatch | undefined => {
+	return (requestPath: string, method = 'GET'): RouteMatch | undefined => {
+		// Only the route selection drops a trailing slash, like the viewer
+		// function - the forwarded path stays untouched.
+		const path = requestPath.length > 1 && requestPath.endsWith('/') ? requestPath.slice(0, -1) : requestPath
+
 		for (const key of possibleKeys(path)) {
 			for (const route of store.get(key) ?? []) {
+				if (route.readOnly && method !== 'GET' && method !== 'HEAD') {
+					continue
+				}
+
 				if (!route.match) {
 					return { routeKey: route.routeKey, proxy: route.proxy, params: {}, rewrite: route.rewrite }
 				}
@@ -109,9 +121,13 @@ const isTextualBody = (contentType: string) => {
 	)
 }
 
+// Apply the route's origin path rewrite, like the deployed router.
+const rewrittenPath = (route: RouteMatch, path: string) => {
+	return route.rewrite ? path.replace(new RegExp(route.rewrite.regex), route.rewrite.to) : path
+}
+
 const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: URL, sourceIp: string) => {
-	// Apply the route's origin path rewrite, like the deployed router.
-	const path = route.rewrite ? url.pathname.replace(new RegExp(route.rewrite.regex), route.rewrite.to) : url.pathname
+	const path = rewrittenPath(route, url.pathname)
 
 	const headers: Record<string, string> = {}
 
@@ -257,10 +273,6 @@ export const startDevRouter = async (props: {
 }) => {
 	const match = compileRoutes(props.routes)
 
-	const rewrittenPath = (route: RouteMatch, path: string) => {
-		return route.rewrite ? path.replace(new RegExp(route.rewrite.regex), route.rewrite.to) : path
-	}
-
 	const server = Bun.serve<SocketData>({
 		port: props.port,
 		// Loopback only, like every other local server - the router
@@ -269,7 +281,7 @@ export const startDevRouter = async (props: {
 		idleTimeout: 120,
 		async fetch(request, server) {
 			const url = new URL(request.url)
-			const route = match(url.pathname)
+			const route = match(url.pathname, request.method)
 
 			if (!route) {
 				return new Response(`No route matched: ${url.pathname}`, { status: 404 })

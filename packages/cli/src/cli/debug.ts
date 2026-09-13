@@ -2,27 +2,35 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { directories } from '../util/path.js'
 
-// Debug logs always write to a plain text log file, so the terminal
-// ui stays clean & the last run stays inspectable after a crash. The
-// file truncates at the start of every run.
-export const debugLogFile = join(directories.output, 'debug.log')
+// The log file lives in the project's .awsless folder, so lines wait in
+// memory until the project root is known.
+let file: string | undefined
+let pending: string[] = []
 
-let ready = false
+// The log file of the current run, once it has been opened.
+export const debugLogFile = () => file
 
-// Called at the start of every cli run, so the file only ever holds
-// the current run.
-export const clearDebugLog = () => {
+// Called once the project root is known. The file truncates, so it
+// only ever holds the current run.
+export const openDebugLog = () => {
+	if (file) {
+		return
+	}
+
 	try {
+		const path = join(directories.output, 'debug.log')
+
 		mkdirSync(directories.output, { recursive: true })
-		writeFileSync(debugLogFile, '')
-		ready = true
+		writeFileSync(path, pending.join(''))
+
+		pending = []
+		file = path
 	} catch {
 		// Debug logging must never take down the cli.
 	}
 }
 
-// The dev dashboard taps the debug stream through this sink - set,
-// not added, so a config restart never stacks stale listeners.
+// Set, not added, so a dev config restart never stacks stale sinks.
 let sink: ((type: string, message: string) => void) | undefined
 
 export const setDebugSink = (listener?: (type: string, message: string) => void) => {
@@ -30,12 +38,15 @@ export const setDebugSink = (listener?: (type: string, message: string) => void)
 }
 
 const write = (type: string, message: string) => {
+	const line = `${new Date().toISOString()} [${type}] ${message}\n`
+
 	try {
-		if (!ready) {
-			clearDebugLog()
+		if (file) {
+			appendFileSync(file, line)
+		} else {
+			pending.push(line)
 		}
 
-		appendFileSync(debugLogFile, `${new Date().toISOString()} [${type}] ${message}\n`)
 		sink?.(type, message)
 	} catch {
 		// Debug logging must never take down the cli.

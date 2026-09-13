@@ -4,8 +4,7 @@ import { Group } from '@terraforge/core'
 import { formatRoutePayload } from 'awsless'
 import { camelCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { funcType, invokeTypes, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
@@ -15,22 +14,11 @@ const typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'
 import type { Mock } from 'vitest'
 
-type Func = (...args: any[]) => any
+${funcType}
 
 type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'reflectViewableErrors'>
-
-type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
-
-type InvokeWithPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload: Parameters<F>[0], options?: Options): Promise<void>
-}
-
-type InvokeWithoutPayload<Name extends string, F extends Func> = {
-	readonly name: Name
-	(payload?: Parameters<F>[0], options?: Options): Promise<void>
-}
-`
+${invokeTypes({ returns: 'Promise<void>', options: 'Options' })}
+${testMockTypes()}`
 
 export const cronFeature = defineFeature({
 	name: 'cron',
@@ -51,34 +39,25 @@ export const cronFeature = defineFeature({
 		}
 	},
 	async onTypeGen(ctx) {
-		const types = new TypeFile('awsless')
-		const resources = new TypeObject(1)
+		await writeResourceTypes(ctx, {
+			kind: 'cron',
+			interfaceName: 'CronResources',
+			code: typeGenCode,
+			stacks(stack, add, types) {
+				for (const [name, props] of Object.entries(stack.crons || {})) {
+					const varName = camelCase(`${stack.name}-${name}`)
+					const funcName = formatLocalResourceName({
+						appName: ctx.appConfig.name,
+						stackName: stack.name,
+						resourceType: 'cron',
+						resourceName: name,
+					})
 
-		for (const stack of ctx.stackConfigs) {
-			const resource = new TypeObject(2)
-
-			for (const [name, props] of Object.entries(stack.crons || {})) {
-				const varName = camelCase(`${stack.name}-${name}`)
-				const funcName = formatLocalResourceName({
-					appName: ctx.appConfig.name,
-					stackName: stack.name,
-					resourceType: 'cron',
-					resourceName: name,
-				})
-
-				const relFile = relative(directories.types, props.consumer.code.file)
-
-				types.addImport(varName, relFile)
-				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-			}
-
-			resources.addType(stack.name, resource)
-		}
-
-		types.addCode(typeGenCode)
-		types.addInterface('CronResources', resources)
-
-		await ctx.write('cron.d.ts', types, true)
+					types.addImport(varName, relative(directories.types, props.consumer.code.file))
+					add(name, `Invoke<'${funcName}', typeof ${varName}>`, `TestMockEntry<typeof ${varName}>`)
+				}
+			},
+		})
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)

@@ -30,3 +30,19 @@ describe('SNS Mock', () => {
 		await expect(promise).rejects.toThrow(TypeError)
 	})
 })
+
+describe('Additional SNS mocks', () => {
+	const sns = mockSNS({ other: () => {} })
+	const client = new SNSClient({})
+
+	it.each([1, 2])('clears calls from previous tests (%s)', async round => {
+		await client.send(
+			new PublishCommand({
+				TopicArn: 'arn:aws:sns:eu-west-1:xxx:other',
+				Message: String(round),
+			})
+		)
+
+		expect(sns.other).toHaveBeenCalledTimes(1)
+	})
+})

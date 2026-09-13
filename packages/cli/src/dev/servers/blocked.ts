@@ -1,11 +1,8 @@
 import { createServer, Server } from 'http'
 import { trackConnections } from '../util.js'
 
-// The generic AWS_ENDPOINT_URL points at this guard, so a call to any
-// aws service that isn't emulated locally yet fails loud & fast with a
-// clear error, instead of silently reaching the real aws with the fake
-// local credentials. Emulated services win via their service specific
-// AWS_ENDPOINT_URL_<SERVICE> env vars.
+// The generic AWS_ENDPOINT_URL points here, so a call to a service
+// without an emulator fails loud instead of reaching the real aws.
 export const createBlockedServer = (props: { onLog?: (message: string) => void }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined

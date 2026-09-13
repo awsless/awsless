@@ -14,9 +14,7 @@ export type SendEmailProps = {
 	html: string
 }
 
-// Sending goes through ses in production. The local dev environment
-// captures every email in the dashboard instead of delivering it, and
-// tests record sends on the `mock.email.send` spy.
+// Local dev captures sends in the dashboard & tests record them on mock.email.send.
 export const Email = {
 	async send(props: SendEmailProps) {
 		await sendEmail(props)

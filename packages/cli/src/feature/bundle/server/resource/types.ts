@@ -10,6 +10,8 @@ export type BundleEvent = {
 export type RouteMatch = {
 	key: string
 	payload: unknown
+	// Async routes throw expected errors, so the invocation fails & retries.
+	throwExpectedErrors?: boolean
 }
 
 export type RouteMatcher<Event extends object = object> = (

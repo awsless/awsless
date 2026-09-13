@@ -5,9 +5,8 @@ import { createCustomProvider, createCustomResourceClass, Input, Output } from '
 import { glob } from 'glob'
 import promiseLimit from 'p-limit'
 import { z } from 'zod'
-import { Region } from '../config/schema/region'
 import { formatSourcemapPrefix, formatSourcemapVersionKey } from '../feature/on-error-log/keys.js'
-import { Credentials } from '../util/aws'
+import { ProviderProps } from '../util/aws.js'
 import { getCacheControl, getContentType } from '../util/content.js'
 
 type SiteDeploymentInput = {
@@ -51,11 +50,6 @@ export const SourcemapDeployment = createCustomResourceClass<SourcemapDeployment
 	's3',
 	'sourcemap-deployment'
 )
-
-type ProviderProps = {
-	credentials: Credentials
-	region: Region
-}
 
 export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 	const client = new S3Client({ credentials, region })

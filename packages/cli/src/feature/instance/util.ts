@@ -1,12 +1,10 @@
-import { createHash } from 'crypto'
 import { join } from 'path'
-import { toDays, toSeconds } from '@awsless/duration'
-import { stringify } from '@awsless/json'
+import { toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
-import { constantCase, pascalCase } from 'change-case'
+import { constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
@@ -18,7 +16,7 @@ import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
 import { getFeatureFolder } from '../asset/index.js'
 import { PolicyStatement } from '../bundle/policy.js'
-import { filterPattern } from '../on-error-log/util.js'
+import { createLogGroup } from '../on-error-log/util.js'
 import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
@@ -51,17 +49,19 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 
 	ctx.registerBuild('instance', name, async (build, { workspace }) => {
-		const fingerprint = await generateFileHash(workspace, local.code.file)
+		// The binary is compiled per target, so a cached build must not
+		// survive an architecture switch.
+		const fingerprint = [await generateFileHash(workspace, local.code.file), props.architecture].join(':')
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`instance--${name}`)
+			await using temp = await createTempFolder(`instance--${name}`)
+
 			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
 
 			await Promise.all([
 				//
 				write('HASH', executable.hash),
 				write('program', executable.file),
-				temp.delete(),
 			])
 
 			return {
@@ -138,8 +138,8 @@ export const createFargateTask = (
 							Version: '2012-10-17',
 							Statement: [
 								{
-									Effect: pascalCase('allow'),
-									Action: ['s3:getObject', 's3:HeadObject'],
+									Effect: 'Allow',
+									Action: ['s3:GetObject'],
 									Resource: `arn:aws:s3:::${bucket}/${key}`,
 								},
 							],
@@ -177,43 +177,15 @@ export const createFargateTask = (
 		addPermission(statement)
 	})
 
+	ctx.shared.add('function', 'role', name, role)
+
 	// ------------------------------------------------------------
 	// Logging
 
-	let logGroup: aws.cloudwatch.LogGroup | undefined
-	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(
-			group,
-			'log',
-			{
-				name: `/aws/ecs/${name}`,
-				retentionInDays: toDays(props.log.retention),
-			},
-			{
-				import: ctx.import ? `/aws/ecs/${name}` : undefined,
-			}
-		)
-
-		// ------------------------------------------------------------
-		// Add log subscription
-
-		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(
-				group,
-				'on-error-log',
-				{
-					name: 'error-log-subscription',
-					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-					logGroupName: logGroup.name,
-					filterPattern,
-				},
-				{
-					replaceOnChanges: ['destinationArn'],
-					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
-				}
-			)
-		}
-	}
+	const logGroup = createLogGroup(group, ctx, {
+		name: `/aws/ecs/${name}`,
+		retention: props.log.retention,
+	})
 
 	// ------------------------------------------------------------
 
@@ -259,13 +231,17 @@ export const createFargateTask = (
 							protocol: 'tcp',
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
+							// Reuse the downloaded program until its code hash changes.
 							command: [
-								[
-									...(props.startupCommand ?? []),
-									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
-									`chmod +x /usr/app/program`,
-									`exec /usr/app/program`,
-								].join(' && '),
+								`${props.startupCommand?.length ? props.startupCommand.join(' && ') + ' &&' : ''}
+if [ "$(cat /usr/app/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then
+	command -v aws >/dev/null 2>&1 || dnf install -y awscli &&
+	aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program.tmp &&
+	mv /usr/app/program.tmp /usr/app/program &&
+	chmod +x /usr/app/program &&
+	echo "$CODE_HASH" > /usr/app/.code-hash
+fi &&
+exec /usr/app/program`,
 							],
 
 							environment: Object.entries(data).map(([name, value]) => ({
@@ -292,13 +268,10 @@ export const createFargateTask = (
 								logConfiguration: {
 									logDriver: 'awslogs',
 									options: {
-										// 'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-region': ctx.appConfig.region,
 										'awslogs-stream-prefix': 'ecs',
 										mode: 'non-blocking',
-										// 'awslogs-multiline-pattern': '',
-										// 'max-buffer-size': '100m',
 									},
 								},
 							}),
@@ -343,16 +316,6 @@ export const createFargateTask = (
 		tags,
 	})
 
-	// new aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
-	// 	securityGroupId: securityGroup.id,
-	// 	description: `Allow HTTP traffic on port 80 to the ${name} instance`,
-	// 	fromPort: 80,
-	// 	toPort: 80,
-	// 	ipProtocol: 'tcp',
-	// 	cidrIpv4: '0.0.0.0/0',
-	// 	tags,
-	// })
-
 	new aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
 		securityGroupId: securityGroup.id,
 		description: `Allow all outbound traffic from the ${name} instance`,
@@ -360,6 +323,9 @@ export const createFargateTask = (
 		cidrIpv4: '0.0.0.0/0',
 		tags,
 	})
+
+	// The caches open their ingress to every registered instance.
+	ctx.shared.add('instance', 'security-group-id', name, { name, id: securityGroup.id })
 
 	const clusterName = ctx.shared.get('instance', 'cluster-name')
 	const clusterArn = ctx.shared.get('instance', 'cluster-arn')
@@ -437,26 +403,16 @@ export const createFargateTask = (
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
-	variables.CODE_HASH = code.sourceHash // needed to force update on code change
-	variables.INSTANCE_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
+	// The bootstrap compares it against the persisted program.
+	variables.CODE_HASH = code.sourceHash
 
-	// Add user-defined environment variables
 	if (props.environment) {
 		for (const [key, value] of Object.entries(props.environment)) {
 			variables[key] = value
 		}
 	}
 
-	// ------------------------------------------------------------
-	// Add user defined permissions
-
-	if (ctx.appConfig.instance.permissions) {
-		statements.push(...ctx.appConfig.instance.permissions)
-	}
-
-	if (local.permissions) {
-		statements.push(...local.permissions)
-	}
+	addPermission(...(ctx.appConfig.instance.permissions ?? []), ...(local.permissions ?? []))
 
 	return { name, task, service, policy, code, group, addPermission }
 }

@@ -1,6 +1,6 @@
 import { log, prompt } from '@awsless/clui'
-import { ExpectedError } from '../../../error'
-import { color } from '../style'
+import { ExpectedError } from '../../../error.js'
+import { color } from '../style.js'
 
 type StaticCredentials = {
 	accessKeyId: string

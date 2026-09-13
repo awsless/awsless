@@ -17,7 +17,7 @@ export const dev = (program: Command) => {
 		.description('Start the development service')
 		.option('--port <port>', 'The port for the local router', '3000')
 		.action(async (options: { port: string }) => {
-			await layout('dev', async props => {
+			await layout('dev', async ({ exit, ...props }) => {
 				await buildTypes(props)
 
 				const port = Number(options.port)
@@ -26,8 +26,8 @@ export const dev = (program: Command) => {
 				// pool - the dev command owns its final shutdown.
 				const pool = createServerPool()
 				let instance: DevInstance | undefined
-				let resolveShutdown: () => void
-				const shutdown = new Promise<void>(resolve => {
+				let resolveShutdown: (code: number) => void
+				const shutdown = new Promise<number>(resolve => {
 					resolveShutdown = resolve
 				})
 
@@ -41,8 +41,8 @@ export const dev = (program: Command) => {
 				const claimSignals = () => {
 					process.removeAllListeners('SIGINT')
 					process.removeAllListeners('SIGTERM')
-					process.once('SIGINT', () => resolveShutdown())
-					process.once('SIGTERM', () => resolveShutdown())
+					process.once('SIGINT', () => resolveShutdown(130))
+					process.once('SIGTERM', () => resolveShutdown(0))
 				}
 
 				claimSignals()
@@ -117,10 +117,8 @@ export const dev = (program: Command) => {
 					throw error
 				}
 
-				// Config restarts run strictly one at a time: two quick saves
-				// would otherwise stop & start concurrently against the same
-				// ports. A save landing mid-restart queues exactly one
-				// follow-up, always with the latest config.
+				// Restarts run one at a time, otherwise two quick saves stop
+				// & start concurrently against the same ports.
 				let queuedConfig: { appConfig: AppConfig; stackConfigs: StackConfig[] } | undefined
 				let restartRun: Promise<void> = Promise.resolve()
 				let restarting = false
@@ -165,7 +163,7 @@ export const dev = (program: Command) => {
 				)
 
 				// idle until a signal asks for the graceful stop...
-				await shutdown
+				const code = await shutdown
 
 				// A restart caught mid-flight finishes first, so the stop
 				// below never races a concurrent start.
@@ -174,9 +172,7 @@ export const dev = (program: Command) => {
 				await instance?.stop()
 				await pool.stopAll()
 
-				// The monkey patched process.exit of the exit libraries
-				// still runs their own cleanup chain.
-				process.exit(0)
+				exit(code)
 			})
 		})
 }

@@ -1,6 +1,6 @@
 import { string } from '@awsless/validate'
 import { Context } from 'aws-lambda'
-import { lambda, ViewableError } from '../src'
+import { ExpectedError, lambda, ViewableError } from '../src'
 
 describe('Lambda', () => {
 	it('should echo', async () => {
@@ -96,6 +96,26 @@ describe('Lambda', () => {
 		})
 
 		await expect(fn).rejects.toThrow(error)
+		expect(logger).toBeCalledTimes(1)
+	})
+
+	it('should evaluate a function valued throwExpectedErrors per invocation', async () => {
+		let throwExpected = false
+		const logger = vi.fn()
+		const fn = lambda({
+			throwExpectedErrors: () => throwExpected,
+			logger,
+			handle() {
+				throw new ExpectedError('type', 'message')
+			},
+		})
+
+		await expect(fn).rejects.toThrow('message')
+		expect(logger).toBeCalledTimes(0)
+
+		throwExpected = true
+
+		await expect(fn).rejects.toThrow('message')
 		expect(logger).toBeCalledTimes(1)
 	})
 

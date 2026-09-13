@@ -26,15 +26,13 @@ const xmlError = (code: string, message: string) => {
 	return `<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>${escapeXml(code)}</Code><Message>${escapeXml(message)}</Message></Error>`
 }
 
-// S3 event object keys are url encoded with a plus for spaces.
+// Like s3, event keys carry a plus for spaces.
 const encodeEventKey = (key: string) => {
 	return encodeURIComponent(key).replaceAll('%2F', '/').replaceAll('%20', '+')
 }
 
-// A minimal path-style S3 emulator backed by the local filesystem,
-// covering the object calls the store runtime uses, plus prefix
-// listing. Bucket notifications dispatch into the bundle like the real
-// bucket notification config would.
+// A path-style s3 emulator on the local filesystem, covering the
+// object calls the store runtime uses.
 export const createS3Server = (props: { root: string; region: string; rules: StoreNotificationRule[] }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined
@@ -102,11 +100,11 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 
 		// Objects can never escape the local store folder - neither
 		// through the key nor through a traversal decoded out of the
-		// bucket segment.
+		// bucket segment. A key like "..hidden" is still fine.
 		const escapes = (base: string, path: string) => {
 			const rel = relative(base, path)
 
-			return rel.startsWith('..') || isAbsolute(rel)
+			return rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)
 		}
 
 		if (escapes(props.root, bucketDir) || escapes(bucketDir, file)) {
@@ -162,8 +160,33 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 
 			const encoding = req.headers['content-encoding']
 			const sha = req.headers['x-amz-content-sha256']
+			const copySource = req.headers['x-amz-copy-source']
 
-			if (
+			// CopyObject is a PUT without a body: the source object is the
+			// payload, or the copy would land as an empty file.
+			if (typeof copySource === 'string') {
+				const [sourceBucket, ...sourceKey] = copySource
+					.split('?')[0]!
+					.split('/')
+					.filter(Boolean)
+					.map(decodeURIComponent)
+				const sourceDir = join(props.root, sourceBucket ?? '')
+				const source = join(sourceDir, ...sourceKey)
+
+				if (!sourceBucket || escapes(props.root, sourceDir) || escapes(sourceDir, source)) {
+					res.writeHead(400, { 'content-type': 'application/xml' })
+					res.end(xmlError('InvalidRequest', 'Invalid copy source'))
+					return
+				}
+
+				try {
+					body = await readFile(source)
+				} catch {
+					res.writeHead(404, { 'content-type': 'application/xml' })
+					res.end(xmlError('NoSuchKey', `Copy source not found: ${copySource}`))
+					return
+				}
+			} else if (
 				(typeof encoding === 'string' && encoding.includes('aws-chunked')) ||
 				(typeof sha === 'string' && sha.startsWith('STREAMING'))
 			) {
@@ -175,10 +198,19 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 
 			const eTag = createHash('md5').update(body).digest('hex')
 
-			res.writeHead(200, { etag: `"${eTag}"` })
-			res.end()
+			if (typeof copySource === 'string') {
+				res.writeHead(200, { 'content-type': 'application/xml' })
+				res.end(
+					`<?xml version="1.0" encoding="UTF-8"?>\n<CopyObjectResult><ETag>&quot;${eTag}&quot;</ETag><LastModified>${new Date().toISOString()}</LastModified></CopyObjectResult>`
+				)
+			} else {
+				res.writeHead(200, { etag: `"${eTag}"` })
+				res.end()
+			}
 
-			notify('ObjectCreated:Put', bucket, key, body.length, eTag, parseTraceHeader(req.headers[TRACE_HEADER]))
+			const eventName = typeof copySource === 'string' ? 'ObjectCreated:Copy' : 'ObjectCreated:Put'
+
+			notify(eventName, bucket, key, body.length, eTag, parseTraceHeader(req.headers[TRACE_HEADER]))
 			return
 		}
 

@@ -2,20 +2,17 @@ import { prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { Cancelled } from '../../../error.js'
-import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { createWorkSpace, pushRemoteState } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
+import { createClients } from '../util.js'
 
 export const push = (program: Command) => {
 	program
 		.command('push')
 		.description('Push the local state to the remote server')
 		.action(async () => {
-			await layout('state pull', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+			await layout('state push', async ({ appConfig, stackConfigs }) => {
+				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 				const { state } = await createWorkSpace({ credentials, region, accountId })

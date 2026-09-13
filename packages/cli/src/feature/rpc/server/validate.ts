@@ -23,9 +23,6 @@ export const requestSchema = object({
 			sourceIp: string(),
 		}),
 	}),
-	// headers: object({
-	// 	authentication: optional(string([maxLength(1024)])),
-	// }),
 	headers: record(string(), string()),
 	body: json(
 		pipe(

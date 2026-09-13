@@ -21,7 +21,7 @@ declare const publish: ({ client, topic, subject, payload, attributes, region, a
 type Topics = {
   [key: string]: (payload: any) => any;
 };
-declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: Mock<(...args: any[]) => any>; };
+declare const mockSNS: <T extends Topics>(topics: T) => { [K in keyof T]: Mock<T[K]>; };
 //#endregion
 //#region src/client.d.ts
 declare const snsClient: {

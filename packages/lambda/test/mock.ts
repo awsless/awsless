@@ -87,4 +87,17 @@ describe('Lambda Mock', () => {
 		await expect(promise).rejects.toThrow(TypeError)
 		expect(lambda.echo).toBeCalledTimes(0)
 	})
+	it('uses the supplied vi when the globals are off', () => {
+		const g = globalThis as { vi?: unknown }
+		const globalVi = g.vi
+		delete g.vi
+
+		try {
+			const mocked = mockLambda({ explicit: () => 'ok' }, { vi: globalVi as typeof vi })
+			expect(mocked.explicit).toBeTypeOf('function')
+			expect(() => mockLambda({ missing: () => 'no' })).toThrow('vitest globals')
+		} finally {
+			g.vi = globalVi
+		}
+	})
 })

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { toMilliSeconds } from '@awsless/duration'
 import { connect, disconnect, subscribe, unsubscribe } from './action'
 import { authenticate } from './auth'
@@ -15,6 +15,19 @@ const ORIGIN_SECRET = process.env.ORIGIN_SECRET
 // The time the client has to send the AUTH message
 // before we close the connection.
 const AUTH_TIMEOUT = 10_000
+
+// A constant time compare, so the response timing leaks nothing
+// about the secret.
+const isOriginSecret = (value: string | null) => {
+	if (!ORIGIN_SECRET || !value) {
+		return false
+	}
+
+	const expected = Buffer.from(ORIGIN_SECRET)
+	const actual = Buffer.from(value)
+
+	return expected.byteLength === actual.byteLength && timingSafeEqual(expected, actual)
+}
 
 const getClientIp = (request: Request, server: Bun.Server<SocketData>) => {
 	const forwarded = request.headers.get('x-forwarded-for')
@@ -48,7 +61,7 @@ const server = Bun.serve({
 		},
 		'/': (request, server) => {
 			// Only allow traffic that passed through our router.
-			if (ORIGIN_SECRET && request.headers.get('x-origin-secret') !== ORIGIN_SECRET) {
+			if (ORIGIN_SECRET && !isOriginSecret(request.headers.get('x-origin-secret'))) {
 				return new Response('Forbidden', { status: 403 })
 			}
 

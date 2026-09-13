@@ -11,20 +11,13 @@ export { ValidationError } from './errors/validation'
 // context
 export { getContext } from './context/lambda-context'
 // errors
-export {
-	// getViewableErrorData,
-	// isViewableError,
-	// isViewableErrorString,
-	// isViewableErrorType,
-	// parseViewableErrorString,
-	// isViewableErrorResponse,
-	// toViewableErrorResponse,
-	ViewableError,
-} from './errors/viewable'
+export { ViewableError } from './errors/viewable'
 export { ExpectedError } from './errors/expected'
 export { isErrorResponse, toErrorResponse, type ErrorResponse } from './errors/response'
 // client
 export { lambdaClient } from './helpers/client'
+// env
+export { isTestEnv } from './helpers/env'
 // mock
 export { mockLambda } from './helpers/mock'
 export { lambda, type LambdaFunction, type LambdaFactory } from './lambda'

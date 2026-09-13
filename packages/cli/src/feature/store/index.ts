@@ -5,6 +5,7 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { kebabCase } from 'change-case'
 import { glob } from 'glob'
+import { StackConfig } from '../../config/stack.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -40,6 +41,24 @@ const eventMap: Record<string, string> = {
 	'removed:marker': 's3:ObjectRemoved:DeleteMarkerCreated',
 }
 
+const formatEventRouteKey = (stackName: string, id: string, event: string) => {
+	return formatRouteKey(stackName, 'store', kebabCase(`${id}-${shortId(event)}`))
+}
+
+// Every store event of the app, for the shared bucket notification &
+// its local dev mirror.
+const listStoreEvents = (stackConfigs: StackConfig[]) => {
+	return stackConfigs.flatMap(stack => {
+		return Object.entries(stack.stores ?? {}).flatMap(([id, props]) => {
+			return Object.keys(props.events ?? {}).map(event => ({
+				routeKey: formatEventRouteKey(stack.name, id, event),
+				event: eventMap[event]!,
+				prefix: getFeatureFolder('store', stack.name, id),
+			}))
+		})
+	})
+}
+
 export const storeFeature = defineFeature({
 	name: 'store',
 	async onDev(ctx) {
@@ -48,23 +67,6 @@ export const storeFeature = defineFeature({
 		if (stores.length === 0) {
 			return
 		}
-
-		// The same notification rules as the deployed bucket notification.
-		const rules = ctx.stackConfigs.flatMap(stack => {
-			return Object.entries(stack.stores ?? {}).flatMap(([id, props]) => {
-				const folder = getFeatureFolder('store', stack.name, id)
-
-				return Object.keys(props.events ?? {}).map(event => {
-					const eventId = kebabCase(`${id}-${shortId(event)}`)
-
-					return {
-						id: formatRouteKey(stack.name, 'store', eventId),
-						events: [eventMap[event]!],
-						prefix: folder,
-					}
-				})
-			})
-		})
 
 		for (const stack of ctx.stackConfigs) {
 			for (const id of Object.keys(stack.stores ?? {})) {
@@ -82,7 +84,13 @@ export const storeFeature = defineFeature({
 		// static files.
 		const shared = await ctx.useStore()
 
-		shared.rules.push(...rules)
+		shared.rules.push(
+			...listStoreEvents(ctx.stackConfigs).map(({ routeKey, event, prefix }) => ({
+				id: routeKey,
+				events: [event],
+				prefix,
+			}))
+		)
 
 		// The static files exist locally like the deploy uploads them,
 		// so Store.has/get find them.
@@ -127,23 +135,9 @@ export const storeFeature = defineFeature({
 	},
 	onApp(ctx) {
 		// The store events of every stack share one bucket notification.
-		const notificationRules = ctx.stackConfigs.flatMap(stack => {
-			return Object.entries(stack.stores ?? {}).flatMap(([id, props]) => {
-				const folder = getFeatureFolder('store', stack.name, id)
+		const events = listStoreEvents(ctx.stackConfigs)
 
-				return Object.keys(props.events ?? {}).map(event => {
-					const eventId = kebabCase(`${id}-${shortId(event)}`)
-
-					return {
-						id: formatRouteKey(stack.name, 'store', eventId),
-						events: [eventMap[event]!],
-						filterPrefix: folder,
-					}
-				})
-			})
-		})
-
-		if (notificationRules.length === 0) {
+		if (events.length === 0) {
 			return
 		}
 
@@ -166,8 +160,10 @@ export const storeFeature = defineFeature({
 				'notification',
 				{
 					bucket: bucket.name,
-					lambdaFunction: notificationRules.map(rule => ({
-						...rule,
+					lambdaFunction: events.map(({ routeKey, event, prefix }) => ({
+						id: routeKey,
+						events: [event],
+						filterPrefix: prefix,
 						lambdaFunctionArn: bundle.alias.arn,
 					})),
 				},
@@ -226,10 +222,7 @@ export const storeFeature = defineFeature({
 			// Event notification consumers
 
 			for (const [event, taskProps] of Object.entries(props.events ?? {})) {
-				const eventId = kebabCase(`${id}-${shortId(event)}`)
-				const routeKey = formatRouteKey(ctx.stack.name, 'store', eventId)
-
-				registerBundleFunction(ctx, routeKey, taskProps.consumer)
+				registerBundleFunction(ctx, formatEventRouteKey(ctx.stack.name, id, event), taskProps.consumer)
 			}
 		}
 	},

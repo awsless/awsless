@@ -17,15 +17,11 @@ export const startProjectsTest = async (props: {
 	onFileFinished?: (project: string) => void
 }): Promise<Map<string, TestResponse>> => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
-	const startTime = process.hrtime.bigint()
 
 	process.noDeprecation = true
 
-	// Vitest sets NODE_ENV=test on the whole CLI process and never restores
-	// it, which leaks test mode into subprocesses spawned after the tests,
-	// like site builds where it flips the Config proxy into mock mode.
-	// Bracket access on purpose: Bun.build inlines the dot access as a
-	// "development" literal at bundle time, which breaks the restore.
+	// Vitest leaves NODE_ENV=test behind, which flips later subprocesses
+	// (site builds) into mock mode. Bracket access: Bun.build inlines dot access.
 	const nodeEnv = process.env['NODE_ENV']
 	const timezone = process.env['TZ']
 
@@ -93,7 +89,6 @@ export const startProjectsTest = async (props: {
 		}
 	).finally(restoreNodeEnv)
 
-	const duration = startTime - process.hrtime.bigint()
 	const responses = new Map<string, TestResponse>()
 
 	for (const project of props.projects) {
@@ -103,7 +98,7 @@ export const startProjectsTest = async (props: {
 			passed: 0,
 			failed: 0,
 			skipped: 0,
-			duration,
+			duration: 0n,
 		})
 	}
 
@@ -113,6 +108,9 @@ export const startProjectsTest = async (props: {
 		if (!response) {
 			continue
 		}
+
+		// The test & hook time of every file adds up to the project total.
+		response.duration += BigInt(Math.round(module.diagnostic().duration * 1_000_000))
 
 		for (const test of module.children.allTests()) {
 			const result = test.result()
@@ -249,6 +247,7 @@ export type TestResponse = {
 	passed: number
 	failed: number
 	skipped: number
+	// Accumulated test & hook time in nanoseconds.
 	duration: bigint
 	errors: ModuleError[]
 	tests: TestEntry[]

@@ -1,9 +1,9 @@
-import { APP, getCurrentRoute, getStack, internalInvoke } from 'awsless'
+import { getApp, getCurrentRoute, getStack, internalInvoke, shouldThrowExpectedErrors } from 'awsless'
 import { getValue } from './shared'
 
 export const echo = (event: unknown) => ({ stack: getStack(), event })
 
-export const app = () => APP
+export const app = () => getApp()
 
 export const nested = async () => {
 	const inner = await internalInvoke('stack-1:function:echo', { from: 'nested' })
@@ -38,7 +38,7 @@ export const site = (event: unknown) => event
 
 export const queue = (event: unknown) => ({
 	stack: getStack(),
-	throwExpectedErrors: process.env.THROW_EXPECTED_ERRORS,
+	throwExpectedErrors: shouldThrowExpectedErrors(),
 	event,
 })
 

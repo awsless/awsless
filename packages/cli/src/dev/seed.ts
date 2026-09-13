@@ -3,11 +3,8 @@ import { isAbsolute, join } from 'path'
 import { debug } from '../cli/debug.js'
 import { directories } from '../util/path.js'
 
-// The app wide seed file runs with the full local environment, so it
-// uses the app's real code against the local servers - table streams
-// fire exactly like handler writes. One file instead of per-stack
-// seeds, so the seeding order is explicit instead of depending on the
-// stack load order.
+// One app wide seed file run against the local servers, so the seeding
+// order is explicit instead of depending on the stack load order.
 export const createSeedRunner = (props: { seed?: string; env: Record<string, string> }) => {
 	const file = props.seed && (isAbsolute(props.seed) ? props.seed : join(directories.root, props.seed))
 

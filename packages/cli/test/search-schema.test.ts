@@ -1,5 +1,6 @@
+import { formatSearchIndexName } from 'awsless'
 import { describe, expect, it } from 'vitest'
-import { formatSearchIndexName, resolveSearchMappings } from '../src/feature/search/util.js'
+import { resolveSearchMappings } from '../src/feature/search/util.js'
 
 describe('search schema shorthand', () => {
 	it('compiles plain types', () => {

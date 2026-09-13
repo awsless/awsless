@@ -4,48 +4,26 @@ import { availableParallelism } from 'os'
 import { join, relative, sep } from 'path'
 import { inspect } from 'util'
 import { log } from '@awsless/clui'
-// import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
-// import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
 import { parse, stringify } from '@awsless/json'
 import { generateFileHash, generateFolderHash, loadWorkspace } from '@awsless/ts-file-cache'
 import type { TestManifest } from 'awsless'
-// import hrtime from 'pretty-hrtime'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
+import { AppConfig } from '../../../config/app.js'
 import { ModuleError, startProjectsTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { debug } from '../../debug.js'
 import { color, icon } from '../style.js'
-// import { task, wrap } from '../util.js'
 
 type StoredState = {
 	fingerprint: string
-	// duration: number
-	// errors: TestError[]
-	// passed: number
-	// failed: number
-	// logs: string[]
 } & TestResponse
 
-// const formatFileName = (path?: string) => {
-// 	if (!path) {
-// 		return ''
-// 	}
+const formatDuration = (duration: bigint) => {
+	const ms = Number(duration / 1_000_000n)
 
-// 	const abs = join(process.cwd(), path)
-// 	const rel = relative(dir, abs)
-// 	const ext = extname(rel)
-
-// 	if (!ext) {
-// 		return path
-// 	}
-
-// 	const name = basename(rel, ext)
-// 	const base = dirname(rel)
-// 	const start = base === '.' ? '' : style.placeholder(base + '/')
-
-// 	return `${start}${name}${style.placeholder(ext)}`
-// }
+	return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+}
 
 const formatResult = (props: { stack: string; cached: boolean; event: TestResponse }) => {
 	const line: string[] = [`Test ${color.info(props.stack)}`, color.dim(icon.arrow.right)]
@@ -67,13 +45,12 @@ const formatResult = (props: { stack: string; cached: boolean; event: TestRespon
 		stats.push(color.error(`${props.event.failed} failed`))
 	}
 
-	if (props.event.duration > 0n) {
-		// const [time, unit] = hrtime(props.event.duration, {}).split(' ')
-		// return color.attr(time) + color.attr.dim(unit)
-		// line.push(color.success(`${props.event.duration}`))
-	}
-
 	line.push(stats.join(color.line.dim(` ${icon.dot} `)))
+
+	// Results cached by older versions carry a bogus duration.
+	if (props.event.duration > 0n) {
+		line.push(color.dim(`(${formatDuration(props.event.duration)})`))
+	}
 
 	return line.join(` `)
 }
@@ -98,8 +75,6 @@ const logTestLogs = (event: TestResponse) => {
 
 const formatFileName = (test: TestEntry, error?: TestError) => {
 	const name = [test.file]
-
-	// console.log(error)
 
 	const loc = error?.location
 
@@ -136,10 +111,8 @@ const logTestError = (index: number, event: TestResponse, test: TestEntry, error
 			color.dim(icon.arrow.right),
 			formatFileName(test, error),
 			color.dim(icon.arrow.right),
-			// `\n${color.label.inverse.bold(` TEST `)}`,
 			color.dim(test.name),
 			[`\n\n`, errorMessage, ...(error.diff ? ['\n\n', error.diff] : [])].join(''),
-			// error.test,
 		].join(' ')
 	)
 }
@@ -222,14 +195,25 @@ const readCachedResult = async (file: string, fingerprint: string) => {
 	return
 }
 
-// A loaded machine can refuse or time out a local resource
-// server connection for a moment, killing an arbitrary stack
-// mid-run with a bare system error. Those clear within a tick,
-// so a stack that failed on nothing but system errors gets one
-// retry instead of failing the whole run.
+// A loaded machine briefly refuses local server connections, so a
+// stack that failed on nothing but system errors gets one retry.
 const transient = (error: ModuleError) =>
 	['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].includes(error.code ?? '') ||
 	['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE'].some(code => error.message.includes(code))
+
+// The env the test workers see, shared by the test & deploy commands.
+export const createTestEnv = (props: {
+	appConfig: AppConfig
+	appId: string
+	accountId: string
+	manifestFile: string
+}) => ({
+	APP: props.appConfig.name,
+	APP_ID: props.appId,
+	AWS_REGION: props.appConfig.region,
+	AWS_ACCOUNT_ID: props.accountId,
+	AWSLESS_TEST_MANIFEST: props.manifestFile,
+})
 
 export const runTests = async (
 	tests: TestCase[],
@@ -254,7 +238,13 @@ export const runTests = async (
 	if (opts.manifest) {
 		const { servers: _servers, ...stable } = opts.manifest
 
-		const files = [...stable.streams, ...stable.functions, ...stable.tasks, ...stable.queues]
+		const files = [
+			...stable.streams,
+			...stable.functions,
+			...stable.tasks,
+			...stable.queues,
+			...(stable.crons ?? []),
+		]
 			.map(entry => entry.file)
 			.filter((file): file is string => typeof file === 'string')
 			.toSorted()
@@ -312,7 +302,9 @@ export const runTests = async (
 				continue
 			}
 
-			const file = join(directories.test, `${test.name}.json`)
+			// A stack with several test folders needs a result file per folder.
+			const name = test.paths.length > 1 ? `${test.name}:${index}` : test.name
+			const file = join(directories.test, `${name.replace(':', '-')}.json`)
 			const fingerprint = fingerprints.get(dir)!
 			const cached = await readCachedResult(file, fingerprint)
 
@@ -333,7 +325,7 @@ export const runTests = async (
 			}
 
 			pending.push({
-				name: test.paths.length > 1 ? `${test.name}:${index}` : test.name,
+				name,
 				stack: test.name,
 				dir,
 				file,
@@ -449,11 +441,8 @@ export const runTests = async (
 		if (result.errors.length > 0) {
 			passed = false
 
-			// Module errors carry no test file context, so keep the
-			// error type - a bare system error message like
-			// "ECONNREFUSED" is unfindable on its own. The terminal
-			// only shows the message, so the full stack goes to the
-			// debug log.
+			// A bare "ECONNREFUSED" is unfindable, so the type stays on
+			// the terminal & the full stack goes to the debug log.
 			for (const error of result.errors) {
 				debug(`Module error in ${entry.stack} tests: ${formatModuleError(error)}`)
 

@@ -2,11 +2,8 @@ import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
-import { toDays } from '@awsless/duration'
-import { stringify } from '@awsless/json'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
-import { pascalCase } from 'change-case'
 import { getBuildPath } from '../../build/index.js'
 import { AppContext, Permission } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
@@ -17,7 +14,7 @@ import { formatPolicyDocument } from '../../util/policy.js'
 import { createTempFolder } from '../../util/temp.js'
 import { PolicyStatement } from '../bundle/policy.js'
 import { buildExecutable } from '../instance/build/executable.js'
-import { filterPattern } from '../on-error-log/util.js'
+import { createLogGroup } from '../on-error-log/util.js'
 import { PubSubDefaultProps } from './schema.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -31,6 +28,8 @@ const MEMORY = '512'
 const MIN_CAPACITY = 1
 const MAX_CAPACITY = 10
 
+// The server is a prebuilt program that only talks to the bundle, sns &
+// redis, so it receives its own env & grants instead of the app wide ones.
 export const createPubSubService = (
 	parentGroup: Group,
 	ctx: AppContext,
@@ -68,14 +67,14 @@ export const createPubSubService = (
 		const fingerprint = `${hash}-${ARCHITECTURE}`
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`pubsub--${name}`)
+			await using temp = await createTempFolder(`pubsub--${name}`)
+
 			const executable = await buildExecutable(bundleFile, temp.path, ARCHITECTURE)
 
 			await Promise.all([
 				//
 				write('HASH', executable.hash),
 				write('program', executable.file),
-				temp.delete(),
 			])
 
 			return {
@@ -152,8 +151,8 @@ export const createPubSubService = (
 							Version: '2012-10-17',
 							Statement: [
 								{
-									Effect: pascalCase('allow'),
-									Action: ['s3:getObject', 's3:HeadObject'],
+									Effect: 'Allow',
+									Action: ['s3:GetObject'],
 									Resource: `arn:aws:s3:::${bucket}/${key}`,
 								},
 							],
@@ -187,47 +186,13 @@ export const createPubSubService = (
 		}
 	}
 
-	ctx.onPermission(statement => {
-		addPermission(statement)
-	})
-
 	// ------------------------------------------------------------
 	// Logging
 
-	let logGroup: aws.cloudwatch.LogGroup | undefined
-	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new aws.cloudwatch.LogGroup(
-			group,
-			'log',
-			{
-				name: `/aws/ecs/${name}`,
-				retentionInDays: toDays(props.log.retention),
-			},
-			{
-				import: ctx.import ? `/aws/ecs/${name}` : undefined,
-			}
-		)
-
-		// ------------------------------------------------------------
-		// Add log subscription
-
-		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(
-				group,
-				'on-error-log',
-				{
-					name: 'error-log-subscription',
-					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-					logGroupName: logGroup.name,
-					filterPattern,
-				},
-				{
-					replaceOnChanges: ['destinationArn'],
-					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
-				}
-			)
-		}
-	}
+	const logGroup = createLogGroup(group, ctx, {
+		name: `/aws/ecs/${name}`,
+		retention: props.log.retention,
+	})
 
 	// ------------------------------------------------------------
 
@@ -272,12 +237,16 @@ export const createPubSubService = (
 							protocol: 'tcp',
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
+							// Reuse the downloaded program until its code hash changes.
 							command: [
-								[
-									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
-									`chmod +x /usr/app/program`,
-									`exec /usr/app/program`,
-								].join(' && '),
+								`if [ "$(cat /usr/app/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then
+	command -v aws >/dev/null 2>&1 || dnf install -y awscli &&
+	aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program.tmp &&
+	mv /usr/app/program.tmp /usr/app/program &&
+	chmod +x /usr/app/program &&
+	echo "$CODE_HASH" > /usr/app/.code-hash
+fi &&
+exec /usr/app/program`,
 							],
 
 							environment: Object.entries(data).map(([name, value]) => ({
@@ -425,18 +394,11 @@ export const createPubSubService = (
 	// ------------------------------------------------------------
 	// Env Vars
 
-	ctx.onEnv((name, value) => {
-		variables[name] = value
-		for (const dep of findInputDeps([value])) {
-			variableDeps.add(dep)
-		}
-	})
-
 	variables.APP = ctx.appConfig.name
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
-	variables.CODE_HASH = code.sourceHash // needed to force update on code change
-	variables.PUBSUB_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
+	// The bootstrap compares it against the persisted program.
+	variables.CODE_HASH = code.sourceHash
 
 	for (const [key, value] of Object.entries(inputs.environment)) {
 		variables[key] = value

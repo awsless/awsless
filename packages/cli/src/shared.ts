@@ -1,9 +1,9 @@
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
-import { Permission } from './feature'
-import { BucketLifecycleRule } from './feature/asset/index'
-import { BundleHandler } from './feature/bundle/util'
-import { Route } from './feature/router/route'
+import { Permission } from './feature.js'
+import { BucketLifecycleRule } from './feature/asset/index.js'
+import { BundleHandler } from './feature/bundle/util.js'
+import { Route } from './feature/router/route.js'
 
 type SharedState = {
 	vpc: {
@@ -24,6 +24,7 @@ type SharedState = {
 			group: Group
 			bucket: aws.s3.Bucket
 			queue: aws.sqs.Queue
+			deadletter: aws.sqs.Queue
 		}
 	}
 
@@ -66,7 +67,6 @@ type SharedState = {
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 		'security-group-id': Output<string>
-		'persistent-storage-file-system-id': Output<string>
 	}
 
 	search: {
@@ -93,6 +93,10 @@ type SharedEntries = {
 
 	auth: {
 		'user-pool-id': Output<string>
+	}
+
+	instance: {
+		'security-group-id': { name: string; id: Output<string> }
 	}
 
 	rest: {

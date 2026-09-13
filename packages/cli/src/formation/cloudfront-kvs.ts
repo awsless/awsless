@@ -10,16 +10,12 @@ import {
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import chunk from 'chunk'
 import { z } from 'zod'
-import { Region } from '../config/schema/region'
-import { Credentials, isError } from '../util/aws'
-import { createKvsClient } from '../util/kvs'
+import { isError, ProviderProps } from '../util/aws.js'
+import { createKvsClient } from '../util/kvs.js'
 
 // ------------------------------------------------------------
-// Each router keeps its staged route tables and active pointer in one store:
-//
-//   <table>:<route>   route table, stored once per content version
-//   $deploy:<id>      'table:functionVersion', one entry per deployment
-//   $active           'table:id', what production serves, the switch
+// One store per router holds the route tables ('<table>:<route>'),
+// the deployments ('$deploy:<id>') & the live pointer ('$active').
 
 const ACTIVE_KEY = '$active'
 const DEPLOY_KEY_PREFIX = '$deploy:'
@@ -169,9 +165,8 @@ const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<t
 		},
 	]
 
-	// Route rows are written before the mapping, so an interrupted upload
-	// can't be selected by a promotion.
-	// Promotion changes $active only after the full app deployment succeeds.
+	// The rows go before the mapping, so an interrupted upload can't
+	// be promoted.
 	await updateKeys(kvs, {
 		storeArn: state.storeArn,
 		mutations,
@@ -181,11 +176,6 @@ const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<t
 		...state,
 		routes,
 	}
-}
-
-type ProviderProps = {
-	credentials: Credentials
-	region: Region
 }
 
 export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderProps) => {

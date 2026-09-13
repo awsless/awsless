@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { proxyEnv } from '../src/dev/children'
 import { ExpectedError } from '../src/error'
-import { getCredentials } from '../src/util/aws'
+import { clearAwsCache, getCredentials } from '../src/util/aws'
 import { applyRemoteAgentEnv, childProxyEnv, isRemoteAgent } from '../src/util/remote-agent'
 
 const keys = [
@@ -42,6 +42,8 @@ describe('remote agent credentials', () => {
 		process.env.AWS_CONFIG_FILE = '/dev/null/missing'
 		process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null/missing'
 		process.env.AWSLESS_REMOTE_AGENT = '1'
+		// Credentials are memoized per process, so each case starts clean.
+		clearAwsCache()
 	})
 
 	afterEach(() => {

@@ -29,7 +29,6 @@ export const commands = [
 	deployments,
 	rollback,
 	prune,
-	// diff,
 	del,
 	dev,
 

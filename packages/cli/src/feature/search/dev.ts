@@ -1,9 +1,10 @@
 import { OpenSearchServer } from '@awsless/open-search-server'
 import { Client } from '@opensearch-project/opensearch'
+import { formatSearchIndexName } from 'awsless'
 import { localEngine } from '../../dev/engine.js'
 import { DevContext } from '../../feature.js'
 import { applySearchIndex } from '../../formation/open-search.js'
-import { formatSearchIndexName, resolveSearchMappings } from './util.js'
+import { resolveSearchMappings } from './util.js'
 
 export const searchOnDev = async (ctx: DevContext) => {
 	const indexes = ctx.stackConfigs.flatMap(stack => {

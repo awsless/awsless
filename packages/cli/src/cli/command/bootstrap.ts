@@ -1,7 +1,7 @@
 import { Command } from 'commander'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { layout } from '../ui/complex/layout.js'
+import { createClients } from './util.js'
 
 export const bootstrap = (program: Command) => {
 	program
@@ -9,8 +9,7 @@ export const bootstrap = (program: Command) => {
 		.description('Create the awsless bootstrap stack')
 		.action(async () => {
 			await layout('bootstrap', async ({ appConfig }) => {
-				const credentials = await getCredentials(appConfig.profile)
-				const accountId = await getAccountId(credentials, appConfig.region)
+				const { credentials, accountId } = await createClients(appConfig)
 
 				await bootstrapAwsless({
 					credentials,

@@ -5,7 +5,6 @@ import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { NsCheck } from '../../formation/ns-check.js'
 import { createDnsValidatedCertificate, formatFullDomainName } from './util.js'
-// import { formatGlobalResourceName } from '../../util/name.js'
 
 export const domainFeature = defineFeature({
 	name: 'domain',
@@ -132,8 +131,6 @@ export const domainFeature = defineFeature({
 			}
 		)
 
-		// ctx.shared.set(`mail-configuration-set`, configurationSet.name)
-
 		for (const [id, props] of domains) {
 			const group = new Group(ctx.base, 'domain', id)
 
@@ -189,9 +186,8 @@ export const domainFeature = defineFeature({
 
 				ctx.shared.add('domain', `global-certificate-arn`, id, globalValidation.certificateArn)
 			} else {
-				// If we deploy this app in the us-east-1 region,
-				// then we just use alias the local cert.
-
+				// CloudFront reads certificates from us-east-1, so the local
+				// certificate already serves as the global one there.
 				ctx.shared.add('domain', `global-certificate-arn`, id, validation.certificateArn)
 			}
 
@@ -328,46 +324,6 @@ export const domainFeature = defineFeature({
 				}
 			)
 
-			// ------------------------------------------------------------
-			// Listen for "bounce", "complaint", "reject", "renderingFailure" messages
-
-			// const topic = new aws.sns.Topic(group, 'topic', {
-			// 	name: formatGlobalResourceName({
-			// 		appName: ctx.app.name,
-			// 		resourceType: 'domain',
-			// 		resourceName: id,
-			// 	}),
-			// })
-
-			// new aws.sns.TopicSubscription(group, 'subscription', {
-			// 	topicArn: topic.arn,
-			// 	protocol: 'EMAIL',
-			// 	endpoint: `info@${props.domain}`,
-			// 	endpointAutoConfirms: true,
-			// })
-
-			// // new aws.sns
-
-			// new aws.ses.EventDestination(group, 'event', {
-			// 	configurationSetName: configurationSet.name,
-			// 	name: formatGlobalResourceName({
-			// 		appName: ctx.app.name,
-			// 		resourceType: 'domain',
-			// 		resourceName: id,
-			// 	}),
-			// 	enabled: true,
-			// 	matchingTypes: ['bounce', 'complaint', 'reject', 'renderingFailure'],
-			// 	snsDestination: {
-			// 		topicArn: topic.arn,
-			// 	},
-			// })
-
-			// ------------------------------------------------------------
-
-			// const mailIdentityArn = emailIdentity.output(() => {
-			// 	return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
-			// })
-
 			new aws.ses.DomainIdentityVerification(
 				group,
 				'mail',
@@ -396,15 +352,5 @@ export const domainFeature = defineFeature({
 				)
 			}
 		}
-
-		ctx.addPermission({
-			actions: ['ses:SendEmail', 'ses:SendRawEmail'],
-			resources: [
-				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
-				// Sending through the app configuration set is authorized against
-				// its own ARN, not just the identity.
-				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:configuration-set/${ctx.app.name}`,
-			],
-		})
 	},
 })

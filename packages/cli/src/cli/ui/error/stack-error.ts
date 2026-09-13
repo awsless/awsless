@@ -31,47 +31,11 @@ export const logResourceError = (error: ResourceError | Error) => {
 				formatOperation(error.operation),
 				'\n',
 				wrap(error.urn, { hard: true }),
-				// '\n',
-				// wrap('ID: ' + issue.id ?? '', { hard: true }),
 				'\n\n',
 				wrap(color.error(error.message), { hard: true }),
-				// , '\n', color.error(issue.message)
 			].join('')
 		)
 	} else if (error instanceof Error) {
 		log.error(wrap(color.error(error.message), { hard: true }))
 	}
 }
-
-// export const logResourceError = (error: ResourceError | Error) => {
-// 	// log.message(
-// 	// 	wrap([color.error(error.message), `Stack: ${error.stack}`].join('\n'), {
-// 	// 		hard: true,
-// 	// 	}),
-// 	// 	{ symbol: color.error(icon.error) }
-// 	// )
-
-// 	// // console.log(error)
-
-// 	for (const issue of error.issues) {
-// 		if (issue instanceof ResourceError) {
-// 			log.message(
-// 				[
-// 					formatOperation(issue.operation),
-// 					'\n',
-// 					wrap(issue.urn, { hard: true }),
-// 					// '\n',
-// 					// wrap('ID: ' + issue.id ?? '', { hard: true }),
-// 					'\n\n',
-// 					wrap(color.error(issue.message), { hard: true }),
-// 					// , '\n', color.error(issue.message)
-// 				].join(''),
-// 				{ symbol: color.error(icon.error) }
-// 			)
-// 		} else if (issue instanceof Error) {
-// 			log.message(wrap(color.error(issue.message), { hard: true }), {
-// 				symbol: color.error(icon.error),
-// 			})
-// 		}
-// 	}
-// }

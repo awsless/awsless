@@ -9,7 +9,7 @@ export const export_ = (program: Command) => {
 		.command('export')
 		.description('Export all config values')
 		.action(async () => {
-			await layout('export', async ({ appConfig }) => {
+			await layout('export', async ({ appConfig, exit }) => {
 				const credentials = await getCredentials(appConfig.profile)
 				const params = new SsmStore({
 					credentials,
@@ -28,9 +28,8 @@ export const export_ = (program: Command) => {
 				console.log('')
 				console.log(JSON.stringify(values))
 				console.log('')
-				process.exit()
 
-				// return '\n\n' + JSON.stringify(values)
+				exit()
 			})
 		})
 }

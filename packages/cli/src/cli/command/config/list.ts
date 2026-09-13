@@ -2,10 +2,10 @@ import { log } from '@awsless/clui'
 import { color as chalk } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
-import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'
 import { layout } from '../../ui/complex/layout.js'
 import { color } from '../../ui/style.js'
+import { createClients } from '../util.js'
 
 export const list = (program: Command) => {
 	program
@@ -13,9 +13,7 @@ export const list = (program: Command) => {
 		.description(`List all config value's`)
 		.action(async () => {
 			await layout('config list', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const credentials = await getCredentials(appConfig.profile)
-				const accountId = await getAccountId(credentials, region)
+				const { credentials, accountId } = await createClients(appConfig)
 
 				const { configs } = createApp({ appConfig, stackConfigs, accountId })
 
@@ -41,7 +39,7 @@ export const list = (program: Command) => {
 					}
 				})
 
-				const unsusedValues = Object.entries(values)
+				const unusedValues = Object.entries(values)
 					.map(([key, value]) => {
 						if (!configs.has(key)) {
 							return [chalk.magenta(key), `${value} ${color.error('(unused)')}`]
@@ -51,19 +49,13 @@ export const list = (program: Command) => {
 					})
 					.filter(Boolean) as [string, string][]
 
-				const allValues = [...requiredValues, ...unsusedValues]
+				const allValues = [...requiredValues, ...unusedValues]
 
 				if (requiredValues.length > 0) {
 					log.table({
 						head: ['Name', 'Value'],
 						body: allValues,
 					})
-					// console.log(
-					// 	table({
-					// 		head: ['name', 'value'],
-					// 		body: allValues,
-					// 	})
-					// )
 				} else {
 					log.warning('No config parameters found.')
 				}

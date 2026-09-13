@@ -8,6 +8,12 @@ import { isRemoteAgent } from './remote-agent.js'
 
 export type Credentials = AwsCredentialIdentityProvider
 
+// What every custom provider & most sdk clients need to talk to aws.
+export type ProviderProps = {
+	credentials: Credentials
+	region: Region
+}
+
 export const isError = (error: unknown, name: string) => {
 	return error instanceof Error && error.name === name
 }
@@ -43,25 +49,61 @@ const getRemoteAgentCredentials = async (profile: string): Promise<Credentials> 
 	return provider
 }
 
-export const getCredentials = async (profile: string): Promise<Credentials> => {
-	if (isRemoteAgent()) {
-		return getRemoteAgentCredentials(profile)
+// Fetching credentials can prompt & the account lookup is an STS
+// call, so both are memoized per process: a command fetches them once
+// up front & the locked deploy path reuses the same objects.
+const credentialCache = new Map<string, Promise<Credentials>>()
+const accountCache = new WeakMap<Credentials, Map<string, Promise<string>>>()
+
+const memoize = <K, V>(cache: Map<K, Promise<V>>, key: K, load: () => Promise<V>) => {
+	let pending = cache.get(key)
+
+	if (!pending) {
+		pending = load()
+		cache.set(key, pending)
+
+		// A failed lookup must not poison the next attempt.
+		pending.catch(() => cache.delete(key))
 	}
 
-	if (hasRuntimeAwsCredentials()) {
-		return fromNodeProviderChain()
-	}
+	return pending
+}
 
-	const credentials = await fetchCredentials(profile)
+export const getCredentials = (profile: string): Promise<Credentials> => {
+	return memoize(credentialCache, profile, async () => {
+		if (isRemoteAgent()) {
+			return getRemoteAgentCredentials(profile)
+		}
 
-	return createCredentialChain(async () => {
-		return credentials
+		if (hasRuntimeAwsCredentials()) {
+			return fromNodeProviderChain()
+		}
+
+		const credentials = await fetchCredentials(profile)
+
+		return createCredentialChain(async () => {
+			return credentials
+		})
 	})
 }
 
-export const getAccountId = async (credentials: Credentials, region: Region): Promise<string> => {
-	const client = new STSClient({ credentials, region })
-	const result = await client.send(new GetCallerIdentityCommand({}))
+export const getAccountId = (credentials: Credentials, region: Region): Promise<string> => {
+	let regions = accountCache.get(credentials)
 
-	return result.Account!
+	if (!regions) {
+		regions = new Map()
+		accountCache.set(credentials, regions)
+	}
+
+	return memoize(regions, region, async () => {
+		const client = new STSClient({ credentials, region })
+		const result = await client.send(new GetCallerIdentityCommand({}))
+
+		return result.Account!
+	})
+}
+
+// Test hook, so every test starts without a remembered session.
+export const clearAwsCache = () => {
+	credentialCache.clear()
 }

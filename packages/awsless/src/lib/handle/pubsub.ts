@@ -15,9 +15,7 @@ import {
 } from '@awsless/validate'
 import { consumer } from './util.js'
 
-// The response contract of the websocket authorizer: which topic
-// patterns the connection may subscribe to & how long the session
-// stays valid.
+// The response contract of the websocket authorizer.
 export type PubSubAuthResult =
 	| {
 			/** Allow the connection. */
@@ -62,10 +60,8 @@ export const auth = <H extends Handler<AuthSchema, PubSubAuthResult | Promise<Pu
 	return consumer(authEventSchema as AuthSchema, handle)
 }
 
-// The lifecycle payloads the websocket server publishes. Only the
-// subscribe events carry the affected topics - a connect knows none.
-// The context validates against the given schema when the handle
-// passes one, & stays unknown otherwise.
+// Only the subscribe events carry topics; the context validates against
+// the given schema & stays unknown otherwise.
 const lifecycle = <E extends string>(event: E, context: GenericSchema = unknown()) => {
 	return object({
 		event: literal(event),
@@ -127,17 +123,15 @@ const disconnectedSchema = snsTopic(lifecycle('disconnected'))
 const subscribedSchema = snsTopic(lifecycleWithTopics('subscribed'))
 const unsubscribedSchema = snsTopic(lifecycleWithTopics('unsubscribed'))
 
-// The documented event types drive the handler typing, while the
-// schemas stay the runtime source of truth - the casts fail to compile
-// when the two drift apart.
+// The schemas stay the runtime source of truth: the casts fail to
+// compile when the documented event types drift from them.
 type ConnectedSchema<C = unknown> = GenericSchema<InferInput<typeof connectedSchema>, ConnectedEvent<C>>
 type DisconnectedSchema<C = unknown> = GenericSchema<InferInput<typeof disconnectedSchema>, DisconnectedEvent<C>>
 type SubscribedSchema<C = unknown> = GenericSchema<InferInput<typeof subscribedSchema>, SubscribedEvent<C>>
 type UnsubscribedSchema<C = unknown> = GenericSchema<InferInput<typeof unsubscribedSchema>, UnsubscribedEvent<C>>
 
-// Every lifecycle handle optionally takes the schema of the context
-// the authorizer attaches, so the handler receives it fully typed &
-// validated instead of unknown.
+// An optional context schema, so the handler gets the authorizer
+// context typed & validated instead of unknown.
 const lifecycleHandle = (base: GenericSchema, build: (context: GenericSchema) => GenericSchema) => {
 	return (contextOrHandle: GenericSchema | Handler<GenericSchema>, maybeHandle?: Handler<GenericSchema>) => {
 		const withContext = typeof maybeHandle === 'function'

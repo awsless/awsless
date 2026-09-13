@@ -8,9 +8,10 @@ import { Command as CliCommand } from 'commander'
 import { formatDate } from 'date-fns'
 import { createApp } from '../../../app.js'
 import { ExpectedError } from '../../../error.js'
-import { getAccountId, getCredentials } from '../../../util/aws.js'
+import { isError } from '../../../util/aws.js'
 import { layout } from '../../ui/complex/layout.js'
 import { color, icon } from '../../ui/style.js'
+import { createClients } from '../util.js'
 import { matchGroups, originFromLogGroup, parseLogLine } from './util.js'
 
 export const logs = (program: CliCommand) => {
@@ -22,18 +23,13 @@ export const logs = (program: CliCommand) => {
 		)
 		.description('Stream the latest logs from your app.')
 		.action(async (groups: string[]) => {
-			await layout(`logs`, async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+			await layout(`logs`, async ({ appConfig, stackConfigs, exit }) => {
+				const { region, credentials, accountId } = await createClients(appConfig)
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 
 				// ---------------------------------------------------
-				// Find log groups
-				//
-				// Log group names are fully determined by the config,
-				// so we never need to load the deployed state.
+				// Log group names come from the config alone, so the
+				// deployed state never needs loading.
 
 				const groupArns: string[] = []
 				const origins: string[] = []
@@ -120,28 +116,37 @@ export const logs = (program: CliCommand) => {
 				// ---------------------------------------------------
 				// Format incoming logs
 
-				await Promise.all(
-					streams.map(async stream => {
-						for await (const event of stream) {
-							if (!event.sessionUpdate) {
-								continue
+				try {
+					await Promise.all(
+						streams.map(async stream => {
+							for await (const event of stream) {
+								if (!event.sessionUpdate) {
+									continue
+								}
+
+								for (const result of event.sessionUpdate.sessionResults ?? []) {
+									const identifier = result.logGroupIdentifier ?? ''
+									const groupName = identifier.includes(':log-group:')
+										? identifier.split(':log-group:').at(-1)!
+										: identifier
+
+									const line = parseLogLine(result.message ?? '')
+									const origin = line.route ?? originFromLogGroup(groupName, appConfig.name)
+									const date = line.date ?? new Date(result.timestamp ?? Date.now())
+
+									formatLog(line.level, date, origin, line.message)
+								}
 							}
+						})
+					)
+				} catch (error) {
+					// The ctrl-c abort surfaces as a stream error, not a failure.
+					if (isError(error, 'AbortError')) {
+						exit(130)
+					}
 
-							for (const result of event.sessionUpdate.sessionResults ?? []) {
-								const identifier = result.logGroupIdentifier ?? ''
-								const groupName = identifier.includes(':log-group:')
-									? identifier.split(':log-group:').at(-1)!
-									: identifier
-
-								const line = parseLogLine(result.message ?? '')
-								const origin = line.route ?? originFromLogGroup(groupName, appConfig.name)
-								const date = line.date ?? new Date(result.timestamp ?? Date.now())
-
-								formatLog(line.level, date, origin, line.message)
-							}
-						}
-					})
-				)
+					throw error
+				}
 			})
 		})
 }

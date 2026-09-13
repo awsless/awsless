@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/lambda",
-	"version": "0.0.50",
+	"version": "0.0.51",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -33,7 +33,6 @@
 		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"@types/aws-lambda": "8.10.162",
-		"aws-sdk-vitest-mock": "1.0.98",
 		"type-fest": "5.8.0"
 	},
 	"devDependencies": {

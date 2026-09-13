@@ -29,7 +29,13 @@ const loadOverrideCache = async (cwd) => {
 	return loadFile(cwd, OVERRIDE_CACHE_FILE);
 };
 const saveCache = async (cwd, cache) => {
-	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), void 0, "	") + "\n");
+	const file = join(cwd, GENERATED_CACHE_FILE);
+	const content = JSON.stringify(cache.toJSON(), void 0, "	") + "\n";
+	try {
+		if (await readFile(file, "utf8") === content) return false;
+	} catch {}
+	await writeFile(file, content);
+	return true;
 };
 const mergeCaches = (...caches) => {
 	const merged = new Cache();
@@ -119,33 +125,43 @@ const findTypescriptTranslatable = async (code) => {
 };
 //#endregion
 //#region src/find.ts
+const isIgnoredPath = (file) => /[\\/](node_modules|\.[^\\/]+)[\\/]/.test(file);
 const findTranslatable = async (cwd) => {
 	const files = await glob("**/*.{js,ts,svelte}", {
 		cwd,
-		ignore: [
-			"**/node_modules/**",
-			"**/.svelte-kit/**",
-			"**/.*/**"
-		]
+		ignore: ["**/node_modules/**", "**/.*/**"]
 	});
 	const found = [];
-	for (const file of files) {
-		const code = await readFile(join(cwd, file), "utf8");
-		if (code.includes("lang.t`")) {
-			if (file.endsWith(".svelte")) found.push(...findSvelteTranslatable(code));
-			else {
-				const entries = await findTypescriptTranslatable(code);
-				found.push(...entries);
-			}
-		}
-	}
+	for (const file of files) found.push(...await findTranslatableInCode(file, await readFile(join(cwd, file), "utf8")));
 	return found;
+};
+const findTranslatableInCode = async (file, code) => {
+	if (!code.includes("lang.t`")) return [];
+	return file.endsWith(".svelte") ? findSvelteTranslatable(code) : findTypescriptTranslatable(code);
 };
 //#endregion
 //#region src/vite.ts
+const SOURCE_FILE = /\.(svelte|ts|js)$/;
 const i18n = (props) => {
 	let cache;
 	let generatedCache;
+	let overrideCache;
+	let queue = Promise.resolve();
+	const translateMissing = (cwd, sourceTexts, log) => {
+		queue = queue.catch(() => {}).then(() => translateNow(cwd, sourceTexts, log));
+		return queue;
+	};
+	const translateNow = async (cwd, sourceTexts, log) => {
+		const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales);
+		if (newSourceTexts.length > 0) {
+			log(`Translating ${newSourceTexts.length} new texts.`);
+			const translations = await props.translate(props.default ?? "en", newSourceTexts);
+			log(`Translated ${translations.length} texts.`);
+			for (const item of translations) generatedCache.set(item.source, item.locale, item.translation);
+		}
+		cache = mergeCaches(generatedCache, overrideCache);
+		await saveCache(cwd, generatedCache);
+	};
 	return {
 		name: "awsless/i18n",
 		enforce: "pre",
@@ -154,19 +170,16 @@ const i18n = (props) => {
 			this.info("Finding all translatable text...");
 			const sourceTexts = await findTranslatable(cwd);
 			generatedCache = await loadGeneratedCache(cwd);
-			const overrideCache = await loadOverrideCache(cwd);
+			overrideCache = await loadOverrideCache(cwd);
 			removeUnusedTranslations(generatedCache, sourceTexts, props.locales);
 			cache = mergeCaches(generatedCache, overrideCache);
-			const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales);
-			if (newSourceTexts.length > 0) {
-				this.info(`Translating ${newSourceTexts.length} new texts.`);
-				const translations = await props.translate(props.default ?? "en", newSourceTexts);
-				this.info(`Translated ${translations.length} texts.`);
-				for (const item of translations) generatedCache.set(item.source, item.locale, item.translation);
-			}
-			cache = mergeCaches(generatedCache, overrideCache);
-			await saveCache(cwd, generatedCache);
+			await translateMissing(cwd, sourceTexts, (message) => this.info(message));
 			this.info(`Translating done.`);
+		},
+		async hotUpdate({ file, read }) {
+			if (!cache || !SOURCE_FILE.test(file) || isIgnoredPath(file)) return;
+			const sourceTexts = await findTranslatableInCode(file, await read());
+			if (sourceTexts.length > 0) await translateMissing(process.cwd(), sourceTexts, (message) => this.environment.logger.info(message));
 		},
 		transform(code) {
 			if (code.includes("lang.t`")) {

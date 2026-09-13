@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { readFile, rm, writeFile } from 'fs/promises'
+import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { generateDependencyHash, generateFileHash } from '@awsless/ts-file-cache'
@@ -133,13 +133,14 @@ ${entries.join('\n')}
 		const fingerprint = hash.digest('hex')
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`bundle--${props.name}`)
+			await using temp = await createTempFolder(`bundle--${props.name}`)
 			const entryFile = join(temp.path, 'entry.ts')
 
 			await writeFile(entryFile, entry)
 
 			const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
 			const moduleSideEffects = handlers.flatMap(handler => handler.moduleSideEffects ?? [])
+
 			const bundle = await bundleTypeScriptWithRolldown({
 				file: entryFile,
 				minify: props.minify,
@@ -152,10 +153,13 @@ ${entries.join('\n')}
 				moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
 			})
 
-			await temp.delete()
-
-			// Clear out the stale chunks from the previous build.
-			await rm(getBuildPath('bundle', props.name, 'files'), { recursive: true, force: true })
+			// The new output lands next to the old chunks before the stale
+			// ones go: the dev worker of the previous build still lazily
+			// imports its route chunks until its restart, so the folder
+			// must never be empty in between.
+			const filesDir = getBuildPath('bundle', props.name, 'files')
+			const previous = await readdir(filesDir).catch(() => [] as string[])
+			const current = new Set(bundle.files.flatMap(file => [file.name, `${file.name}.map`]))
 
 			// The code archive is compressed here, in the cached build phase -
 			// the deploy-time resolve only injects the env file into it.
@@ -169,6 +173,10 @@ ${entries.join('\n')}
 				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
 				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
 			])
+
+			await Promise.all(
+				previous.filter(name => !current.has(name)).map(name => rm(join(filesDir, name), { force: true }))
+			)
 
 			return {
 				size: formatByteSize(bundle.files.reduce((total, file) => total + file.code.byteLength, 0)),

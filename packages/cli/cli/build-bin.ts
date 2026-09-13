@@ -5,9 +5,7 @@
 import { rm } from 'fs/promises'
 import pkg from '../package.json'
 
-// The fsevents native binary is mac only, so the bundled chokidar falls
-// back to its node watch implementation instead.
-const external = [...Object.keys(pkg.dependencies), ...Object.keys(pkg.peerDependencies), 'fsevents']
+const external = [...Object.keys(pkg.dependencies), ...Object.keys(pkg.peerDependencies)]
 
 await rm('dist', { recursive: true, force: true })
 

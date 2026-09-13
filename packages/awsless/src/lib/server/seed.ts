@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
 import type { UUID } from 'node:crypto'
 
-// Deterministic ids for seed data: the same name always produces the
-// same uuid, so reseeding upserts instead of duplicating & other seed
-// files can reference the same records by name.
+// The same name always yields the same uuid, so reseeding upserts &
+// other seed files can reference records by name.
 export const seed = {
 	uuid(name: string): UUID {
 		const hash = createHash('sha256').update(name).digest()

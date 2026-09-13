@@ -7,5 +7,5 @@
 		"isolatedModules": true,
 		"types": ["bun", "node", "vitest/globals"]
 	},
-	"exclude": ["dist", "**/_*"]
+	"exclude": ["dist"]
 }

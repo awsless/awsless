@@ -3,12 +3,11 @@ import { kibibytes, toBytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
-import { defineFeature } from '../../feature'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
-import { formatLocalResourceName } from '../../util/name'
+import { defineFeature } from '../../feature.js'
+import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
+import { formatLocalResourceName } from '../../util/name.js'
 import { instanceOnDev } from './dev.js'
-import { createFargateTask } from './util'
+import { createFargateTask } from './util.js'
 
 const typeGenCode = `
 import { SendMessageOptions } from '@awsless/sqs'
@@ -18,51 +17,29 @@ type Send<Name extends string> = {
 	readonly name: Name
 	(payload: unknown, options?: Omit<SendMessageOptions, 'queue' | 'payload' | 'groupId' | 'deduplicationId'>): Promise<void>
 }
-
-type MockHandle = (payload: unknown) => void
-type MockBuilder = (handle?: MockHandle) => void
-type MockObject = Mock<(payload: unknown) => unknown>
-
-// Calling overrides the implementation & the same value works as the
-// vitest mock inside expect().
-type TestMockEntry = MockBuilder & MockObject
-`
+${plainTestMockTypes()}`
 
 export const instanceFeature = defineFeature({
 	name: 'instance',
 	onDev: instanceOnDev,
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('awsless')
-		const resources = new TypeObject(1)
-		const testMocks = new TypeObject(2)
+		await writeResourceTypes(ctx, {
+			kind: 'instance',
+			interfaceName: 'InstanceResources',
+			code: typeGenCode,
+			stacks(stack, add) {
+				for (const name of Object.keys(stack.instances || {})) {
+					const queueName = formatLocalResourceName({
+						appName: ctx.appConfig.name,
+						stackName: stack.name,
+						resourceType: 'instance',
+						resourceName: name,
+					})
 
-		for (const stack of ctx.stackConfigs) {
-			const resource = new TypeObject(2)
-			const testMock = new TypeObject(3)
-
-			for (const name of Object.keys(stack.instances || {})) {
-				const queueName = formatLocalResourceName({
-					appName: ctx.appConfig.name,
-					stackName: stack.name,
-					resourceType: 'instance',
-					resourceName: name,
-				})
-				resource.addType(name, `Send<'${queueName}'>`)
-				testMock.addType(name, `TestMockEntry`)
-			}
-
-			resources.addType(stack.name, resource)
-			testMocks.addType(stack.name, testMock)
-		}
-
-		const testMock = new TypeObject(1)
-		testMock.addType('instance', testMocks)
-
-		gen.addCode(typeGenCode)
-		gen.addInterface('InstanceResources', resources)
-		gen.addInterface('TestMock', testMock)
-
-		await ctx.write('instance.d.ts', gen, true)
+					add(name, `Send<'${queueName}'>`, `TestMockEntry`)
+				}
+			},
+		})
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {

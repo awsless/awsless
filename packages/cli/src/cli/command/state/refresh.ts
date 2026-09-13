@@ -5,10 +5,10 @@ import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../../app.js'
 import { Cancelled, ExpectedError } from '../../../error.js'
-import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { createWorkSpace } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
 import { color } from '../../ui/style.js'
+import { createClients } from '../util.js'
 
 export const refresh = (program: Command) => {
 	program
@@ -23,10 +23,7 @@ export const refresh = (program: Command) => {
 		)
 		.action(async (filters: string[], options: { commit?: boolean | string[] }) => {
 			await layout('state refresh', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 				const { workspace } = await createWorkSpace({ credentials, region, accountId })
@@ -101,7 +98,6 @@ export const refresh = (program: Command) => {
 					)
 
 					if (entry.operation === 'update') {
-						// console.log(entry.before, entry.after)
 						const diffResult = diff(entry.before, entry.after)
 
 						if (diffResult) {

@@ -8,10 +8,11 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import {
 	addEnvWithoutConfigs,
-	createLambdaFunctionFromZip,
+	createLambda,
 	deployFunctionSourcemaps,
 	registerFunctionBuild,
 } from '../function/util.js'
+import { subscribeToErrorLog } from '../on-error-log/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
@@ -77,15 +78,8 @@ export const onFailureFeature = defineFeature({
 		)
 
 		// ----------------------------------------------------------------
-		// Create a s3 bucket to capture all lambda failures
-
-		/*
-			Async lambda's errors will saved like:
-			aws/lambda/async/<function-name>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
-
-			DynamoDB Stream error:
-			aws/lambda/<UUID>/<shard-id>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
-		*/
+		// Lambda writes its failed async invokes & stream batches to a
+		// bucket, the queue then hands them to the handler at its own pace.
 
 		const bucketName = formatGlobalResourceName({
 			appName: ctx.app.name,
@@ -118,6 +112,7 @@ export const onFailureFeature = defineFeature({
 			group,
 			bucket,
 			queue,
+			deadletter,
 		})
 
 		const notify = props.notify
@@ -278,9 +273,11 @@ export const onFailureFeature = defineFeature({
 			wrapper: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.js'),
 		})
 
-		const handler = createLambdaFunctionFromZip(group, ctx, 'on-failure', 'handler', {
-			zipFile: build.zipFile,
-			sourceHash: build.sourceHash,
+		// The handler is created before the bucket arn is shared, so it
+		// never gets an on-failure destination of its own: its only retry
+		// bound is the queue redrive into the deadletter.
+		const handler = createLambda(group, ctx, 'on-failure', 'handler', {
+			code: build,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
 			memorySize: consumer.memorySize ?? ctx.appConfig.function.memorySize,
@@ -292,7 +289,16 @@ export const onFailureFeature = defineFeature({
 				level: consumer.log?.level ?? 'warn',
 				system: consumer.log?.system ?? 'warn',
 				retention: consumer.log?.retention ?? days(3),
+				errorLog: false,
 			},
+		})
+
+		// The on-error-log handler only exists after this feature ran,
+		// so the log group subscribes once every handler is in place.
+		ctx.onReady(() => {
+			if (handler.logGroup) {
+				subscribeToErrorLog(handler.group, ctx, handler.logGroup)
+			}
 		})
 
 		deployFunctionSourcemaps(group, ctx, {
@@ -307,12 +313,13 @@ export const onFailureFeature = defineFeature({
 		ctx.onEnv(addEnv)
 		ctx.onBind(addEnv)
 		ctx.onPermission(statement => handler.addPermission(statement))
+		ctx.shared.add('function', 'role', name, handler.role)
 
 		// Deny calling other functions to stop circular loop problems,
 		// while sns:Publish stays open so the consumer can alert.
 		handler.addPermission({
 			effect: 'deny',
-			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage'],
+			actions: ['lambda:InvokeFunction', 'sqs:SendMessage'],
 			resources: ['*'],
 		})
 

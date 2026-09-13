@@ -57,13 +57,13 @@ describe('site ssr', () => {
 		const proxy = metas.find(
 			meta =>
 				meta.type === 'aws_lambda_function' &&
-				meta.input.functionName === 'test-app--stack-1--function--web-ssr-proxy'
+				meta.input.functionName === 'test-app--stack-1--sandbox-proxy--web-ssr'
 		)
 		const deployment = metas.find(meta => meta.type === 'function-deployment')!
 
 		expect(lambda).toBeDefined()
 		expect(lambda.input.publish).toBe(true)
-		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--function--web-ssr-proxy')
+		expect(lambda.input.environment.variables.SANDBOX_PROXY).toBe('test-app--stack-1--sandbox-proxy--web-ssr')
 		expect(proxy).toBeDefined()
 		expect(deployment).toBeDefined()
 

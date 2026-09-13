@@ -3,7 +3,6 @@ import { ExpectedError, invoke, isErrorResponse, LambdaContext, RoutedLambdaCont
 import {
 	captureInvokedQualifier,
 	formatRoutePayload,
-	getCurrentRoute,
 	getInvokedQualifier,
 	getStandaloneFunctionName,
 	LIVE_BUNDLE_ALIAS,
@@ -48,9 +47,8 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		iconHandler,
 		imageHandler,
 		metricHandler,
-		// The on-failure & on-error-log consumers only run as bundle
-		// routes on the local dev worker - deployed apps run them as
-		// stand-alone lambdas outside the bundle.
+		// Deployed apps run these two consumers as stand-alone lambdas; only
+		// the local dev worker routes them through the bundle.
 		onFailureHandler,
 		logHandler,
 		queueHandler,
@@ -66,9 +64,6 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	]
 
 	const matchRoute = (event: BundleEvent) => {
-		// Expected errors start disabled on every dispatch & only the matched route can enable them.
-		delete process.env.THROW_EXPECTED_ERRORS
-
 		for (const matcher of matchers) {
 			const match = matcher(event, routes)
 
@@ -87,9 +82,8 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			const load = handlers[match.key]
 
 			if (!load) {
-				// Function routes outside the bundle table are served by
-				// their own stand-alone lambda, invoked inside the same
-				// deployment for callers that route through the bundle.
+				// A function route outside the bundle table is a stand-alone lambda
+				// in the same deployment, for callers that route through the bundle.
 				if (routeType(match.key) === 'function') {
 					return invoke({
 						name: getStandaloneFunctionName(match.key),
@@ -101,55 +95,38 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
-			// Only trace inside a real lambda, where AWS_EXECUTION_ENV is defined
-			if (process.env.AWS_EXECUTION_ENV) {
-				console.trace(`Bundle route: ${match.key}`)
-			}
+			// The expected error mode rides on the route context, so
+			// concurrent routes in one process never share a global flag.
+			return withBundleRouteContext(
+				match.key,
+				internalInvoke,
+				async () => {
+					const handle = await load()
 
-			process.env.AWSLESS_ROUTE = match.key
+					// Error logs carry the route, so log consumers attribute an error
+					// to a logical resource instead of the shared bundle.
+					const routedContext: RoutedLambdaContext = { ...context, route: match.key }
 
-			return withBundleRouteContext(match.key, internalInvoke, async () => {
-				const handle = await load()
-
-				// The route on the context ends up in error logs, so log
-				// consumers can attribute an error to a logical resource
-				// instead of the shared bundle function.
-				const routedContext: RoutedLambdaContext = { ...context, route: match.key }
-
-				return handle(match.payload ?? {}, routedContext)
-			})
+					return handle(match.payload ?? {}, routedContext)
+				},
+				{ throwExpectedErrors: match.throwExpectedErrors }
+			)
 		}
 
 		const internalInvoke = async (key: string, payload: unknown) => {
-			const caller = getCurrentRoute()
-			const throwExpectedErrors = process.env.THROW_EXPECTED_ERRORS
-			let result
+			const match = matchRoute(formatRoutePayload(key, unpatch(payload ?? {})))
 
-			try {
-				const match = matchRoute(formatRoutePayload(key, unpatch(payload ?? {})))
-
-				if (Array.isArray(match)) {
-					throw new Error('Unknown bundle route: ' + key)
-				}
-
-				result = await handleRoute(match)
-			} finally {
-				// Restore the caller's route env, since the caller keeps running after the nested call.
-				if (caller) {
-					process.env.AWSLESS_ROUTE = caller
-
-					if (throwExpectedErrors) {
-						process.env.THROW_EXPECTED_ERRORS = throwExpectedErrors
-					} else {
-						delete process.env.THROW_EXPECTED_ERRORS
-					}
-				}
+			if (Array.isArray(match)) {
+				throw new Error('Unknown bundle route: ' + key)
 			}
 
+			const result = await handleRoute(match)
 			const response = result === undefined ? undefined : patch(result)
 
 			if (isErrorResponse(response)) {
-				throw new ExpectedError(response.__error__.type, response.__error__.message)
+				const { type, message, data } = response.__error__
+
+				throw new ExpectedError(type, message, data)
 			}
 
 			return response

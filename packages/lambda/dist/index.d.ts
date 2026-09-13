@@ -49,7 +49,8 @@ declare class TimeoutError extends Error {
 //#region src/errors/expected.d.ts
 declare class ExpectedError extends Error {
   readonly type: string;
-  constructor(type: string, message: string);
+  readonly data?: unknown;
+  constructor(type: string, message: string, data?: unknown);
 }
 //#endregion
 //#region src/errors/validation.d.ts
@@ -107,24 +108,32 @@ declare const lambdaClient: {
   set(client: LambdaClient$1): void;
 };
 //#endregion
+//#region src/helpers/env.d.ts
+declare const isTestEnv: () => boolean;
+//#endregion
 //#region src/helpers/mock.d.ts
+type Vitest = typeof import('vitest');
 type Lambdas = {
   [key: string]: (payload: any) => unknown;
 };
-declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<(...args: any[]) => any>; };
+declare const mockLambda: <T extends Lambdas>(lambdas: T, options?: {
+  vi?: Vitest['vi'];
+}) => { [K in keyof T]: Mock<T[K]>; };
 //#endregion
 //#region src/lambda.d.ts
 interface Options<H extends Handler<S>, S extends Schema = undefined> {
-  /** A validation struct to validate the input. */
+  /** A validation schema for the input. */
   schema?: S;
-  /** Array of middleware functions. */
+  /** The handler, receiving the validated input & the extended context. */
   handle: H;
-  /** Array of logging functions that are called when an error is thrown. */
+  /** Logging functions called when an error is thrown. */
   logger?: Loggers;
-  /** Boolean to specify if expected errors should be thrown and logged.
+  /**
+   * Whether expected errors throw & log instead of returning as an
+   * error response. A function is evaluated per invocation.
    * @default false
    */
-  throwExpectedErrors?: boolean;
+  throwExpectedErrors?: boolean | (() => boolean);
 }
 type LambdaFactory = {
   <H extends Handler>(options: Options<H>): (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
@@ -134,4 +143,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 //#endregion
-export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

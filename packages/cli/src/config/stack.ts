@@ -1,20 +1,14 @@
 import { z } from 'zod'
-// import { AuthSchema } from '../feature/auth/schema.js'
 import { CachesSchema } from '../feature/cache/schema.js'
 import { CommandsSchema } from '../feature/command/schema.js'
 import { CronsSchema } from '../feature/cron/schema/index.js'
 import { StackDnsSchema } from '../feature/domain/schema.js'
-// import { StreamsSchema } from '../feature/__stream/schema.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
 import { IconsSchema } from '../feature/icon/schema.js'
 import { ImagesSchema } from '../feature/image/schema.js'
 import { InstancesSchema } from '../feature/instance/schema.js'
 import { JobsSchema } from '../feature/job/schema.js'
 import { MetricsSchema } from '../feature/metric/schema.js'
-// import { FunctionsSchema } from../feature/__graphql/schema.js.js'
-// import { GraphQLSchema } from '../feature/graphql/schema.js'
-// import { HttpSchema } from '../feature/__http/schema.js'
-// import { OnFailureSchema } from '../feature/on-failure/schema.js'
 import { PubSubSchema } from '../feature/pubsub/schema.js'
 import { QueuesSchema } from '../feature/queue/schema.js'
 import { RestSchema } from '../feature/rest/schema.js'
@@ -41,14 +35,10 @@ export const StackSchema = z
 		dns: StackDnsSchema,
 
 		commands: CommandsSchema,
-
-		// auth: AuthSchema,
-		// http: HttpSchema,
 		rest: RestSchema,
 		rpc: RpcSchema,
 		crons: CronsSchema,
 		caches: CachesSchema,
-		// topics: TopicsSchema,
 		subscribers: SubscribersSchema,
 		functions: FunctionsSchema,
 		instances: InstancesSchema,
@@ -56,7 +46,6 @@ export const StackSchema = z
 		tasks: TasksSchema,
 		tables: TablesSchema,
 		stores: StoresSchema,
-		// streams: StreamsSchema,
 		queues: QueuesSchema,
 		pubsub: PubSubSchema,
 		searchs: SearchsSchema,
@@ -68,5 +57,4 @@ export const StackSchema = z
 	})
 	.strict()
 
-// export type StackConfigInput = z.input<typeof StackSchema>
 export type StackConfig = z.output<typeof StackSchema> & { file: string }

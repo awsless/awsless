@@ -10,8 +10,8 @@ type PublishInput = {
 	MessageAttributes?: Record<string, { DataType?: string; StringValue?: string }>
 }
 
-// The sns query protocol encodes message attributes as numbered
-// entries: MessageAttributes.entry.1.Name, .1.Value.DataType, ...
+// The query protocol numbers its attribute entries, so the loop stops
+// at the first missing name.
 const parseQueryPublish = (body: string): PublishInput => {
 	const params = new URLSearchParams(body)
 	const attributes: NonNullable<PublishInput['MessageAttributes']> = {}
@@ -37,11 +37,8 @@ const parseQueryPublish = (body: string): PublishInput => {
 	}
 }
 
-// A minimal sns emulator that only routes: a published message
-// dispatches into the bundle as an sns event, where the bundle's topic
-// matcher already fans out to every subscriber route. A publish
-// matching a capture is recorded by the owning feature instead (like
-// the alert topics) & never reaches the bundle.
+// Only routes: the bundle's own topic matcher fans out. A publish
+// matching a capture (like an alert topic) never reaches the bundle.
 export const createSnsServer = (props?: { captures?: ((input: PublishInput) => boolean)[] }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined

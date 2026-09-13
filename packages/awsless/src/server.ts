@@ -5,8 +5,8 @@ export * as v from '@awsless/validate'
 export * as h from './lib/handle/index.js'
 
 // Test environment
-export * from './lib/test/mock.js'
-export * from './lib/test/setup.js'
+export { mock, type TestMock, type TestMockFunction } from './lib/test/mock.js'
+export { setupTestEnv, type TestManifest } from './lib/test/setup.js'
 
 // Server
 export * from './lib/server/alert.js'
@@ -30,4 +30,4 @@ export * from './lib/server/table.js'
 export * from './lib/server/task.js'
 export * from './lib/server/topic.js'
 
-export { APP, getStack } from './lib/server/util.js'
+export { getAccountId, getApp, getAppId, getRegion, getStack } from './lib/server/util.js'

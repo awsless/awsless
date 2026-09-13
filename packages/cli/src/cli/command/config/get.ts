@@ -5,7 +5,6 @@ import { getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'
 import { layout } from '../../ui/complex/layout.js'
 import { color } from '../../ui/style.js'
-// import { list } from '../../ui/util.js'
 
 export const get = (program: Command) => {
 	program
@@ -32,20 +31,6 @@ export const get = (program: Command) => {
 					Name: chalk.magenta(name),
 					Value: value ?? color.warning('(empty)'),
 				})
-
-				// const spin = spinner()
-				// spin.start(`Getting remote config parameter`)
-
-				// const value = await params.get(name)
-
-				// spin.stop(`Done getting remote config parameter.`)
-
-				// note(
-				// 	list({
-				// 		Name: chalk.magenta(name),
-				// 		Value: value ?? color.warning('(empty)'),
-				// 	})
-				// )
 			})
 		})
 }

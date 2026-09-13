@@ -5,5 +5,5 @@ export const ArchitectureSchema = z
 	.describe('The instruction set architecture that the function supports.')
 
 export const NodeRuntimeSchema = z
-	.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x'])
+	.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x', 'nodejs24.x'])
 	.describe("The identifier of the function's runtime.")

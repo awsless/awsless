@@ -1,27 +1,36 @@
 import type { Mock } from 'vitest'
 
 export type Func = (...args: any[]) => any
-// export type Func = <TArgs extends any[] = any, TReturns = any>(...args: TArgs) => TReturns
-export type Result<T extends string | number | symbol> = Record<T, Mock<Func>>
+export type Result<T extends Record<string, Func>> = { [K in keyof T]: Mock<T[K]> }
+type Vitest = (typeof import('vitest'))['vi']
+type MockFactory = Vitest['fn']
 
-export const mockObjectValues = <T extends Record<string, Func>>(object: T): Result<keyof T> => {
-	const list: Result<string> = {}
+export const getVitest = (provided?: Vitest) => {
+	const vi = provided ?? (globalThis as { vi?: Vitest }).vi
 
-	Object.entries(object).forEach(([key, value]) => {
-		list[key] = mockFn(value)
-	})
+	if (!vi) {
+		throw new Error('Enable vitest globals or pass vi explicitly (vi.fn for mockFn and mockObjectValues).')
+	}
 
-	return Object.freeze(list) as Result<keyof T>
+	return vi
 }
 
-export const mockFn = <T extends Func>(fn: T) => {
-	return (vi ? vi.fn(fn) : fn) as Mock<T>
+export const mockObjectValues = <T extends Record<string, Func>>(object: T, createMock?: MockFactory): Result<T> => {
+	const list: Record<string, Mock<Func>> = {}
+
+	for (const [key, value] of Object.entries(object)) {
+		list[key] = mockFn(value, createMock)
+	}
+
+	return Object.freeze(list) as Result<T>
 }
 
-export const nextTick = (fn: Func, ...args: unknown[]) => {
-	return new Promise(resolve => {
-		setTimeout(() => {
-			resolve(fn(...args))
-		}, 0)
-	})
+export const mockFn = <T extends Func>(fn: T, createMock?: MockFactory) => {
+	const factory = createMock ?? getVitest().fn
+	return factory(fn)
+}
+
+export const nextTick = async (fn: Func, ...args: unknown[]): Promise<unknown> => {
+	await new Promise(resolve => setTimeout(resolve, 0))
+	return fn(...args)
 }

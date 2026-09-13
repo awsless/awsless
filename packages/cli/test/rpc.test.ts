@@ -29,7 +29,9 @@ vi.mock('@awsless/dynamodb', async importOriginal => {
 const serverRoute = 'test:rpc:server'
 const otherServerRoute = 'test:rpc:other-server'
 
-process.env.AWSLESS_ROUTE = serverRoute
+// The route the server runs under, like the bundle sets it per request.
+let route = serverRoute
+
 process.env[formatRouteEnvName(serverRoute, 'LOCK_TABLE')] = 'lock'
 process.env[formatRouteEnvName(serverRoute, 'TIMEOUT')] = '60'
 
@@ -94,9 +96,7 @@ describe('RPC server', () => {
 		} as any
 	}
 	const invoke = (payload: unknown, token?: string) => {
-		return withBundleRouteContext(process.env.AWSLESS_ROUTE!, internalInvoke, () =>
-			handle(createRequest(payload, token))
-		)
+		return withBundleRouteContext(route, internalInvoke, () => handle(createRequest(payload, token)))
 	}
 
 	describe('lock', () => {
@@ -144,7 +144,7 @@ describe('RPC server', () => {
 			process.env[formatRouteEnvName(serverRoute, 'AUTH')] = 'test:rpc:permission-auth'
 			await invoke([{ name: 'read' }], 'shared-token')
 
-			process.env.AWSLESS_ROUTE = otherServerRoute
+			route = otherServerRoute
 			process.env[formatRouteEnvName(otherServerRoute, 'AUTH')] = 'test:rpc:other-auth'
 
 			try {
@@ -152,12 +152,12 @@ describe('RPC server', () => {
 
 				expect(result.statusCode).toBe(401)
 			} finally {
-				process.env.AWSLESS_ROUTE = serverRoute
+				route = serverRoute
 			}
 		})
 
 		it('should isolate the query whitelist between RPC APIs', async () => {
-			process.env.AWSLESS_ROUTE = otherServerRoute
+			route = otherServerRoute
 			delete process.env[formatRouteEnvName(otherServerRoute, 'AUTH')]
 
 			try {
@@ -168,7 +168,7 @@ describe('RPC server', () => {
 					data: { route: 'other' },
 				})
 			} finally {
-				process.env.AWSLESS_ROUTE = serverRoute
+				route = serverRoute
 			}
 		})
 	})

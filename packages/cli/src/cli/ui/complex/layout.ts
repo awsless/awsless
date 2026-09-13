@@ -14,6 +14,10 @@ type Options = {
 	options: ProgramOptions
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
+
+	// Ends the run without the outro, for commands whose output must
+	// stay untouched, like a raw json dump or a handed-over terminal.
+	exit: (code?: number) => never
 }
 
 export const layout = async (command: string, cb: (options: Options) => Promise<string | void>) => {
@@ -29,6 +33,11 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 			process.exitCode = 130
 		}
 	})
+
+	const exit = (code = 0): never => {
+		completed = true
+		process.exit(code)
+	}
 
 	try {
 		const options = program.optsWithGlobals() as ProgramOptions
@@ -47,12 +56,12 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 			options,
 			appConfig,
 			stackConfigs,
+			exit,
 		})
 
-		completed = true
 		log.outro(result ?? undefined)
 
-		process.exit(0)
+		exit(0)
 	} catch (error) {
 		completed = true
 		playErrorSound()

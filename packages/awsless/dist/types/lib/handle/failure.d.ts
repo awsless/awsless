@@ -31,7 +31,7 @@ export type FailureEvent = {
     };
 } & Record<string, unknown>;
 type FailureHandler = (event: FailureEvent, context: Parameters<Handler>[1]) => unknown;
-export declare const failure: <H extends FailureHandler>(handle: H) => (event: unknown, context?: import("aws-lambda").Context) => Promise<unknown>;
+export declare const failure: <H extends FailureHandler>(handle: H) => (event: unknown, context?: import("@awsless/lambda").LambdaContext) => Promise<unknown>;
 declare const onErrorLogSchema: import("valibot").ObjectSchema<{
     readonly hash: import("valibot").StringSchema<undefined>;
     readonly requestId: import("valibot").StringSchema<undefined>;
@@ -65,7 +65,7 @@ export type ErrorEvent = {
     date: Date;
 };
 type ErrorSchema = GenericSchema<InferInput<typeof onErrorLogSchema>, ErrorEvent>;
-export declare const error: <H extends Handler<ErrorSchema>>(handle: H) => (event: {
+export declare const error: <H extends Handler<ErrorSchema>>(handle: H) => (...args: Parameters<(event: {
     hash: string;
     requestId: string;
     origin: string;
@@ -75,5 +75,5 @@ export declare const error: <H extends Handler<ErrorSchema>>(handle: H) => (even
     stackTrace?: string[] | undefined;
     data?: unknown;
     date: string | Date;
-}, context?: import("aws-lambda").Context) => Promise<Awaited<ReturnType<H>>>;
+}, context?: import("@awsless/lambda").LambdaContext) => Promise<Awaited<ReturnType<H>>>>) => Promise<ReturnType<H> | undefined>;
 export {};

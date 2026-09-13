@@ -1,15 +1,16 @@
 import { InvokeCommand, LambdaClient, LambdaClient as LambdaClient$1, ListFunctionsCommand } from "@aws-sdk/client-lambda";
 import { parse, patch, stringify, unpatch } from "@awsless/json";
-import { globalClient, mockObjectValues, nextTick } from "@awsless/utils";
+import { getVitest, globalClient, mockObjectValues, nextTick } from "@awsless/utils";
 import { ValiError, applyRedaction, parse as parse$1 } from "@awsless/validate";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { mockClient } from "aws-sdk-vitest-mock";
 //#region src/errors/expected.ts
 var ExpectedError = class extends Error {
 	type;
-	constructor(type, message) {
+	data;
+	constructor(type, message, data) {
 		super(message);
 		this.type = type;
+		this.data = data;
 	}
 };
 //#endregion
@@ -49,7 +50,7 @@ const invoke = async ({ client = lambdaClient(), name, qualifier, type = "Reques
 	const response = parse(json);
 	if (isErrorResponse(response)) {
 		const e = response.__error__;
-		if (reflectViewableErrors) throw new ExpectedError(e.type, e.message);
+		if (reflectViewableErrors) throw new ExpectedError(e.type, e.message, e.data);
 		else throw new Error(e.message);
 	}
 	if (isLambdaErrorResponse(response)) {
@@ -189,31 +190,41 @@ var ViewableError = class extends Error {
 	}
 };
 //#endregion
+//#region src/helpers/env.ts
+const isTestEnv = () => {
+	if (process.env.LAMBDA_ENV) return process.env.LAMBDA_ENV === "test";
+	return process.env.NODE_ENV === "test" || !!process.env.VITEST;
+};
+//#endregion
 //#region src/helpers/mock.ts
 const globalList = {};
-const mockLambda = (lambdas) => {
+const mockLambda = (lambdas, options) => {
+	const vi = getVitest(options?.vi);
 	const alreadyMocked = Object.keys(globalList).length > 0;
-	const list = mockObjectValues(lambdas);
+	const list = mockObjectValues(lambdas, vi.fn);
 	Object.assign(globalList, list);
 	if (alreadyMocked) return list;
-	const client = mockClient(LambdaClient$1);
-	client.on(ListFunctionsCommand).resolves({
-		$metadata: {},
-		Functions: [{
-			FunctionName: "test",
-			FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
-		}]
-	});
-	client.on(InvokeCommand).callsFake((async (input) => {
-		const name = input.FunctionName ?? "";
-		const type = input.InvocationType ?? "RequestResponse";
-		const payload = input.Payload ? parse(new TextDecoder().decode(input.Payload)) : void 0;
-		const callback = globalList[name];
-		if (!callback) throw new TypeError(`Lambda mock function not defined for: ${name}`);
-		const result = await nextTick(callback, payload);
-		return { Payload: type === "RequestResponse" && result ? new TextEncoder().encode(stringify(result)) : void 0 };
+	vi.spyOn(LambdaClient$1.prototype, "send").mockImplementation((async (command) => {
+		if (command instanceof ListFunctionsCommand) return {
+			$metadata: {},
+			Functions: [{
+				FunctionName: "test",
+				FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
+			}]
+		};
+		if (command instanceof InvokeCommand) {
+			const input = command.input;
+			const name = input.FunctionName ?? "";
+			const type = input.InvocationType ?? "RequestResponse";
+			const payload = input.Payload ? parse(new TextDecoder().decode(input.Payload)) : void 0;
+			const callback = globalList[name];
+			if (!callback) throw new TypeError(`Lambda mock function not defined for: ${name}`);
+			const result = await nextTick(callback, payload);
+			return { Payload: type === "RequestResponse" && result ? new TextEncoder().encode(stringify(result)) : void 0 };
+		}
+		throw new TypeError(`Lambda mock doesn't support: ${command?.constructor?.name}`);
 	}));
-	beforeEach && beforeEach(() => {
+	if (typeof beforeEach !== "undefined") beforeEach(() => {
 		Object.values(globalList).forEach((fn) => {
 			fn.mockClear();
 		});
@@ -232,14 +243,14 @@ const lambda = (options) => {
 				await logger?.(error, { input: event });
 			}));
 		};
-		const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === "test";
+		const isTest = isTestEnv();
 		const successCallbacks = [];
 		const failureCallbacks = [];
 		const finallyCallbacks = [];
 		try {
 			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
-					const raw = typeof event === "undefined" || isTestEnv ? event : patch(event);
+					const raw = typeof event === "undefined" || isTest ? event : patch(event);
 					const input = options.schema ? parse$1(options.schema, raw) : raw;
 					const extendedContext = {
 						event: input,
@@ -262,14 +273,15 @@ const lambda = (options) => {
 				});
 			});
 			await Promise.all(successCallbacks.map((cb) => cb(result)));
-			if (isTestEnv) return parse(stringify(result, { preserveUndefinedValues: true }));
+			if (isTest) return parse(stringify(result, { preserveUndefinedValues: true }));
 			return unpatch(result);
 		} catch (error) {
 			await Promise.all(failureCallbacks.map((cb) => cb(error)));
 			const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError;
-			if (!isExpectedError || options.throwExpectedErrors) await log(error);
-			if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) return toErrorResponse(error);
-			if (!isTestEnv) throw enhanceError(normalizeError(error), options.schema, event, context);
+			const throwExpectedErrors = typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
+			if (!isExpectedError || throwExpectedErrors) await log(error);
+			if (!isTest && !throwExpectedErrors && isExpectedError) return toErrorResponse(error);
+			if (!isTest) throw enhanceError(normalizeError(error), options.schema, event, context);
 			throw error;
 		} finally {
 			await Promise.all(finallyCallbacks.map((cb) => cb()));
@@ -277,4 +289,4 @@ const lambda = (options) => {
 	});
 };
 //#endregion
-export { ExpectedError, LambdaClient, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { ExpectedError, LambdaClient, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

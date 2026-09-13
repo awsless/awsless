@@ -1,5 +1,8 @@
 import { ZodError } from 'zod'
 
+// The prompt library throws its own Cancelled, so the cli shares it.
+export { Cancelled } from '@awsless/clui'
+
 export class ExpectedError extends Error {}
 
 export class ConfigError extends Error {
@@ -18,11 +21,5 @@ export class FileError extends Error {
 		message: string
 	) {
 		super(message)
-	}
-}
-
-export class Cancelled extends Error {
-	constructor() {
-		super('Cancelled')
 	}
 }

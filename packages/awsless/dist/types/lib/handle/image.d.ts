@@ -9,6 +9,6 @@ export type ImageResponse = Buffer | ArrayBuffer | Uint8Array | string | undefin
 type ImageHandler = (event: ImageEvent, context: Parameters<Handler>[1]) => ImageResponse | Promise<ImageResponse>;
 export declare const image: <H extends ImageHandler>(handle: H) => (event: {
     path: string;
-}, context?: import("aws-lambda").Context) => Promise<string | undefined>;
+}, context?: import("@awsless/lambda").LambdaContext) => Promise<string | undefined>;
 export declare const icon: typeof image;
 export {};

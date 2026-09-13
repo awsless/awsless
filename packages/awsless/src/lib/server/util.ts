@@ -1,22 +1,28 @@
+import { isTestEnv } from '@awsless/lambda'
 import { kebabCase } from 'change-case'
 import { getCurrentRoute } from './bundle.js'
 
-export const APP = process.env.APP!
-export const APP_ID = process.env.APP_ID!
-export const IS_TEST = !!process.env['VITEST'] || process.env['NODE_ENV'] === 'test'
-// Local dev mode (`awsless dev`) is a third mode, separate from IS_TEST:
-// tests bypass bundle routing to keep name-keyed mocks working, while local
-// dev keeps the production code paths and redirects the AWS boundary instead.
+// Read lazily: the CLI `run` command imports this module before it
+// knows the app config & sets the env vars afterwards.
+export const getApp = () => process.env.APP!
+export const getAppId = () => process.env.APP_ID!
+export const getRegion = () => process.env.AWS_REGION!
+export const getAccountId = () => process.env.AWS_ACCOUNT_ID!
+
+// A function, so it tracks the env like the lambda wrapper does.
+export const isTest = () => isTestEnv()
+
+// Local dev is a third mode: tests bypass bundle routing to keep
+// name-keyed mocks working, local dev keeps the production paths.
 export const IS_LOCAL = process.env.AWSLESS_ENV === 'local'
-export const REGION = process.env.AWS_REGION!
-export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID!
-export const STACK = process.env.STACK!
 
-// One bundled lambda process hosts every stack, so the active route
-// is only known while a request is being handled, not at startup.
-export const getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE
-export const getStack = () => getRoute()?.split(':')[0] ?? STACK
+// One bundle process hosts every stack, so the active stack is only
+// known while a route runs; stand-alone lambdas carry it in the env.
+export const getRoute = () => getCurrentRoute()
+export const getStack = () => getRoute()?.split(':')[0] ?? process.env.STACK!
 
+// Must produce the same names as the CLI's formatGlobalResourceName &
+// formatLocalResourceName, including keeping a part kebab-case can't touch.
 export const formatResourceName = (opt: {
 	prefix?: string
 	stackName?: string
@@ -25,19 +31,9 @@ export const formatResourceName = (opt: {
 	postfix?: string
 	separator?: string
 }) => {
-	return [
-		//
-		opt.prefix,
-		// Read lazily: the CLI `run` command imports this module before it
-		// knows the app config, then sets process.env.APP afterwards.
-		process.env.APP,
-		opt.stackName,
-		opt.resourceType,
-		opt.resourceName,
-		opt.postfix,
-	]
+	return [opt.prefix, getApp(), opt.stackName, opt.resourceType, opt.resourceName, opt.postfix]
 		.filter(v => typeof v === 'string')
-		.map(v => kebabCase(v))
+		.map(v => kebabCase(v) || v)
 		.join(opt.separator ?? '--')
 }
 
@@ -50,7 +46,7 @@ export const bindLocalResourceName = <T extends string>(resourceType: T) => {
 			stackName,
 			resourceType,
 			resourceName,
-		}) as `${typeof APP}--${S}--${T}--${N}`
+		}) as `${string}--${S}--${T}--${N}`
 	}
 }
 
@@ -59,6 +55,6 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		return formatResourceName({
 			resourceType,
 			resourceName,
-		}) as `${typeof APP}--${T}--${N}`
+		}) as `${string}--${T}--${N}`
 	}
 }

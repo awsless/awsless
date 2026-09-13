@@ -8,7 +8,7 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 import {
 	addEnvWithoutConfigs,
-	createLambdaFunctionFromZip,
+	createLambda,
 	deployFunctionSourcemaps,
 	registerFunctionBuild,
 } from '../function/util.js'
@@ -54,17 +54,24 @@ export const onErrorLogFeature = defineFeature({
 			wrapper: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-error-log.js'),
 		})
 
+		// Failed invokes go straight to the on-failure deadletter instead
+		// of its bucket: the on-failure consumer's error logs feed this
+		// handler, so a bucket destination would close a loop.
+		const deadletter = ctx.shared.has('on-failure', 'resources')
+			? ctx.shared.get('on-failure', 'resources').deadletter
+			: undefined
+
 		// The handler is created before the shared subscriber arn is set,
 		// so its own log group is never subscribed to itself.
-		const handler = createLambdaFunctionFromZip(group, ctx, 'on-error-log', 'handler', {
-			zipFile: build.zipFile,
-			sourceHash: build.sourceHash,
+		const handler = createLambda(group, ctx, 'on-error-log', 'handler', {
+			code: build,
 			runtime: 'nodejs24.x',
 			handler: 'index.default',
 			memorySize: consumer.memorySize ?? ctx.appConfig.function.memorySize,
 			timeout: consumer.timeout ?? ctx.appConfig.function.timeout,
 			architecture: consumer.architecture ?? ctx.appConfig.function.architecture,
 			vpc: consumer.vpc,
+			onFailure: deadletter ? { arn: deadletter.arn, kind: 'queue' } : false,
 			log: {
 				format: consumer.log?.format ?? 'json',
 				level: consumer.log?.level ?? 'warn',
@@ -79,12 +86,20 @@ export const onErrorLogFeature = defineFeature({
 		})
 
 		// The same env & permissions the consumer had inside the bundle,
-		// minus the config preload.
+		// minus the config preload. The queue sends are stripped instead
+		// of denied, since a deny would also block the deadletter destination.
 		const addEnv = addEnvWithoutConfigs(build)
 
 		ctx.onEnv(addEnv)
 		ctx.onBind(addEnv)
-		ctx.onPermission(statement => handler.addPermission(statement))
+		ctx.onPermission(statement => {
+			const actions = statement.actions.filter(action => action !== 'sqs:SendMessage')
+
+			if (actions.length > 0) {
+				handler.addPermission({ ...statement, actions })
+			}
+		})
+		ctx.shared.add('function', 'role', name, handler.role)
 
 		// The handler maps minified stack traces back to the original
 		// source: the version index object in the asset bucket names the
@@ -115,7 +130,7 @@ export const onErrorLogFeature = defineFeature({
 		// while sns:Publish stays open so the consumer can alert.
 		handler.addPermission({
 			effect: 'deny',
-			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage'],
+			actions: ['lambda:InvokeFunction'],
 			resources: ['*'],
 		})
 

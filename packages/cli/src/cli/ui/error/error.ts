@@ -1,5 +1,5 @@
 import { relative } from 'path'
-import { Cancelled as CancelledError, log } from '@awsless/clui'
+import { log } from '@awsless/clui'
 import { AppError, ResourceError } from '@terraforge/core'
 import { Cancelled, ConfigError, ExpectedError, FileError } from '../../../error.js'
 import { debugError, debugLogFile } from '../../debug.js'
@@ -19,8 +19,6 @@ export const logError = (error: unknown) => {
 		logConfigError(error)
 	} else if (error instanceof Cancelled) {
 		log.error(color.error('Cancelled.'))
-	} else if (error instanceof CancelledError) {
-		log.error(color.error('Cancelled.'))
 	} else if (error instanceof ExpectedError) {
 		log.error(color.error(error.message))
 	} else if (error instanceof AppError) {
@@ -36,7 +34,6 @@ export const logError = (error: unknown) => {
 			wrap([color.error(message), stack], {
 				hard: true,
 			})
-			// { symbol: color.error(icon.error) }
 		)
 	} else if (typeof error === 'string') {
 		log.error(color.error(error))
@@ -51,8 +48,11 @@ export const logError = (error: unknown) => {
 		}
 	}
 
-	// Cancels are user intent, not failures worth investigating.
-	if (!(error instanceof Cancelled) && !(error instanceof CancelledError) && !Array.isArray(error)) {
-		log.message(color.dim(`Debug log: ${relative(process.cwd(), debugLogFile)}`))
+	// Cancels are user intent, not failures worth investigating. The
+	// log only exists once a project was found.
+	const file = debugLogFile()
+
+	if (file && !(error instanceof Cancelled) && !Array.isArray(error)) {
+		log.message(color.dim(`Debug log: ${relative(process.cwd(), file)}`))
 	}
 }

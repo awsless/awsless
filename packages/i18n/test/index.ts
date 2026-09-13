@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'fs/promises'
+import { mkdtemp, readFile, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { resolve } from 'path'
 import { openai } from '@ai-sdk/openai'
@@ -6,6 +6,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { build } from 'vite'
 import { i18n, ai } from '../src'
 import { Cache, loadCache, saveCache } from '../src/cache'
+import { mock } from '../src/translate/mock'
 
 describe('i18n', () => {
 	process.env.OPENAI_API_KEY = ''
@@ -90,6 +91,66 @@ describe('i18n', () => {
 				'\t}\n' +
 				'}\n'
 		)
+	})
+
+	it('leaves the cache file alone when nothing changed', async () => {
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
+		const cache = new Cache()
+		cache.set('alpha', 'fr', 'alpha-fr')
+
+		expect(await saveCache(cwd, cache)).toBe(true)
+		const { mtimeMs } = await stat(resolve(cwd, 'i18n.generated.json'))
+
+		expect(await saveCache(cwd, cache)).toBe(false)
+		expect((await stat(resolve(cwd, 'i18n.generated.json'))).mtimeMs).toBe(mtimeMs)
+
+		cache.set('alpha', 'jp', 'alpha-jp')
+		expect(await saveCache(cwd, cache)).toBe(true)
+	})
+
+	it('translates texts added while the dev server runs', async () => {
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
+		const file = resolve(cwd, 'page.svelte')
+		await writeFile(file, '<p>{lang.t`Hello`}</p>')
+
+		const previous = process.cwd()
+		process.chdir(cwd)
+
+		try {
+			let plugin = i18n({ locales: ['fr'], translate: mock('TRANSLATED') })
+			const context = { info() {}, environment: { logger: { info() {} } } }
+
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+
+			expect((await loadCache(cwd)).get('Hello', 'fr')).toBe('TRANSLATED')
+
+			const update = (code: string) => ({ file, read: async () => code })
+
+			// Bursts of saves must not translate the same text twice.
+			const translate = vi.fn(mock('TRANSLATED'))
+			plugin = i18n({ locales: ['fr'], translate })
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+			await Promise.all([
+				// @ts-expect-error only the hook body is exercised
+				plugin.hotUpdate.call(context, update('<p>{lang.t`Hello`} {lang.t`Goodbye`}</p>')),
+				// @ts-expect-error only the hook body is exercised
+				plugin.hotUpdate.call(context, update('<p>{lang.t`Goodbye`}</p>')),
+			])
+
+			expect(translate).toHaveBeenCalledTimes(1)
+
+			const cache = await loadCache(cwd)
+			expect(cache.get('Goodbye', 'fr')).toBe('TRANSLATED')
+			expect(cache.get('Hello', 'fr')).toBe('TRANSLATED')
+
+			// @ts-expect-error only the hook body is exercised
+			const transformed = plugin.transform.call(context, 'lang.t`Goodbye`')
+			expect(transformed.code).toBe('lang.t.get(`Goodbye`, {"fr":`TRANSLATED`})')
+		} finally {
+			process.chdir(previous)
+		}
 	})
 
 	it('prefers translations from i18n.json over i18n.generated.json', async () => {

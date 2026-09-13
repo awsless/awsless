@@ -3,12 +3,7 @@ import { AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
 import { ConfigsSchema } from '../feature/config/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
-// import { FunctionDefaultSchema } from ../feature/__graphql/schema.jsjs'
-// import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
-// import { HttpDefaultSchema } from '../feature/__http/schema.js'
 import { FunctionDefaultSchema } from '../feature/function/schema.js'
-// import { StoreDefaultSchema } from '../feature/store/schema.js'
-// import { TableDefaultSchema } from '../feature/table/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { JobDefaultSchema } from '../feature/job/schema.js'
 import { LayerSchema } from '../feature/layer/schema.js'
@@ -22,7 +17,6 @@ import { RpcDefaultSchema } from '../feature/rpc/schema.js'
 import { SearchDefaultSchema } from '../feature/search/schema.js'
 import { TestDefaultSchema } from '../feature/test/schema.js'
 import { TopicsDefaultSchema } from '../feature/topic/schema.js'
-// import { InstanceDefaultSchema } from '../feature/__instance/schema.js'
 import { LocalEntrySchema } from './schema/local-entry.js'
 import { RegionSchema } from './schema/region.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
@@ -53,14 +47,6 @@ export const AppSchema = z
 				].join('\n')
 			),
 
-		// stage: z
-		// 	.string()
-		// 	.regex(/^[a-z]+$/)
-		// 	.default('prod')
-		// 	.describe('The deployment stage.'),
-
-		// onFailure: OnFailureSchema,
-
 		onFailure: OnFailureDefaultSchema,
 		onErrorLog: OnErrorLogDefaultSchema,
 		auth: AuthDefaultSchema,
@@ -81,5 +67,4 @@ export const AppSchema = z
 	})
 	.strict()
 
-// export type AppConfigInput = z.input<typeof AppSchema>
 export type AppConfig = z.output<typeof AppSchema> & { stage?: string }

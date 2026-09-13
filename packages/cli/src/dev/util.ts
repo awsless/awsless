@@ -2,8 +2,8 @@ import { ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { IncomingMessage, Server } from 'http'
 import { createServer, Socket } from 'net'
-import { join } from 'path'
-import { DevTrace } from '../feature.js'
+import { basename, join, sep } from 'path'
+import type { DevTrace } from '../feature.js'
 import { directories } from '../util/path.js'
 import { killTree } from './children.js'
 
@@ -11,12 +11,8 @@ import { killTree } from './children.js'
 // the dev environment & the test runner share it.
 export const LOCAL_ACCOUNT_ID = '000000000000'
 
-// A tiny preload for every long lived child (instances, the pubsub ws
-// server): when the dev server dies without a graceful stop (a crash,
-// kill -9), the child gets reparented & exits on its own - the pid
-// file reaper only runs on the next boot, while the watchdog cleans
-// up even when dev is never started again. Loaded with -r, which both
-// node & bun understand.
+// A -r preload for long lived children: after a hard kill of the dev
+// server they exit on their own, even when dev is never started again.
 export const WATCHDOG_FILE = 'parent-watchdog.cjs'
 
 export const WATCHDOG_SOURCE = `const parent = process.ppid
@@ -39,6 +35,29 @@ if (typeof Bun === 'undefined') {
 
 export const watchdogPath = () => {
 	return join(directories.output, 'local', WATCHDOG_FILE)
+}
+
+// Shared by the source & config watchers, so both skip the same folders.
+export const IGNORED_DIRECTORIES = new Set(['node_modules', '.awsless', 'dist', '.git'])
+
+export const isIgnoredPath = (path: string) => {
+	return path.split(sep).some(segment => IGNORED_DIRECTORIES.has(segment))
+}
+
+const appConfigNames = new Set(['app.json', 'app.jsonc', 'app.json5'])
+
+// A --config-file can carry any name, so the loader registers it here
+// or neither watcher would recognize a save of it.
+export const registerConfigFile = (file: string) => {
+	appConfigNames.add(basename(file))
+}
+
+// A save of a config file restarts the whole environment, so the
+// source watcher must leave these to the config watcher.
+export const isConfigFile = (path: string) => {
+	const base = basename(path)
+
+	return appConfigNames.has(base) || /(^|\.)stack\.(json|jsonc|json5)$/.test(base)
 }
 
 // The request header carrying the active trace out of the bundle
@@ -73,12 +92,8 @@ export const readBody = (req: IncomingMessage) => {
 	})
 }
 
-// Gracefully stops a spawned child process. A ctrl-c in the terminal
-// signals the whole process group, so the child may already be dead by
-// signal - node then keeps exitCode null forever (only signalCode is
-// set), and waiting for its exit event would hang the shutdown. The
-// kills walk the child's whole process tree, so grandchildren (like
-// the bundler a vite dev server spawns) die with it.
+// Kills walk the whole process tree, so grandchildren (like the
+// bundler a vite dev server spawns) die with the child.
 const signalChild = (child: ChildProcess, signal: NodeJS.Signals) => {
 	if (child.pid) {
 		void killTree(child.pid, signal)
@@ -88,8 +103,13 @@ const signalChild = (child: ChildProcess, signal: NodeJS.Signals) => {
 }
 
 export const stopChild = async (child: ChildProcess | undefined, gracePeriod = 5000) => {
-	if (child && child.exitCode === null && child.signalCode === null) {
-		const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+	// A child already dead by signal keeps exitCode null forever, and one
+	// that never spawned emits error without exit, so neither may be awaited.
+	if (child && child.pid && child.exitCode === null && child.signalCode === null) {
+		const exited = new Promise<void>(resolve => {
+			child.once('exit', () => resolve())
+			child.once('error', () => resolve())
+		})
 		signalChild(child, 'SIGTERM')
 
 		// A child that survives the sigterm (like a program with its own
@@ -102,11 +122,8 @@ export const stopChild = async (child: ChildProcess | undefined, gracePeriod = 5
 	}
 }
 
-// Bun's node:http closeAllConnections never destroys connections with
-// an in-flight streaming response (like an sse stream) or idle browser
-// keep-alives, hanging server.close forever. The sockets are tracked &
-// destroyed manually, so stopping the dev environment never hangs on
-// an open dashboard tab.
+// Bun's closeAllConnections skips streaming responses & idle
+// keep-alives, so server.close would hang on an open dashboard tab.
 export const trackConnections = (server: Server) => {
 	const sockets = new Set<Socket>()
 

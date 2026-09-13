@@ -1,11 +1,5 @@
-// The handler factories of every awsless feature. Each one wraps the
-// plain lambda handler with the right event schema, so handler files
-// declare WHAT they handle & the payload arrives parsed and typed.
-//
-//   export default h.queue(v.object({ n: v.number() }), async jobs => {})
-//
-// Every concern lives in its own module & the nested namespaces are
-// real module namespaces, so unused handlers tree-shake away.
+// One factory per feature, each wrapping the lambda handler with the
+// right event schema. Real module namespaces, so unused handlers tree-shake.
 
 export * from './failure.js'
 export * from './func.js'

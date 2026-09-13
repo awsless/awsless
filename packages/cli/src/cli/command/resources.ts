@@ -1,16 +1,14 @@
 import { log } from '@awsless/clui'
 import { color as chalk } from '@awsless/clui'
-import { DynamoDBClient } from '@awsless/dynamodb'
 import { ResourceStatus, URN } from '@terraforge/core'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import { currentDeployment } from '../../util/deployment.js'
-import { generateGlobalAppId } from '../../util/name.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color, icon } from '../ui/style.js'
+import { createClients } from './util.js'
 
 export const resources = (program: Command) => {
 	program
@@ -20,18 +18,11 @@ export const resources = (program: Command) => {
 		.action(async (filters: string[]) => {
 			await layout('resources', async ({ appConfig, stackConfigs }) => {
 				// ---------------------------------------------------
-				const region = appConfig.region
-				const profile = appConfig.profile
-				const credentials = await getCredentials(profile)
-				const accountId = await getAccountId(credentials, region)
+				const { region, credentials, accountId, dynamo, appId } = await createClients(appConfig)
 
 				// Build the graph with the last deployed id, so the deployment
 				// resources don't show up as changed right after a deploy.
-				const dynamo = new DynamoDBClient({ credentials, region })
-				const deployment = await currentDeployment(
-					dynamo,
-					generateGlobalAppId({ accountId, region, appName: appConfig.name })
-				)
+				const deployment = await currentDeployment(dynamo, appId)
 
 				const { app, ready } = createApp({ appConfig, stackConfigs, accountId, deploymentId: deployment?.id })
 
@@ -54,15 +45,6 @@ export const resources = (program: Command) => {
 						.replaceAll(':', color.dim(':'))
 				}
 
-				// const formatResource = (urn: URN) => {
-				// 	return urn
-				// 		.replace(app.urn + ':', '')
-				// 		.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
-				// 			return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
-				// 		})
-				// 		.replaceAll(':', color.dim(':'))
-				// }
-
 				const formatStatus = (status: ResourceStatus) => {
 					if (status === 'created') {
 						return color.success(status)
@@ -79,19 +61,6 @@ export const resources = (program: Command) => {
 					return color.dim(status)
 				}
 
-				// log.message(
-				// 	resources
-				// 		.map(r => {
-				// 			return [
-				// 				//
-				// 				formatStatus(r.),
-				// 				color.dim(icon.arrow.right),
-				// 				formatResource(r.urn),
-				// 			].join(' ')
-				// 		})
-				// 		.join('\n')
-				// )
-				//
 				for (const stack of stacks) {
 					if (filters.length > 0) {
 						const found = filters.find(f => wildstring.match(f, stack.name))
@@ -120,25 +89,6 @@ export const resources = (program: Command) => {
 						log.message(color.line(`(empty)`))
 					}
 				}
-
-				// for (const stack of app.stacks) {
-				// 	if (filters.length > 0) {
-				// 		const found = filters.find(f => wildstring.match(f, stack.name))
-
-				// 		if (!found) {
-				// 			continue
-				// 		}
-				// 	}
-
-				// 	log.step(chalk.magenta(stack.name))
-				// 	log.message(
-				// 		stack.resources
-				// 			.map(resource => {
-				// 				return formatResource(stack, resource.urn)
-				// 			})
-				// 			.join('\n')
-				// 	)
-				// }
 			})
 		})
 }

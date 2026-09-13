@@ -1,7 +1,6 @@
 import { log } from '@awsless/clui'
 import { AppError } from '@terraforge/core'
 import { color } from '../style.js'
-// import { wrap } from '../util.js'
 import { logResourceError } from './stack-error.js'
 
 export const logAppError = (error: AppError) => {
@@ -9,11 +8,5 @@ export const logAppError = (error: AppError) => {
 
 	for (const issue of error.issues) {
 		logResourceError(issue)
-		// if (issue instanceof StackError) {
-		// } else if (issue instanceof Error) {
-		// 	log.message(wrap(color.error(issue.message), { hard: true }), {
-		// 		symbol: color.error(icon.error),
-		// 	})
-		// }
 	}
 }

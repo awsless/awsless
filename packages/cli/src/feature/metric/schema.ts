@@ -60,39 +60,3 @@ export const MetricsSchema = z
 	)
 	.optional()
 	.describe('Define the metrics in your stack.')
-
-// {
-// 	metrics: {
-// 		latency: {
-// 			type: 'duration',
-// 			alarms: [{
-// 				where: 'avg >= 1000000',
-// 				period: '1 hour',
-// 				trigger: 'info@jacksclub.io',
-// 			}]
-// 		}
-// 	}
-// }
-
-// mockMetric()
-
-// await Metric.stack.latency.put(1, {
-// 	time: new Date(),
-// })
-
-// await Metric.batch([
-// 	//
-// 	Metric.stack.latency.put(1),
-// 	Metric.stack.latency.put(1),
-// 	Metric.stack.latency.put(1),
-// ])
-
-// await putData(Metric.stack.latency, 1, {
-// 	time: new Date(),
-// })
-
-// await batchPutData([
-// 	putData(Metric.stack.latency, 1),
-// 	putData(Metric.stack.latency, 1),
-// 	putData(Metric.stack.latency, 1),
-// ])

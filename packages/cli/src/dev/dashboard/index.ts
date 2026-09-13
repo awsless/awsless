@@ -8,7 +8,6 @@ import { Redis } from 'ioredis'
 import { DevDispatch, DevResource, DevRoute } from '../../feature.js'
 import { AuthAdmin } from '../../feature/auth/dev.js'
 import { readBody, trackConnections } from '../util.js'
-import { WorkerError } from '../worker.js'
 import { dashboardHtml } from './html.js'
 
 // The local dev dashboard: lists every resource in the app & lets you
@@ -38,11 +37,16 @@ export const createDashboardServer = (props: {
 	// Re-runs the stack seed files, when any are configured.
 	runSeeds?: () => Promise<void>
 	events: {
-		subscribe: (channel: string, listener: (data: unknown) => void) => () => void
+		subscribe: (
+			channel: string,
+			listener: (data: unknown, id: number) => void,
+			options?: { after?: number }
+		) => () => void
 	}
 }) => {
 	let server: Server | undefined
 	let closeServer: (() => Promise<void>) | undefined
+	let boundPort = 0
 	let dispatch: DevDispatch | undefined
 	let documentClient: DynamoDBDocumentClient | undefined
 
@@ -58,14 +62,22 @@ export const createDashboardServer = (props: {
 		return documentClient
 	}
 
-	// The dashboard can mutate real state (deployed auth pools, the
-	// local config file, handler invokes), so browser cross-origin
-	// requests are rejected: any web page can POST to localhost, even
-	// when it can't read the response. Requests from tools like curl
-	// carry no Origin & stay allowed, and the Host check stops dns
-	// rebinding.
+	// The dashboard mutates real state (deployed auth pools, the local
+	// config file), so the Host check stops dns rebinding.
 	const isLocalHost = (value: string | undefined) => {
-		const host = value?.split(':')[0]?.toLowerCase()
+		if (!value) {
+			return false
+		}
+
+		let host = value.toLowerCase()
+
+		// A bracketed ipv6 host carries its port after the bracket, while
+		// a bare one (from a non-browser client) never has a port at all.
+		if (host.startsWith('[')) {
+			host = host.slice(0, host.indexOf(']') + 1)
+		} else if (host.split(':').length === 2) {
+			host = host.split(':')[0]!
+		}
 
 		return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
 	}
@@ -77,9 +89,15 @@ export const createDashboardServer = (props: {
 
 		const origin = req.headers.origin
 
+		// Pinned to the dashboard's own port: a page on any other local
+		// port (another project's dev server) must never drive it. Tools
+		// like curl send no Origin & stay allowed.
 		if (typeof origin === 'string' && origin !== 'null') {
 			try {
-				return isLocalHost(new URL(origin).host)
+				const url = new URL(origin)
+				const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80))
+
+				return isLocalHost(url.hostname) && port === boundPort
 			} catch {
 				return false
 			}
@@ -118,7 +136,11 @@ export const createDashboardServer = (props: {
 
 			// The replacement is a function, so $-patterns inside the
 			// state json can never expand as replacement patterns.
-			return { status: 200, body: dashboardHtml.replace('__STATE__', () => state), type: 'text/html' }
+			return {
+				status: 200,
+				body: dashboardHtml.replace('__STATE__', () => state),
+				type: 'text/html; charset=utf-8',
+			}
 		}
 
 		if (url.pathname === '/api/invoke' && req.method === 'POST') {
@@ -284,10 +306,14 @@ export const createDashboardServer = (props: {
 				body?: unknown
 			}
 
-			// The proxy only reaches targets belonging to a registered
-			// resource, so the api can't probe arbitrary hosts.
+			// Only registered targets & absolute paths: a path like
+			// "@host/" would otherwise turn the target into userinfo.
 			if (!props.resources.some(r => r.kind === 'search' && r.detail === target)) {
 				return { status: 400, body: JSON.stringify({ error: `Unknown search target: ${target}` }) }
+			}
+
+			if (typeof path !== 'string' || !path.startsWith('/')) {
+				return { status: 400, body: JSON.stringify({ error: 'The search path must start with a slash.' }) }
 			}
 
 			const result = await fetch(`http://${target}${path}`, {
@@ -317,7 +343,6 @@ export const createDashboardServer = (props: {
 					if (entry.isDirectory()) {
 						await walk(path)
 					} else {
-						// Keys are relative to the bucket folder, one level below the store root.
 						const key = relative(props.storeRoot, path).split(sep).slice(1).join('/')
 
 						if (key.startsWith(prefix)) {
@@ -400,7 +425,18 @@ export const createDashboardServer = (props: {
 
 		if (url.pathname === '/api/config') {
 			if (req.method === 'PUT') {
-				const values = JSON.parse((await readBody(req)).toString() || '{}')
+				const values: unknown = JSON.parse((await readBody(req)).toString() || '{}')
+
+				// The ssm shim indexes the file by name, so anything but a
+				// plain object of strings would only break the worker boot.
+				if (
+					typeof values !== 'object' ||
+					values === null ||
+					Array.isArray(values) ||
+					Object.values(values).some(value => typeof value !== 'string')
+				) {
+					return { status: 400, body: JSON.stringify({ error: 'The config must be an object of strings.' }) }
+				}
 
 				await writeFile(props.configFile, JSON.stringify(values, null, '\t') + '\n')
 
@@ -437,11 +473,37 @@ export const createDashboardServer = (props: {
 
 		res.write(':connected\n\n')
 
+		// A reconnecting browser sends the last id it saw, so the replay
+		// skips what the feed already shows.
+		const after = Number(req.headers['last-event-id'])
+
+		const write = (channel: string, data: unknown, id: number) => {
+			res.write(`id: ${id}\ndata: ${JSON.stringify({ channel, data })}\n\n`)
+		}
+
+		// Each channel replays on subscribe, so the replays are merged and
+		// sorted first to keep the ids the browser sees monotonic.
+		let replay: { channel: string; data: unknown; id: number }[] | undefined = []
+
 		const unsubscribes = channels.map(channel =>
-			props.events.subscribe(channel, data => {
-				res.write(`data: ${JSON.stringify({ channel, data })}\n\n`)
-			})
+			props.events.subscribe(
+				channel,
+				(data, id) => {
+					if (replay) {
+						replay.push({ channel, data, id })
+					} else {
+						write(channel, data, id)
+					}
+				},
+				{ after: Number.isFinite(after) ? after : undefined }
+			)
 		)
+
+		for (const entry of replay.toSorted((a, b) => a.id - b.id)) {
+			write(entry.channel, entry.data, entry.id)
+		}
+
+		replay = undefined
 
 		const heartbeat = setInterval(() => res.write(':heartbeat\n\n'), 15_000)
 
@@ -458,11 +520,20 @@ export const createDashboardServer = (props: {
 		connect(dispatchFn: DevDispatch) {
 			dispatch = dispatchFn
 		},
+		// Resolves with the bound port, so a listen on port 0 is usable.
 		async listen(port: number) {
 			server = createServer((req, res) => {
 				const url = new URL(req.url ?? '/', 'http://localhost')
 
 				if (url.pathname === '/api/events') {
+					// The stream leaks handler output & activity, so it gets
+					// the same origin check as everything else.
+					if (!allowed(req)) {
+						res.writeHead(403, { 'content-type': 'application/json' })
+						res.end(JSON.stringify({ error: 'Cross-origin requests are not allowed.' }))
+						return
+					}
+
 					const channels = (url.searchParams.get('channels') ?? '').split(',').filter(Boolean)
 
 					// A stale pre-upgrade page asking for nothing would hold a
@@ -491,8 +562,7 @@ export const createDashboardServer = (props: {
 						res.end(body)
 					})
 					.catch(error => {
-						const message =
-							error instanceof WorkerError || error instanceof Error ? error.message : String(error)
+						const message = error instanceof Error ? error.message : String(error)
 
 						res.writeHead(500, { 'content-type': 'application/json' })
 						res.end(JSON.stringify({ error: message }))
@@ -504,6 +574,10 @@ export const createDashboardServer = (props: {
 				closeServer = trackConnections(server!)
 				server!.listen(port, '127.0.0.1', () => resolve())
 			})
+
+			boundPort = (server.address() as { port: number }).port
+
+			return boundPort
 		},
 		stop() {
 			// The scan client holds a keep-alive connection to the local

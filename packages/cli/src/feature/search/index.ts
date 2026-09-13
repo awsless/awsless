@@ -1,12 +1,13 @@
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
+import { formatSearchIndexName } from 'awsless'
 import { defineFeature } from '../../feature.js'
 import { SearchIndex } from '../../formation/open-search.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { searchOnDev } from './dev.js'
-import { formatSearchIndexName, resolveSearchMappings } from './util.js'
+import { resolveSearchMappings } from './util.js'
 
 const typeGenCode = `
 import { AnySchema, Table } from '@awsless/open-search'
@@ -17,6 +18,14 @@ type SearchIndex = {
 	readonly define: <S extends AnySchema>(schema: S) => Table<string, S>
 }
 `
+
+export const formatCollectionName = (appName: string) => {
+	return `${appName}-${shortId([appName, 'search', 'main'].join('--'))}`
+}
+
+export const formatFunctionsPolicyName = (collectionName: string) => {
+	return `${collectionName}-functions`
+}
 
 export const searchFeature = defineFeature({
 	name: 'search',
@@ -53,9 +62,8 @@ export const searchFeature = defineFeature({
 		}
 
 		const group = new Group(ctx.base, 'search', 'main')
-		const name = `${ctx.app.name}-${shortId([ctx.app.name, 'search', 'main'].join('--'))}`
+		const name = formatCollectionName(ctx.app.name)
 		const props = ctx.appConfig.search
-		// const retainOnDelete = ctx.appConfig.removal === 'retain'
 
 		// The deploy assumes this role to manage the indexes, so
 		// deployers only need sts:AssumeRole instead of a principal
@@ -100,6 +108,7 @@ export const searchFeature = defineFeature({
 		)
 
 		const encryption = new aws.opensearchserverless.SecurityPolicy(group, 'encryption', {
+			region: ctx.appConfig.region,
 			name,
 			type: 'encryption',
 			policy: JSON.stringify({
@@ -114,6 +123,7 @@ export const searchFeature = defineFeature({
 		})
 
 		const network = new aws.opensearchserverless.SecurityPolicy(group, 'network', {
+			region: ctx.appConfig.region,
 			name,
 			type: 'network',
 			policy: JSON.stringify([
@@ -149,19 +159,23 @@ export const searchFeature = defineFeature({
 			])
 		}
 
+		// The provider records region on read, so a policy update without it plans a replace.
 		const access = new aws.opensearchserverless.AccessPolicy(group, 'access', {
+			region: ctx.appConfig.region,
 			name,
 			type: 'data',
 			// The account root gives the aws console access to browse the data.
 			policy: accessRole.arn.pipe(arn => dataAccessPolicy([arn, `arn:aws:iam::${ctx.accountId}:root`])),
 		})
 
-		// The function roles only exist after every stack has synthed.
+		// Every role that receives the app wide aoss grant registers itself
+		// here, and the last ones only exist once every stack has synthed.
 		ctx.onReady(() => {
 			const roles = ctx.shared.list('function', 'role')
 
 			new aws.opensearchserverless.AccessPolicy(group, 'access-functions', {
-				name: `${name}-functions`,
+				region: ctx.appConfig.region,
+				name: formatFunctionsPolicyName(name),
 				type: 'data',
 				policy: $combine(...roles.map(role => role.arn)).pipe(dataAccessPolicy),
 			})
@@ -187,7 +201,6 @@ export const searchFeature = defineFeature({
 				],
 			},
 			{
-				// retainOnDelete,
 				replaceOnChanges: ['name', 'generation'],
 			}
 		)
@@ -201,7 +214,6 @@ export const searchFeature = defineFeature({
 				collectionGroupName: collectionGroup.name,
 			},
 			{
-				// retainOnDelete,
 				dependsOn: [encryption, network, access],
 				replaceOnChanges: ['name', 'collectionGroupName'],
 			}
@@ -246,7 +258,6 @@ export const searchFeature = defineFeature({
 					settings: JSON.stringify(props.settings ?? {}),
 				},
 				{
-					// retainOnDelete: ctx.appConfig.removal === 'retain',
 					replaceOnChanges: ['endpoint', 'index'],
 				}
 			)

@@ -1,19 +1,21 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { ExpectedError } from '../../../error'
-// import { exec } from 'promisify-child-process'
+import { ExpectedError } from '../../../error.js'
 
-export const buildExecutable = async (input: string, outputPath: string, architecture: 'x86_64' | 'arm64') => {
+export type ExecutableArchitecture = 'x86_64' | 'arm64'
+
+export const executableTarget = (architecture: ExecutableArchitecture) => {
+	return architecture === 'x86_64' ? 'bun-linux-x64' : 'bun-linux-arm64'
+}
+
+// Compile a bun program into a single linux executable for fargate.
+export const buildExecutable = async (input: string, outputPath: string, architecture: ExecutableArchitecture) => {
 	const filePath = join(outputPath, 'program')
-
-	const target = architecture === 'x86_64' ? 'bun-linux-x64' : 'bun-linux-arm64'
-
-	// const args = ['build', input, '--compile', '--target', target, '--outfile', filePath]
+	const target = executableTarget(architecture)
 
 	let result: Bun.BuildOutput
 	try {
-		// await exec(`bun ${args.join(' ')}`)
 		result = await Bun.build({
 			entrypoints: [input],
 			compile: {
@@ -52,7 +54,7 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 	const file = await readFile(filePath)
 
 	return {
-		hash: createHash('sha1').update(file).update('x86_64').digest('hex'),
+		hash: createHash('sha1').update(file).update(target).digest('hex'),
 		file,
 	}
 }

@@ -1,4 +1,4 @@
-import type { Mock } from 'vitest';
+import type { TestMockFunction } from './mock.js';
 export type TestManifest = {
     app: string;
     region: string;
@@ -28,6 +28,11 @@ export type TestManifest = {
         file: string;
     }[];
     tasks: {
+        stack: string;
+        id: string;
+        file: string;
+    }[];
+    crons?: {
         stack: string;
         id: string;
         file: string;
@@ -63,20 +68,23 @@ export type TestManifest = {
     };
 };
 type ImportFile = (file: string) => Promise<any>;
-export declare const mockBaselines: Map<Mock, (...args: unknown[]) => unknown>;
+export declare const mockBaselines: Map<TestMockFunction<(...args: any[]) => any>, (...args: unknown[]) => unknown>;
 export declare const mockState: {
     inTest: boolean;
 };
+type Registry = Record<string, TestMockFunction>;
 export declare const testRegistry: {
-    emails: Record<string, Mock>;
-    functions: Record<string, Mock>;
-    tasks: Record<string, Mock>;
-    queues: Record<string, Mock>;
-    topics: Record<string, Mock>;
-    pubsub: Record<string, Mock>;
-    alerts: Record<string, Mock>;
-    jobs: Record<string, Mock>;
-    instances: Record<string, Mock>;
+    emails: Registry;
+    functions: Registry;
+    crons: Registry;
+    tasks: Registry;
+    schedules: Registry;
+    queues: Registry;
+    topics: Registry;
+    pubsub: Registry;
+    alerts: Registry;
+    jobs: Registry;
+    instances: Registry;
 };
 export declare const setupTestEnv: (manifest: TestManifest, options: {
     importFile: ImportFile;

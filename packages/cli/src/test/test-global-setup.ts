@@ -4,10 +4,8 @@ import { pathToFileURL } from 'url'
 import { $mockdate, setGlobalTypes } from '@awsless/json'
 import { beforeAll } from 'vitest'
 
-// The awsless module MUST be the exact same instance the test files
-// import, so the registry & client mocks land in the right copy. The
-// test files resolve it from the project, while this setup file lives
-// inside the cli - so the project's own copy is loaded explicitly.
+// The mocks must land in the same awsless copy the test files import,
+// which is the project's, not the cli's.
 const loadAwsless = async (): Promise<any> => {
 	try {
 		const dir = join(process.cwd(), 'node_modules', 'awsless')
@@ -22,11 +20,8 @@ const loadAwsless = async (): Promise<any> => {
 	return import('awsless')
 }
 
-// The auto test environment materializes the whole app from the config
-// manifest: every table exists, cross stack function, task & queue
-// calls run the REAL handler of the other stack, and topic & pubsub
-// publishes are recorded spies. This runs at module scope, so the test
-// config values are set before any test file import resolves.
+// Module scope on purpose: the test config values must be set before
+// any test file import resolves.
 const manifestFile = process.env.AWSLESS_TEST_MANIFEST
 
 if (manifestFile) {
@@ -69,12 +64,6 @@ if (manifestFile) {
 }
 
 beforeAll(() => {
-	// Set timezone for dates to UTC-0 to get consistant test results
-	process.env.TZ = 'UTC'
-
-	// FIX json stringify & parse for MockDate's
+	// Mocked dates must survive a json round trip inside the tests.
 	setGlobalTypes({ $mockdate })
-
-	// The bigfloat equality tester registers in the awsless test setup,
-	// which also covers cross-module instances via duck typing.
 })

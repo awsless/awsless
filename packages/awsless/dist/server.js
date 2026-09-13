@@ -1,4 +1,3 @@
-import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.js";
 import { t as createProxy } from "./proxy-HAezNYiX.js";
 import * as s from "@awsless/open-search";
 import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search";
@@ -6,11 +5,11 @@ import * as t from "@awsless/dynamodb";
 import { define as define$1 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
 import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, getContext, invoke, isErrorResponse, lambda } from "@awsless/lambda";
+import { ExpectedError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda } from "@awsless/lambda";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { constantCase, kebabCase } from "change-case";
 import { stringify } from "@awsless/json";
 import { publish } from "@awsless/sns";
-import { constantCase, kebabCase } from "change-case";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { ssm } from "@awsless/ssm";
 import { WeakCache } from "@awsless/weak-cache";
 import { getCachedQueueUrl, sendMessage, sendMessageBatch } from "@awsless/sqs";
@@ -22,18 +21,145 @@ import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { sendEmail } from "@awsless/ses";
 import { batchPutData, createDurationMetric, createMetric, createSizeMetric, putData } from "@awsless/cloudwatch";
 import { createHash } from "node:crypto";
+//#region \0rolldown/runtime.js
+var __defProp = Object.defineProperty;
+var __exportAll = (all, no_symbols) => {
+	let target = {};
+	for (var name in all) __defProp(target, name, {
+		get: all[name],
+		enumerable: true
+	});
+	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
+	return target;
+};
+//#endregion
+//#region src/lib/server/util.ts
+const getApp = () => process.env.APP;
+const getAppId = () => process.env.APP_ID;
+const getRegion = () => process.env.AWS_REGION;
+const getAccountId = () => process.env.AWS_ACCOUNT_ID;
+const isTest = () => isTestEnv();
+const IS_LOCAL = process.env.AWSLESS_ENV === "local";
+const getRoute = () => getCurrentRoute();
+const getStack = () => getRoute()?.split(":")[0] ?? process.env.STACK;
+const formatResourceName = (opt) => {
+	return [
+		opt.prefix,
+		getApp(),
+		opt.stackName,
+		opt.resourceType,
+		opt.resourceName,
+		opt.postfix
+	].filter((v) => typeof v === "string").map((v) => kebabCase(v) || v).join(opt.separator ?? "--");
+};
+const bindLocalResourceName = (resourceType) => {
+	return (resourceName, stackName = getStack()) => {
+		return formatResourceName({
+			stackName,
+			resourceType,
+			resourceName
+		});
+	};
+};
+const bindGlobalResourceName = (resourceType) => {
+	return (resourceName) => {
+		return formatResourceName({
+			resourceType,
+			resourceName
+		});
+	};
+};
+//#endregion
+//#region src/lib/server/bundle.ts
+const ROUTE_PROPERTY = "$awsless-route";
+const ROUTE_HEADER = "x-awsless-route";
+const LIVE_BUNDLE_ALIAS = "live";
+const getBundleName = () => {
+	return formatResourceName({
+		resourceType: "function",
+		resourceName: "bundle"
+	});
+};
+const formatRouteKey = (stackName, resourceType, resourceName) => {
+	return [
+		stackName,
+		resourceType,
+		resourceName
+	].map((v) => kebabCase(v)).join(":");
+};
+const formatRoutePayload = (routeKey, event) => {
+	return {
+		[ROUTE_PROPERTY]: routeKey,
+		event
+	};
+};
+let invokedQualifier;
+const captureInvokedQualifier = (context) => {
+	invokedQualifier = context.invokedFunctionArn?.split(":")[7];
+};
+const getInvokedQualifier = () => {
+	return invokedQualifier;
+};
+const invokeBundle = ({ routeKey, payload, ...options }) => {
+	const proxy = process.env.SANDBOX_PROXY;
+	return invoke({
+		...options,
+		name: proxy || getBundleName(),
+		qualifier: options.qualifier ?? getInvokedQualifier() ?? "live",
+		payload: formatRoutePayload(routeKey, payload)
+	});
+};
+const bundleContext = new AsyncLocalStorage();
+const isInsideBundle = () => bundleContext.getStore() !== void 0;
+const getCurrentRoute = () => bundleContext.getStore()?.routeKey;
+const shouldThrowExpectedErrors = () => bundleContext.getStore()?.throwExpectedErrors ?? false;
+const withBundleRouteContext = (routeKey, internalInvoke, callback, options = {}) => {
+	return bundleContext.run({
+		routeKey,
+		internalInvoke,
+		throwExpectedErrors: options.throwExpectedErrors ?? false
+	}, callback);
+};
+const internalInvoke = (routeKey, payload) => {
+	const context = bundleContext.getStore();
+	if (!context) throw new Error("Internal invocations are only available inside the bundle");
+	return context.internalInvoke(routeKey, payload);
+};
+let bundleRoutes = [];
+const setBundleRoutes = (routes) => {
+	bundleRoutes = routes;
+};
+const hasBundleRoute = (routeKey) => {
+	return bundleRoutes.includes(routeKey);
+};
+const getStandaloneFunctionName = (routeKey) => {
+	const [stackName, , functionName] = routeKey.split(":");
+	return formatResourceName({
+		stackName,
+		resourceType: "function",
+		resourceName: functionName
+	});
+};
+const formatRouteEnvName = (routeKey, name) => {
+	return `${routeKey}:${name}`;
+};
+const getRouteEnv = (name) => {
+	const routeKey = getCurrentRoute();
+	return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
+};
+//#endregion
 //#region src/lib/handle/util.ts
-const consumer = (schema, handle) => {
+const consumer = (schema, handle, throwExpectedErrors = shouldThrowExpectedErrors) => {
 	return lambda({
 		schema,
 		handle,
-		throwExpectedErrors: !!process.env.THROW_EXPECTED_ERRORS
+		throwExpectedErrors
 	});
 };
 //#endregion
 //#region src/lib/handle/failure.ts
 const failure = (handle) => {
-	return consumer(void 0, handle);
+	return consumer(void 0, handle, true);
 };
 const onErrorLogSchema = object({
 	hash: string(),
@@ -51,7 +177,26 @@ const onErrorLogSchema = object({
 	date: union([date(), pipe(string(), isoTimestamp(), transform((v) => new Date(v)))])
 });
 const error = (handle) => {
-	return consumer(onErrorLogSchema, handle);
+	const handler = consumer(onErrorLogSchema, handle, false);
+	const skip = (error) => {
+		console.warn(`The on-error-log consumer skipped a record it can't process (${error.type}): ${error.message}`);
+	};
+	return async (...args) => {
+		try {
+			const result = await handler(...args);
+			if (isErrorResponse(result)) {
+				skip(result.__error__);
+				return;
+			}
+			return result;
+		} catch (error) {
+			if (error instanceof ExpectedError || error instanceof ViewableError) {
+				skip(error);
+				return;
+			}
+			throw error;
+		}
+	};
 };
 //#endregion
 //#region src/lib/handle/func.ts
@@ -223,22 +368,28 @@ function route(arg1, arg2) {
 		}
 	});
 	return async (event, context) => {
-		const result = await handler(event, context);
-		if (isErrorResponse(result)) {
-			const error = result.__error__;
-			return {
-				statusCode: error.type === "validation" ? 400 : 500,
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					type: error.type,
-					message: error.message,
-					data: error.data
-				})
-			};
+		let result;
+		try {
+			result = await handler(event, context);
+		} catch (error) {
+			if (error instanceof ExpectedError || error instanceof ViewableError) return jsonErrorResponse(error);
+			throw error;
 		}
+		if (isErrorResponse(result)) return jsonErrorResponse(result.__error__);
 		return result;
 	};
 }
+const jsonErrorResponse = (error) => {
+	return {
+		statusCode: error.type === "validation" ? 400 : 500,
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			type: error.type,
+			message: error.message,
+			data: error.data
+		})
+	};
+};
 const site = (handle) => {
 	return route(handle);
 };
@@ -363,117 +514,6 @@ var handle_exports = /* @__PURE__ */ __exportAll({
 	task: () => task
 });
 //#endregion
-//#region src/lib/server/bundle.ts
-const ROUTE_PROPERTY = "$awsless-route";
-const ROUTE_HEADER = "x-awsless-route";
-const LIVE_BUNDLE_ALIAS = "live";
-const getBundleName = () => `${kebabCase(process.env.APP)}--function--bundle`;
-const formatRouteKey = (stackName, resourceType, resourceName) => {
-	return [
-		stackName,
-		resourceType,
-		resourceName
-	].map((v) => kebabCase(v)).join(":");
-};
-const formatRoutePayload = (routeKey, event) => {
-	return {
-		[ROUTE_PROPERTY]: routeKey,
-		event
-	};
-};
-let invokedQualifier;
-const captureInvokedQualifier = (context) => {
-	invokedQualifier = context.invokedFunctionArn?.split(":")[7];
-};
-const getInvokedQualifier = () => {
-	return invokedQualifier;
-};
-const invokeBundle = ({ routeKey, payload, ...options }) => {
-	const proxy = process.env.SANDBOX_PROXY;
-	if (proxy) return invoke({
-		...options,
-		name: proxy,
-		qualifier: options.qualifier ?? getInvokedQualifier() ?? "live",
-		payload: formatRoutePayload(routeKey, payload)
-	});
-	return invoke({
-		...options,
-		name: getBundleName(),
-		qualifier: options.qualifier ?? getInvokedQualifier() ?? "live",
-		payload: formatRoutePayload(routeKey, payload)
-	});
-};
-const bundleContext = new AsyncLocalStorage();
-const isInsideBundle = () => bundleContext.getStore() !== void 0;
-const getCurrentRoute = () => bundleContext.getStore()?.routeKey;
-const withBundleRouteContext = (routeKey, internalInvoke, callback) => {
-	return bundleContext.run({
-		routeKey,
-		internalInvoke
-	}, callback);
-};
-const internalInvoke = (routeKey, payload) => {
-	const context = bundleContext.getStore();
-	if (!context) throw new Error("Internal invocations are only available inside the bundle");
-	return context.internalInvoke(routeKey, payload);
-};
-let bundleRoutes = [];
-const setBundleRoutes = (routes) => {
-	bundleRoutes = routes;
-};
-const hasBundleRoute = (routeKey) => {
-	return bundleRoutes.includes(routeKey);
-};
-const getStandaloneFunctionName = (routeKey) => {
-	const [stackName, , functionName] = routeKey.split(":");
-	return `${kebabCase(process.env.APP)}--${stackName}--function--${functionName}`;
-};
-const formatRouteEnvName = (routeKey, name) => {
-	return `${routeKey}:${name}`;
-};
-const getRouteEnv = (name) => {
-	const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
-	return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
-};
-//#endregion
-//#region src/lib/server/util.ts
-const APP = process.env.APP;
-const APP_ID = process.env.APP_ID;
-const IS_TEST = !!process.env["VITEST"] || process.env["NODE_ENV"] === "test";
-const IS_LOCAL = process.env.AWSLESS_ENV === "local";
-const REGION = process.env.AWS_REGION;
-const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
-const STACK = process.env.STACK;
-const getRoute = () => getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
-const getStack = () => getRoute()?.split(":")[0] ?? STACK;
-const formatResourceName = (opt) => {
-	return [
-		opt.prefix,
-		process.env.APP,
-		opt.stackName,
-		opt.resourceType,
-		opt.resourceName,
-		opt.postfix
-	].filter((v) => typeof v === "string").map((v) => kebabCase(v)).join(opt.separator ?? "--");
-};
-const bindLocalResourceName = (resourceType) => {
-	return (resourceName, stackName = getStack()) => {
-		return formatResourceName({
-			stackName,
-			resourceType,
-			resourceName
-		});
-	};
-};
-const bindGlobalResourceName = (resourceType) => {
-	return (resourceName) => {
-		return formatResourceName({
-			resourceType,
-			resourceName
-		});
-	};
-};
-//#endregion
 //#region src/lib/server/alert.ts
 const getAlertName = bindGlobalResourceName("alert");
 const Alert = /*@__PURE__*/ createProxy((name) => {
@@ -490,26 +530,27 @@ const Alert = /*@__PURE__*/ createProxy((name) => {
 //#endregion
 //#region src/lib/server/config.ts
 const getConfigName = (name) => {
-	return `/.awsless/${APP}/${name}`;
+	return `/.awsless/${getApp()}/${name}`;
 };
-const loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
-	if (!IS_TEST) {
-		const keys = process.env.CONFIGS?.split(",").filter(Boolean) ?? [];
-		if (keys.length > 0) {
-			const paths = {};
-			for (const key of keys) paths[kebabCase(key)] = getConfigName(key);
-			return ssm(paths);
-		}
-	}
-	return {};
+let data = {};
+const fetchConfigData = async () => {
+	if (isTest()) return {};
+	const keys = process.env.CONFIGS?.split(",").filter(Boolean) ?? [];
+	if (keys.length === 0) return {};
+	const paths = {};
+	for (const key of keys) paths[kebabCase(key)] = getConfigName(key);
+	return ssm(paths);
 };
-const data = await /*@__PURE__*/ loadConfigData();
+data = {
+	...await fetchConfigData(),
+	...data
+};
 const getConfigValue = (name) => {
 	const key = kebabCase(name);
 	const value = data[key];
 	if (typeof value === "undefined") {
-		if (!IS_TEST && !process.env.CONFIGS) throw new Error(`The "${name}" config value isn't available: this lambda loads no configs at all - the on-failure & on-error-log consumers run config free, so a broken config can never take down error reporting. Pass the value through a plain environment variable instead.`);
-		throw new Error(`The "${name}" config value hasn't been set yet. ${IS_TEST ? `Use "mock.config.${name} = 'VALUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`);
+		if (!isTest() && !process.env.CONFIGS) throw new Error(`The "${name}" config value isn't available: this lambda loads no configs at all - the on-failure & on-error-log consumers run config free, so a broken config can never take down error reporting. Pass the value through a plain environment variable instead.`);
+		throw new Error(`The "${name}" config value hasn't been set yet. ${isTest() ? `Use "mock.config.${name} = 'VALUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`);
 	}
 	return value;
 };
@@ -526,6 +567,32 @@ const Config = /*@__PURE__*/ new Proxy({}, {
 	}
 });
 //#endregion
+//#region src/lib/server/cron.ts
+const getCronName = bindLocalResourceName("cron");
+const Cron = /*@__PURE__*/ createProxy((stackName) => {
+	return /* @__PURE__ */ createProxy((cronName) => {
+		const name = getCronName(cronName, stackName);
+		const routeKey = formatRouteKey(stackName, "cron", cronName);
+		return { [name]: async (payload, options = {}) => {
+			if (isTest()) {
+				await invoke({
+					...options,
+					type: "RequestResponse",
+					name,
+					payload
+				});
+				return;
+			}
+			await invokeBundle({
+				...options,
+				routeKey,
+				payload,
+				type: "RequestResponse"
+			});
+		} }[name];
+	});
+});
+//#endregion
 //#region src/lib/server/function.ts
 const cache = new WeakCache();
 const getFunctionName = bindLocalResourceName("function");
@@ -534,7 +601,7 @@ const Fn = /*@__PURE__*/ createProxy((stackName) => {
 		const name = getFunctionName(funcName, stackName);
 		const routeKey = formatRouteKey(stackName, "function", funcName);
 		const send = async (payload, options = {}) => {
-			if (IS_TEST) return invoke({
+			if (isTest()) return invoke({
 				...options,
 				name,
 				payload
@@ -616,11 +683,12 @@ const Instance = /*@__PURE__*/ createProxy((stack) => {
 //#endregion
 //#region src/lib/server/job.ts
 const getJobName = bindLocalResourceName("job");
+const getJobClusterName = () => `${kebabCase(getApp())}-job`;
 const Job = /*@__PURE__*/ createProxy((stackName) => {
 	return /* @__PURE__ */ createProxy((jobName) => {
 		const name = getJobName(jobName, stackName);
 		return { [name]: async (payload) => {
-			const cluster = `${APP}-job`;
+			const cluster = getJobClusterName();
 			if (!process.env.JOB_SUBNETS) throw new Error("JOB_SUBNETS env var is not set. Is the job feature deployed?");
 			if (!process.env.JOB_SECURITY_GROUP) throw new Error("JOB_SECURITY_GROUP env var is not set. Is the job feature deployed?");
 			const subnets = JSON.parse(process.env.JOB_SUBNETS);
@@ -660,7 +728,7 @@ const PubSub = /*@__PURE__*/ createProxy((name) => {
 			event,
 			payload
 		};
-		if (IS_TEST) {
+		if (isTest()) {
 			await invoke({
 				name: getPubSubPublisherName(name),
 				type: "Event",
@@ -724,17 +792,21 @@ const Queue = /*@__PURE__*/ createProxy((stack) => {
 });
 //#endregion
 //#region src/lib/server/on-failure.ts
-const onFailureBucketName = formatResourceName({
-	resourceType: "on-failure",
-	resourceName: "failure",
-	postfix: APP_ID
-});
-const onFailureQueueName = formatResourceName({
-	resourceType: "on-failure",
-	resourceName: "failure"
-});
-const onFailureBucketArn = `arn:aws:s3:::${onFailureBucketName}`;
-const onFailureQueueArn = `arn:aws:sqs:${REGION}:${ACCOUNT_ID}:${onFailureQueueName}`;
+const getOnFailureBucketName = () => {
+	return formatResourceName({
+		resourceType: "on-failure",
+		resourceName: "failure",
+		postfix: getAppId()
+	});
+};
+const getOnFailureQueueName = () => {
+	return formatResourceName({
+		resourceType: "on-failure",
+		resourceName: "failure"
+	});
+};
+const getOnFailureBucketArn = () => `arn:aws:s3:::${getOnFailureBucketName()}`;
+const getOnFailureQueueArn = () => `arn:aws:sqs:${getRegion()}:${getAccountId()}:${getOnFailureQueueName()}`;
 //#endregion
 //#region src/lib/server/task.ts
 const getTaskName = bindLocalResourceName("task");
@@ -744,23 +816,37 @@ const Task = /*@__PURE__*/ createProxy((stackName) => {
 		const routeKey = formatRouteKey(stackName, "task", taskName);
 		return { [name]: async (payload, options = {}) => {
 			const { schedule: scheduleAt, ...invokeOptions } = options;
-			if (IS_TEST) await invoke({
-				...invokeOptions,
-				type: "Event",
-				name,
-				payload
-			});
-			else if (scheduleAt) {
+			if (scheduleAt) {
+				if (isTest()) {
+					await schedule({
+						name,
+						payload,
+						schedule: scheduleAt,
+						roleArn: ""
+					});
+					return;
+				}
 				const resourceTaskName = bindGlobalResourceName("task");
 				await schedule({
 					name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
 					payload: formatRoutePayload(routeKey, payload),
 					schedule: scheduleAt,
 					group: resourceTaskName("group"),
-					roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName("schedule")}`,
-					deadLetterArn: onFailureQueueArn
+					roleArn: `arn:aws:iam::${getAccountId()}:role/${resourceTaskName("schedule")}`,
+					deadLetterArn: getOnFailureQueueArn()
 				});
-			} else await invokeBundle({
+				return;
+			}
+			if (isTest()) {
+				await invoke({
+					...invokeOptions,
+					type: "Event",
+					name,
+					payload
+				});
+				return;
+			}
+			await invokeBundle({
 				...invokeOptions,
 				routeKey,
 				payload,
@@ -793,10 +879,14 @@ const Topic = /*@__PURE__*/ createProxy((name) => {
 });
 //#endregion
 //#region src/lib/server/search.ts
+const formatSearchIndexName = (stackName, indexName) => {
+	return `${kebabCase(stackName)}--${indexName}`;
+};
 const getSearchProps = (name, stack = getStack()) => {
+	const index = formatSearchIndexName(stack, name);
 	return {
 		endpoint: process.env.SEARCH_ENDPOINT,
-		name: IS_TEST ? `${kebabCase(APP)}--${kebabCase(stack)}--${name}` : `${kebabCase(stack)}--${name}`
+		name: isTest() ? `${kebabCase(getApp())}--${index}` : index
 	};
 };
 const typeGroups = [["keyword", "text"], [
@@ -835,7 +925,7 @@ const Search = /*@__PURE__*/ createProxy((stack) => {
 			name: index,
 			endpoint,
 			define(schema) {
-				if (IS_TEST) {
+				if (isTest()) {
 					const declared = process.env[`SEARCH_MAPPINGS_${index}`];
 					if (declared) assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
 				}
@@ -857,6 +947,14 @@ const getTableProps = (name, stack = getStack()) => {
 		keys: raw ? JSON.parse(raw) : void 0
 	};
 };
+const assertKeyAttributes = (label, keys, schema) => {
+	const attributes = [
+		keys.hash,
+		keys.sort,
+		...Object.values(keys.indexes ?? {}).flatMap((index) => [index.hash, index.sort])
+	].flat().filter((attribute) => typeof attribute === "string");
+	for (const attribute of attributes) if (!schema.walk?.(attribute)) throw new Error(`The schema of table "${label}" is missing the "${attribute}" key field declared in the stack file.`);
+};
 const Table = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		return {
@@ -864,14 +962,7 @@ const Table = /*@__PURE__*/ createProxy((stack) => {
 			define(schema) {
 				const { name: tableName, keys } = getTableProps(name, stack);
 				if (!keys) throw new Error(`No table key config found for "${stack}.${name}". Is the table defined in your stack file?`);
-				if (IS_TEST) {
-					const attributes = [
-						keys.hash,
-						keys.sort,
-						...Object.values(keys.indexes ?? {}).flatMap((index) => [index.hash, index.sort])
-					].flat().filter((attribute) => typeof attribute === "string");
-					for (const attribute of attributes) if (!schema.walk?.(attribute)) throw new Error(`The schema of table "${stack}.${name}" is missing the "${attribute}" key field declared in the stack file.`);
-				}
+				if (isTest()) assertKeyAttributes(`${stack}.${name}`, keys, schema);
 				return define$1(tableName, {
 					hash: keys.hash,
 					sort: keys.sort,
@@ -903,7 +994,9 @@ const mockState = { inTest: false };
 const testRegistry = {
 	emails: {},
 	functions: {},
+	crons: {},
 	tasks: {},
+	schedules: {},
 	queues: {},
 	topics: {},
 	pubsub: {},
@@ -933,7 +1026,7 @@ const setupTestEnv = async (manifest, options) => {
 	await redirectCacheClients(manifest);
 	const spies = registerResourceSpies(manifest, options.importFile);
 	lambda.mockLambda(spies.lambdas);
-	scheduler.mockScheduler(spies.tasks);
+	scheduler.mockScheduler(spies.schedules);
 	sqs.mockSQS(spies.queues);
 	sns.mockSNS(spies.topics);
 	ecs.mockEcs(spies.jobs);
@@ -947,6 +1040,9 @@ const realHandler = (importFile, file) => {
 			const handle = module.default;
 			if (typeof handle !== "function") throw new Error(`The handler file has no default export: ${file}`);
 			return handle;
+		}, (error) => {
+			cached = void 0;
+			throw error;
 		});
 		return cached.then((handle) => handle(payload));
 	});
@@ -1044,7 +1140,7 @@ const redirectCacheClients = async (manifest) => {
 const registerResourceSpies = (manifest, importFile) => {
 	const spies = {
 		lambdas: {},
-		tasks: {},
+		schedules: {},
 		queues: {},
 		topics: {},
 		jobs: {}
@@ -1055,12 +1151,20 @@ const registerResourceSpies = (manifest, importFile) => {
 		testRegistry.functions[name] = spy;
 		spies.lambdas[name] = spy;
 	}
+	for (const entry of manifest.crons ?? []) {
+		const name = getCronName(entry.id, entry.stack);
+		const spy = realHandler(importFile, entry.file);
+		testRegistry.crons[name] = spy;
+		spies.lambdas[name] = spy;
+	}
 	for (const entry of manifest.tasks) {
 		const name = getTaskName(entry.id, entry.stack);
 		const spy = realHandler(importFile, entry.file);
+		const scheduled = vi.fn((payload) => spy(payload));
 		testRegistry.tasks[name] = spy;
+		testRegistry.schedules[name] = scheduled;
 		spies.lambdas[name] = spy;
-		spies.tasks[name] = spy;
+		spies.schedules[name] = scheduled;
 	}
 	for (const id of manifest.pubsub) {
 		const name = getPubSubPublisherName(id);
@@ -1131,22 +1235,34 @@ const resetSpiesBetweenTests = () => {
 };
 //#endregion
 //#region src/lib/test/mock.ts
-const overridable = (registry, name) => {
+const overridable = (registry, name, children = {}) => {
 	const spy = registry[name];
 	if (!spy) throw new Error(`No test mock exists for "${name}". Make sure the resource is declared in your app config & the tests run through "awsless test".`);
-	return new Proxy(spy, { apply(_target, _thisArg, args) {
-		const impl = args[0];
-		const handler = typeof impl === "function" ? impl : async () => impl;
-		if (!mockState.inTest) mockBaselines.set(spy, handler);
-		spy.mockImplementation(handler);
-	} });
+	return new Proxy(spy, {
+		apply(_target, _thisArg, args) {
+			const impl = args[0];
+			const handler = typeof impl === "function" ? impl : async () => impl;
+			if (!mockState.inTest) mockBaselines.set(spy, handler);
+			spy.mockImplementation(handler);
+		},
+		get(target, prop, receiver) {
+			if (typeof prop === "string" && Object.hasOwn(children, prop)) return children[prop]();
+			return Reflect.get(target, prop, receiver);
+		}
+	});
 };
 const mock = {
 	function: /* @__PURE__ */ createProxy((stack) => {
 		return /* @__PURE__ */ createProxy((name) => overridable(testRegistry.functions, getFunctionName(name, stack)));
 	}),
+	cron: /* @__PURE__ */ createProxy((stack) => {
+		return /* @__PURE__ */ createProxy((name) => overridable(testRegistry.crons, getCronName(name, stack)));
+	}),
 	task: /* @__PURE__ */ createProxy((stack) => {
-		return /* @__PURE__ */ createProxy((name) => overridable(testRegistry.tasks, getTaskName(name, stack)));
+		return /* @__PURE__ */ createProxy((name) => {
+			const task = getTaskName(name, stack);
+			return overridable(testRegistry.tasks, task, { scheduled: () => overridable(testRegistry.schedules, task) });
+		});
 	}),
 	queue: /* @__PURE__ */ createProxy((stack) => {
 		return /* @__PURE__ */ createProxy((name) => overridable(testRegistry.queues, getQueueName(name, stack)));
@@ -1195,6 +1311,13 @@ const Auth = /*@__PURE__*/ createProxy((name) => {
 });
 //#endregion
 //#region src/lib/server/cache.ts
+const tryGetContext = () => {
+	try {
+		return getContext();
+	} catch {
+		return;
+	}
+};
 const getCacheProps = (name, stack = getStack()) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`;
 	return {
@@ -1202,11 +1325,38 @@ const getCacheProps = (name, stack = getStack()) => {
 		port: parseInt(process.env[`${prefix}_PORT`], 10)
 	};
 };
+const destroyPerInvocation = (client) => {
+	const registered = /* @__PURE__ */ new WeakSet();
+	const track = () => {
+		const context = tryGetContext();
+		if (context && !registered.has(context)) {
+			registered.add(context);
+			context.onFinally(() => client.destroy());
+		}
+	};
+	return {
+		send(name, args, options) {
+			track();
+			return client.send(name, args, options);
+		},
+		batch(commands) {
+			track();
+			return client.batch(commands);
+		},
+		transact(commands) {
+			track();
+			return client.transact(commands);
+		},
+		destroy() {
+			return client.destroy();
+		}
+	};
+};
 const Cache = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		return (db = 0) => {
-			return createLazyClient(() => {
-				const client = createIoRedisClient({
+			const client = createLazyClient(() => {
+				return createIoRedisClient({
 					...getCacheProps(name, stack),
 					db,
 					...IS_LOCAL ? {
@@ -1214,42 +1364,16 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 						tls: void 0
 					} : {
 						cluster: true,
-						tls: { checkServerIdentity: () => {} }
+						tls: { checkServerIdentity: () => void 0 }
 					}
 				});
-				if (IS_TEST) registerTestCleanup(() => client.destroy());
-				else getContext().onFinally(() => {
-					return client.destroy();
-				});
+			});
+			if (isTest()) {
+				registerTestCleanup(() => client.destroy());
 				return client;
-			});
-		};
-	});
-});
-//#endregion
-//#region src/lib/server/cron.ts
-const getCronName = bindLocalResourceName("cron");
-const Cron = /*@__PURE__*/ createProxy((stackName) => {
-	return /* @__PURE__ */ createProxy((cronName) => {
-		const name = getCronName(cronName, stackName);
-		const routeKey = formatRouteKey(stackName, "cron", cronName);
-		return { [name]: async (payload, options = {}) => {
-			if (IS_TEST) {
-				await invoke({
-					...options,
-					type: "RequestResponse",
-					name,
-					payload
-				});
-				return;
 			}
-			await invokeBundle({
-				...options,
-				routeKey,
-				payload,
-				type: "RequestResponse"
-			});
-		} }[name];
+			return destroyPerInvocation(client);
+		};
 	});
 });
 //#endregion
@@ -1262,7 +1386,7 @@ const Email = { async send(props) {
 const getMetricName = (name) => {
 	return kebabCase(name);
 };
-const getMetricNamespace = (stack = getStack(), app = APP) => {
+const getMetricNamespace = (stack = getStack(), app = getApp()) => {
 	return `awsless/${kebabCase(app)}/${kebabCase(stack)}`;
 };
 const Metric = /*@__PURE__*/ createProxy((stack) => {
@@ -1272,7 +1396,7 @@ const Metric = /*@__PURE__*/ createProxy((stack) => {
 		const namespace = getMetricNamespace(stack);
 		const unit = process.env[`METRIC_${constantCase(stack)}_${constantCase(metricName)}`];
 		let metric;
-		if (!unit && !IS_TEST) throw new TypeError(`Metric "${name}" isn't defined in your stack.`);
+		if (!unit && !isTest()) throw new TypeError(`Metric "${name}" isn't defined in your stack.`);
 		else if (!unit) metric = createMetric({
 			name,
 			namespace
@@ -1312,20 +1436,24 @@ const seed = { uuid(name) {
 } };
 //#endregion
 //#region src/lib/server/store.ts
-const BUCKET = /*@__PURE__*/ formatResourceName({
-	resourceType: "store",
-	resourceName: "assets",
-	postfix: APP_ID
-});
+const getStoreBucketName = () => {
+	return formatResourceName({
+		resourceType: "store",
+		resourceName: "assets",
+		postfix: getAppId()
+	});
+};
 const Store = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		const scoped = (key) => `store/${kebabCase(stack)}/${kebabCase(name)}/${key}`;
 		return {
-			name: BUCKET,
+			get name() {
+				return getStoreBucketName();
+			},
 			folder: scoped(""),
 			async put(key, body, options = {}) {
 				await putObject({
-					bucket: BUCKET,
+					bucket: getStoreBucketName(),
 					key: scoped(key),
 					body,
 					...options
@@ -1333,20 +1461,20 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 			},
 			async get(key) {
 				const object = await getObject({
-					bucket: BUCKET,
+					bucket: getStoreBucketName(),
 					key: scoped(key)
 				});
 				if (object) return object.body;
 			},
 			async has(key) {
 				return !!await headObject({
-					bucket: BUCKET,
+					bucket: getStoreBucketName(),
 					key: scoped(key)
 				});
 			},
 			delete(key) {
 				return deleteObject({
-					bucket: BUCKET,
+					bucket: getStoreBucketName(),
 					key: scoped(key)
 				});
 			}
@@ -1354,4 +1482,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { APP, Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, getAlertName, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobName, getMetricName, getMetricNamespace, getPubSubPublisherName, getQueueName, getQueueUrl, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, mockBaselines, mockState, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, t, testRegistry, v, withBundleRouteContext };
+export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreBucketName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };

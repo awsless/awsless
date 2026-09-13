@@ -4,9 +4,12 @@ import { stringify } from '@awsless/json'
 import { putObject } from '@awsless/s3'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { APP, bindLocalResourceName } from './util.js'
+import { bindLocalResourceName, getApp } from './util.js'
 
 export const getJobName = bindLocalResourceName('job')
+
+// Must match the cluster name the cli job feature deploys.
+export const getJobClusterName = () => `${kebabCase(getApp())}-job`
 
 export interface JobResources {}
 
@@ -15,7 +18,7 @@ export const Job: JobResources = /*@__PURE__*/ createProxy(stackName => {
 		const name = getJobName(jobName, stackName)
 		const ctx: Record<string, any> = {
 			[name]: async (payload: unknown) => {
-				const cluster = `${APP}-job`
+				const cluster = getJobClusterName()
 				if (!process.env.JOB_SUBNETS)
 					throw new Error('JOB_SUBNETS env var is not set. Is the job feature deployed?')
 				if (!process.env.JOB_SECURITY_GROUP)

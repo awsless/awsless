@@ -1,30 +1,11 @@
 export class ExpectedError extends Error {
-	// readonly type = 'expected'
-
 	constructor(
 		readonly type: string,
-		message: string
+		message: string,
+		// Structured details that survive the error response, like a
+		// viewable error's data.
+		readonly data?: unknown
 	) {
 		super(message)
 	}
 }
-
-// export class MultiLangExpectedError extends ExpectedError {
-// 	readonly type = 'multi-lang-expected'
-
-// 	constructor(messages: Record<string, string>) {
-// 		super(JSON.stringify(messages))
-// 	}
-// }
-
-// export class Custom extends MultiLangExpectedError {
-// 	readonly type = 'custom'
-
-// 	constructor(messages: Record<string, string>) {
-// 		super(messages)
-// 	}
-// }
-
-// export const isMultiLangExpectedError = (error: unknown): error is MultiLangExpectedError {
-// 	if(error instanceof )
-// }

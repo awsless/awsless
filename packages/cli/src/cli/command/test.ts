@@ -4,7 +4,7 @@ import { LOCAL_ACCOUNT_ID } from '../../dev/util.js'
 import { ExpectedError } from '../../error.js'
 import { withTestEnvironment } from '../../test/environment.js'
 import { layout } from '../ui/complex/layout.js'
-import { runTests } from '../ui/complex/run-tests.js'
+import { createTestEnv, runTests } from '../ui/complex/run-tests.js'
 
 export const test = (program: Command) => {
 	program
@@ -13,33 +13,26 @@ export const test = (program: Command) => {
 		.option('-f --filters <string...>', 'Optionally filter test files')
 		.description('Test your app')
 		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
-			await layout(`test ${stacks?.join(' ') ?? ''}`, async props => {
-				// Tests run fully local against the auto test environment,
-				// so they never need aws credentials - the same fake
-				// account as the dev environment feeds the synth.
+			await layout(`test ${stacks?.join(' ') ?? ''}`, async ({ appConfig, stackConfigs }) => {
+				// Tests run fully local, so the synth uses the same fake
+				// account as the dev environment instead of aws credentials.
 				const accountId = LOCAL_ACCOUNT_ID
 
-				const { tests, appId } = createApp({ ...props, accountId })
+				const { tests, appId } = createApp({ appConfig, stackConfigs, accountId })
 
 				if (tests.length === 0) {
 					return 'No tests found.'
 				}
 
 				const passed = await withTestEnvironment(
-					props.appConfig,
-					props.stackConfigs,
+					appConfig,
+					stackConfigs,
 					({ manifest, manifestFile, ensureReady }) => {
 						return runTests(tests, stacks, options?.filters, {
 							showLogs: true,
 							manifest,
 							ensureReady,
-							env: {
-								APP: props.appConfig.name,
-								APP_ID: appId,
-								AWS_REGION: props.appConfig.region,
-								AWS_ACCOUNT_ID: accountId,
-								AWSLESS_TEST_MANIFEST: manifestFile,
-							},
+							env: createTestEnv({ appConfig, appId, accountId, manifestFile }),
 						})
 					}
 				)

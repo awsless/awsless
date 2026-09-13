@@ -8,9 +8,6 @@ import { StackConfig } from './config/stack.js'
 import { SharedData } from './shared.js'
 import { TypeFile } from './type-gen/file.js'
 
-// type RegisterPolicy = (policy: aws.iam.RolePolicy) => void
-// type RegisterFunction = (lambda: aws.lambda.Function) => void
-// type RegisterSiteFunction = (lambda: aws.lambda.Function) => void
 type RegisterCommand = (command: Command) => void
 
 type RegisterBuild = (
@@ -23,32 +20,10 @@ type RegisterBuild = (
 type RegisterConfig = (name: string) => void
 
 type RegisterTest = (name: string, paths: string[]) => void
-// type BindEnv = (name: string, value: Input<string>) => void
-
-// export type EnvStore = {
-// 	bind: (name: string, value: Input<string>) => void
-
-// 	set: (name: string, value: Input<string>) => void
-// 	get: (name: string) => Input<string> | undefined
-// 	all(): Record<string, Input<string>>
-// }
 
 export type AddEnv = (name: string, value: Input<string>) => void
 export type OnEnv = (cb: OnEnvListener) => void
 export type OnEnvListener = (name: string, value: Input<string>) => void
-
-// export type OnFunction = (callback: OnFunctionListener) => void
-// export type OnFunctionListener = (lambda: aws.lambda.Function) => void
-
-// const lol: Statement = {
-// 	Effect: 'Allow',
-// 	""
-// 	'Condition': {
-// 		'Statement': {
-
-// 		}
-// 	}
-// }
 
 export type Permission = {
 	effect?: 'allow' | 'deny'
@@ -57,15 +32,8 @@ export type Permission = {
 	conditions?: unknown
 }
 
-export type OnPermission = (callback: OnPermissionCallback) => void
-export type OnPermissionCallback = (statement: Permission) => void
-
-// export type OnPolicy = (callback: OnPolicyListener) => void
-// export type OnPolicyListener = (policy: aws.iam.RolePolicy) => void
-
-// export type Event = 'after-build' | 'before-build' | 'ready'
-
-// export type OnEvent = (event: Event, callback)
+export type OnPermission = (listener: PermissionListener) => void
+export type PermissionListener = (permission: Permission) => void
 
 export type OnReady = (callback: OnReadyListener) => void
 export type OnReadyListener = () => void
@@ -101,17 +69,10 @@ export type BeforeContext = {
 }
 
 export type AppContext = BeforeContext & {
-	// registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerConfig: RegisterConfig
 	registerCommand: RegisterCommand
 	registerDomainZone: (zone: aws.route53.Zone) => void
-
-	// registerPolicy: RegisterPolicy
-	// registerFunction: RegisterFunction
-	// registerSiteFunction: RegisterSiteFunction
-
-	// env: EnvStore
 
 	bind: AddEnv
 	onBind: OnEnv
@@ -122,23 +83,8 @@ export type AppContext = BeforeContext & {
 	onReady: OnReady
 	onReadyLast: OnReady
 
-	// onEvent: OnEvent
-
-	// bindEnv: BindEnv
-	// setEnv:
-	// listEnvs:
-
-	// onFunction: OnFunction
-	// onGlobalPolicy: OnPolicy
-	// onAppPolicy: OnPolicy
-
-	// onGlobalPermission: OnPermission
-	// onAppPermission: OnPermission
-
 	onPermission: OnPermission
-	addPermission: OnPermissionCallback
-
-	// onEnv: (envVars: Record<string, Input<string>>) => void
+	addPermission: (permission: Permission) => void
 }
 
 export type TypeGenContext = {
@@ -148,10 +94,8 @@ export type TypeGenContext = {
 	write: (file: string, data?: TypeFile | Buffer | string, include?: boolean) => Promise<void>
 }
 
-// The trace context of a dev dispatch: every dispatch is one span, and
-// a dispatch caused by a handler (a queue send, a task invoke, a topic
-// publish) carries its caller's span as the parent - so the dashboard
-// can render a whole request chain as one trace tree.
+// A dispatch caused by a handler carries its caller's span, so the
+// dashboard can render a request chain as one trace tree.
 export type DevTrace = {
 	traceId: string
 	spanId: string
@@ -250,10 +194,8 @@ export type DevResource = {
 
 export type DevServer = {
 	name: string
-	// Starts before the bundle worker boots, so local resource servers
-	// are reachable during the worker module init. The dispatch only
-	// becomes callable once the worker is up, so drivers must only use
-	// it in reaction to traffic or timers, never during start.
+	// Starts before the bundle worker boots, so the dispatch is only
+	// callable in reaction to traffic or timers, never during start.
 	start: (props: {
 		dispatch: DevDispatch
 		log: (message: string) => void
@@ -303,18 +245,12 @@ export type DevContext = {
 	// push their bucket notification rules into the returned array.
 	useStore: () => Promise<{ rules: import('./dev/servers/s3.js').StoreNotificationRule[] }>
 
-	// The shared local sqs server, booted on first use - queues &
-	// instances share one endpoint, since the sdk resolves every queue
-	// through it. Features register their queues in the returned map: a
-	// consumer route key dispatches sent messages into the bundle, while
-	// undefined marks a pull queue that stores messages for polling.
+	// One local sqs endpoint, since the sdk resolves every queue through
+	// it. A route key dispatches into the bundle, undefined marks a pull queue.
 	useSqs: () => Promise<{ port: number; queues: Map<string, string | undefined> }>
 
-	// The shared local sns server, booted on first use - topics & alerts
-	// share one endpoint. A publish matching a registered capture is
-	// recorded by the owning feature instead of dispatching into the
-	// bundle; the alerts list holds the captured alert feed of the
-	// session, for the dashboard.
+	// One local sns endpoint for topics & alerts. A publish matching a
+	// capture is recorded for the dashboard instead of dispatched.
 	useSns: () => Promise<{
 		port: number
 		captures: ((input: { TopicArn?: string; Subject?: string; Message?: string }) => boolean)[]
