@@ -42,7 +42,7 @@ export const findSvelteTranslatable = (code: string, file?: string) => {
 
 	if (hasT(code)) {
 		for (const component of findTComponents(code, file)) {
-			found.push(...collectSources(component.segment))
+			found.push(...collectSources(component))
 		}
 	}
 

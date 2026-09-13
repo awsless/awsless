@@ -5,31 +5,37 @@ import { AST, parse } from 'svelte/compiler'
 type Range = { start: number; end: number }
 const range = (node: unknown) => node as Range
 
-type Part =
-	| { kind: 'element'; node: AST.ElementLike; openEnd: number; closeStart: number }
-	| { kind: 'block'; pieces: (string | Segment)[] }
-	| { kind: 'verbatim'; source: string }
+// The text between two tag boundaries, with `${n}` placeholders for expressions.
+export type Run = Range & { source: string }
 
 // One translatable string: the <T> children or a block branch body.
-// Parts are the numbered tags, so parts[n - 1] is <n>.
 export type Segment = {
 	source: string
-	parts: Part[]
-	start: number
-	end: number
+	expressions: string[]
+	runs: Run[]
 }
 
 export type TComponent = {
-	start: number
-	end: number
-	segment: Segment
+	/** The <T> tags themselves, or everything around an explicit children snippet body. */
+	remove: Range[]
+	segments: Segment[]
 }
 
+type Body = { nodes: AST.Fragment['nodes']; start: number; end: number }
+
 export const hasT = (code: string) => /<T[\s/>]/.test(code)
+
+// Only ASCII whitespace collapses, so a non-breaking space survives.
+const collapse = (text: string) => text.replace(/[ \t\n\r\f]+/g, ' ')
+const PRESERVE = new Set(['pre', 'textarea'])
+
+const isBlank = (node: AST.Fragment['nodes'][number]) =>
+	node.type === 'Comment' || (node.type === 'Text' && node.data.trim() === '')
 
 export const parseT = (code: string, file?: string) => {
 	const ast = parse(code, { modern: true })
 	const components: TComponent[] = []
+	const preserveAll = ast.options?.preserveWhitespace === true
 
 	const fail = (offset: number, message: string) => {
 		const position = lineColumn(code).fromIndex(offset)
@@ -46,74 +52,9 @@ export const parseT = (code: string, file?: string) => {
 		return code.indexOf('>', last ? last.end : node.start + node.name.length + 1) + 1
 	}
 
-	const segment = (nodes: AST.Fragment['nodes'], start: number, end: number): Segment => {
-		const parts: Part[] = []
-		let source = ''
-
-		const visit = (nodes: AST.Fragment['nodes']) => {
-			for (const node of nodes) {
-				switch (node.type) {
-					case 'Text': {
-						const text = code.slice(node.start, node.end).replace(/\s+/g, ' ')
-						// A skipped comment leaves two text nodes, their spaces merge into one.
-						source += source.endsWith(' ') && text.startsWith(' ') ? text.slice(1) : text
-						break
-					}
-					case 'Comment':
-						break
-					case 'ExpressionTag':
-						source += '${' + code.slice(range(node.expression).start, range(node.expression).end) + '}'
-						break
-					case 'HtmlTag':
-					case 'RenderTag':
-					case 'ConstTag':
-					case 'DebugTag':
-					case 'AttachTag':
-					case 'DeclarationTag':
-						parts.push({ kind: 'verbatim', source: code.slice(node.start, node.end) })
-						source += `<${parts.length}/>`
-						break
-					case 'IfBlock':
-					case 'EachBlock':
-					case 'AwaitBlock':
-					case 'KeyBlock':
-					case 'SnippetBlock':
-						parts.push({ kind: 'block', pieces: blockPieces(node) })
-						source += `<${parts.length}/>`
-						break
-					default: {
-						if (node.type === 'Component' && node.name === 'T') {
-							throw fail(node.start, 'nested <T> is not supported inside <T>')
-						}
-
-						const number = parts.length + 1
-						const openEnd = tagEnd(node)
-						const last = node.fragment.nodes.at(-1)
-
-						parts.push({ kind: 'element', node, openEnd, closeStart: last ? last.end : openEnd })
-
-						if (last) {
-							source += `<${number}>`
-							visit(node.fragment.nodes)
-							source += `</${number}>`
-						} else {
-							source += `<${number}/>`
-						}
-					}
-				}
-			}
-		}
-
-		visit(nodes)
-
-		return { source: source.trim(), parts, start, end }
-	}
-
-	type Branch = { sepStart?: number; bodyStart: number; nodes: AST.Fragment['nodes'] }
-
-	// Body boundaries come from the AST, the syntax between them is copied as is.
-	const blockPieces = (node: AST.Block) => {
-		const branches: Branch[] = []
+	// Branch bodies of a block, found from the AST anchors around them.
+	const blockBodies = (node: AST.Block): Body[] => {
+		const bodies: { sepStart?: number; bodyStart: number; nodes: AST.Fragment['nodes'] }[] = []
 		let closeStart = node.end
 
 		const afterBrace = (from: number) => code.indexOf('}', from) + 1
@@ -126,7 +67,7 @@ export const parseT = (code: string, file?: string) => {
 				let current: AST.IfBlock = node
 
 				while (true) {
-					branches.push({
+					bodies.push({
 						sepStart: current.elseif ? current.start : undefined,
 						bodyStart: afterBrace(range(current.test).end),
 						nodes: current.consequent.nodes,
@@ -145,7 +86,7 @@ export const parseT = (code: string, file?: string) => {
 					}
 
 					const sepStart = separator('else', alternate, closeStart)
-					branches.push({ sepStart, bodyStart: afterBrace(sepStart), nodes: alternate.nodes })
+					bodies.push({ sepStart, bodyStart: afterBrace(sepStart), nodes: alternate.nodes })
 					break
 				}
 				break
@@ -158,11 +99,11 @@ export const parseT = (code: string, file?: string) => {
 					node.key ? range(node.key).end : 0
 				)
 
-				branches.push({ bodyStart: afterBrace(anchor), nodes: node.body.nodes })
+				bodies.push({ bodyStart: afterBrace(anchor), nodes: node.body.nodes })
 
 				if (node.fallback) {
 					const sepStart = separator('else', node.fallback, closeStart)
-					branches.push({ sepStart, bodyStart: afterBrace(sepStart), nodes: node.fallback.nodes })
+					bodies.push({ sepStart, bodyStart: afterBrace(sepStart), nodes: node.fallback.nodes })
 				}
 				break
 			}
@@ -181,11 +122,11 @@ export const parseT = (code: string, file?: string) => {
 						// The first branch shares the opening tag, in the
 						// shorthand form including its then/catch pattern.
 						const anchor = Math.max(range(node.expression).end, pattern ? range(pattern).end : 0)
-						branches.unshift({ bodyStart: afterBrace(anchor), nodes: body.nodes })
+						bodies.unshift({ bodyStart: afterBrace(anchor), nodes: body.nodes })
 					} else {
 						const sepStart = separator(key, body, next)
 						const anchor = pattern && range(pattern).start > sepStart ? range(pattern).end : sepStart
-						branches.unshift({ sepStart, bodyStart: afterBrace(anchor), nodes: body.nodes })
+						bodies.unshift({ sepStart, bodyStart: afterBrace(anchor), nodes: body.nodes })
 						next = sepStart
 					}
 				}
@@ -193,341 +134,328 @@ export const parseT = (code: string, file?: string) => {
 			}
 			case 'KeyBlock': {
 				closeStart = code.lastIndexOf('{/key', node.end)
-				branches.push({ bodyStart: afterBrace(range(node.expression).end), nodes: node.fragment.nodes })
+				bodies.push({ bodyStart: afterBrace(range(node.expression).end), nodes: node.fragment.nodes })
 				break
 			}
 			case 'SnippetBlock': {
 				closeStart = code.lastIndexOf('{/snippet', node.end)
 				const anchor = Math.max(range(node.expression).end, ...node.parameters.map(p => range(p).end))
-				branches.push({ bodyStart: afterBrace(anchor), nodes: node.body.nodes })
+				bodies.push({ bodyStart: afterBrace(anchor), nodes: node.body.nodes })
 				break
 			}
 		}
 
-		const pieces: (string | Segment)[] = []
-		let cursor = node.start
-
-		for (const [index, branch] of branches.entries()) {
-			if (branch.sepStart !== undefined) {
-				cursor = branch.sepStart
-			}
-
-			const bodyEnd = branches[index + 1]?.sepStart ?? closeStart
-
-			pieces.push(code.slice(cursor, branch.bodyStart))
-			pieces.push(segment(branch.nodes, branch.bodyStart, bodyEnd))
-			cursor = bodyEnd
-		}
-
-		pieces.push(code.slice(closeStart, node.end))
-
-		return pieces
+		return bodies.map((body, index) => ({
+			nodes: body.nodes,
+			start: body.bodyStart,
+			end: bodies[index + 1]?.sepStart ?? closeStart,
+		}))
 	}
 
-	const collect = (nodes: AST.Fragment['nodes']) => {
+	// Serializes one body into its segment plus the segments of the blocks inside it.
+	const segments = (body: Body, preserve: boolean): Segment[] => {
+		type Item = { tag: string } | { run: Run & { preserve: boolean; text: string } }
+
+		const items: Item[] = []
+		const expressions: string[] = []
+		const nested: Segment[] = []
+		let tags = 0
+		let run = { start: body.start, text: '', preserve }
+
+		const open = (position: number, preserve: boolean) => {
+			run = { start: position, text: '', preserve }
+		}
+
+		const close = (position: number) => {
+			items.push({ run: { ...run, end: position, source: '' } })
+		}
+
+		const visit = (nodes: AST.Fragment['nodes'], preserve: boolean) => {
+			for (const node of nodes) {
+				switch (node.type) {
+					case 'Text':
+						run.text += node.data
+						break
+					case 'Comment':
+						break
+					case 'ExpressionTag':
+						run.text += `\${${expressions.length}}`
+						expressions.push(code.slice(range(node.expression).start, range(node.expression).end))
+						break
+					case 'HtmlTag':
+					case 'RenderTag':
+					case 'ConstTag':
+					case 'DebugTag':
+					case 'AttachTag':
+					case 'DeclarationTag':
+						close(node.start)
+						items.push({ tag: `<${++tags}/>` })
+						open(node.end, preserve)
+						break
+					case 'IfBlock':
+					case 'EachBlock':
+					case 'AwaitBlock':
+					case 'KeyBlock':
+					case 'SnippetBlock':
+						close(node.start)
+						items.push({ tag: `<${++tags}/>` })
+
+						for (const branch of blockBodies(node)) {
+							nested.push(...segments(branch, preserve))
+						}
+
+						open(node.end, preserve)
+						break
+					default: {
+						if (node.type === 'Component' && node.name === 'T') {
+							throw fail(node.start, 'nested <T> is not supported inside <T>')
+						}
+
+						const number = ++tags
+						const last = node.fragment.nodes.at(-1)
+
+						close(node.start)
+
+						if (last) {
+							items.push({ tag: `<${number}>` })
+							open(tagEnd(node), preserve || PRESERVE.has(node.name))
+							visit(node.fragment.nodes, preserve || PRESERVE.has(node.name))
+							close(last.end)
+							items.push({ tag: `</${number}>` })
+						} else {
+							items.push({ tag: `<${number}/>` })
+						}
+
+						open(node.end, preserve)
+					}
+				}
+			}
+		}
+
+		visit(body.nodes, preserve)
+		close(body.end)
+
+		const runs = items.flatMap(item => ('run' in item ? [item.run] : []))
+		const first = runs[0]!
+		const last = runs.at(-1)!
+
+		for (const run of runs) {
+			run.source = run.preserve ? run.text : collapse(run.text)
+		}
+
+		// Only the outer edges trim, the spaces next to tags inside carry meaning.
+		if (!first.preserve) {
+			first.source = first.source.trimStart()
+		}
+
+		if (!last.preserve) {
+			last.source = last.source.trimEnd()
+		}
+
+		const source = items.map(item => ('tag' in item ? item.tag : item.run.source)).join('')
+
+		return [
+			{ source, expressions, runs: runs.map(({ start, end, source }) => ({ start, end, source })) },
+			...nested,
+		]
+	}
+
+	const collect = (nodes: AST.Fragment['nodes'], preserve: boolean) => {
 		for (const node of nodes) {
 			if (node.type === 'Component' && node.name === 'T') {
-				const openEnd = tagEnd(node)
-				const last = node.fragment.nodes.at(-1)
-				const closeStart = last ? last.end : openEnd
+				const children = node.fragment.nodes
+				const content = children.filter(child => !isBlank(child))
+				const only = content.length === 1 ? content[0] : undefined
 
-				components.push({
-					start: node.start,
-					end: node.end,
-					segment: segment(node.fragment.nodes, openEnd, closeStart),
-				})
+				if (children.length === 0) {
+					components.push({ remove: [node], segments: [] })
+				} else if (only?.type === 'SnippetBlock' && only.expression.name === 'children') {
+					// An explicit children snippet is the content, so its body
+					// stays and the snippet declaration goes with the tags.
+					const body = blockBodies(only)[0]!
+					components.push({
+						remove: [
+							{ start: node.start, end: body.start },
+							{ start: body.end, end: node.end },
+						],
+						segments: segments(body, preserve),
+					})
+				} else {
+					const body = { nodes: children, start: tagEnd(node), end: children.at(-1)!.end }
+					components.push({
+						remove: [
+							{ start: node.start, end: body.start },
+							{ start: body.end, end: node.end },
+						],
+						segments: segments(body, preserve),
+					})
+				}
 				continue
 			}
+
+			const inside = preserve || ('name' in node && typeof node.name === 'string' && PRESERVE.has(node.name))
 
 			for (const key of ['fragment', 'consequent', 'alternate', 'body', 'fallback', 'pending', 'then', 'catch']) {
 				const fragment = (node as unknown as Record<string, AST.Fragment | null | undefined>)[key]
 				if (fragment?.type === 'Fragment') {
-					collect(fragment.nodes)
+					collect(fragment.nodes, inside)
 				}
 			}
 		}
 	}
 
-	collect(ast.fragment.nodes)
+	collect(ast.fragment.nodes, preserveAll)
 
 	return { ast, components }
 }
 
 export const findTComponents = (code: string, file?: string) => parseT(code, file).components
 
-export const collectSources = (segment: Segment): string[] => {
-	const sources = segment.source ? [segment.source] : []
-
-	for (const part of segment.parts) {
-		if (part.kind === 'block') {
-			for (const piece of part.pieces) {
-				if (typeof piece !== 'string') {
-					sources.push(...collectSources(piece))
-				}
-			}
-		}
-	}
-
-	return sources
-}
+export const collectSources = (component: TComponent) =>
+	component.segments.map(segment => segment.source).filter(source => source !== '')
 
 // ---------------------------------------------------------------------------
-// Source strings & translations: `text ${expr} <1>text</1> <2/>`
+// Source strings & translations: `text ${0} <1>text</1> <2/>`
 
-type Token =
-	| { type: 'text'; value: string }
-	| { type: 'expr'; value: string }
-	| { type: 'open' | 'close' | 'self'; n: number }
+type Gap = { text: string; placeholders: string[] }
+type Shape = { tags: string[]; gaps: Gap[] }
 
-const tokenize = (text: string) => {
-	const tokens: Token[] = []
-	let i = 0
-	let textStart = 0
-
-	const flush = (end: number) => {
-		if (end > textStart) {
-			tokens.push({ type: 'text', value: text.slice(textStart, end) })
-		}
-	}
-
-	while (i < text.length) {
-		if (text.startsWith('${', i)) {
-			let depth = 0
-			let j = i + 1
-
-			for (; j < text.length; j++) {
-				if (text[j] === '{') {
-					depth++
-				} else if (text[j] === '}' && --depth === 0) {
-					break
-				}
-			}
-
-			if (j < text.length) {
-				flush(i)
-				tokens.push({ type: 'expr', value: text.slice(i + 2, j) })
-				i = textStart = j + 1
-				continue
-			}
-		}
-
-		if (text[i] === '<') {
-			const match = /^<(\/?)(\d+)\s*(\/?)>/.exec(text.slice(i))
-
-			if (match && !(match[1] && match[3])) {
-				flush(i)
-				const n = Number(match[2])
-				tokens.push(match[1] ? { type: 'close', n } : match[3] ? { type: 'self', n } : { type: 'open', n })
-				i = textStart = i + match[0].length
-				continue
-			}
-		}
-
-		i++
-	}
-
-	flush(text.length)
-
-	return tokens
-}
-
-type TreeNode =
-	| { type: 'text'; value: string }
-	| { type: 'expr'; value: string }
-	| { type: 'tag'; n: number; children: TreeNode[] }
-
-// Lenient on purpose: hand written overrides skip validation.
-const toTree = (tokens: Token[]) => {
-	const root: TreeNode[] = []
-	const stack: { n: number; children: TreeNode[] }[] = []
-	const top = () => stack.at(-1)?.children ?? root
-
-	for (const token of tokens) {
-		if (token.type === 'text' || token.type === 'expr') {
-			top().push(token)
-		} else if (token.type === 'self') {
-			top().push({ type: 'tag', n: token.n, children: [] })
-		} else if (token.type === 'open') {
-			const node = { type: 'tag' as const, n: token.n, children: [] }
-			top().push(node)
-			stack.push(node)
-		} else {
-			const index = stack.findLastIndex(item => item.n === token.n)
-			if (index !== -1) {
-				stack.length = index
-			}
-		}
-	}
-
-	return root
-}
-
-type Shape = { error?: string; exprs: string[]; tags: Map<number, { self: boolean; parent: number }> }
+// Placeholders never span braces, so a `}` in text can't swallow the rest.
+const TOKEN = /\$\{([^{}]*)\}|<(\/?)(\d+)\s*(\/?)>/g
 
 const shape = (text: string): Shape => {
-	const tags = new Map<number, { self: boolean; parent: number }>()
-	const exprs: string[] = []
-	const stack: number[] = []
-	const invalid = (error: string) => ({ error, exprs, tags })
+	const tags: string[] = []
+	const gaps: Gap[] = [{ text: '', placeholders: [] }]
+	let cursor = 0
 
-	for (const token of tokenize(text)) {
-		if (token.type === 'text') {
-			continue
-		}
+	for (const match of text.matchAll(TOKEN)) {
+		const gap = gaps.at(-1)!
+		gap.text += text.slice(cursor, match.index)
+		cursor = match.index + match[0].length
 
-		if (token.type === 'expr') {
-			exprs.push(token.value)
-			continue
-		}
-
-		if (token.type === 'close') {
-			if (stack.at(-1) !== token.n) {
-				return invalid(`tag <${token.n}> is closed out of order`)
-			}
-			stack.pop()
-			continue
-		}
-
-		if (tags.has(token.n)) {
-			return invalid(`tag <${token.n}> appears twice`)
-		}
-
-		tags.set(token.n, { self: token.type === 'self', parent: stack.at(-1) ?? 0 })
-
-		if (token.type === 'open') {
-			stack.push(token.n)
+		if (match[1] !== undefined) {
+			gap.text += `\${${match[1]}}`
+			gap.placeholders.push(match[1])
+		} else if (match[2] && match[4]) {
+			gap.text += match[0]
+		} else {
+			tags.push(match[2] ? `</${match[3]}>` : match[4] ? `<${match[3]}/>` : `<${match[3]}>`)
+			gaps.push({ text: '', placeholders: [] })
 		}
 	}
 
-	if (stack.length > 0) {
-		return invalid(`tag <${stack.at(-1)}> is never closed`)
-	}
+	gaps.at(-1)!.text += text.slice(cursor)
 
-	return { exprs: exprs.toSorted(), tags }
+	return { tags, gaps }
 }
 
 /** Returns what is wrong with the translation, or nothing when it keeps
- * all placeholders and numbered tags of the source. */
+ * the tags of the source in order and every placeholder in its own run. */
 export const validateTranslation = (source: string, translation: string) => {
 	const expected = shape(source)
 	const actual = shape(translation)
 
-	if (expected.error) {
-		return undefined
+	if (expected.tags.join('') !== actual.tags.join('')) {
+		return 'the numbered tags differ from the source'
 	}
 
-	if (actual.error) {
-		return actual.error
-	}
+	for (const [index, gap] of expected.gaps.entries()) {
+		const placeholders = actual.gaps[index]!.placeholders
 
-	if (expected.exprs.join(' ') !== actual.exprs.join(' ')) {
-		return 'placeholders differ from the source'
-	}
-
-	if (expected.tags.size !== actual.tags.size) {
-		return 'tags differ from the source'
-	}
-
-	for (const [n, tag] of expected.tags) {
-		const other = actual.tags.get(n)
-
-		if (!other || other.self !== tag.self || other.parent !== tag.parent) {
-			return 'tags differ from the source'
+		if (gap.placeholders.toSorted().join(' ') !== placeholders.toSorted().join(' ')) {
+			return 'a placeholder is missing, duplicated or moved across a tag'
 		}
 	}
 
-	return undefined
+	return
 }
 
 // ---------------------------------------------------------------------------
-// Rendering a <T> into svelte markup
+// Emitting: each run becomes `{lang.t.get(`source`, {"fr":`translation`})}`
 
+export type Edit = Range & { text: string }
 export type Lookup = (source: string, locale: string) => string | undefined
 
-const escapeText = (text: string) =>
-	text.replace(/[{}<]/g, char => (char === '{' ? '&#123;' : char === '}' ? '&#125;' : '&lt;'))
+const escape = (text: string) => text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${')
 
-const hasTranslation = (segment: Segment, locale: string, lookup: Lookup): boolean => {
-	if (segment.source) {
-		const translation = lookup(segment.source, locale)
-		if (translation !== undefined && translation !== segment.source) {
-			return true
+const literal = (text: string, expressions: string[]) => {
+	const parts = text.split(/(\$\{\d+\})/).map((part, index) => {
+		if (index % 2 === 0) {
+			return escape(part)
 		}
-	}
 
-	return segment.parts.some(
-		part =>
-			part.kind === 'block' &&
-			part.pieces.some(piece => typeof piece !== 'string' && hasTranslation(piece, locale, lookup))
-	)
+		const expression = expressions[Number(part.slice(2, -1))]
+
+		if (expression === undefined) {
+			throw new Error(`Placeholder ${part} does not exist in the source.`)
+		}
+
+		return `\${${expression}}`
+	})
+
+	return `\`${parts.join('')}\``
 }
 
-/** The `{#if lang.locale === ...}` markup replacing a `<T>`, or nothing
- * when no locale has a translation for it. */
-export const renderT = (component: TComponent, code: string, locales: string[], lookup: Lookup) => {
-	const root = component.segment
-	const branches = locales.filter(locale => hasTranslation(root, locale, lookup))
+/** The edits turning a <T> into its children with translated text runs.
+ * An edit without text removes, one without length inserts. */
+export const transformT = (
+	component: TComponent,
+	locales: string[],
+	lookup: Lookup,
+	warn: (message: string) => void
+) => {
+	const edits: Edit[] = component.remove.map(({ start, end }) => ({ start, end, text: '' }))
 
-	if (branches.length === 0) {
-		return undefined
-	}
-
-	const renderSegment = (segment: Segment, locale: string): string => {
-		if (!segment.source) {
-			return code.slice(segment.start, segment.end)
+	for (const segment of component.segments) {
+		if (segment.source === '') {
+			continue
 		}
 
-		// The source itself goes through the renderer too, so a branch
-		// without its own translation still renders translated blocks inside.
-		const translation = lookup(segment.source, locale) ?? segment.source
+		const expected = shape(segment.source)
 
-		return renderNodes(toTree(tokenize(translation)), segment, locale)
-	}
+		if (expected.gaps.length !== segment.runs.length) {
+			warn(`Skipped "${segment.source}": its text looks like a placeholder or numbered tag.`)
+			continue
+		}
 
-	const renderNodes = (nodes: TreeNode[], segment: Segment, locale: string): string => {
-		let output = ''
+		const translations: { locale: string; gaps: Gap[] }[] = []
 
-		for (const node of nodes) {
-			if (node.type === 'text') {
-				output += escapeText(node.value)
+		for (const locale of locales) {
+			const translation = lookup(segment.source, locale)
+
+			if (translation === undefined || translation === segment.source) {
 				continue
 			}
 
-			if (node.type === 'expr') {
-				output += `{${node.value}}`
+			// Overrides from i18n.json never went through translateNow.
+			const problem = validateTranslation(segment.source, translation)
+
+			if (problem) {
+				warn(`Skipped the "${locale}" translation of "${segment.source}": ${problem}.`)
 				continue
 			}
 
-			const part = segment.parts[node.n - 1]
-
-			if (!part) {
-				throw new Error(`Translation of "${segment.source}" references <${node.n}> which is not in the source.`)
-			}
-
-			const inner = renderNodes(node.children, segment, locale)
-
-			if (part.kind === 'verbatim') {
-				output += part.source + inner
-			} else if (part.kind === 'block') {
-				output +=
-					part.pieces
-						.map(piece => (typeof piece === 'string' ? piece : renderSegment(piece, locale)))
-						.join('') + inner
-			} else if (node.children.length === 0) {
-				output += code.slice(part.node.start, part.node.end)
-			} else {
-				output += code.slice(part.node.start, part.openEnd) + inner + code.slice(part.closeStart, part.node.end)
-			}
+			translations.push({ locale, gaps: shape(translation).gaps })
 		}
 
-		return output
-	}
+		for (const [index, run] of segment.runs.entries()) {
+			const changed = translations.filter(item => item.gaps[index]!.text !== run.source)
 
-	return (
-		branches
-			.map((locale, index) => {
-				return `{${index === 0 ? '#if' : ':else if'} lang.locale === '${locale}'}` + renderSegment(root, locale)
+			if (changed.length === 0) {
+				continue
+			}
+
+			const values = changed.map(
+				item => `"${item.locale}":${literal(item.gaps[index]!.text, segment.expressions)}`
+			)
+
+			edits.push({
+				start: run.start,
+				end: run.end,
+				text: `{lang.t.get(${literal(run.source, segment.expressions)}, {${values.join(',')}})}`,
 			})
-			.join('') + `{:else}${code.slice(root.start, root.end)}{/if}`
-	)
+		}
+	}
+
+	return edits
 }

@@ -5,7 +5,7 @@ import { Plugin } from 'vite'
 import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
 import { findTranslatable, findTranslatableInCode, isIgnoredPath } from './find'
-import { hasT, parseT, renderT, validateTranslation } from './t'
+import { hasT, parseT, transformT, validateTranslation } from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -142,7 +142,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			const withT = isSvelteFile(id) && hasT(code)
 
 			if (!withLangT && !withT) {
-				return undefined
+				return
 			}
 
 			const sources = new Set<string>()
@@ -159,7 +159,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 						// Skip adding the translated text if it's the
 						// same as the original source text.
 						if (translation === undefined || translation === source) {
-							return undefined
+							return
 						}
 
 						return `"${locale}":\`${translation}\``
@@ -182,19 +182,27 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 
 			if (withT) {
 				const { ast, components } = parseT(code, id)
+				const lookup = (source: string, locale: string) => cache.get(source, locale)
+				let called = false
 
 				for (const component of components) {
-					const markup = renderT(component, code, props.locales, (source, locale) =>
-						cache.get(source, locale)
-					)
-
-					if (markup !== undefined) {
-						transformedCode.overwrite(component.start, component.end, rewriteLangT(markup))
-						replaced.push(component)
+					for (const edit of transformT(component, props.locales, lookup, message => this.warn(message))) {
+						if (edit.text === '') {
+							if (edit.end > edit.start) {
+								transformedCode.remove(edit.start, edit.end)
+							}
+						} else if (edit.start === edit.end) {
+							transformedCode.appendLeft(edit.start, rewriteLangT(edit.text))
+							called = true
+						} else {
+							transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text))
+							replaced.push(edit)
+							called = true
+						}
 					}
 				}
 
-				if (replaced.length > 0 && !importsLang(ast)) {
+				if (called && !importsLang(ast)) {
 					if (ast.instance) {
 						// The program starts right after the `<script ...>` tag.
 						const { start } = ast.instance.content as unknown as { start: number }
@@ -211,7 +219,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 					let index = code.indexOf(pattern)
 
 					while (index !== -1) {
-						// Occurrences inside a rewritten <T> were handled with its markup.
+						// Occurrences inside a rewritten text run were handled with its call.
 						if (!replaced.some(item => index >= item.start && index < item.end)) {
 							transformedCode.overwrite(index, index + pattern.length, langT(source))
 						}

@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import MagicString from "magic-string";
 import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
@@ -95,9 +96,13 @@ const removeUnusedTranslations = (cache, sources, locales) => {
 //#region src/t.ts
 const range = (node) => node;
 const hasT = (code) => /<T[\s/>]/.test(code);
+const collapse = (text) => text.replace(/[ \t\n\r\f]+/g, " ");
+const PRESERVE = /* @__PURE__ */ new Set(["pre", "textarea"]);
+const isBlank = (node) => node.type === "Comment" || node.type === "Text" && node.data.trim() === "";
 const parseT = (code, file) => {
 	const ast = parse(code, { modern: true });
 	const components = [];
+	const preserveAll = ast.options?.preserveWhitespace === true;
 	const fail = (offset, message) => {
 		const position = lineColumn(code).fromIndex(offset);
 		return /* @__PURE__ */ new Error(`${file ?? "component"}:${position?.line ?? 0}: ${message}`);
@@ -108,72 +113,8 @@ const parseT = (code, file) => {
 		const last = node.attributes.at(-1);
 		return code.indexOf(">", last ? last.end : node.start + node.name.length + 1) + 1;
 	};
-	const segment = (nodes, start, end) => {
-		const parts = [];
-		let source = "";
-		const visit = (nodes) => {
-			for (const node of nodes) switch (node.type) {
-				case "Text": {
-					const text = code.slice(node.start, node.end).replace(/\s+/g, " ");
-					source += source.endsWith(" ") && text.startsWith(" ") ? text.slice(1) : text;
-					break;
-				}
-				case "Comment": break;
-				case "ExpressionTag":
-					source += "${" + code.slice(range(node.expression).start, range(node.expression).end) + "}";
-					break;
-				case "HtmlTag":
-				case "RenderTag":
-				case "ConstTag":
-				case "DebugTag":
-				case "AttachTag":
-				case "DeclarationTag":
-					parts.push({
-						kind: "verbatim",
-						source: code.slice(node.start, node.end)
-					});
-					source += `<${parts.length}/>`;
-					break;
-				case "IfBlock":
-				case "EachBlock":
-				case "AwaitBlock":
-				case "KeyBlock":
-				case "SnippetBlock":
-					parts.push({
-						kind: "block",
-						pieces: blockPieces(node)
-					});
-					source += `<${parts.length}/>`;
-					break;
-				default: {
-					if (node.type === "Component" && node.name === "T") throw fail(node.start, "nested <T> is not supported inside <T>");
-					const number = parts.length + 1;
-					const openEnd = tagEnd(node);
-					const last = node.fragment.nodes.at(-1);
-					parts.push({
-						kind: "element",
-						node,
-						openEnd,
-						closeStart: last ? last.end : openEnd
-					});
-					if (last) {
-						source += `<${number}>`;
-						visit(node.fragment.nodes);
-						source += `</${number}>`;
-					} else source += `<${number}/>`;
-				}
-			}
-		};
-		visit(nodes);
-		return {
-			source: source.trim(),
-			parts,
-			start,
-			end
-		};
-	};
-	const blockPieces = (node) => {
-		const branches = [];
+	const blockBodies = (node) => {
+		const bodies = [];
 		let closeStart = node.end;
 		const afterBrace = (from) => code.indexOf("}", from) + 1;
 		const separator = (keyword, body, next) => code.lastIndexOf(`{:${keyword}`, body.nodes[0]?.start ?? next);
@@ -182,7 +123,7 @@ const parseT = (code, file) => {
 				closeStart = code.lastIndexOf("{/if", node.end);
 				let current = node;
 				while (true) {
-					branches.push({
+					bodies.push({
 						sepStart: current.elseif ? current.start : void 0,
 						bodyStart: afterBrace(range(current.test).end),
 						nodes: current.consequent.nodes
@@ -195,7 +136,7 @@ const parseT = (code, file) => {
 						continue;
 					}
 					const sepStart = separator("else", alternate, closeStart);
-					branches.push({
+					bodies.push({
 						sepStart,
 						bodyStart: afterBrace(sepStart),
 						nodes: alternate.nodes
@@ -207,13 +148,13 @@ const parseT = (code, file) => {
 			case "EachBlock": {
 				closeStart = code.lastIndexOf("{/each", node.end);
 				const anchor = Math.max(range(node.expression).end, node.context ? range(node.context).end : 0, node.key ? range(node.key).end : 0);
-				branches.push({
+				bodies.push({
 					bodyStart: afterBrace(anchor),
 					nodes: node.body.nodes
 				});
 				if (node.fallback) {
 					const sepStart = separator("else", node.fallback, closeStart);
-					branches.push({
+					bodies.push({
 						sepStart,
 						bodyStart: afterBrace(sepStart),
 						nodes: node.fallback.nodes
@@ -236,14 +177,14 @@ const parseT = (code, file) => {
 					const pattern = patternOf(key);
 					if (i === 0) {
 						const anchor = Math.max(range(node.expression).end, pattern ? range(pattern).end : 0);
-						branches.unshift({
+						bodies.unshift({
 							bodyStart: afterBrace(anchor),
 							nodes: body.nodes
 						});
 					} else {
 						const sepStart = separator(key, body, next);
 						const anchor = pattern && range(pattern).start > sepStart ? range(pattern).end : sepStart;
-						branches.unshift({
+						bodies.unshift({
 							sepStart,
 							bodyStart: afterBrace(anchor),
 							nodes: body.nodes
@@ -255,7 +196,7 @@ const parseT = (code, file) => {
 			}
 			case "KeyBlock":
 				closeStart = code.lastIndexOf("{/key", node.end);
-				branches.push({
+				bodies.push({
 					bodyStart: afterBrace(range(node.expression).end),
 					nodes: node.fragment.nodes
 				});
@@ -263,38 +204,149 @@ const parseT = (code, file) => {
 			case "SnippetBlock": {
 				closeStart = code.lastIndexOf("{/snippet", node.end);
 				const anchor = Math.max(range(node.expression).end, ...node.parameters.map((p) => range(p).end));
-				branches.push({
+				bodies.push({
 					bodyStart: afterBrace(anchor),
 					nodes: node.body.nodes
 				});
 				break;
 			}
 		}
-		const pieces = [];
-		let cursor = node.start;
-		for (const [index, branch] of branches.entries()) {
-			if (branch.sepStart !== void 0) cursor = branch.sepStart;
-			const bodyEnd = branches[index + 1]?.sepStart ?? closeStart;
-			pieces.push(code.slice(cursor, branch.bodyStart));
-			pieces.push(segment(branch.nodes, branch.bodyStart, bodyEnd));
-			cursor = bodyEnd;
-		}
-		pieces.push(code.slice(closeStart, node.end));
-		return pieces;
+		return bodies.map((body, index) => ({
+			nodes: body.nodes,
+			start: body.bodyStart,
+			end: bodies[index + 1]?.sepStart ?? closeStart
+		}));
 	};
-	const collect = (nodes) => {
+	const segments = (body, preserve) => {
+		const items = [];
+		const expressions = [];
+		const nested = [];
+		let tags = 0;
+		let run = {
+			start: body.start,
+			text: "",
+			preserve
+		};
+		const open = (position, preserve) => {
+			run = {
+				start: position,
+				text: "",
+				preserve
+			};
+		};
+		const close = (position) => {
+			items.push({ run: {
+				...run,
+				end: position,
+				source: ""
+			} });
+		};
+		const visit = (nodes, preserve) => {
+			for (const node of nodes) switch (node.type) {
+				case "Text":
+					run.text += node.data;
+					break;
+				case "Comment": break;
+				case "ExpressionTag":
+					run.text += `\${${expressions.length}}`;
+					expressions.push(code.slice(range(node.expression).start, range(node.expression).end));
+					break;
+				case "HtmlTag":
+				case "RenderTag":
+				case "ConstTag":
+				case "DebugTag":
+				case "AttachTag":
+				case "DeclarationTag":
+					close(node.start);
+					items.push({ tag: `<${++tags}/>` });
+					open(node.end, preserve);
+					break;
+				case "IfBlock":
+				case "EachBlock":
+				case "AwaitBlock":
+				case "KeyBlock":
+				case "SnippetBlock":
+					close(node.start);
+					items.push({ tag: `<${++tags}/>` });
+					for (const branch of blockBodies(node)) nested.push(...segments(branch, preserve));
+					open(node.end, preserve);
+					break;
+				default: {
+					if (node.type === "Component" && node.name === "T") throw fail(node.start, "nested <T> is not supported inside <T>");
+					const number = ++tags;
+					const last = node.fragment.nodes.at(-1);
+					close(node.start);
+					if (last) {
+						items.push({ tag: `<${number}>` });
+						open(tagEnd(node), preserve || PRESERVE.has(node.name));
+						visit(node.fragment.nodes, preserve || PRESERVE.has(node.name));
+						close(last.end);
+						items.push({ tag: `</${number}>` });
+					} else items.push({ tag: `<${number}/>` });
+					open(node.end, preserve);
+				}
+			}
+		};
+		visit(body.nodes, preserve);
+		close(body.end);
+		const runs = items.flatMap((item) => "run" in item ? [item.run] : []);
+		const first = runs[0];
+		const last = runs.at(-1);
+		for (const run of runs) run.source = run.preserve ? run.text : collapse(run.text);
+		if (!first.preserve) first.source = first.source.trimStart();
+		if (!last.preserve) last.source = last.source.trimEnd();
+		return [{
+			source: items.map((item) => "tag" in item ? item.tag : item.run.source).join(""),
+			expressions,
+			runs: runs.map(({ start, end, source }) => ({
+				start,
+				end,
+				source
+			}))
+		}, ...nested];
+	};
+	const collect = (nodes, preserve) => {
 		for (const node of nodes) {
 			if (node.type === "Component" && node.name === "T") {
-				const openEnd = tagEnd(node);
-				const last = node.fragment.nodes.at(-1);
-				const closeStart = last ? last.end : openEnd;
-				components.push({
-					start: node.start,
-					end: node.end,
-					segment: segment(node.fragment.nodes, openEnd, closeStart)
+				const children = node.fragment.nodes;
+				const content = children.filter((child) => !isBlank(child));
+				const only = content.length === 1 ? content[0] : void 0;
+				if (children.length === 0) components.push({
+					remove: [node],
+					segments: []
 				});
+				else if (only?.type === "SnippetBlock" && only.expression.name === "children") {
+					const body = blockBodies(only)[0];
+					components.push({
+						remove: [{
+							start: node.start,
+							end: body.start
+						}, {
+							start: body.end,
+							end: node.end
+						}],
+						segments: segments(body, preserve)
+					});
+				} else {
+					const body = {
+						nodes: children,
+						start: tagEnd(node),
+						end: children.at(-1).end
+					};
+					components.push({
+						remove: [{
+							start: node.start,
+							end: body.start
+						}, {
+							start: body.end,
+							end: node.end
+						}],
+						segments: segments(body, preserve)
+					});
+				}
 				continue;
 			}
+			const inside = preserve || "name" in node && typeof node.name === "string" && PRESERVE.has(node.name);
 			for (const key of [
 				"fragment",
 				"consequent",
@@ -306,188 +358,108 @@ const parseT = (code, file) => {
 				"catch"
 			]) {
 				const fragment = node[key];
-				if (fragment?.type === "Fragment") collect(fragment.nodes);
+				if (fragment?.type === "Fragment") collect(fragment.nodes, inside);
 			}
 		}
 	};
-	collect(ast.fragment.nodes);
+	collect(ast.fragment.nodes, preserveAll);
 	return {
 		ast,
 		components
 	};
 };
 const findTComponents = (code, file) => parseT(code, file).components;
-const collectSources = (segment) => {
-	const sources = segment.source ? [segment.source] : [];
-	for (const part of segment.parts) if (part.kind === "block") {
-		for (const piece of part.pieces) if (typeof piece !== "string") sources.push(...collectSources(piece));
-	}
-	return sources;
-};
-const tokenize = (text) => {
-	const tokens = [];
-	let i = 0;
-	let textStart = 0;
-	const flush = (end) => {
-		if (end > textStart) tokens.push({
-			type: "text",
-			value: text.slice(textStart, end)
-		});
-	};
-	while (i < text.length) {
-		if (text.startsWith("${", i)) {
-			let depth = 0;
-			let j = i + 1;
-			for (; j < text.length; j++) if (text[j] === "{") depth++;
-			else if (text[j] === "}" && --depth === 0) break;
-			if (j < text.length) {
-				flush(i);
-				tokens.push({
-					type: "expr",
-					value: text.slice(i + 2, j)
-				});
-				i = textStart = j + 1;
-				continue;
-			}
-		}
-		if (text[i] === "<") {
-			const match = /^<(\/?)(\d+)\s*(\/?)>/.exec(text.slice(i));
-			if (match && !(match[1] && match[3])) {
-				flush(i);
-				const n = Number(match[2]);
-				tokens.push(match[1] ? {
-					type: "close",
-					n
-				} : match[3] ? {
-					type: "self",
-					n
-				} : {
-					type: "open",
-					n
-				});
-				i = textStart = i + match[0].length;
-				continue;
-			}
-		}
-		i++;
-	}
-	flush(text.length);
-	return tokens;
-};
-const toTree = (tokens) => {
-	const root = [];
-	const stack = [];
-	const top = () => stack.at(-1)?.children ?? root;
-	for (const token of tokens) if (token.type === "text" || token.type === "expr") top().push(token);
-	else if (token.type === "self") top().push({
-		type: "tag",
-		n: token.n,
-		children: []
-	});
-	else if (token.type === "open") {
-		const node = {
-			type: "tag",
-			n: token.n,
-			children: []
-		};
-		top().push(node);
-		stack.push(node);
-	} else {
-		const index = stack.findLastIndex((item) => item.n === token.n);
-		if (index !== -1) stack.length = index;
-	}
-	return root;
-};
+const collectSources = (component) => component.segments.map((segment) => segment.source).filter((source) => source !== "");
+const TOKEN = /\$\{([^{}]*)\}|<(\/?)(\d+)\s*(\/?)>/g;
 const shape = (text) => {
-	const tags = /* @__PURE__ */ new Map();
-	const exprs = [];
-	const stack = [];
-	const invalid = (error) => ({
-		error,
-		exprs,
-		tags
-	});
-	for (const token of tokenize(text)) {
-		if (token.type === "text") continue;
-		if (token.type === "expr") {
-			exprs.push(token.value);
-			continue;
+	const tags = [];
+	const gaps = [{
+		text: "",
+		placeholders: []
+	}];
+	let cursor = 0;
+	for (const match of text.matchAll(TOKEN)) {
+		const gap = gaps.at(-1);
+		gap.text += text.slice(cursor, match.index);
+		cursor = match.index + match[0].length;
+		if (match[1] !== void 0) {
+			gap.text += `\${${match[1]}}`;
+			gap.placeholders.push(match[1]);
+		} else if (match[2] && match[4]) gap.text += match[0];
+		else {
+			tags.push(match[2] ? `</${match[3]}>` : match[4] ? `<${match[3]}/>` : `<${match[3]}>`);
+			gaps.push({
+				text: "",
+				placeholders: []
+			});
 		}
-		if (token.type === "close") {
-			if (stack.at(-1) !== token.n) return invalid(`tag <${token.n}> is closed out of order`);
-			stack.pop();
-			continue;
-		}
-		if (tags.has(token.n)) return invalid(`tag <${token.n}> appears twice`);
-		tags.set(token.n, {
-			self: token.type === "self",
-			parent: stack.at(-1) ?? 0
-		});
-		if (token.type === "open") stack.push(token.n);
 	}
-	if (stack.length > 0) return invalid(`tag <${stack.at(-1)}> is never closed`);
+	gaps.at(-1).text += text.slice(cursor);
 	return {
-		exprs: exprs.toSorted(),
-		tags
+		tags,
+		gaps
 	};
 };
 /** Returns what is wrong with the translation, or nothing when it keeps
-* all placeholders and numbered tags of the source. */
+* the tags of the source in order and every placeholder in its own run. */
 const validateTranslation = (source, translation) => {
 	const expected = shape(source);
 	const actual = shape(translation);
-	if (expected.error) return;
-	if (actual.error) return actual.error;
-	if (expected.exprs.join("\0") !== actual.exprs.join("\0")) return "placeholders differ from the source";
-	if (expected.tags.size !== actual.tags.size) return "tags differ from the source";
-	for (const [n, tag] of expected.tags) {
-		const other = actual.tags.get(n);
-		if (!other || other.self !== tag.self || other.parent !== tag.parent) return "tags differ from the source";
+	if (expected.tags.join("") !== actual.tags.join("")) return "the numbered tags differ from the source";
+	for (const [index, gap] of expected.gaps.entries()) {
+		const placeholders = actual.gaps[index].placeholders;
+		if (gap.placeholders.toSorted().join("\0") !== placeholders.toSorted().join("\0")) return "a placeholder is missing, duplicated or moved across a tag";
 	}
 };
-const escapeText = (text) => text.replace(/[{}<]/g, (char) => char === "{" ? "&#123;" : char === "}" ? "&#125;" : "&lt;");
-const hasTranslation = (segment, locale, lookup) => {
-	if (segment.source) {
-		const translation = lookup(segment.source, locale);
-		if (translation !== void 0 && translation !== segment.source) return true;
-	}
-	return segment.parts.some((part) => part.kind === "block" && part.pieces.some((piece) => typeof piece !== "string" && hasTranslation(piece, locale, lookup)));
+const escape = (text) => text.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+const literal = (text, expressions) => {
+	return `\`${text.split(/(\$\{\d+\})/).map((part, index) => {
+		if (index % 2 === 0) return escape(part);
+		const expression = expressions[Number(part.slice(2, -1))];
+		if (expression === void 0) throw new Error(`Placeholder ${part} does not exist in the source.`);
+		return `\${${expression}}`;
+	}).join("")}\``;
 };
-/** The `{#if lang.locale === ...}` markup replacing a `<T>`, or nothing
-* when no locale has a translation for it. */
-const renderT = (component, code, locales, lookup) => {
-	const root = component.segment;
-	const branches = locales.filter((locale) => hasTranslation(root, locale, lookup));
-	if (branches.length === 0) return;
-	const renderSegment = (segment, locale) => {
-		if (!segment.source) return code.slice(segment.start, segment.end);
-		const translation = lookup(segment.source, locale) ?? segment.source;
-		return renderNodes(toTree(tokenize(translation)), segment, locale);
-	};
-	const renderNodes = (nodes, segment, locale) => {
-		let output = "";
-		for (const node of nodes) {
-			if (node.type === "text") {
-				output += escapeText(node.value);
-				continue;
-			}
-			if (node.type === "expr") {
-				output += `{${node.value}}`;
-				continue;
-			}
-			const part = segment.parts[node.n - 1];
-			if (!part) throw new Error(`Translation of "${segment.source}" references <${node.n}> which is not in the source.`);
-			const inner = renderNodes(node.children, segment, locale);
-			if (part.kind === "verbatim") output += part.source + inner;
-			else if (part.kind === "block") output += part.pieces.map((piece) => typeof piece === "string" ? piece : renderSegment(piece, locale)).join("") + inner;
-			else if (node.children.length === 0) output += code.slice(part.node.start, part.node.end);
-			else output += code.slice(part.node.start, part.openEnd) + inner + code.slice(part.closeStart, part.node.end);
+/** The edits turning a <T> into its children with translated text runs.
+* An edit without text removes, one without length inserts. */
+const transformT = (component, locales, lookup, warn) => {
+	const edits = component.remove.map(({ start, end }) => ({
+		start,
+		end,
+		text: ""
+	}));
+	for (const segment of component.segments) {
+		if (segment.source === "") continue;
+		if (shape(segment.source).gaps.length !== segment.runs.length) {
+			warn(`Skipped "${segment.source}": its text looks like a placeholder or numbered tag.`);
+			continue;
 		}
-		return output;
-	};
-	return branches.map((locale, index) => {
-		return `{${index === 0 ? "#if" : ":else if"} lang.locale === '${locale}'}` + renderSegment(root, locale);
-	}).join("") + `{:else}${code.slice(root.start, root.end)}{/if}`;
+		const translations = [];
+		for (const locale of locales) {
+			const translation = lookup(segment.source, locale);
+			if (translation === void 0 || translation === segment.source) continue;
+			const problem = validateTranslation(segment.source, translation);
+			if (problem) {
+				warn(`Skipped the "${locale}" translation of "${segment.source}": ${problem}.`);
+				continue;
+			}
+			translations.push({
+				locale,
+				gaps: shape(translation).gaps
+			});
+		}
+		for (const [index, run] of segment.runs.entries()) {
+			const changed = translations.filter((item) => item.gaps[index].text !== run.source);
+			if (changed.length === 0) continue;
+			const values = changed.map((item) => `"${item.locale}":${literal(item.gaps[index].text, segment.expressions)}`);
+			edits.push({
+				start: run.start,
+				end: run.end,
+				text: `{lang.t.get(${literal(run.source, segment.expressions)}, {${values.join(",")}})}`
+			});
+		}
+	}
+	return edits;
 };
 //#endregion
 //#region src/find/svelte.ts
@@ -506,7 +478,7 @@ const findSvelteTranslatable = (code, file) => {
 	walk(ast.html, { enter });
 	if (ast.instance) walk(ast.instance.content, { enter });
 	if (ast.module) walk(ast.module.content, { enter });
-	if (hasT(code)) for (const component of findTComponents(code, file)) found.push(...collectSources(component.segment));
+	if (hasT(code)) for (const component of findTComponents(code, file)) found.push(...collectSources(component));
 	return found;
 };
 //#endregion
@@ -543,7 +515,7 @@ const findTranslatableInCode = async (file, code) => {
 //#region src/vite.ts
 const SOURCE_FILE = /\.(svelte|ts|js)$/;
 const LANG_IMPORT = "import { lang } from '@awsless/i18n/svelte'";
-const isSvelteFile = (id) => typeof id === "string" && id.split("?")[0].endsWith(".svelte");
+const isSvelteFile = (id = "") => extname(id.split("?")[0]) === ".svelte";
 const importsLang = (ast) => {
 	for (const script of [ast.instance, ast.module]) for (const node of script?.content.body ?? []) if (node.type === "ImportDeclaration" && node.specifiers.some((item) => item.local.name === "lang")) return true;
 	return false;
@@ -618,14 +590,19 @@ const i18n = (props) => {
 			const replaced = [];
 			if (withT) {
 				const { ast, components } = parseT(code, id);
-				for (const component of components) {
-					const markup = renderT(component, code, props.locales, (source, locale) => cache.get(source, locale));
-					if (markup !== void 0) {
-						transformedCode.overwrite(component.start, component.end, rewriteLangT(markup));
-						replaced.push(component);
-					}
+				const lookup = (source, locale) => cache.get(source, locale);
+				let called = false;
+				for (const component of components) for (const edit of transformT(component, props.locales, lookup, (message) => this.warn(message))) if (edit.text === "") {
+					if (edit.end > edit.start) transformedCode.remove(edit.start, edit.end);
+				} else if (edit.start === edit.end) {
+					transformedCode.appendLeft(edit.start, rewriteLangT(edit.text));
+					called = true;
+				} else {
+					transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text));
+					replaced.push(edit);
+					called = true;
 				}
-				if (replaced.length > 0 && !importsLang(ast)) {
+				if (called && !importsLang(ast)) {
 					if (ast.instance) {
 						const { start } = ast.instance.content;
 						transformedCode.appendLeft(start, `\n\t${LANG_IMPORT}`);
@@ -663,7 +640,7 @@ const ai = (props) => {
 				}).array() }),
 				prompt: [
 					`You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.`,
-					"Keep every ${...} placeholder and every numbered <n>...</n> or <n/> tag exactly as written in the source, with the same nesting. Translate only the text around them.",
+					"Keep every numbered <n>...</n> or <n/> tag in the same order and nesting as the source, and keep every ${n} placeholder inside the same tag it came from. Translate only the text around them.",
 					...props?.rules ?? [],
 					"",
 					`JSON FILE:`,
