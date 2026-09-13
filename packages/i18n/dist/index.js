@@ -259,7 +259,23 @@ const SVG_TEXT = /* @__PURE__ */ new Set([
 	"desc"
 ]);
 const hasSlotAttribute = (node) => "attributes" in node && node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
-const isRuntimeOnly = (node) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute);
+const hasStaticXmlns = (node) => node.attributes.some((attribute) => attribute.type === "Attribute" && attribute.name === "xmlns" && Array.isArray(attribute.value) && attribute.value.length === 1 && attribute.value[0]?.type === "Text");
+const unwrapChangesNamespace = (nodes) => nodes.some((node) => {
+	switch (node.type) {
+		case "SvelteElement": return !hasStaticXmlns(node);
+		case "SvelteFragment": return unwrapChangesNamespace(node.fragment.nodes);
+		case "IfBlock": return unwrapChangesNamespace(node.consequent.nodes) || node.alternate !== null && unwrapChangesNamespace(node.alternate.nodes);
+		case "EachBlock": return unwrapChangesNamespace(node.body.nodes) || node.fallback !== void 0 && unwrapChangesNamespace(node.fallback.nodes);
+		case "AwaitBlock": return [
+			node.pending,
+			node.then,
+			node.catch
+		].some((body) => body !== null && unwrapChangesNamespace(body.nodes));
+		case "KeyBlock": return unwrapChangesNamespace(node.fragment.nodes);
+		default: return false;
+	}
+});
+const isRuntimeOnly = (node, namespace) => node.attributes.some((attribute) => !(attribute.type === "LetDirective" || attribute.type === "Attribute" && attribute.name === "slot")) || node.fragment.nodes.some(hasSlotAttribute) || namespace !== "html" && unwrapChangesNamespace(node.fragment.nodes);
 const COMPONENTS = /* @__PURE__ */ new Set([
 	"Component",
 	"SvelteComponent",
@@ -513,7 +529,7 @@ const parseT = (code, file, options = {}) => {
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
-						if (!isRuntimeOnly(node)) throw fail(node.start, "nested <T> is not supported inside <T>");
+						if (!isRuntimeOnly(node, namespaces.get(node) ?? context.namespace)) throw fail(node.start, "nested <T> is not supported inside <T>");
 						pieces.push({
 							start: node.start,
 							end: node.end,
@@ -647,7 +663,7 @@ const parseT = (code, file, options = {}) => {
 const collect = (code, ours, internals, nodes, context, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && ours.has(node)) {
-			if (isRuntimeOnly(node)) continue;
+			if (isRuntimeOnly(node, context.namespace)) continue;
 			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
 			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
 			const carried = node.attributes.filter((attribute) => attribute === slot || attribute.type === "LetDirective");

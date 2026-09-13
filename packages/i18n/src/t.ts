@@ -88,11 +88,56 @@ const hasSlotAttribute = (node: AST.Fragment['nodes'][number]) =>
 // Only a slot attribute and let: directives survive the unwrapping. Any other
 // attribute (css --props, children, a spread, handlers, ...) or named slot
 // content among the children means the runtime component has to stay.
-const isRuntimeOnly = (node: AST.Component) =>
+const hasStaticXmlns = (node: AST.SvelteElement) =>
+	node.attributes.some(
+		attribute =>
+			attribute.type === 'Attribute' &&
+			attribute.name === 'xmlns' &&
+			Array.isArray(attribute.value) &&
+			attribute.value.length === 1 &&
+			attribute.value[0]?.type === 'Text'
+	)
+
+// A component resets the namespace its children see, the block wrapper does
+// not. A <svelte:element> without a static xmlns takes the namespace of what
+// is around it, so inside svg or mathml it would change once unwrapped. The
+// walk stops where Svelte's own namespace lookup stops: at an element with a
+// namespace of its own, a component or a snippet.
+const unwrapChangesNamespace = (nodes: AST.Fragment['nodes']): boolean =>
+	nodes.some(node => {
+		switch (node.type) {
+			case 'SvelteElement':
+				return !hasStaticXmlns(node)
+			case 'SvelteFragment':
+				return unwrapChangesNamespace(node.fragment.nodes)
+			case 'IfBlock':
+				return (
+					unwrapChangesNamespace(node.consequent.nodes) ||
+					(node.alternate !== null && unwrapChangesNamespace(node.alternate.nodes))
+				)
+			case 'EachBlock':
+				return (
+					unwrapChangesNamespace(node.body.nodes) ||
+					(node.fallback !== undefined && unwrapChangesNamespace(node.fallback.nodes))
+				)
+			case 'AwaitBlock':
+				return [node.pending, node.then, node.catch].some(
+					body => body !== null && unwrapChangesNamespace(body.nodes)
+				)
+			case 'KeyBlock':
+				return unwrapChangesNamespace(node.fragment.nodes)
+			default:
+				return false
+		}
+	})
+
+const isRuntimeOnly = (node: AST.Component, namespace: Namespace) =>
 	node.attributes.some(
 		attribute =>
 			!(attribute.type === 'LetDirective' || (attribute.type === 'Attribute' && attribute.name === 'slot'))
-	) || node.fragment.nodes.some(hasSlotAttribute)
+	) ||
+	node.fragment.nodes.some(hasSlotAttribute) ||
+	(namespace !== 'html' && unwrapChangesNamespace(node.fragment.nodes))
 
 const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
 
@@ -454,7 +499,7 @@ export const parseT = (code: string, file?: string, options: TOptions = {}) => {
 						break
 					default: {
 						if (node.type === 'Component' && ours.has(node)) {
-							if (!isRuntimeOnly(node)) {
+							if (!isRuntimeOnly(node, namespaces.get(node) ?? context.namespace)) {
 								throw fail(node.start, 'nested <T> is not supported inside <T>')
 							}
 
@@ -582,7 +627,7 @@ const collect = (
 ) => {
 	for (const node of nodes) {
 		if (node.type === 'Component' && ours.has(node)) {
-			if (isRuntimeOnly(node)) {
+			if (isRuntimeOnly(node, context.namespace)) {
 				continue
 			}
 

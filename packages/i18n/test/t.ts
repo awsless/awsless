@@ -1988,6 +1988,55 @@ describe('textarea, preserveComments and the compiler internals', () => {
 	})
 })
 
+describe('namespace reset of the component wrapper', () => {
+	const body = '<svelte:element this={tag}><tspan>Hello</tspan> <tspan>world</tspan></svelte:element>'
+	const source = '<1><2>Hello</2> <3>world</3></1>'
+	const translations = table({ [source]: { fr: '<1><2>Bonjour</2> <3>monde</3></1>' } })
+
+	it('keeps the runtime component for a dynamic element inside svg', async () => {
+		const markup = `<svg><T>${body}</T></svg>`
+		expect(sources(markup)).toStrictEqual([])
+
+		const { baseline, code } = await parity(markup, { tag: 'text' })
+		expect(baseline).toBe('<svg><text><tspan>Hello</tspan> <tspan>world</tspan></text></svg>')
+		expect(code).toContain(`<T>${body}</T>`)
+
+		const translated = await transform(component(markup), translations)
+		expect(translated.code).toBe(component(markup))
+		expect((await ssr(translated.code, { tag: 'text' }, ['fr']))[0]).toBe(baseline)
+
+		for (const nested of [
+			`<svg><T>{#if true}${body}{/if}</T></svg>`,
+			`<svg><T><svelte:fragment>${body}</svelte:fragment></T></svg>`,
+			`<svg><T><text><tspan>Hi</tspan></text> <T {...{}}>${body}</T></T></svg>`,
+		]) {
+			expect(sources(nested)).not.toContain(expect.stringContaining('Hello'))
+		}
+	})
+
+	it('still transforms the same body outside svg or with its own namespace', async () => {
+		const outside = `<T>${body}</T>`
+		expect(sources(outside)).toStrictEqual([source])
+		const { baseline, fr } = await parity(outside, { tag: 'div' })
+		expect(baseline).toBe('<div><tspan>Hello</tspan> <tspan>world</tspan></div>')
+		expect(fr).toBe('<div><tspan>HELLO</tspan> <tspan>WORLD</tspan></div>')
+
+		// With its own svg namespace the blank between the tspans goes at compile
+		// time, since Svelte only spares it under a `<text>` element proper.
+		const owned = `<svg><T><svelte:element this={tag} xmlns="http://www.w3.org/2000/svg"><tspan>Hello</tspan> <tspan>world</tspan></svelte:element></T></svg>`
+		expect(sources(owned)).toStrictEqual(['<1><2>Hello</2><3>world</3></1>'])
+		const result = await parity(owned, { tag: 'text' })
+		expect(result.baseline).toBe(
+			'<svg><text xmlns="http://www.w3.org/2000/svg"><tspan>Hello</tspan><tspan>world</tspan></text></svg>'
+		)
+
+		// Under an element or component with its own namespace the lookup stops.
+		const enclosed = '<1><2><3>Hello</3> <4>world</4></2></1>'
+		expect(sources(`<svg><T><text>${body}</text></T></svg>`)).toStrictEqual([enclosed])
+		expect(sources(`<svg><T><Badge count={1}>${body}</Badge></T></svg>`)).toStrictEqual([enclosed])
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')
