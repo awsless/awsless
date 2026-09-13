@@ -353,9 +353,9 @@ describe('<T> transform', () => {
 
 		expect(code).toContain(
 			'{#if true}' +
-				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{name}</b>' +
+				'{__i18n_lang.t.pick(["Hello "], {"fr":["Bonjour "]})}<b class="x">{__i18n_lang.t.pick([0], {}, [__i18n_lang.t.str((name))])}</b>' +
 				'{__i18n_lang.t.pick([", you have "], {"fr":[", vous avez "]})}' +
-				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [__i18n_lang.t.str((n))])}</Badge>. <Icon/>' +
+				'<Badge count={n}>{__i18n_lang.t.pick([0," items"], {"fr":[0," articles"]}, [__i18n_lang.t.str((n))])}</Badge>{__i18n_lang.t.pick([". "], {})}<Icon/>' +
 				'{/if}'
 		)
 		expect(code).not.toContain('<T')
@@ -379,7 +379,7 @@ describe('<T> transform', () => {
 			'{#if true}' +
 				'{__i18n_lang.t.pick(["You have "], {"fr":["Il vous reste "]})}' +
 				'{#if n === 0}{__i18n_lang.t.pick(["no items"], {"fr":["aucun article"]})}' +
-				'{:else}<b>{n}</b>{__i18n_lang.t.pick([" items"], {"fr":[" articles"]})}{/if}' +
+				'{:else}<b>{__i18n_lang.t.pick([0], {}, [__i18n_lang.t.str((n))])}</b>{__i18n_lang.t.pick([" items"], {"fr":[" articles"]})}{/if}' +
 				'{__i18n_lang.t.pick([" left."], {"fr":["."]})}' +
 				'{/if}'
 		)
@@ -1524,6 +1524,68 @@ describe('namespaces and per-slot normalisation', () => {
 		// Svelte empties the blank between the slotted children, and the next
 		// text then gets a space of its own: two spaces, matched exactly.
 		expect(two.baseline).toBe(main('Hello  world', 'Heading', '<span slot="other">Other</span>'))
+	})
+})
+
+describe('whole-body emission and block contexts', () => {
+	it('emits every run of a body once one of them changes', async () => {
+		const pre = '<p style="white-space: pre-wrap"><T>Hello {@const x = 1}\n   world</T></p>'
+		const { baseline } = await parity(pre)
+		expect(baseline).toBe('<p style="white-space: pre-wrap">Hello world</p>')
+
+		const partial = await transform(component(pre), table({ 'Hello <1/>world': { fr: 'Bonjour <1/>world' } }))
+		expect(partial.code).toContain('{__i18n_lang.t.pick(["world"], {})}')
+		const [en, fr] = await ssr(partial.code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe('<p style="white-space: pre-wrap">Bonjour world</p>')
+
+		const slot = '<T><Wrap>Hello <svelte:fragment slot="heading">Heading</svelte:fragment> world</Wrap></T>'
+		const slotted = await transform(
+			component(slot),
+			table({ '<1>Hello <2>Heading</2>world</1>': { fr: '<1>Bonjour <2>Heading</2>world</1>' } })
+		)
+		const [slotEn, slotFr] = await ssr(slotted.code, {}, ['en', 'fr'])
+		expect(slotEn).toBe(
+			'<header>Heading</header><aside></aside><main style="white-space: pre-wrap">Hello world</main>'
+		)
+		expect(slotFr).toBe(
+			'<header>Heading</header><aside></aside><main style="white-space: pre-wrap">Bonjour world</main>'
+		)
+
+		const snippet = '<p style="white-space: pre-wrap"><T>Hello {#snippet s()}x{/snippet}\n  world</T></p>'
+		const { baseline: snippetBaseline } = await parity(snippet)
+		const around = await transform(component(snippet), table({ 'Hello <1/>world': { fr: 'Bonjour <1/>world' } }))
+		const [aroundEn, aroundFr] = await ssr(around.code, {}, ['en', 'fr'])
+		expect(aroundEn).toBe(snippetBaseline)
+		expect(aroundFr).toBe('<p style="white-space: pre-wrap">Bonjour world</p>')
+	})
+
+	it('gives block bodies a fresh context', async () => {
+		const cases = [
+			[
+				'<T><pre>Start{#each [1, 2] as item}\n<b>Hello</b>{/each}</pre></T>',
+				'\n<1>Hello</1>',
+				'\n<1>Bonjour</1>',
+				2,
+			],
+			['<T><pre>Start{#if true}\n<b>Hello</b>{/if}</pre></T>', '\n<1>Hello</1>', '\n<1>Bonjour</1>', 1],
+			[
+				'<T><pre>Start{#snippet s()}\n<b>Hello</b>{/snippet}{@render s()}{@render s()}</pre></T>',
+				'\n<1>Hello</1>',
+				'\n<1>Bonjour</1>',
+				2,
+			],
+		] as const
+
+		for (const [markup, source, fr, times] of cases) {
+			const { baseline } = await parity(markup)
+			expect(baseline).toBe(`<pre>Start${'\n<b>Hello</b>'.repeat(times)}</pre>`)
+
+			const { code } = await transform(component(markup), table({ [source]: { fr } }))
+			const [en, translated] = await ssr(code, {}, ['en', 'fr'])
+			expect(en).toBe(baseline)
+			expect(translated).toBe(`<pre>Start${'\n<b>Bonjour</b>'.repeat(times)}</pre>`)
+		}
 	})
 })
 

@@ -275,6 +275,15 @@ const rootContext = (preserve: boolean): Context => ({
 	component: false,
 })
 
+// A block body is its own fragment to Svelte: whitespace preservation and the
+// namespace carry on, the rules tied to the immediate parent element do not.
+const blockContext = (parent: Context): Context => ({
+	...parent,
+	removable: parent.svg && !parent.svgText,
+	pre: false,
+	component: false,
+})
+
 const childContext = (node: AST.ElementLike, parent: Context): Context => {
 	const regular = node.type === 'RegularElement'
 	// Svelte infers namespaces: <svg> starts one, <foreignObject> is HTML again.
@@ -376,7 +385,7 @@ export const parseT = (code: string, file?: string) => {
 						})
 
 						for (const body of blockBodies(node)) {
-							nested.push(...build(body, context, extra))
+							nested.push(...build(body, blockContext(context), extra))
 						}
 						break
 					default: {
@@ -930,7 +939,7 @@ export const transformT = (
 			continue
 		}
 
-		for (const [index, run] of segment.runs.entries()) {
+		const calls = segment.runs.map((run, index) => {
 			const indices = run.tokens.flatMap(token => (token.type === 'expr' ? [token.index] : []))
 			const positions = new Map(indices.map((expression, position) => [expression, position]))
 			const source = JSON.stringify(partsOf(run.tokens, positions))
@@ -939,12 +948,6 @@ export const transformT = (
 				const parts = JSON.stringify(partsOf(item.runs[index]!, positions))
 				return parts === source ? [] : [`"${item.locale}":${parts}`]
 			})
-
-			if (changed.length === 0) {
-				// A call next door turns this whitespace into text Svelte keeps, so it goes.
-				edits.push(...run.dropped.map(range => ({ ...range, text: '' })))
-				continue
-			}
 
 			// Each value is stringified right where Svelte would have, in source
 			// order; parentheses keep a sequence expression as one value.
@@ -955,11 +958,23 @@ export const transformT = (
 							.join(', ')}]`
 					: ''
 
-			edits.push({
-				start: run.start,
-				end: run.end,
-				text: `{__i18n_lang.t.pick(${source}, {${changed.join(',')}}${values})}`,
-			})
+			return { run, changed, text: `{__i18n_lang.t.pick(${source}, {${changed.join(',')}}${values})}` }
+		})
+
+		if (!calls.some(call => call.changed.length > 0)) {
+			continue
+		}
+
+		// Once one run is a call, Svelte's boundary trimming no longer reaches
+		// its neighbours, so every run of the body is emitted normalised, and
+		// whitespace Svelte would have dropped goes with it.
+		for (const { run, text } of calls) {
+			if (run.tokens.length === 0) {
+				edits.push(...run.dropped.map(range => ({ ...range, text: '' })))
+				continue
+			}
+
+			edits.push({ start: run.start, end: run.end, text })
 			translated = true
 		}
 	}

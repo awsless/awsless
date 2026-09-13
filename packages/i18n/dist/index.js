@@ -223,6 +223,12 @@ const rootContext = (preserve) => ({
 	svgText: false,
 	component: false
 });
+const blockContext = (parent) => ({
+	...parent,
+	removable: parent.svg && !parent.svgText,
+	pre: false,
+	component: false
+});
 const childContext = (node, parent) => {
 	const regular = node.type === "RegularElement";
 	const svg = regular && node.name === "foreignObject" ? false : parent.svg || regular && node.name === "svg";
@@ -324,7 +330,7 @@ const parseT = (code, file) => {
 						},
 						hoisted: HOISTED.has(node.type)
 					});
-					for (const body of blockBodies(node)) nested.push(...build(body, context, extra));
+					for (const body of blockBodies(node)) nested.push(...build(body, blockContext(context), extra));
 					break;
 				default: {
 					if (node.type === "Component" && ours.has(node)) {
@@ -744,7 +750,7 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 			});
 		}
 		if (translations.length === 0) continue;
-		for (const [index, run] of segment.runs.entries()) {
+		const calls = segment.runs.map((run, index) => {
 			const indices = run.tokens.flatMap((token) => token.type === "expr" ? [token.index] : []);
 			const positions = new Map(indices.map((expression, position) => [expression, position]));
 			const source = JSON.stringify(partsOf(run.tokens, positions));
@@ -752,18 +758,26 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 				const parts = JSON.stringify(partsOf(item.runs[index], positions));
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
-			if (changed.length === 0) {
+			const values = indices.length > 0 ? `, [${indices.map((i) => `__i18n_lang.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
+			return {
+				run,
+				changed,
+				text: `{__i18n_lang.t.pick(${source}, {${changed.join(",")}}${values})}`
+			};
+		});
+		if (!calls.some((call) => call.changed.length > 0)) continue;
+		for (const { run, text } of calls) {
+			if (run.tokens.length === 0) {
 				edits.push(...run.dropped.map((range) => ({
 					...range,
 					text: ""
 				})));
 				continue;
 			}
-			const values = indices.length > 0 ? `, [${indices.map((i) => `__i18n_lang.t.str((${spliced(code, segment.expressions[i], rewrites)}))`).join(", ")}]` : "";
 			edits.push({
 				start: run.start,
 				end: run.end,
-				text: `{__i18n_lang.t.pick(${source}, {${changed.join(",")}}${values})}`
+				text
 			});
 			translated = true;
 		}
