@@ -74,6 +74,8 @@ export const hasT = (code: string) => code.includes(T_MODULE)
 const PRESERVE = new Set(['pre', 'textarea'])
 const REMOVABLE = new Set(['select', 'tr', 'table', 'tbody', 'thead', 'tfoot', 'colgroup', 'datalist'])
 const RESTRICTED = new Set([...REMOVABLE, 'optgroup'])
+// The svg elements whose content is text; every other svg element holds shapes.
+const SVG_TEXT = new Set(['text', 'tspan', 'textPath', 'title', 'desc'])
 const HOISTED = new Set([
 	'ConstTag',
 	'DeclarationTag',
@@ -315,7 +317,9 @@ const childContext = (node: AST.ElementLike, parent: Context): Context => {
 		svg,
 		svgText,
 		component: COMPONENTS.has(node.type),
-		restricted: (regular && RESTRICTED.has(node.name)) || (svg && !svgText),
+		// Whitespace removal follows Svelte's rule above; sealing is about what
+		// the element itself can hold, so an svg text element stays open.
+		restricted: (regular && RESTRICTED.has(node.name)) || (svg && !(regular && SVG_TEXT.has(node.name))),
 	}
 }
 

@@ -1725,6 +1725,46 @@ describe('restricted parents and literal unchanged runs', () => {
 	})
 })
 
+describe('svg text elements', () => {
+	it('translates text inside svg text elements but not between shapes', async () => {
+		const markup = '<T><svg role="img"><title>Hello</title><text>Hello</text></svg></T>'
+		const source = '<1><2>Hello</2><3>Hello</3></1>'
+		expect(findSvelteTranslatable(component(markup))).toStrictEqual([{ source, kind: 'markup', sealed: [1, 3, 5] }])
+
+		const [baseline] = await ssr(component(markup), {}, ['en'])
+		const { code, warn } = await transform(
+			component(markup),
+			table({ [source]: { fr: '<1><2>Bonjour</2><3>Bonjour</3></1>' } })
+		)
+		expect(warn).not.toHaveBeenCalled()
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect(() => compile(code, { generate: 'server' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe('<svg role="img"><title>Bonjour</title><text>Bonjour</text></svg>')
+
+		const rejected = await transform(
+			component(markup),
+			table({ [source]: { fr: '<1> <2>Bonjour</2><3>Bonjour</3></1>' } })
+		)
+		expect(rejected.warn).toHaveBeenCalledTimes(1)
+		expect((await ssr(rejected.code, {}, ['fr']))[0]).toBe(baseline)
+
+		const grouped = component('<T><svg><g><text>Hi</text></g></svg></T>')
+		expect(findSvelteTranslatable(grouped)[0]?.sealed).toStrictEqual([1, 2, 4, 5])
+		const under = await transform(
+			grouped,
+			table({ '<1><2><3>Hi</3></2></1>': { fr: '<1><2>Texte <3>Salut</3></2></1>' } })
+		)
+		expect(under.warn).toHaveBeenCalledTimes(1)
+
+		const spans = await parity('<T><svg><text>Hello <tspan>world</tspan></text></svg></T>')
+		expect(spans.baseline).toBe('<svg><text>Hello <tspan>world</tspan></text></svg>')
+		expect(spans.fr).toBe('<svg><text>HELLO <tspan>WORLD</tspan></text></svg>')
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')

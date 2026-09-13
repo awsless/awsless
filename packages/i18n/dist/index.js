@@ -109,6 +109,13 @@ const REMOVABLE = /* @__PURE__ */ new Set([
 	"datalist"
 ]);
 const RESTRICTED = /* @__PURE__ */ new Set([...REMOVABLE, "optgroup"]);
+const SVG_TEXT = /* @__PURE__ */ new Set([
+	"text",
+	"tspan",
+	"textPath",
+	"title",
+	"desc"
+]);
 const HOISTED = /* @__PURE__ */ new Set([
 	"ConstTag",
 	"DeclarationTag",
@@ -248,7 +255,7 @@ const childContext = (node, parent) => {
 		svg,
 		svgText,
 		component: COMPONENTS.has(node.type),
-		restricted: regular && RESTRICTED.has(node.name) || svg && !svgText
+		restricted: regular && RESTRICTED.has(node.name) || svg && !(regular && SVG_TEXT.has(node.name))
 	};
 };
 const parseT = (code, file) => {
