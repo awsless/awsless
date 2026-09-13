@@ -309,13 +309,15 @@ export const parseT = (code: string, file?: string) => {
 		}
 	}
 
-	const build = (nodes: AST.Fragment['nodes'], context: Context, extra: Edit[]): Segment[] => {
+	// `direct` marks the <T> body itself, where an unslotted <svelte:fragment>
+	// would be meaningless once the component is gone.
+	const build = (nodes: AST.Fragment['nodes'], context: Context, extra: Edit[], direct = false): Segment[] => {
 		const pieces: Piece[] = []
 		const expressions: Range[] = []
 		const nested: Segment[] = []
 		let tags = 0
 
-		const visit = (nodes: AST.Fragment['nodes'], context: Context) => {
+		const visit = (nodes: AST.Fragment['nodes'], context: Context, direct: boolean) => {
 			for (const node of nodes) {
 				switch (node.type) {
 					case 'Text':
@@ -371,9 +373,9 @@ export const parseT = (code: string, file?: string) => {
 							break
 						}
 
-						if (node.type === 'SvelteFragment') {
-							// Only a component gives the fragment meaning; as its own block it
-							// keeps its scope and is a segment of its own.
+						if (node.type === 'SvelteFragment' && direct) {
+							// Without the component it belonged to, the fragment becomes its
+							// own block: it keeps its scope and is a segment of its own.
 							const first = node.fragment.nodes[0]
 							const last = node.fragment.nodes.at(-1)
 
@@ -408,7 +410,7 @@ export const parseT = (code: string, file?: string) => {
 								hoisted,
 								body,
 							})
-							visit(node.fragment.nodes, body)
+							visit(node.fragment.nodes, body, false)
 							pieces.push({ start: last.end, end: node.end, token: { type: 'close', n }, hoisted })
 						} else {
 							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n }, hoisted })
@@ -418,7 +420,7 @@ export const parseT = (code: string, file?: string) => {
 			}
 		}
 
-		visit(nodes, context)
+		visit(nodes, context, direct)
 
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
 	}
@@ -433,7 +435,7 @@ export const parseT = (code: string, file?: string) => {
 			foot,
 			wrap,
 			extra,
-			segments: nodes ? build(nodes, rootContext(preserve), extra) : [],
+			segments: nodes ? build(nodes, rootContext(preserve), extra, true) : [],
 		})
 	})
 

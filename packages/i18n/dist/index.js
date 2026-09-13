@@ -255,12 +255,12 @@ const parseT = (code, file) => {
 			case "SnippetBlock": return [node.body.nodes];
 		}
 	};
-	const build = (nodes, context, extra) => {
+	const build = (nodes, context, extra, direct = false) => {
 		const pieces = [];
 		const expressions = [];
 		const nested = [];
 		let tags = 0;
-		const visit = (nodes, context) => {
+		const visit = (nodes, context, direct) => {
 			for (const node of nodes) switch (node.type) {
 				case "Text":
 					pieces.push({
@@ -332,7 +332,7 @@ const parseT = (code, file) => {
 						});
 						break;
 					}
-					if (node.type === "SvelteFragment") {
+					if (node.type === "SvelteFragment" && direct) {
 						const first = node.fragment.nodes[0];
 						const last = node.fragment.nodes.at(-1);
 						pieces.push({
@@ -389,7 +389,7 @@ const parseT = (code, file) => {
 							hoisted,
 							body
 						});
-						visit(node.fragment.nodes, body);
+						visit(node.fragment.nodes, body, false);
 						pieces.push({
 							start: last.end,
 							end: node.end,
@@ -411,7 +411,7 @@ const parseT = (code, file) => {
 				}
 			}
 		};
-		visit(nodes, context);
+		visit(nodes, context, direct);
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
 	};
 	collect(code, ours, ast.fragment.nodes, preserveAll, void 0, (node, head, foot, wrap, nodes, preserve) => {
@@ -423,7 +423,7 @@ const parseT = (code, file) => {
 			foot,
 			wrap,
 			extra,
-			segments: nodes ? build(nodes, rootContext(preserve), extra) : []
+			segments: nodes ? build(nodes, rootContext(preserve), extra, true) : []
 		});
 	});
 	return {

@@ -1391,6 +1391,35 @@ describe('fragment scopes and evaluation order', () => {
 	})
 })
 
+describe('fragments of nested components', () => {
+	it('keeps slotted fragments of a nested component verbatim', async () => {
+		const markup = '<T><Panel><svelte:fragment slot="heading">Hello</svelte:fragment>Body</Panel></T>'
+		expect(sources(markup)).toStrictEqual(['<1><2>Hello</2>Body</1>'])
+
+		const { baseline, code } = await parity(markup)
+		expect(baseline).toBe('<header>Hello</header><main>Body</main>')
+		expect(code).toContain('<Panel><svelte:fragment slot="heading">')
+
+		const { code: translated } = await transform(
+			component(markup),
+			table({ '<1><2>Hello</2>Body</1>': { fr: '<1><2>Bonjour</2>Corps</1>' } })
+		)
+		const [en, fr] = await ssr(translated, {}, ['en', 'fr'])
+		expect(en).toBe(baseline)
+		expect(fr).toBe('<header>Bonjour</header><main>Corps</main>')
+
+		const bound = await parity(
+			'<T><Panel><svelte:fragment slot="heading" let:item>Hello {item}</svelte:fragment></Panel></T>'
+		)
+		expect(bound.baseline).toBe('<header>Hello X</header><main></main>')
+		expect(bound.code).toContain('<svelte:fragment slot="heading" let:item>')
+
+		const empty = await parity('<T><Legacy><svelte:fragment slot="side" /></Legacy></T>')
+		expect(empty.baseline).toBe('<div>fallback</div><aside></aside>')
+		expect(empty.code).toContain('<Legacy><svelte:fragment slot="side" /></Legacy>')
+	})
+})
+
 describe('T.svelte', () => {
 	it('compiles and renders without children', async () => {
 		const source = await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8')
