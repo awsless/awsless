@@ -36,7 +36,7 @@ export type Segment = {
 
 export type TComponent = Range & {
 	/** The pieces of the <T> that make way for the block scope. Absent when empty. */
-	wrap?: { open: Range; close: Range; tail: string }
+	wrap?: { open: Range; close: Range; head: string; tail: string; foot: string }
 	/** Tags of direct `<svelte:fragment>` children, meaningless outside a component. */
 	remove: Range[]
 	segments: Segment[]
@@ -61,6 +61,16 @@ const HOISTED = new Set([
 const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/
 const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/
 const isBlankText = (value: string) => !/[^ \t\r\n]/.test(value)
+
+// With children passed as a prop there is nothing to translate in the <T>
+// itself; the runtime component renders it.
+const hasPassedChildren = (node: AST.Component) =>
+	node.attributes.some(
+		attribute =>
+			attribute.type === 'SpreadAttribute' || (attribute.type === 'Attribute' && attribute.name === 'children')
+	)
+
+const COMPONENTS = new Set(['Component', 'SvelteComponent', 'SvelteSelf'])
 
 const isBlank = (node: AST.Fragment['nodes'][number]) =>
 	node.type === 'Comment' || (node.type === 'Text' && isBlankText(node.data))
@@ -174,19 +184,13 @@ export const parseT = (code: string, file?: string) => {
 						break
 					default: {
 						if (node.type === 'Component' && node.name === 'T') {
-							// With children passed as a prop there is nothing to translate here;
-							// the runtime component renders it.
-							const passed = node.attributes.some(
-								attribute =>
-									attribute.type === 'SpreadAttribute' ||
-									(attribute.type === 'Attribute' && attribute.name === 'children')
-							)
-
-							if (passed) {
-								continue
+							if (!hasPassedChildren(node)) {
+								throw fail(node.start, 'nested <T> is not supported inside <T>')
 							}
 
-							throw fail(node.start, 'nested <T> is not supported inside <T>')
+							// Opaque like a block, so the runs around it never merge across it.
+							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
+							break
 						}
 
 						const n = ++tags
@@ -218,7 +222,7 @@ export const parseT = (code: string, file?: string) => {
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
 	}
 
-	collect(ast.fragment.nodes, preserveAll, (node, wrap, remove, nodes, preserve) => {
+	collect(code, ast.fragment.nodes, preserveAll, undefined, (node, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
@@ -239,18 +243,25 @@ type Found = (
 	preserve: boolean
 ) => void
 
-const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) => {
+const collect = (
+	code: string,
+	nodes: AST.Fragment['nodes'],
+	preserve: boolean,
+	parent: AST.Fragment['nodes'][number] | undefined,
+	found: Found
+) => {
 	for (const node of nodes) {
 		if (node.type === 'Component' && node.name === 'T') {
-			// With children passed as a prop there is nothing to translate here;
-			// the runtime component renders it.
-			const passed = node.attributes.some(
-				attribute =>
-					attribute.type === 'SpreadAttribute' ||
-					(attribute.type === 'Attribute' && attribute.name === 'children')
-			)
+			if (hasPassedChildren(node)) {
+				continue
+			}
 
-			if (passed) {
+			// Named slot content keeps its place as a fragment carrying the
+			// attribute. Anywhere else a slot attribute has no fragment form,
+			// so that <T> stays as it is.
+			const slot = node.attributes.find(attribute => attribute.type === 'Attribute' && attribute.name === 'slot')
+
+			if (slot && !(parent && COMPONENTS.has(parent.type))) {
 				continue
 			}
 
@@ -293,7 +304,9 @@ const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) 
 				const wrap = {
 					open: { start: node.start, end: first.start },
 					close: { start: last.end, end: node.end },
+					head: slot ? `<svelte:fragment ${code.slice(slot.start, slot.end)}>` : '',
 					tail: snippet && !inline ? '{@render children()}' : '',
+					foot: slot ? '</svelte:fragment>' : '',
 				}
 				found(node, wrap, remove, body, preserve)
 			} else {
@@ -307,7 +320,7 @@ const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) 
 		for (const key of ['fragment', 'consequent', 'alternate', 'body', 'fallback', 'pending', 'then', 'catch']) {
 			const fragment = (node as unknown as Record<string, AST.Fragment | null | undefined>)[key]
 			if (fragment?.type === 'Fragment') {
-				collect(fragment.nodes, inside, found)
+				collect(code, fragment.nodes, inside, node, found)
 			}
 		}
 	}
@@ -662,8 +675,8 @@ export const transformT = (
 	// A block is a real scope for `{@const}` and snippets, and unlike a
 	// snippet it is not handed to an enclosing component as a prop.
 	edits.push(...component.remove.map(range => ({ ...range, text: '' })))
-	edits.push({ ...component.wrap.open, text: '{#if true}' })
-	edits.push({ ...component.wrap.close, text: `${component.wrap.tail}{/if}` })
+	edits.push({ ...component.wrap.open, text: `${component.wrap.head}{#if true}` })
+	edits.push({ ...component.wrap.close, text: `${component.wrap.tail}{/if}${component.wrap.foot}` })
 
 	for (const segment of component.segments) {
 		if (segment.source === '') {

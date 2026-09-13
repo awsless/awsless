@@ -75,6 +75,7 @@ const component = (markup: string, script = "import T from '@awsless/i18n/T'") =
 		"\timport Badge from './badge.svelte'",
 		"\timport Icon from './icon.svelte'",
 		"\timport Card from './card.svelte'",
+		"\timport Panel from './panel.svelte'",
 		'\tlet { name, n, items, html, s, a, b, p, k, next, rows, languages, x, tag } = $props()',
 		'</script>',
 		'',
@@ -126,6 +127,7 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 	await emit('badge', BADGE)
 	await emit('icon', ICON)
 	await emit('card', CARD)
+	await emit('panel', '<header><slot name="heading" /></header><main><slot /></main>')
 
 	const page = await import(pathToFileURL(resolve(dir, 'page.js')).href)
 
@@ -924,6 +926,52 @@ describe('nested lang.t and passed children', () => {
 		}
 
 		expect(sources('<T children={greeting}/><T {...rest}>x</T>')).toStrictEqual([])
+	})
+})
+
+describe('<T> inside <T> and slot placement', () => {
+	it('keeps a skipped inner <T> opaque between runs', async () => {
+		for (const inner of ['<T children={greeting}/>', '<T {...{ children: greeting }}/>']) {
+			const markup = `{#snippet greeting()}MID{/snippet}<T>before ${inner} after</T>`
+
+			expect(sources(markup)).toStrictEqual(['before <1/> after'])
+			await parity(markup)
+
+			const { code } = await transform(
+				component(markup),
+				table({ 'before <1/> after': { fr: 'avant <1/> après' } })
+			)
+			const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+
+			expect(en).toBe('before MID after')
+			expect(fr).toBe('avant MID après')
+		}
+	})
+
+	it('keeps named slot content in place', async () => {
+		const markup = '<Panel><T slot="heading">Hello</T><p>Body</p></Panel>'
+		const expected = '<header>Hello</header><main><p>Body</p></main>'
+
+		const { baseline } = await parity(markup)
+		expect(baseline).toBe(expected)
+
+		const { code } = await transform(component(markup), table({ Hello: { fr: 'Bonjour' } }))
+		expect(code).toContain(
+			'<Panel><svelte:fragment slot="heading">{#if true}{__i18n_lang.t.pick(["Hello"], {"fr":["Bonjour"]})}{/if}</svelte:fragment><p>Body</p></Panel>'
+		)
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe(expected)
+		expect(fr).toBe('<header>Bonjour</header><main><p>Body</p></main>')
+	})
+
+	it('leaves a slotted <T> alone outside a component', async () => {
+		const markup = '<div><T slot="x">Hello</T></div>'
+
+		expect(sources(markup)).toStrictEqual([])
+
+		const { code } = await transform(component(markup), table({ Hello: { fr: 'Bonjour' } }))
+		expect(code).toContain(markup)
 	})
 })
 

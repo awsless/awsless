@@ -121,6 +121,12 @@ const HOISTED = /* @__PURE__ */ new Set([
 const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/;
 const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/;
 const isBlankText = (value) => !/[^ \t\r\n]/.test(value);
+const hasPassedChildren = (node) => node.attributes.some((attribute) => attribute.type === "SpreadAttribute" || attribute.type === "Attribute" && attribute.name === "children");
+const COMPONENTS = /* @__PURE__ */ new Set([
+	"Component",
+	"SvelteComponent",
+	"SvelteSelf"
+]);
 const isBlank = (node) => node.type === "Comment" || node.type === "Text" && isBlankText(node.data);
 const rootContext = (preserve) => ({
 	preserve,
@@ -232,8 +238,16 @@ const parseT = (code, file) => {
 					break;
 				default: {
 					if (node.type === "Component" && node.name === "T") {
-						if (node.attributes.some((attribute) => attribute.type === "SpreadAttribute" || attribute.type === "Attribute" && attribute.name === "children")) continue;
-						throw fail(node.start, "nested <T> is not supported inside <T>");
+						if (!hasPassedChildren(node)) throw fail(node.start, "nested <T> is not supported inside <T>");
+						pieces.push({
+							start: node.start,
+							end: node.end,
+							token: {
+								type: "self",
+								n: ++tags
+							}
+						});
+						break;
 					}
 					const n = ++tags;
 					const first = node.fragment.nodes[0];
@@ -276,7 +290,7 @@ const parseT = (code, file) => {
 		visit(nodes, context);
 		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
 	};
-	collect(ast.fragment.nodes, preserveAll, (node, wrap, remove, nodes, preserve) => {
+	collect(code, ast.fragment.nodes, preserveAll, void 0, (node, wrap, remove, nodes, preserve) => {
 		components.push({
 			start: node.start,
 			end: node.end,
@@ -290,10 +304,12 @@ const parseT = (code, file) => {
 		components
 	};
 };
-const collect = (nodes, preserve, found) => {
+const collect = (code, nodes, preserve, parent, found) => {
 	for (const node of nodes) {
 		if (node.type === "Component" && node.name === "T") {
-			if (node.attributes.some((attribute) => attribute.type === "SpreadAttribute" || attribute.type === "Attribute" && attribute.name === "children")) continue;
+			if (hasPassedChildren(node)) continue;
+			const slot = node.attributes.find((attribute) => attribute.type === "Attribute" && attribute.name === "slot");
+			if (slot && !(parent && COMPONENTS.has(parent.type))) continue;
 			const remove = [];
 			const children = node.fragment.nodes.flatMap((child) => {
 				if (child.type !== "SvelteFragment") return [child];
@@ -331,7 +347,9 @@ const collect = (nodes, preserve, found) => {
 					start: last.end,
 					end: node.end
 				},
-				tail: snippet && !inline ? "{@render children()}" : ""
+				head: slot ? `<svelte:fragment ${code.slice(slot.start, slot.end)}>` : "",
+				tail: snippet && !inline ? "{@render children()}" : "",
+				foot: slot ? "</svelte:fragment>" : ""
 			}, remove, body, preserve);
 			else found(node, void 0, [], void 0, preserve);
 			continue;
@@ -348,7 +366,7 @@ const collect = (nodes, preserve, found) => {
 			"catch"
 		]) {
 			const fragment = node[key];
-			if (fragment?.type === "Fragment") collect(fragment.nodes, inside, found);
+			if (fragment?.type === "Fragment") collect(code, fragment.nodes, inside, node, found);
 		}
 	}
 };
@@ -574,11 +592,11 @@ const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 	})));
 	edits.push({
 		...component.wrap.open,
-		text: "{#if true}"
+		text: `${component.wrap.head}{#if true}`
 	});
 	edits.push({
 		...component.wrap.close,
-		text: `${component.wrap.tail}{/if}`
+		text: `${component.wrap.tail}{/if}${component.wrap.foot}`
 	});
 	for (const segment of component.segments) {
 		if (segment.source === "") continue;
