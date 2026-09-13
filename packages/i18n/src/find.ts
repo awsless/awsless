@@ -8,6 +8,9 @@ import { hasT } from './t'
 /** A source text and where it came from: `lang.t` code or `<T>` markup. */
 export type Source = { source: string; kind: 't' | 'markup' }
 
+/** A lang.t template: its cache key and the range of the whole tagged call. */
+export type Tagged = { start: number; end: number; source: string }
+
 // The start scan & the hot update skip the same folders, so a save can't
 // translate a file the next start would then clean up again.
 export const isIgnoredPath = (file: string) => /[\\/](node_modules|\.[^\\/]+)[\\/]/.test(file)

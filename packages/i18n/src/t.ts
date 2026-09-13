@@ -8,11 +8,20 @@ const range = (node: unknown) => node as Range
 // Tokens are the one shape shared by the <T> children, the string the
 // translator sees and the translation that comes back.
 export type Token =
-	| { type: 'text'; value: string; preserve: boolean }
+	| { type: 'text'; value: string }
 	| { type: 'expr'; index: number }
 	| { type: 'open' | 'close' | 'self'; n: number }
 
-type Piece = Range & { token: Token }
+// What Svelte's clean_nodes knows about the body a text node sits in.
+type Context = { preserve: boolean; removable: boolean; pre: boolean; svg: boolean; svgText: boolean }
+
+type Piece = Range & {
+	token: Token
+	/** Svelte hoists these nodes out of the body, so they don't take part in whitespace. */
+	hoisted?: boolean
+	/** The body an `open` token starts. */
+	body?: Context
+}
 
 // The text between two tag boundaries: translated and emitted as one call.
 export type Run = Range & { tokens: Token[] }
@@ -21,7 +30,7 @@ export type Run = Range & { tokens: Token[] }
 export type Segment = {
 	source: string
 	tokens: Token[]
-	expressions: string[]
+	expressions: Range[]
 	runs: Run[]
 }
 
@@ -35,12 +44,48 @@ export type TComponent = Range & {
 
 export const hasT = (code: string) => /<T[\s/>]/.test(code)
 
-// svelte:element may turn out to be a pre at runtime, so it counts as one.
-const PRESERVE = new Set(['pre', 'textarea', 'svelte:element'])
-const ASCII_SPACE = /[ \t\n\r\f]+/g
+// Mirrors svelte/compiler phases/3-transform/utils.js clean_nodes.
+const PRESERVE = new Set(['pre', 'textarea'])
+const REMOVABLE = new Set(['select', 'tr', 'table', 'tbody', 'thead', 'tfoot', 'colgroup', 'datalist'])
+const HOISTED = new Set([
+	'ConstTag',
+	'DeclarationTag',
+	'DebugTag',
+	'SvelteBody',
+	'SvelteWindow',
+	'SvelteDocument',
+	'SvelteHead',
+	'TitleElement',
+	'SnippetBlock',
+])
+const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/
+const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/
+const isBlankText = (value: string) => !/[^ \t\r\n]/.test(value)
 
 const isBlank = (node: AST.Fragment['nodes'][number]) =>
-	node.type === 'Comment' || (node.type === 'Text' && node.data.trim() === '')
+	node.type === 'Comment' || (node.type === 'Text' && isBlankText(node.data))
+
+const rootContext = (preserve: boolean): Context => ({
+	preserve,
+	removable: false,
+	pre: false,
+	svg: false,
+	svgText: false,
+})
+
+const childContext = (node: AST.ElementLike, parent: Context): Context => {
+	const regular = node.type === 'RegularElement'
+	const svg = parent.svg || (regular && node.name === 'svg')
+	const svgText = parent.svgText || (regular && node.name === 'text')
+
+	return {
+		preserve: parent.preserve || (regular && PRESERVE.has(node.name)),
+		removable: (regular && REMOVABLE.has(node.name)) || (svg && !svgText),
+		pre: regular && node.name === 'pre',
+		svg,
+		svgText,
+	}
+}
 
 export const parseT = (code: string, file?: string) => {
 	const ast = parse(code, { modern: true })
@@ -76,21 +121,17 @@ export const parseT = (code: string, file?: string) => {
 		}
 	}
 
-	const build = (nodes: AST.Fragment['nodes'], preserve: boolean): Segment[] => {
+	const build = (nodes: AST.Fragment['nodes'], context: Context): Segment[] => {
 		const pieces: Piece[] = []
-		const expressions: string[] = []
+		const expressions: Range[] = []
 		const nested: Segment[] = []
 		let tags = 0
 
-		const visit = (nodes: AST.Fragment['nodes'], preserve: boolean) => {
+		const visit = (nodes: AST.Fragment['nodes'], context: Context) => {
 			for (const node of nodes) {
 				switch (node.type) {
 					case 'Text':
-						pieces.push({
-							start: node.start,
-							end: node.end,
-							token: { type: 'text', value: node.data, preserve },
-						})
+						pieces.push({ start: node.start, end: node.end, token: { type: 'text', value: node.data } })
 						break
 					case 'Comment':
 						break
@@ -100,7 +141,7 @@ export const parseT = (code: string, file?: string) => {
 							end: node.end,
 							token: { type: 'expr', index: expressions.length },
 						})
-						expressions.push(code.slice(range(node.expression).start, range(node.expression).end))
+						expressions.push({ start: range(node.expression).start, end: range(node.expression).end })
 						break
 					case 'HtmlTag':
 					case 'RenderTag':
@@ -108,17 +149,27 @@ export const parseT = (code: string, file?: string) => {
 					case 'DebugTag':
 					case 'AttachTag':
 					case 'DeclarationTag':
-						pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
+						pieces.push({
+							start: node.start,
+							end: node.end,
+							token: { type: 'self', n: ++tags },
+							hoisted: HOISTED.has(node.type),
+						})
 						break
 					case 'IfBlock':
 					case 'EachBlock':
 					case 'AwaitBlock':
 					case 'KeyBlock':
 					case 'SnippetBlock':
-						pieces.push({ start: node.start, end: node.end, token: { type: 'self', n: ++tags } })
+						pieces.push({
+							start: node.start,
+							end: node.end,
+							token: { type: 'self', n: ++tags },
+							hoisted: HOISTED.has(node.type),
+						})
 
 						for (const body of blockBodies(node)) {
-							nested.push(...build(body, preserve))
+							nested.push(...build(body, context))
 						}
 						break
 					default: {
@@ -129,22 +180,30 @@ export const parseT = (code: string, file?: string) => {
 						const n = ++tags
 						const first = node.fragment.nodes[0]
 						const last = node.fragment.nodes.at(-1)
+						const hoisted = HOISTED.has(node.type)
 
 						if (first && last) {
-							pieces.push({ start: node.start, end: first.start, token: { type: 'open', n } })
-							visit(node.fragment.nodes, preserve || PRESERVE.has(node.name))
-							pieces.push({ start: last.end, end: node.end, token: { type: 'close', n } })
+							const body = childContext(node, context)
+							pieces.push({
+								start: node.start,
+								end: first.start,
+								token: { type: 'open', n },
+								hoisted,
+								body,
+							})
+							visit(node.fragment.nodes, body)
+							pieces.push({ start: last.end, end: node.end, token: { type: 'close', n }, hoisted })
 						} else {
-							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n } })
+							pieces.push({ start: node.start, end: node.end, token: { type: 'self', n }, hoisted })
 						}
 					}
 				}
 			}
 		}
 
-		visit(nodes, preserve)
+		visit(nodes, context)
 
-		return [segment(normalize(pieces), expressions), ...nested]
+		return [segment(merge(normalize(pieces, context)), expressions), ...nested]
 	}
 
 	collect(ast.fragment.nodes, preserveAll, (node, wrap, remove, nodes, preserve) => {
@@ -153,7 +212,7 @@ export const parseT = (code: string, file?: string) => {
 			end: node.end,
 			wrap,
 			remove,
-			segments: nodes ? build(nodes, preserve) : [],
+			segments: nodes ? build(nodes, rootContext(preserve)) : [],
 		})
 	})
 
@@ -219,7 +278,7 @@ const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) 
 			continue
 		}
 
-		const inside = preserve || ('name' in node && typeof node.name === 'string' && PRESERVE.has(node.name))
+		const inside = preserve || (node.type === 'RegularElement' && PRESERVE.has(node.name))
 
 		for (const key of ['fragment', 'consequent', 'alternate', 'body', 'fallback', 'pending', 'then', 'catch']) {
 			const fragment = (node as unknown as Record<string, AST.Fragment | null | undefined>)[key]
@@ -230,12 +289,106 @@ const collect = (nodes: AST.Fragment['nodes'], preserve: boolean, found: Found) 
 	}
 }
 
-// Whitespace follows Svelte's rules at the token level, since the emitted
-// text is dynamic and Svelte can't trim it any more: every body (the <T>
-// itself and each element) loses ASCII whitespace at its start and end,
-// interior runs collapse to one space, and none of it inside pre, textarea
-// or a preserveWhitespace component.
-const normalize = (pieces: Piece[]) => {
+// Reproduces what clean_nodes does to the text of one body, so the emitted
+// text equals what Svelte would have rendered from the markup: the body's
+// edges lose whitespace, a text node's own edges collapse to one space
+// unless an expression is next to them, and interior whitespace stays.
+const normalize = (pieces: Piece[], context: Context): Piece[] => {
+	type Item = { piece: Piece; inner?: Piece[]; close?: Piece }
+
+	const items: Item[] = []
+
+	for (let i = 0; i < pieces.length; i++) {
+		const piece = pieces[i]!
+
+		if (piece.token.type === 'open') {
+			const n = piece.token.n
+			let j = i + 1
+
+			while (!(pieces[j]!.token.type === 'close' && (pieces[j]!.token as { n: number }).n === n)) {
+				j++
+			}
+
+			items.push({ piece, inner: pieces.slice(i + 1, j), close: pieces[j] })
+			i = j
+		} else {
+			items.push({ piece })
+		}
+	}
+
+	const dropped = new Set<Item>()
+	const text = (item: Item | undefined) => (item?.piece.token.type === 'text' ? item.piece.token : undefined)
+	let regular = items.filter(item => !item.piece.hoisted)
+
+	if (!context.preserve) {
+		while (regular.length > 0 && text(regular[0]) && isBlankText(text(regular[0])!.value)) {
+			dropped.add(regular.shift()!)
+		}
+
+		while (regular.length > 0 && text(regular.at(-1)) && isBlankText(text(regular.at(-1))!.value)) {
+			dropped.add(regular.pop()!)
+		}
+
+		const first = text(regular[0])
+		const last = text(regular.at(-1))
+
+		if (first) {
+			first.value = first.value.replace(STARTS_WITH_WHITESPACE, '')
+		}
+
+		if (last) {
+			last.value = last.value.replace(ENDS_WITH_WHITESPACE, '')
+		}
+
+		for (const [index, item] of regular.entries()) {
+			const token = text(item)
+
+			if (!token) {
+				continue
+			}
+
+			const previous = regular[index - 1]?.piece.token
+			const next = regular[index + 1]?.piece.token
+
+			if (previous?.type !== 'expr') {
+				const afterSpace = previous?.type === 'text' && ENDS_WITH_WHITESPACE.test(previous.value)
+				token.value = token.value.replace(STARTS_WITH_WHITESPACE, afterSpace ? '' : ' ')
+			}
+
+			if (next?.type !== 'expr') {
+				token.value = token.value.replace(ENDS_WITH_WHITESPACE, ' ')
+			}
+
+			if (token.value === '' || (token.value === ' ' && context.removable)) {
+				dropped.add(item)
+			}
+		}
+
+		regular = regular.filter(item => !dropped.has(item))
+	}
+
+	// The browser drops a newline right after <pre>, so Svelte does too.
+	const first = text(regular[0])
+
+	if (context.pre && first && (first.value === '\n' || first.value === '\r\n')) {
+		dropped.add(regular[0]!)
+	}
+
+	return items.flatMap(item => {
+		if (dropped.has(item)) {
+			return []
+		}
+
+		if (item.inner && item.close) {
+			return [item.piece, ...normalize(item.inner, item.piece.body!), item.close]
+		}
+
+		return [item.piece]
+	})
+}
+
+// Text nodes split by a comment count as one run.
+const merge = (pieces: Piece[]) => {
 	const merged: Piece[] = []
 
 	for (const piece of pieces) {
@@ -249,33 +402,14 @@ const normalize = (pieces: Piece[]) => {
 		}
 	}
 
-	for (const [index, { token }] of merged.entries()) {
-		if (token.type !== 'text' || token.preserve) {
-			continue
-		}
-
-		const before = merged[index - 1]?.token.type ?? 'open'
-		const after = merged[index + 1]?.token.type ?? 'close'
-
-		token.value = token.value.replace(ASCII_SPACE, ' ')
-
-		if (before === 'open') {
-			token.value = token.value.replace(/^[ \t\n\r\f]+/, '')
-		}
-
-		if (after === 'close') {
-			token.value = token.value.replace(/[ \t\n\r\f]+$/, '')
-		}
-	}
-
-	return merged.filter(piece => piece.token.type !== 'text' || piece.token.value !== '')
+	return merged
 }
 
 const isRunToken = (token: Token) => token.type === 'text' || token.type === 'expr'
 
 // Runs are the gaps between tag tokens; an empty gap still gets a position
 // so a translation that moves text into it has somewhere to go.
-const segment = (pieces: Piece[], expressions: string[]): Segment => {
+const segment = (pieces: Piece[], expressions: Range[]): Segment => {
 	const tokens = pieces.map(piece => piece.token)
 	const runs: Run[] = []
 
@@ -347,7 +481,7 @@ export const tokenize = (text: string) => {
 
 	const flush = () => {
 		if (buffer !== '') {
-			tokens.push({ type: 'text', value: buffer, preserve: false })
+			tokens.push({ type: 'text', value: buffer })
 			buffer = ''
 		}
 	}
@@ -415,7 +549,7 @@ const placeholdersOf = (tokens: Token[]) =>
 const placeholders = (text: string) =>
 	Array.from(text.matchAll(/\$\{([^{}]*)\}/g), match => match[1]!)
 		.toSorted()
-		.join('\u0000')
+		.join(' ')
 
 /** Returns what is wrong with a lang.t translation, or nothing when it
  * keeps every `${...}` placeholder. Angle brackets are plain text there. */
@@ -447,7 +581,7 @@ export const validateTranslation = (source: string, translation: string) => {
 }
 
 // ---------------------------------------------------------------------------
-// Emitting: `{__i18n_lang.t.pick(["Hello ", 0], {"fr":["Bonjour ", 0]}, [name])}`
+// Emitting: `{__i18n_lang.t.pick(["Hello ", 0], {"fr":["Bonjour ", 0]}, [(name)])}`
 
 export type Edit = Range & { text: string }
 export type Lookup = (source: string, locale: string) => string | undefined
@@ -467,14 +601,32 @@ const partsOf = (tokens: Token[], positions: Map<number, number>) =>
 		return positions.get(token.index)!
 	})
 
+// An expression's source with the lang.t rewrites that fall inside it
+// spliced in by offset, since the text itself is never searched.
+const spliced = (code: string, target: Range, rewrites: Edit[]) => {
+	let result = ''
+	let cursor = target.start
+
+	for (const rewrite of rewrites) {
+		if (rewrite.start >= target.start && rewrite.end <= target.end) {
+			result += code.slice(cursor, rewrite.start) + rewrite.text
+			cursor = rewrite.end
+		}
+	}
+
+	return result + code.slice(cursor, target.end)
+}
+
 /** The edits turning a <T> into an `{#if true}` block with translated text
  * runs, and whether any of them calls the runtime. An edit without text
  * removes, one without length inserts. */
 export const transformT = (
 	component: TComponent,
+	code: string,
 	locales: string[],
 	lookup: Lookup,
-	warn: (message: string) => void
+	warn: (message: string) => void,
+	rewrites: Edit[] = []
 ) => {
 	const edits: Edit[] = []
 	let translated = false
@@ -533,7 +685,10 @@ export const transformT = (
 			}
 
 			// Parentheses keep a sequence expression as one value.
-			const values = indices.length > 0 ? `, [${indices.map(i => `(${segment.expressions[i]})`).join(', ')}]` : ''
+			const values =
+				indices.length > 0
+					? `, [${indices.map(i => `(${spliced(code, segment.expressions[i]!, rewrites)})`).join(', ')}]`
+					: ''
 
 			edits.push({
 				start: run.start,

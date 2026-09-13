@@ -3,9 +3,9 @@ import MagicString from "magic-string";
 import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { glob } from "glob";
-import { walk } from "estree-walker";
 import lineColumn from "line-column";
 import { parse } from "svelte/compiler";
+import { walk } from "estree-walker";
 import { parseSync } from "oxc-parser";
 import { generateObject } from "ai";
 import chunk from "chunk";
@@ -96,13 +96,51 @@ const removeUnusedTranslations = (cache, sources, locales) => {
 //#region src/t.ts
 const range = (node) => node;
 const hasT = (code) => /<T[\s/>]/.test(code);
-const PRESERVE = /* @__PURE__ */ new Set([
-	"pre",
-	"textarea",
-	"svelte:element"
+const PRESERVE = /* @__PURE__ */ new Set(["pre", "textarea"]);
+const REMOVABLE = /* @__PURE__ */ new Set([
+	"select",
+	"tr",
+	"table",
+	"tbody",
+	"thead",
+	"tfoot",
+	"colgroup",
+	"datalist"
 ]);
-const ASCII_SPACE = /[ \t\n\r\f]+/g;
-const isBlank = (node) => node.type === "Comment" || node.type === "Text" && node.data.trim() === "";
+const HOISTED = /* @__PURE__ */ new Set([
+	"ConstTag",
+	"DeclarationTag",
+	"DebugTag",
+	"SvelteBody",
+	"SvelteWindow",
+	"SvelteDocument",
+	"SvelteHead",
+	"TitleElement",
+	"SnippetBlock"
+]);
+const STARTS_WITH_WHITESPACE = /^[ \t\r\n]+/;
+const ENDS_WITH_WHITESPACE = /[ \t\r\n]+$/;
+const isBlankText = (value) => !/[^ \t\r\n]/.test(value);
+const isBlank = (node) => node.type === "Comment" || node.type === "Text" && isBlankText(node.data);
+const rootContext = (preserve) => ({
+	preserve,
+	removable: false,
+	pre: false,
+	svg: false,
+	svgText: false
+});
+const childContext = (node, parent) => {
+	const regular = node.type === "RegularElement";
+	const svg = parent.svg || regular && node.name === "svg";
+	const svgText = parent.svgText || regular && node.name === "text";
+	return {
+		preserve: parent.preserve || regular && PRESERVE.has(node.name),
+		removable: regular && REMOVABLE.has(node.name) || svg && !svgText,
+		pre: regular && node.name === "pre",
+		svg,
+		svgText
+	};
+};
 const parseT = (code, file) => {
 	const ast = parse(code, { modern: true });
 	const components = [];
@@ -128,12 +166,12 @@ const parseT = (code, file) => {
 			case "SnippetBlock": return [node.body.nodes];
 		}
 	};
-	const build = (nodes, preserve) => {
+	const build = (nodes, context) => {
 		const pieces = [];
 		const expressions = [];
 		const nested = [];
 		let tags = 0;
-		const visit = (nodes, preserve) => {
+		const visit = (nodes, context) => {
 			for (const node of nodes) switch (node.type) {
 				case "Text":
 					pieces.push({
@@ -141,8 +179,7 @@ const parseT = (code, file) => {
 						end: node.end,
 						token: {
 							type: "text",
-							value: node.data,
-							preserve
+							value: node.data
 						}
 					});
 					break;
@@ -156,7 +193,10 @@ const parseT = (code, file) => {
 							index: expressions.length
 						}
 					});
-					expressions.push(code.slice(range(node.expression).start, range(node.expression).end));
+					expressions.push({
+						start: range(node.expression).start,
+						end: range(node.expression).end
+					});
 					break;
 				case "HtmlTag":
 				case "RenderTag":
@@ -170,7 +210,8 @@ const parseT = (code, file) => {
 						token: {
 							type: "self",
 							n: ++tags
-						}
+						},
+						hoisted: HOISTED.has(node.type)
 					});
 					break;
 				case "IfBlock":
@@ -184,32 +225,38 @@ const parseT = (code, file) => {
 						token: {
 							type: "self",
 							n: ++tags
-						}
+						},
+						hoisted: HOISTED.has(node.type)
 					});
-					for (const body of blockBodies(node)) nested.push(...build(body, preserve));
+					for (const body of blockBodies(node)) nested.push(...build(body, context));
 					break;
 				default: {
 					if (node.type === "Component" && node.name === "T") throw fail(node.start, "nested <T> is not supported inside <T>");
 					const n = ++tags;
 					const first = node.fragment.nodes[0];
 					const last = node.fragment.nodes.at(-1);
+					const hoisted = HOISTED.has(node.type);
 					if (first && last) {
+						const body = childContext(node, context);
 						pieces.push({
 							start: node.start,
 							end: first.start,
 							token: {
 								type: "open",
 								n
-							}
+							},
+							hoisted,
+							body
 						});
-						visit(node.fragment.nodes, preserve || PRESERVE.has(node.name));
+						visit(node.fragment.nodes, body);
 						pieces.push({
 							start: last.end,
 							end: node.end,
 							token: {
 								type: "close",
 								n
-							}
+							},
+							hoisted
 						});
 					} else pieces.push({
 						start: node.start,
@@ -217,13 +264,14 @@ const parseT = (code, file) => {
 						token: {
 							type: "self",
 							n
-						}
+						},
+						hoisted
 					});
 				}
 			}
 		};
-		visit(nodes, preserve);
-		return [segment(normalize(pieces), expressions), ...nested];
+		visit(nodes, context);
+		return [segment(merge(normalize(pieces, context)), expressions), ...nested];
 	};
 	collect(ast.fragment.nodes, preserveAll, (node, wrap, remove, nodes, preserve) => {
 		components.push({
@@ -231,7 +279,7 @@ const parseT = (code, file) => {
 			end: node.end,
 			wrap,
 			remove,
-			segments: nodes ? build(nodes, preserve) : []
+			segments: nodes ? build(nodes, rootContext(preserve)) : []
 		});
 	});
 	return {
@@ -284,7 +332,7 @@ const collect = (nodes, preserve, found) => {
 			else found(node, void 0, [], void 0, preserve);
 			continue;
 		}
-		const inside = preserve || "name" in node && typeof node.name === "string" && PRESERVE.has(node.name);
+		const inside = preserve || node.type === "RegularElement" && PRESERVE.has(node.name);
 		for (const key of [
 			"fragment",
 			"consequent",
@@ -300,7 +348,59 @@ const collect = (nodes, preserve, found) => {
 		}
 	}
 };
-const normalize = (pieces) => {
+const normalize = (pieces, context) => {
+	const items = [];
+	for (let i = 0; i < pieces.length; i++) {
+		const piece = pieces[i];
+		if (piece.token.type === "open") {
+			const n = piece.token.n;
+			let j = i + 1;
+			while (!(pieces[j].token.type === "close" && pieces[j].token.n === n)) j++;
+			items.push({
+				piece,
+				inner: pieces.slice(i + 1, j),
+				close: pieces[j]
+			});
+			i = j;
+		} else items.push({ piece });
+	}
+	const dropped = /* @__PURE__ */ new Set();
+	const text = (item) => item?.piece.token.type === "text" ? item.piece.token : void 0;
+	let regular = items.filter((item) => !item.piece.hoisted);
+	if (!context.preserve) {
+		while (regular.length > 0 && text(regular[0]) && isBlankText(text(regular[0]).value)) dropped.add(regular.shift());
+		while (regular.length > 0 && text(regular.at(-1)) && isBlankText(text(regular.at(-1)).value)) dropped.add(regular.pop());
+		const first = text(regular[0]);
+		const last = text(regular.at(-1));
+		if (first) first.value = first.value.replace(STARTS_WITH_WHITESPACE, "");
+		if (last) last.value = last.value.replace(ENDS_WITH_WHITESPACE, "");
+		for (const [index, item] of regular.entries()) {
+			const token = text(item);
+			if (!token) continue;
+			const previous = regular[index - 1]?.piece.token;
+			const next = regular[index + 1]?.piece.token;
+			if (previous?.type !== "expr") {
+				const afterSpace = previous?.type === "text" && ENDS_WITH_WHITESPACE.test(previous.value);
+				token.value = token.value.replace(STARTS_WITH_WHITESPACE, afterSpace ? "" : " ");
+			}
+			if (next?.type !== "expr") token.value = token.value.replace(ENDS_WITH_WHITESPACE, " ");
+			if (token.value === "" || token.value === " " && context.removable) dropped.add(item);
+		}
+		regular = regular.filter((item) => !dropped.has(item));
+	}
+	const first = text(regular[0]);
+	if (context.pre && first && (first.value === "\n" || first.value === "\r\n")) dropped.add(regular[0]);
+	return items.flatMap((item) => {
+		if (dropped.has(item)) return [];
+		if (item.inner && item.close) return [
+			item.piece,
+			...normalize(item.inner, item.piece.body),
+			item.close
+		];
+		return [item.piece];
+	});
+};
+const merge = (pieces) => {
 	const merged = [];
 	for (const piece of pieces) {
 		const previous = merged.at(-1);
@@ -312,15 +412,7 @@ const normalize = (pieces) => {
 			token: { ...piece.token }
 		});
 	}
-	for (const [index, { token }] of merged.entries()) {
-		if (token.type !== "text" || token.preserve) continue;
-		const before = merged[index - 1]?.token.type ?? "open";
-		const after = merged[index + 1]?.token.type ?? "close";
-		token.value = token.value.replace(ASCII_SPACE, " ");
-		if (before === "open") token.value = token.value.replace(/^[ \t\n\r\f]+/, "");
-		if (after === "close") token.value = token.value.replace(/[ \t\n\r\f]+$/, "");
-	}
-	return merged.filter((piece) => piece.token.type !== "text" || piece.token.value !== "");
+	return merged;
 };
 const isRunToken = (token) => token.type === "text" || token.type === "expr";
 const segment = (pieces, expressions) => {
@@ -359,7 +451,6 @@ const segment = (pieces, expressions) => {
 		runs
 	};
 };
-const findTComponents = (code, file) => parseT(code, file).components;
 const collectSources = (component) => component.segments.map((segment) => segment.source).filter((source) => source !== "");
 const escapeText = (text) => text.replace(/[\\$<>]/g, (char) => `\\${char}`);
 const serialize = (tokens) => tokens.map((token) => {
@@ -379,8 +470,7 @@ const tokenize = (text) => {
 		if (buffer !== "") {
 			tokens.push({
 				type: "text",
-				value: buffer,
-				preserve: false
+				value: buffer
 			});
 			buffer = "";
 		}
@@ -451,10 +541,19 @@ const partsOf = (tokens, positions) => tokens.map((token) => {
 	if (token.type !== "expr" || !positions.has(token.index)) throw new Error(`Translation references ${serialize([token])} which is not in this run of the source.`);
 	return positions.get(token.index);
 });
+const spliced = (code, target, rewrites) => {
+	let result = "";
+	let cursor = target.start;
+	for (const rewrite of rewrites) if (rewrite.start >= target.start && rewrite.end <= target.end) {
+		result += code.slice(cursor, rewrite.start) + rewrite.text;
+		cursor = rewrite.end;
+	}
+	return result + code.slice(cursor, target.end);
+};
 /** The edits turning a <T> into an `{#if true}` block with translated text
 * runs, and whether any of them calls the runtime. An edit without text
 * removes, one without length inserts. */
-const transformT = (component, locales, lookup, warn) => {
+const transformT = (component, code, locales, lookup, warn, rewrites = []) => {
 	const edits = [];
 	let translated = false;
 	if (!component.wrap) return {
@@ -503,7 +602,7 @@ const transformT = (component, locales, lookup, warn) => {
 				return parts === source ? [] : [`"${item.locale}":${parts}`];
 			});
 			if (changed.length === 0) continue;
-			const values = indices.length > 0 ? `, [${indices.map((i) => `(${segment.expressions[i]})`).join(", ")}]` : "";
+			const values = indices.length > 0 ? `, [${indices.map((i) => `(${spliced(code, segment.expressions[i], rewrites)})`).join(", ")}]` : "";
 			edits.push({
 				start: run.start,
 				end: run.end,
@@ -519,46 +618,67 @@ const transformT = (component, locales, lookup, warn) => {
 };
 //#endregion
 //#region src/find/svelte.ts
-const findSvelteTranslatable = (code, file) => {
+const isLangT = (tag) => {
+	const node = tag;
+	return node.type === "MemberExpression" && node.object?.type === "Identifier" && node.object.name === "lang" && node.property?.type === "Identifier" && node.property.name === "t";
+};
+const findTaggedTemplates = (ast, code) => {
 	const found = [];
-	const origin = lineColumn(code);
-	const ast = parse(code);
-	const enter = (node) => {
-		if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t" && node.quasi.type === "TemplateLiteral" && node.quasi.loc) {
-			const start = node.quasi.loc.start;
-			const end = node.quasi.loc.end;
-			const content = code.substring(origin.toIndex(start.line, start.column) + 2, origin.toIndex(end.line, end.column));
+	const seen = /* @__PURE__ */ new Set();
+	const walk = (value) => {
+		if (!value || typeof value !== "object" || seen.has(value)) return;
+		seen.add(value);
+		if (Array.isArray(value)) {
+			value.forEach(walk);
+			return;
+		}
+		const node = value;
+		if (node.type === "TaggedTemplateExpression" && isLangT(node.tag)) {
+			const { start, end } = node;
+			const quasi = node.quasi;
 			found.push({
-				source: content,
-				kind: "t"
+				start,
+				end,
+				source: code.slice(quasi.start + 1, quasi.end - 1)
 			});
 		}
+		Object.values(node).forEach(walk);
 	};
-	walk(ast.html, { enter });
-	if (ast.instance) walk(ast.instance.content, { enter });
-	if (ast.module) walk(ast.module.content, { enter });
-	if (hasT(code)) for (const component of findTComponents(code, file)) found.push(...collectSources(component).map((source) => ({
+	walk(ast);
+	return found.toSorted((a, b) => a.start - b.start);
+};
+const findSvelteTranslatable = (code, file) => {
+	const { ast, components } = parseT(code, file);
+	return [...findTaggedTemplates(ast, code).map((item) => ({
+		source: item.source,
+		kind: "t"
+	})), ...components.flatMap((component) => collectSources(component).map((source) => ({
 		source,
 		kind: "markup"
-	})));
-	return found;
+	})))];
 };
 //#endregion
 //#region src/find/typescript.ts
-const findTypescriptTranslatable = async (code) => {
+const findTypescriptTagged = (code) => {
 	const found = [];
 	const ast = parseSync("module.ts", code);
 	walk(ast.program, { enter(node) {
 		if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t") {
+			const { start, end } = node;
 			const quasi = node.quasi;
 			found.push({
-				source: code.slice(quasi.start + 1, quasi.end - 1),
-				kind: "t"
+				start,
+				end,
+				source: code.slice(quasi.start + 1, quasi.end - 1)
 			});
 		}
 	} });
 	return found;
 };
+const findTypescriptTranslatable = (code) => findTypescriptTagged(code).map((item) => ({
+	source: item.source,
+	kind: "t"
+}));
 //#endregion
 //#region src/find.ts
 const isIgnoredPath = (file) => /[\\/](node_modules|\.[^\\/]+)[\\/]/.test(file);
@@ -632,9 +752,8 @@ const i18n = (props) => {
 			if (sources.length > 0) await translateMissing(process.cwd(), sources, this.environment.logger);
 		},
 		transform(code, id) {
-			const withLangT = code.includes("lang.t`");
-			const withT = isSvelteFile(id) && hasT(code);
-			if (!withLangT && !withT) return;
+			const svelte = isSvelteFile(id);
+			if (!code.includes("lang.t`") && !(svelte && hasT(code))) return;
 			const sources = /* @__PURE__ */ new Set();
 			for (const item of cache.entries()) sources.add(item.source);
 			const langT = (source) => {
@@ -644,27 +763,27 @@ const i18n = (props) => {
 					return `"${locale}":\`${translation}\``;
 				}).filter((v) => !!v).join(",")}})`;
 			};
-			const rewriteLangT = (text) => {
-				for (const source of sources) text = text.split(`lang.t\`${source}\``).join(langT(source));
-				return text;
-			};
+			const rewrites = (tagged) => tagged.filter((item) => sources.has(item.source)).map((item) => ({
+				...item,
+				text: langT(item.source)
+			}));
 			const transformedCode = new MagicString(code);
-			const replaced = [];
-			if (withT) {
+			if (svelte) {
 				const { ast, components } = parseT(code, id);
+				const templates = rewrites(findTaggedTemplates(ast, code));
 				const lookup = (source, locale) => cache.get(source, locale);
+				const edits = [];
 				let called = false;
 				for (const component of components) {
-					const result = transformT(component, props.locales, lookup, (message) => this.warn(message));
+					const result = transformT(component, code, props.locales, lookup, (message) => this.warn(message), templates);
+					edits.push(...result.edits);
 					called ||= result.translated;
-					for (const edit of result.edits) if (edit.text === "") {
-						if (edit.end > edit.start) transformedCode.remove(edit.start, edit.end);
-					} else if (edit.start === edit.end) transformedCode.appendLeft(edit.start, rewriteLangT(edit.text));
-					else {
-						transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text));
-						replaced.push(edit);
-					}
 				}
+				for (const edit of edits) if (edit.text === "") {
+					if (edit.end > edit.start) transformedCode.remove(edit.start, edit.end);
+				} else if (edit.start === edit.end) transformedCode.appendLeft(edit.start, edit.text);
+				else transformedCode.overwrite(edit.start, edit.end, edit.text);
+				for (const template of templates) if (!edits.some((edit) => edit.start < edit.end && edit.start <= template.start && template.end <= edit.end)) transformedCode.overwrite(template.start, template.end, template.text);
 				if (called) {
 					if (ast.instance) {
 						const { start } = ast.instance.content;
@@ -673,15 +792,7 @@ const i18n = (props) => {
 						transformedCode.appendLeft(start, `${LANG_IMPORT}${sameLine ? ";\n" : ""}`);
 					} else transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n<\/script>\n`);
 				}
-			}
-			if (withLangT) for (const source of sources) {
-				const pattern = `lang.t\`${source}\``;
-				let index = code.indexOf(pattern);
-				while (index !== -1) {
-					if (!replaced.some((item) => index >= item.start && index < item.end)) transformedCode.overwrite(index, index + pattern.length, langT(source));
-					index = code.indexOf(pattern, index + pattern.length);
-				}
-			}
+			} else for (const template of rewrites(findTypescriptTagged(code))) transformedCode.overwrite(template.start, template.end, template.text);
 			return {
 				code: transformedCode.toString(),
 				map: transformedCode.generateMap({ hires: true })

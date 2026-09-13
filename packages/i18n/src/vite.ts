@@ -3,8 +3,10 @@ import MagicString from 'magic-string'
 import { Plugin } from 'vite'
 import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
-import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source } from './find'
-import { hasT, parseT, transformT, validatePlaceholders, validateTranslation } from './t'
+import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source, Tagged } from './find'
+import { findTaggedTemplates } from './find/svelte'
+import { findTypescriptTagged } from './find/typescript'
+import { Edit, hasT, parseT, transformT, validatePlaceholders, validateTranslation } from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -139,10 +141,9 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			}
 		},
 		transform(code, id) {
-			const withLangT = code.includes('lang.t`')
-			const withT = isSvelteFile(id) && hasT(code)
+			const svelte = isSvelteFile(id)
 
-			if (!withLangT && !withT) {
+			if (!code.includes('lang.t`') && !(svelte && hasT(code))) {
 				return
 			}
 
@@ -170,37 +171,53 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				return `lang.t.get(\`${source}\`, {${translations.join(',')}})`
 			}
 
-			const rewriteLangT = (text: string) => {
-				for (const source of sources) {
-					text = text.split(`lang.t\`${source}\``).join(langT(source))
-				}
-
-				return text
-			}
+			// Only templates the cache knows are rewritten, the rest keep working as tagged calls.
+			const rewrites = (tagged: Tagged[]): Edit[] =>
+				tagged.filter(item => sources.has(item.source)).map(item => ({ ...item, text: langT(item.source) }))
 
 			const transformedCode = new MagicString(code)
-			const replaced: { start: number; end: number }[] = []
 
-			if (withT) {
+			if (svelte) {
 				const { ast, components } = parseT(code, id)
+				const templates = rewrites(findTaggedTemplates(ast, code))
 				const lookup = (source: string, locale: string) => cache.get(source, locale)
+				const edits: Edit[] = []
 				let called = false
 
 				for (const component of components) {
-					const result = transformT(component, props.locales, lookup, message => this.warn(message))
+					const result = transformT(
+						component,
+						code,
+						props.locales,
+						lookup,
+						message => this.warn(message),
+						templates
+					)
+					edits.push(...result.edits)
 					called ||= result.translated
+				}
 
-					for (const edit of result.edits) {
-						if (edit.text === '') {
-							if (edit.end > edit.start) {
-								transformedCode.remove(edit.start, edit.end)
-							}
-						} else if (edit.start === edit.end) {
-							transformedCode.appendLeft(edit.start, rewriteLangT(edit.text))
-						} else {
-							transformedCode.overwrite(edit.start, edit.end, rewriteLangT(edit.text))
-							replaced.push(edit)
+				for (const edit of edits) {
+					if (edit.text === '') {
+						if (edit.end > edit.start) {
+							transformedCode.remove(edit.start, edit.end)
 						}
+					} else if (edit.start === edit.end) {
+						transformedCode.appendLeft(edit.start, edit.text)
+					} else {
+						transformedCode.overwrite(edit.start, edit.end, edit.text)
+					}
+				}
+
+				// A template inside a replaced range went with it: into the values
+				// of its run, or away with a dropped <T> tag.
+				for (const template of templates) {
+					const covered = edits.some(
+						edit => edit.start < edit.end && edit.start <= template.start && template.end <= edit.end
+					)
+
+					if (!covered) {
+						transformedCode.overwrite(template.start, template.end, template.text)
 					}
 				}
 
@@ -217,21 +234,9 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 						transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n</script>\n`)
 					}
 				}
-			}
-
-			if (withLangT) {
-				for (const source of sources) {
-					const pattern = `lang.t\`${source}\``
-					let index = code.indexOf(pattern)
-
-					while (index !== -1) {
-						// Occurrences inside a rewritten text run were handled with its call.
-						if (!replaced.some(item => index >= item.start && index < item.end)) {
-							transformedCode.overwrite(index, index + pattern.length, langT(source))
-						}
-
-						index = code.indexOf(pattern, index + pattern.length)
-					}
+			} else {
+				for (const template of rewrites(findTypescriptTagged(code))) {
+					transformedCode.overwrite(template.start, template.end, template.text)
 				}
 			}
 

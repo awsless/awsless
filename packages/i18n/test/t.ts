@@ -115,10 +115,7 @@ const ssr = async (code: string, props: Record<string, unknown>, locales: string
 			'',
 		].join('\n')
 	)
-	await writeFile(
-		resolve(dir, 'T.js'),
-		'export default function T($$renderer, $$props) { $$props.children?.($$renderer) }\n'
-	)
+	await emit('T', await readFile(resolve(__dirname, '../src/T.svelte'), 'utf8'))
 	await emit('page', code)
 	await emit('badge', BADGE)
 	await emit('icon', ICON)
@@ -165,7 +162,9 @@ describe('<T> serializer', () => {
 	it('expressions become indexed placeholders', () => {
 		expect(serializeT('<T>Hello {name}!</T>')).toStrictEqual(['Hello ${0}!'])
 		expect(serializeT('<T>{fn({ a: 1 })} {"}"} {(/[{}]/).test(s)}</T>')).toStrictEqual(['${0} ${1} ${2}'])
-		expect(findTComponents('<T>{a} {b}</T>')[0]?.segments[0]?.expressions).toStrictEqual(['a', 'b'])
+		const code = '<T>{a} {b}</T>'
+		const ranges = findTComponents(code)[0]?.segments[0]?.expressions ?? []
+		expect(ranges.map(item => code.slice(item.start, item.end))).toStrictEqual(['a', 'b'])
 	})
 
 	it('nested element, component with props and self-closing', () => {
@@ -740,6 +739,117 @@ describe('<T> snippets, whitespace and lang.t', () => {
 		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
 		expect(en).toBe('<p>Rank &lt;1></p>')
 		expect(fr).toBe('<p>Rang inférieur à 1</p>')
+	})
+})
+
+// Uppercases every text token, so each run changes and gets a call while
+// whitespace and structure stay exactly as in the source.
+const upper: Translator = (_, list) =>
+	list.map(item => ({
+		...item,
+		translation: serialize(
+			tokenize(item.source).map(token =>
+				token.type === 'text' ? { ...token, value: token.value.toUpperCase() } : token
+			)
+		),
+	}))
+
+// Renders the markup untransformed with the real T.svelte and transformed with
+// a translation present; Svelte's whitespace handling must come out the same.
+const parity = async (markup: string, props: Record<string, unknown> = {}) => {
+	const [baseline] = await ssr(component(markup), props, ['en'])
+	const { code } = await transform(component(markup), upper)
+
+	expect(() => compile(code, { generate: 'client', filename: 'page.svelte' })).not.toThrow()
+
+	const [en, fr] = await ssr(code, props, ['en', 'fr'])
+
+	expect(en).toBe(baseline)
+	expect(fr!.toLowerCase()).toBe(baseline!.toLowerCase())
+
+	return { baseline: baseline!, fr, code }
+}
+
+describe('<T> whitespace parity with svelte', () => {
+	it('interior newline', async () => {
+		const { baseline, fr } = await parity('<T>Hello\nworld</T>')
+		expect(baseline).toBe('Hello\nworld')
+		expect(fr).toBe('HELLO\nWORLD')
+	})
+
+	it('indented multi-line markup', async () => {
+		const { baseline, code } = await parity('<T>\n\t<b>\n\t\tHello\n\t</b>\n\t<i>\n\t\tthere\n\t</i>\n</T>')
+		expect(baseline).toBe('<b>Hello</b> <i>there</i>')
+		expect(code).toContain('__i18n_lang.t.pick')
+	})
+
+	it('text next to blocks, components and expressions', async () => {
+		await parity('<T>Hello\n{#if a}\n  yes\n{/if}\n!</T>', { a: true })
+		await parity('<T>Hi\n  <Badge count={n}>\n x \n</Badge>\n  there</T>', { n: 1 })
+		const { baseline } = await parity('<T>Hello \n {name}\n !</T>', { name: 'Ann' })
+		expect(baseline).toBe('Hello \n Ann\n !')
+		await parity('<T>{name}\n  and\n{name}</T>', { name: 'Ann' })
+		await parity('<T>a {@const q = 1} b {q}</T>')
+		await parity('<T>a <!-- note --> b<!-- c -->\n\nc</T>')
+	})
+
+	it('inline and block elements', async () => {
+		const { baseline } = await parity('<T><div>\n a \n</div><span>\n b \n</span> c <b>d</b></T>')
+		expect(baseline).toBe('<div>a</div><span>b</span> c <b>d</b>')
+		await parity('<T><select>\n<option>a</option>\n<option>b</option>\n</select></T>')
+	})
+
+	it('pre, textarea and svelte:element', async () => {
+		const { baseline } = await parity('<T>x<pre>\nHello\n  world\n</pre></T>')
+		// Only a text node that is exactly one newline is dropped after <pre>.
+		expect(baseline).toBe('x<pre>\nHello\n  world\n</pre>')
+		const lone = await parity('<T><pre>\n</pre><pre>\nx</pre></T>')
+		expect(lone.baseline).toBe('<pre></pre><pre>\nx</pre>')
+		await parity('<T><textarea>\n a\n</textarea></T>')
+		const dynamic = await parity('<T><svelte:element this={tag}>\nHello\n  world\n</svelte:element></T>', {
+			tag: 'pre',
+		})
+		expect(dynamic.baseline).toBe('<pre>Hello\n  world</pre>')
+	})
+
+	it('white-space: pre-line container', async () => {
+		const { baseline } = await parity('<T><p style="white-space: pre-line">Hello\nworld\n  next\n</p></T>')
+		expect(baseline).toBe('<p style="white-space: pre-line">Hello\nworld\n  next</p>')
+	})
+
+	it('whitespace-only edits change the key only when svelte renders differently', async () => {
+		await parity('<T>Hello world</T>')
+		await parity('<T>Hello\n<b>x</b></T>')
+		expect(sources('<T>Hello world</T>')).not.toStrictEqual(sources('<T>Hello\nworld</T>'))
+		expect(sources('<T>Hello <b>x</b></T>')).toStrictEqual(sources('<T>Hello\n<b>x</b></T>'))
+	})
+})
+
+describe('lang.t rewriting by AST', () => {
+	it('leaves text that looks like lang.t alone and rewrites the real one', async () => {
+		const markup = '<T>Use lang.t&#96;x&#96; with {lang.t`x`}</T>'
+		const { code } = await transform(
+			component(markup, "import { lang } from '@awsless/i18n/svelte'"),
+			table({ 'Use lang.t`x` with ${0}': { fr: 'Utilisez lang.t`x` with ${0}' }, x: { fr: 'z' } })
+		)
+
+		expect(() => compile(code, { generate: 'client' })).not.toThrow()
+		expect(() => compile(code, { generate: 'server' })).not.toThrow()
+
+		const [en, fr] = await ssr(code, {}, ['en', 'fr'])
+		expect(en).toBe('Use lang.t`x` with x')
+		expect(fr).toBe('Utilisez lang.t`x` with z')
+	})
+
+	it('rewrites templates in attributes and scripts too', async () => {
+		const { code } = await transform(
+			"<script>import { lang } from '@awsless/i18n/svelte'\n\tconst a = lang.t`x`</script><p title={lang.t`x`}>{a}</p>",
+			table({ x: { fr: 'z' } })
+		)
+
+		expect(code).toBe(
+			'<script>import { lang } from \'@awsless/i18n/svelte\'\n\tconst a = lang.t.get(`x`, {"fr":`z`})</script><p title={lang.t.get(`x`, {"fr":`z`})}>{a}</p>'
+		)
 	})
 })
 
