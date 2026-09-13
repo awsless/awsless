@@ -32,12 +32,17 @@
 		"./svelte": {
 			"svelte": "./dist/svelte-5.svelte.js",
 			"types": "./dist/svelte-5.svelte.d.ts"
+		},
+		"./T": {
+			"svelte": "./dist/T.svelte",
+			"types": "./dist/T.svelte.d.ts"
 		}
 	},
 	"scripts": {
 		"test": "pnpm vitest run -c ../../vitest.shared.ts",
-		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean && pnpm build-svelte",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format esm --dts --clean && pnpm build-svelte && pnpm build-t",
 		"build-svelte": "pnpm tsdown --no-fixed-extension --no-clean src/framework/svelte-5.svelte.ts --format esm --dts",
+		"build-t": "cp src/T.svelte src/T.svelte.d.ts dist/",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {

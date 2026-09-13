@@ -1,8 +1,9 @@
 import { Node, walk } from 'estree-walker'
 import lineColumn from 'line-column'
 import { parse as parseSvelte } from 'svelte/compiler'
+import { collectSources, findTComponents, hasT } from '../t'
 
-export const findSvelteTranslatable = (code: string) => {
+export const findSvelteTranslatable = (code: string, file?: string) => {
 	const found: string[] = []
 	const origin = lineColumn(code)
 	const ast = parseSvelte(code)
@@ -37,6 +38,12 @@ export const findSvelteTranslatable = (code: string) => {
 
 	if (ast.module) {
 		walk(ast.module.content, { enter })
+	}
+
+	if (hasT(code)) {
+		for (const component of findTComponents(code, file)) {
+			found.push(...collectSources(component.segment))
+		}
 	}
 
 	return found

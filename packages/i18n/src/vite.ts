@@ -1,8 +1,10 @@
 import MagicString from 'magic-string'
+import { AST } from 'svelte/compiler'
 import { Plugin } from 'vite'
 import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
 import { findTranslatable, findTranslatableInCode, isIgnoredPath } from './find'
+import { hasT, parseT, renderT, validateTranslation } from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -32,6 +34,26 @@ export type I18nPluginProps = {
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
+const LANG_IMPORT = "import { lang } from '@awsless/i18n/svelte'"
+
+type Logger = {
+	info: (message: string) => void
+	warn: (message: string) => void
+}
+
+const isSvelteFile = (id: string | undefined) => typeof id === 'string' && id.split('?')[0]!.endsWith('.svelte')
+
+const importsLang = (ast: AST.Root) => {
+	for (const script of [ast.instance, ast.module]) {
+		for (const node of script?.content.body ?? []) {
+			if (node.type === 'ImportDeclaration' && node.specifiers.some(item => item.local.name === 'lang')) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
@@ -42,22 +64,31 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	// previous one translated instead of asking for the same texts again.
 	let queue: Promise<void> = Promise.resolve()
 
-	const translateMissing = (cwd: string, sourceTexts: string[], log: (message: string) => void) => {
+	const translateMissing = (cwd: string, sourceTexts: string[], log: Logger) => {
 		queue = queue.catch(() => {}).then(() => translateNow(cwd, sourceTexts, log))
 		return queue
 	}
 
-	const translateNow = async (cwd: string, sourceTexts: string[], log: (message: string) => void) => {
+	const translateNow = async (cwd: string, sourceTexts: string[], log: Logger) => {
 		const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales)
 
 		if (newSourceTexts.length > 0) {
-			log(`Translating ${newSourceTexts.length} new texts.`)
+			log.info(`Translating ${newSourceTexts.length} new texts.`)
 
 			const translations = await props.translate(props.default ?? 'en', newSourceTexts)
 
-			log(`Translated ${translations.length} texts.`)
+			log.info(`Translated ${translations.length} texts.`)
 
 			for (const item of translations) {
+				// A translation that lost a placeholder or tag would break the
+				// markup, so the source text is shown for that locale instead.
+				const problem = validateTranslation(item.source, item.translation)
+
+				if (problem) {
+					log.warn(`Skipped the "${item.locale}" translation of "${item.source}": ${problem}.`)
+					continue
+				}
+
 				generatedCache.set(item.source, item.locale, item.translation)
 			}
 		}
@@ -84,7 +115,10 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 
 			cache = mergeCaches(generatedCache, overrideCache)
 
-			await translateMissing(cwd, sourceTexts, message => this.info(message))
+			await translateMissing(cwd, sourceTexts, {
+				info: message => this.info(message),
+				warn: message => this.warn(message),
+			})
 
 			this.info(`Translating done.`)
 		},
@@ -98,41 +132,99 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			const sourceTexts = await findTranslatableInCode(file, await read())
 
 			if (sourceTexts.length > 0) {
-				await translateMissing(process.cwd(), sourceTexts, message => this.environment.logger.info(message))
+				await translateMissing(process.cwd(), sourceTexts, this.environment.logger)
 			}
 		},
-		transform(code) {
-			if (code.includes('lang.t`')) {
-				const transformedCode = new MagicString(code)
+		transform(code, id) {
+			const withLangT = code.includes('lang.t`')
+			const withT = isSvelteFile(id) && hasT(code)
 
-				for (const item of cache.entries()) {
-					transformedCode.replaceAll(
-						`lang.t\`${item.source}\``,
-						`lang.t.get(\`${item.source}\`, {${props.locales
-							.map(locale => {
-								const translation = cache.get(item.source, locale)
+			if (!withLangT && !withT) {
+				return undefined
+			}
 
-								// Skip adding the translated text if it's the
-								// same as the original source text.
-								if (translation === item.source) {
-									return
-								}
+			const sources = new Set<string>()
 
-								return `"${locale}":\`${translation}\``
-							})
-							.filter(v => !!v)
-							.join(',')}})`
-					)
+			for (const item of cache.entries()) {
+				sources.add(item.source)
+			}
+
+			const langT = (source: string) => {
+				const translations = props.locales
+					.map(locale => {
+						const translation = cache.get(source, locale)
+
+						// Skip adding the translated text if it's the
+						// same as the original source text.
+						if (translation === undefined || translation === source) {
+							return undefined
+						}
+
+						return `"${locale}":\`${translation}\``
+					})
+					.filter(v => !!v)
+
+				return `lang.t.get(\`${source}\`, {${translations.join(',')}})`
+			}
+
+			const rewriteLangT = (text: string) => {
+				for (const source of sources) {
+					text = text.split(`lang.t\`${source}\``).join(langT(source))
 				}
-				return {
-					code: transformedCode.toString(),
-					map: transformedCode.generateMap({
-						hires: true,
-					}),
+
+				return text
+			}
+
+			const transformedCode = new MagicString(code)
+			const replaced: { start: number; end: number }[] = []
+
+			if (withT) {
+				const { ast, components } = parseT(code, id)
+
+				for (const component of components) {
+					const markup = renderT(component, code, props.locales, (source, locale) =>
+						cache.get(source, locale)
+					)
+
+					if (markup !== undefined) {
+						transformedCode.overwrite(component.start, component.end, rewriteLangT(markup))
+						replaced.push(component)
+					}
+				}
+
+				if (replaced.length > 0 && !importsLang(ast)) {
+					if (ast.instance) {
+						// The program starts right after the `<script ...>` tag.
+						const { start } = ast.instance.content as unknown as { start: number }
+						transformedCode.appendLeft(start, `\n\t${LANG_IMPORT}`)
+					} else {
+						transformedCode.prepend(`<script>\n\t${LANG_IMPORT}\n</script>\n`)
+					}
 				}
 			}
 
-			return
+			if (withLangT) {
+				for (const source of sources) {
+					const pattern = `lang.t\`${source}\``
+					let index = code.indexOf(pattern)
+
+					while (index !== -1) {
+						// Occurrences inside a rewritten <T> were handled with its markup.
+						if (!replaced.some(item => index >= item.start && index < item.end)) {
+							transformedCode.overwrite(index, index + pattern.length, langT(source))
+						}
+
+						index = code.indexOf(pattern, index + pattern.length)
+					}
+				}
+			}
+
+			return {
+				code: transformedCode.toString(),
+				map: transformedCode.generateMap({
+					hires: true,
+				}),
+			}
 		},
 	}
 }

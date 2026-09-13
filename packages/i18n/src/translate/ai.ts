@@ -39,6 +39,7 @@ export const ai = (props: AiTranslationProps): Translator => {
 					}),
 					prompt: [
 						`You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.`,
+						'Keep every ${...} placeholder and every numbered <n>...</n> or <n/> tag exactly as written in the source, with the same nesting. Translate only the text around them.',
 						...(props?.rules ?? []),
 						'',
 						`JSON FILE:`,

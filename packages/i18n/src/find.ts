@@ -3,6 +3,7 @@ import { join } from 'path'
 import { glob } from 'glob'
 import { findSvelteTranslatable } from './find/svelte'
 import { findTypescriptTranslatable } from './find/typescript'
+import { hasT } from './t'
 
 // The start scan & the hot update skip the same folders, so a save can't
 // translate a file the next start would then clean up again.
@@ -28,9 +29,11 @@ export const findTranslatable = async (cwd: string) => {
 }
 
 export const findTranslatableInCode = async (file: string, code: string) => {
-	if (!code.includes('lang.t`')) {
+	const svelte = file.endsWith('.svelte')
+
+	if (!code.includes('lang.t`') && !(svelte && hasT(code))) {
 		return []
 	}
 
-	return file.endsWith('.svelte') ? findSvelteTranslatable(code) : findTypescriptTranslatable(code)
+	return svelte ? findSvelteTranslatable(code, file) : findTypescriptTranslatable(code)
 }
