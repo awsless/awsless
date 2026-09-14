@@ -48,7 +48,9 @@ export type DevInstance = {
 // as its own task line with a duration. The detail callback adds a
 // breakdown of the slow parts to the finished line.
 export type DevPhase = <T>(
-	titles: { start: string; done: string },
+	// A phase that overlapped earlier phases reports its duration from
+	// `since`, so the line shows how long the work really took.
+	titles: { start: string; done: string; since?: [number, number] },
 	fn: (detail: (text: string) => void) => Promise<T>
 ) => Promise<T>
 
@@ -309,6 +311,56 @@ export const startDev = async (props: {
 	const bundleName = getBundleFunctionName(appConfig.name)
 	const buildDir = getBuildPath('bundle', bundleName, '.')
 
+	// The bundle inlines the build output of other features, like the
+	// SSR server code of the sites, so the bundle must build last.
+	// Builds are fingerprint cached, so unchanged builders are cheap.
+	const sorted = [...builders].toSorted((a, b) => Number(a.type === 'bundle') - Number(b.type === 'bundle'))
+
+	// The workspace scan only depends on boot stable state, so one scan
+	// serves every rebuild instead of blocking each one.
+	let workspace!: Awaited<ReturnType<typeof loadWorkspace>>
+
+	const buildAll = async () => {
+		let changed = false
+
+		for (const builder of sorted) {
+			const meta = await build(builder.type, builder.name, builder.builder, {
+				workspace,
+			})
+
+			if (!meta?.cached) {
+				changed = true
+			}
+
+			// The split per builder lands in the debug log, so a slow
+			// reload points straight at its cause.
+			debug(`Build ${builder.type}:${builder.name}`, meta?.cached ? 'cached' : String(meta?.buildTime))
+		}
+
+		// The deploy resolves the bundle env into this file, but locally
+		// the worker env carries everything.
+		await writeFile(getBuildPath('bundle', bundleName, 'files/awsless-env.mjs'), 'export default {}\n')
+
+		// Play the lambda runtime role for aws sdk packages the project
+		// doesn't depend on directly.
+		await linkSdkPackages(workspace, buildDir, log)
+
+		return changed
+	}
+
+	// The build only needs the synth output, so it overlaps the resource
+	// hooks & the server boots instead of waiting behind them. Its
+	// failure surfaces in its own phase line, once the servers are up.
+	const buildStarted = process.hrtime()
+	let buildError: unknown
+
+	const building = (async () => {
+		workspace = await loadWorkspace(directories.root)
+		await buildAll()
+	})().catch(error => {
+		buildError = error
+	})
+
 	// Feature hooks report slow boots (like a first instance build)
 	// through the boot task spinner.
 	const { env, lambda } = await phase(
@@ -393,48 +445,6 @@ export const startDev = async (props: {
 			return { env, lambda }
 		}
 	)
-
-	// The bundle inlines the build output of other features, like the
-	// SSR server code of the sites, so the bundle must build last.
-	// Builds are fingerprint cached, so unchanged builders are cheap.
-	const sorted = [...builders].toSorted((a, b) => Number(a.type === 'bundle') - Number(b.type === 'bundle'))
-
-	// The workspace scan only depends on boot stable state, so one scan
-	// serves every rebuild instead of blocking each one.
-	let workspace!: Awaited<ReturnType<typeof loadWorkspace>>
-
-	const buildAll = async () => {
-		let changed = false
-
-		for (const builder of sorted) {
-			const meta = await build(builder.type, builder.name, builder.builder, {
-				workspace,
-			})
-
-			if (!meta?.cached) {
-				changed = true
-			}
-
-			// The split per builder lands in the debug log, so a slow
-			// reload points straight at its cause.
-			debug(`Build ${builder.type}:${builder.name}`, meta?.cached ? 'cached' : String(meta?.buildTime))
-		}
-
-		// The deploy resolves the bundle env into this file, but locally
-		// the worker env carries everything.
-		await writeFile(getBuildPath('bundle', bundleName, 'files/awsless-env.mjs'), 'export default {}\n')
-
-		// Play the lambda runtime role for aws sdk packages the project
-		// doesn't depend on directly.
-		await linkSdkPackages(workspace, buildDir, log)
-
-		return changed
-	}
-
-	await phase({ start: 'Building the bundle...', done: 'Built the bundle' }, async () => {
-		workspace = await loadWorkspace(directories.root)
-		await buildAll()
-	})
 
 	// Every worker output line streams to the dashboard's Worker panel,
 	// so handler logs & errors are debuggable without the terminal. The
@@ -640,6 +650,14 @@ export const startDev = async (props: {
 			detail(breakdown(timings))
 		}
 	)
+
+	await phase({ start: 'Building the bundle...', done: 'Built the bundle', since: buildStarted }, async () => {
+		await building
+
+		if (buildError) {
+			throw buildError
+		}
+	})
 
 	// A worker that fails to boot must never take down the dev server:
 	// the router, dashboard & watcher stay up, and the next invoke

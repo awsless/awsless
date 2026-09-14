@@ -56,10 +56,10 @@ export const dev = (program: Command) => {
 					// Every boot phase renders as its own task line with its
 					// duration, so a slow start points at its phase.
 					const phase = async <T>(
-						titles: { start: string; done: string },
+						titles: { start: string; done: string; since?: [number, number] },
 						fn: (detail: (text: string) => void) => Promise<T>
 					) => {
-						const time = createTimer()
+						const time = createTimer(titles.since)
 						let detail = ''
 
 						return log.task({

@@ -1,8 +1,10 @@
 import hrtime from 'pretty-hrtime'
 import { color } from '../cli/ui/style.js'
 
-export const createTimer = () => {
-	const start = process.hrtime()
+// A timer can start from an earlier hrtime, for work that began before
+// its progress line did.
+export const createTimer = (since?: [number, number]) => {
+	const start = since ?? process.hrtime()
 
 	return () => {
 		const end = process.hrtime(start)
