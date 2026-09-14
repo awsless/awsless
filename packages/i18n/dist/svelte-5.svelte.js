@@ -1,4 +1,5 @@
 //#region src/framework/svelte-5.svelte.ts
+const runs = /* @__PURE__ */ new Map();
 let locale = $state("en");
 let t = $derived.by(() => {
 	const api = (template, ...args) => {
@@ -6,6 +7,13 @@ let t = $derived.by(() => {
 	};
 	api.get = (og, translations) => {
 		return translations[locale] ?? og;
+	};
+	api.runs = (table) => {
+		for (const [id, run] of Object.entries(table)) runs.set(id, run);
+	};
+	api.part = (id, index) => {
+		const run = runs.get(id);
+		return run ? (run[1][locale] ?? run[0])[index] ?? "" : "";
 	};
 	return api;
 });
