@@ -1,5 +1,5 @@
 <script>
-	import { lang } from '../../src/framework/svelte-5.svelte'
+	import { lang, T } from '../../src/framework/svelte-5.svelte'
 	import { content } from './lib/content'
 	import Head from './head.svelte'
 
@@ -15,3 +15,8 @@
 <div>{ lang.t`the count is ${num}` }</div>
 <div>{ lang.t`the number is ${1}` }</div>
 <div>{ lang.t`Loading...` }</div>
+<p>
+	<T>
+		You have <b>{num}</b> new <a href="/inbox">messages</a>.
+	</T>
+</p>

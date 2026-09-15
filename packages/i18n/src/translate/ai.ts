@@ -1,7 +1,7 @@
 import { generateObject, LanguageModel } from 'ai'
 import chunk from 'chunk'
 import { z } from 'zod'
-import { Translator } from '../vite'
+import { TranslationResponse, Translator } from '../vite'
 
 export type AiTranslationProps = {
 	/** The maximum number of output tokens allowed in the AI's response. */
@@ -19,38 +19,60 @@ export type AiTranslationProps = {
 	rules?: string[]
 }
 
+type Request = Parameters<Translator>[1][number]
+
 export const ai = (props: AiTranslationProps): Translator => {
 	return async (originalLocale, texts) => {
 		const batches = chunk(texts, props.batchSize ?? 1000)
 
 		const translations = await Promise.all(
-			batches.map(async texts => {
+			batches.map(async batch => {
 				const result = await generateObject({
 					model: props.model,
 					maxOutputTokens: props.maxOutputTokens,
 					schema: z.object({
 						translations: z
 							.object({
-								source: z.string(),
-								locale: z.string(),
+								id: z.number(),
 								translation: z.string(),
 							})
 							.array(),
 					}),
 					prompt: [
 						`You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.`,
+						'Return the id of every entry together with its translation.',
+						'Some texts contain tags like <b>...</b> or <Link_1>...</Link_1> and placeholders like {count} or ${name}.',
+						'Keep every tag and placeholder exactly as written, but move them when the grammar of the target language needs it.',
+						'Never translate, add, remove, or rename a tag or placeholder.',
+						'A "context" field describes where the text is used. Use it to pick the right wording, but never translate it.',
 						...(props?.rules ?? []),
 						'',
 						`JSON FILE:`,
-						JSON.stringify(texts),
+						JSON.stringify(batch.map((item, id) => ({ id, ...item }))),
 					].join('\n'),
 					system: 'You are a helpful translator.',
 				})
 
-				return result.object.translations
+				return matchTranslations(batch, result.object.translations)
 			})
 		)
 
-		return translations.flat(3)
+		return translations.flat()
 	}
+}
+
+// The model echoes an id instead of the source text, so a slightly
+// altered echo can't miss the cache and the context always comes back.
+export const matchTranslations = (requests: Request[], responses: { id: number; translation: string }[]) => {
+	const list: TranslationResponse[] = []
+
+	for (const { id, translation } of responses) {
+		const request = requests[id]
+
+		if (request) {
+			list.push({ ...request, translation })
+		}
+	}
+
+	return list
 }
