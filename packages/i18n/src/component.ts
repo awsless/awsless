@@ -47,7 +47,7 @@ export const rewriteComponent = (
 	}
 
 	const snippets = match.snippets.map((markup, id) => {
-		return `{#snippet n${id}(${nodes[id]!.leaf ? '' : 'c'})}${inline(markup)}{/snippet}`
+		return `{#snippet n${id}(${nodes[id]!.leaf ? '' : '__children'})}${inline(markup)}{/snippet}`
 	})
 
 	return `<T tree={${JSON.stringify(trees)}}>${snippets.join('')}</T>`

@@ -10,6 +10,8 @@ type Translator = (defaultLocale: string, list: {
 type TranslationResponse = {
   source: string;
   locale: string;
+  /** Must be echoed from the request, it's part of the translation key. */
+  context?: string;
   translation: string;
 };
 type I18nPluginProps = {

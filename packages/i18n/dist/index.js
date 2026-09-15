@@ -298,7 +298,7 @@ const rewriteComponent = (match, locales, cache, inline, warn) => {
 		trees[locale] = result.tree;
 	}
 	const snippets = match.snippets.map((markup, id) => {
-		return `{#snippet n${id}(${nodes[id].leaf ? "" : "c"})}${inline(markup)}{/snippet}`;
+		return `{#snippet n${id}(${nodes[id].leaf ? "" : "__children"})}${inline(markup)}{/snippet}`;
 	});
 	return `<T tree={${JSON.stringify(trees)}}>${snippets.join("")}</T>`;
 };
@@ -379,7 +379,7 @@ const extract = (code, component) => {
 				prefix: "{"
 			};
 			snippets.push(code.slice(node.start, node.end));
-			label(part, /[{}]/.test(expression) ? "expr" : expression);
+			label(part, "{" + (/[{}]/.test(expression) ? "expr" : expression));
 			parts.push(part);
 		} else if (ELEMENTS.has(node.type)) {
 			if (node.name === "T") return "nested <T> components are not supported";
@@ -395,7 +395,7 @@ const extract = (code, component) => {
 					prefix: "<"
 				};
 				snippets[id] = code.slice(node.start, node.end);
-				label(part, node.name);
+				label(part, "<" + node.name);
 				parts.push(part);
 			} else {
 				const first = node.fragment.nodes[0];
@@ -406,11 +406,11 @@ const extract = (code, component) => {
 					label: node.name,
 					children
 				};
-				snippets[id] = code.slice(node.start, first.start) + "{@render c()}" + code.slice(last.end, node.end);
-				label(part, node.name);
+				snippets[id] = code.slice(node.start, first.start) + "{@render __children()}" + code.slice(last.end, node.end);
+				label(part, "<" + node.name);
 				parts.push(part);
 			}
-		} else return `{#${node.type.replace(/Block$|Tag$/, "").toLowerCase()}} is not supported inside <T>`;
+		} else return `{${node.type.endsWith("Tag") ? "@" : "#"}${node.type.replace(/Block$|Tag$/, "").toLowerCase()}} is not supported inside <T>`;
 		return trim(parts);
 	};
 	const context = readContext(component);
@@ -425,12 +425,15 @@ const extract = (code, component) => {
 		end,
 		error: parts
 	};
-	for (const [key, list] of labels) if (new Set(list.map((part) => snippets[part.id])).size > 1 || list[0].kind === "element" && list.length > 1) list.forEach((part, index) => {
-		part.label = `${key}_${index + 1}`;
-	});
-	else list.forEach((part) => {
-		part.label = key;
-	});
+	for (const [key, list] of labels) {
+		const name = key.slice(1);
+		if (new Set(list.map((part) => snippets[part.id])).size > 1 || key[0] === "<" && list.length > 1) list.forEach((part, index) => {
+			part.label = `${name}_${index + 1}`;
+		});
+		else list.forEach((part) => {
+			part.label = name;
+		});
+	}
 	return {
 		start,
 		end,
@@ -457,8 +460,8 @@ const trim = (parts) => {
 		else merged.push(part);
 	}
 	const first = merged[0];
-	const last = merged.at(-1);
 	if (typeof first === "string") merged[0] = first.trimStart();
+	const last = merged.at(-1);
 	if (typeof last === "string") merged[merged.length - 1] = last.trimEnd();
 	return merged.filter((part) => part !== "");
 };
@@ -515,6 +518,13 @@ const findTranslatableInCode = (file, code) => {
 //#endregion
 //#region src/vite.ts
 const SOURCE_FILE = /\.(svelte|ts|js)$/;
+const parseComponents = (code) => {
+	try {
+		return parseSvelte(code).components;
+	} catch {
+		return [];
+	}
+};
 const i18n = (props) => {
 	let cache;
 	let generatedCache;
@@ -595,7 +605,7 @@ const i18n = (props) => {
 				for (const { source, context } of cache.keys()) if (!context) transformedCode.replaceAll(`lang.t\`${source}\``, templateReplacement(source));
 			}
 			if (components) {
-				for (const match of parseSvelte(code).components) if (match.error) this.warn(`${match.error} (${file})`);
+				for (const match of parseComponents(code)) if (match.error) this.warn(`${match.error} (${file})`);
 				else if (match.source) transformedCode.overwrite(match.start, match.end, rewriteComponent(match, props.locales, cache, inlineTemplates, (message) => this.warn(message)));
 			}
 			return {
@@ -610,17 +620,17 @@ const i18n = (props) => {
 const ai = (props) => {
 	return async (originalLocale, texts) => {
 		const batches = chunk(texts, props.batchSize ?? 1e3);
-		return (await Promise.all(batches.map(async (texts) => {
-			return (await generateObject({
+		return (await Promise.all(batches.map(async (batch) => {
+			const result = await generateObject({
 				model: props.model,
 				maxOutputTokens: props.maxOutputTokens,
 				schema: z.object({ translations: z.object({
-					source: z.string(),
-					locale: z.string(),
+					id: z.number(),
 					translation: z.string()
 				}).array() }),
 				prompt: [
 					`You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.`,
+					"Return the id of every entry together with its translation.",
 					"Some texts contain tags like <b>...</b> or <Link_1>...</Link_1> and placeholders like {count} or ${name}.",
 					"Keep every tag and placeholder exactly as written, but move them when the grammar of the target language needs it.",
 					"Never translate, add, remove, or rename a tag or placeholder.",
@@ -628,12 +638,27 @@ const ai = (props) => {
 					...props?.rules ?? [],
 					"",
 					`JSON FILE:`,
-					JSON.stringify(texts)
+					JSON.stringify(batch.map((item, id) => ({
+						id,
+						...item
+					})))
 				].join("\n"),
 				system: "You are a helpful translator."
-			})).object.translations;
-		}))).flat(3);
+			});
+			return matchTranslations(batch, result.object.translations);
+		}))).flat();
 	};
+};
+const matchTranslations = (requests, responses) => {
+	const list = [];
+	for (const { id, translation } of responses) {
+		const request = requests[id];
+		if (request) list.push({
+			...request,
+			translation
+		});
+	}
+	return list;
 };
 //#endregion
 export { ai, i18n };

@@ -116,7 +116,7 @@ const extract = (code: string, component: SvelteNode): ComponentMatch => {
 				snippets.push(code.slice(node.start, node.end))
 
 				// Braces inside the placeholder would break the token grammar.
-				label(part, /[{}]/.test(expression) ? 'expr' : expression)
+				label(part, '{' + (/[{}]/.test(expression) ? 'expr' : expression))
 				parts.push(part)
 			} else if (ELEMENTS.has(node.type)) {
 				if (node.name === 'T') {
@@ -135,19 +135,21 @@ const extract = (code: string, component: SvelteNode): ComponentMatch => {
 				if (children.length === 0) {
 					const part: LeafPart = { kind: 'leaf', id, label: node.name!, prefix: '<' }
 					snippets[id] = code.slice(node.start, node.end)
-					label(part, node.name!)
+					label(part, '<' + node.name!)
 					parts.push(part)
 				} else {
 					const first = node.fragment!.nodes[0]!
 					const last = node.fragment!.nodes.at(-1)!
 					const part: ElementPart = { kind: 'element', id, label: node.name!, children }
+					// The argument name must not shadow anything the attributes use
 					snippets[id] =
-						code.slice(node.start, first.start) + '{@render c()}' + code.slice(last.end, node.end)
-					label(part, node.name!)
+						code.slice(node.start, first.start) + '{@render __children()}' + code.slice(last.end, node.end)
+					label(part, '<' + node.name!)
 					parts.push(part)
 				}
 			} else {
-				return `{#${node.type.replace(/Block$|Tag$/, '').toLowerCase()}} is not supported inside <T>`
+				const prefix = node.type.endsWith('Tag') ? '@' : '#'
+				return `{${prefix}${node.type.replace(/Block$|Tag$/, '').toLowerCase()}} is not supported inside <T>`
 			}
 		}
 
@@ -169,15 +171,16 @@ const extract = (code: string, component: SvelteNode): ComponentMatch => {
 	// Repeated names get a suffix so a translation can't mix them up.
 	// Identical expressions render the same, so they may share a label.
 	for (const [key, list] of labels) {
+		const name = key.slice(1)
 		const distinct = new Set(list.map(part => snippets[part.id]))
 
-		if (distinct.size > 1 || (list[0]!.kind === 'element' && list.length > 1)) {
+		if (distinct.size > 1 || (key[0] === '<' && list.length > 1)) {
 			list.forEach((part, index) => {
-				part.label = `${key}_${index + 1}`
+				part.label = `${name}_${index + 1}`
 			})
 		} else {
 			list.forEach(part => {
-				part.label = key
+				part.label = name
 			})
 		}
 	}
@@ -229,11 +232,13 @@ const trim = (parts: Part[]) => {
 	}
 
 	const first = merged[0]
-	const last = merged.at(-1)
 
 	if (typeof first === 'string') {
 		merged[0] = first.trimStart()
 	}
+
+	// Read again, a lone text part was just replaced
+	const last = merged.at(-1)
 
 	if (typeof last === 'string') {
 		merged[merged.length - 1] = last.trimEnd()

@@ -28,6 +28,8 @@ export type Translator = (
 export type TranslationResponse = {
 	source: string
 	locale: string
+	/** Must be echoed from the request, it's part of the translation key. */
+	context?: string
 	translation: string
 }
 
@@ -45,6 +47,16 @@ export type I18nPluginProps = {
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
+
+// A file with a syntax error is left to the svelte plugin, its message
+// is better than ours.
+const parseComponents = (code: string) => {
+	try {
+		return parseSvelte(code).components
+	} catch {
+		return []
+	}
+}
 
 type Logger = { info: (message: string) => void; warn: (message: string) => void }
 
@@ -191,7 +203,7 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			}
 
 			if (components) {
-				for (const match of parseSvelte(code).components) {
+				for (const match of parseComponents(code)) {
 					if (match.error) {
 						this.warn(`${match.error} (${file})`)
 					} else if (match.source) {

@@ -71,9 +71,9 @@ describe('<T> component', () => {
 		expect(components[2]!.context).toBeUndefined()
 
 		expect(components[0]!.snippets).toStrictEqual([
-			'<b class="name">{@render c()}</b>',
+			'<b class="name">{@render __children()}</b>',
 			'{user.name}',
-			'<Link href="/inbox">{@render c()}</Link>',
+			'<Link href="/inbox">{@render __children()}</Link>',
 			'{count}',
 		])
 		expect(components[3]!.snippets).toStrictEqual(['<br />'])
@@ -109,7 +109,7 @@ describe('<T> component', () => {
 		const warn = vi.fn()
 
 		expect(rewriteComponent(match as never, ['fr'], cache, code => code, warn)).toBe(
-			'<T tree={{"src":["a ",[0,["b"]]]}}>{#snippet n0(c)}<b>{@render c()}</b>{/snippet}</T>'
+			'<T tree={{"src":["a ",[0,["b"]]]}}>{#snippet n0(__children)}<b>{@render __children()}</b>{/snippet}</T>'
 		)
 		expect(warn).toHaveBeenCalledWith('Skipped the "fr" translation of "a <b>b</b>": <b> is missing')
 	})
@@ -176,9 +176,9 @@ describe('<T> component', () => {
 			'<T tree={{"src":["Hello ",[0,[[1]]],", you have ",[2,[[3]," new messages"]],"."],' +
 				'"fr":["Bonjour ",[0,[[1]]],", vous avez ",[2,[[3]," nouveaux messages"]],"."],' +
 				'"jp":[[0,[[1]]],"さん、",[2,["新着メッセージが",[3],"件"]],"あります。"]}}>' +
-				'{#snippet n0(c)}<b class="name">{@render c()}</b>{/snippet}' +
+				'{#snippet n0(__children)}<b class="name">{@render __children()}</b>{/snippet}' +
 				'{#snippet n1()}{user.name}{/snippet}' +
-				'{#snippet n2(c)}<Link href="/inbox">{@render c()}</Link>{/snippet}' +
+				'{#snippet n2(__children)}<Link href="/inbox">{@render __children()}</Link>{/snippet}' +
 				'{#snippet n3()}{count}{/snippet}</T>'
 		)
 
@@ -270,5 +270,97 @@ describe('context', () => {
 			{ source: 'Save', context: 'button' },
 			{ source: 'Save', context: 'the verb' },
 		])
+	})
+})
+
+describe('<T> extraction edge cases', () => {
+	const source = (code: string) => {
+		const match = parseSvelte(code).components[0]!
+		return match.error ?? match.source
+	}
+
+	it('collapses whitespace like the compiler', () => {
+		expect(source('<T>\n\ta\n\t<b>\n\t\tx\n\t</b>\n\tc\n</T>')).toBe('a <b>x</b> c')
+		expect(source('<T>a <b> x </b> c</T>')).toBe('a <b>x</b> c')
+		expect(source('<T>  a   b  </T>')).toBe('a b')
+		expect(source('<T>a <!-- note --> b</T>')).toBe('a b')
+	})
+
+	it('keeps entities as written', () => {
+		expect(source('<T>a&nbsp;b &amp; c</T>')).toBe('a&nbsp;b &amp; c')
+	})
+
+	it('turns an element without content into a self closing tag', () => {
+		const match = parseSvelte('<T><b> </b><Icon /><hr></T>').components[0]!
+
+		expect(match.source).toBe('<b/><Icon/><hr/>')
+		expect(match.snippets).toStrictEqual(['<b> </b>', '<Icon />', '<hr>'])
+	})
+
+	it('supports svelte elements, html and render tags', () => {
+		expect(source('<T>{@html raw} <svelte:element this={tag}>x</svelte:element> {@render icon()}</T>')).toBe(
+			'{@html raw} <svelte:element>x</svelte:element> {@render icon()}'
+		)
+	})
+
+	it('keeps element and placeholder names apart', () => {
+		expect(source('<T><b>{b}</b></T>')).toBe('<b>{b}</b>')
+	})
+
+	it('names the unsupported block or tag', () => {
+		expect(source('<T>{#each list as item}{item}{/each}</T>')).toBe('{#each} is not supported inside <T>')
+		expect(source('<T>{#await p}{/await}</T>')).toBe('{#await} is not supported inside <T>')
+		expect(source('<T>{@const x = 1}{x}</T>')).toBe('{@const} is not supported inside <T>')
+		expect(source('<T>{#snippet s()}x{/snippet}</T>')).toBe('{#snippet} is not supported inside <T>')
+	})
+
+	it('reads the context attribute strictly', () => {
+		const context = (code: string) => {
+			const match = parseSvelte(code).components[0]!
+			return match.error ?? match.context
+		}
+
+		expect(context('<T context="  the   verb ">x</T>')).toBe('the verb')
+		expect(context('<T context="">x</T>')).toBe('')
+		expect(context('<T context>x</T>')).toBe('the context of a <T> must be plain text')
+		expect(context('<T context="a {b}">x</T>')).toBe('the context of a <T> must be plain text')
+		expect(context('<T {...rest}>x</T>')).toBe('<T> only supports the context attribute')
+		expect(context('<T onclick={f}>x</T>')).toBe('<T> only supports the context attribute')
+	})
+
+	it('finds lang.t calls inside a <T>', () => {
+		const { templates, components } = parseSvelte('<T>a {lang.t`b`}</T>')
+
+		expect(templates).toStrictEqual(['b'])
+		expect(components[0]!.source).toBe('a {lang.t`b`}')
+	})
+
+	it('renders snippet arguments without shadowing user variables', async () => {
+		const page = `<script>
+	import { T } from '@awsless/i18n/svelte'
+	import Link from './link.svelte'
+	let c = { url: '/x' }
+	let __children = 'no'
+</script>
+<T><Link href={c.url}>{__children}</Link> a } b&nbsp;c</T>`
+
+		const cache = new Cache()
+		cache.set({ source: '<Link>{__children}</Link> a } b&nbsp;c' }, 'fr', 'a } b&nbsp;c <Link>{__children}</Link>')
+
+		const match = parseSvelte(page).components[0]!
+		const code =
+			page.slice(0, match.start) +
+			rewriteComponent(
+				match as never,
+				['fr'],
+				cache,
+				v => v,
+				() => {}
+			) +
+			page.slice(match.end)
+		const html = await ssr(code)
+
+		expect(await html('en')).toBe('<a href="/x">no</a> a } b c')
+		expect(await html('fr')).toBe('a } b c <a href="/x">no</a>')
 	})
 })

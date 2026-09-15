@@ -95,3 +95,81 @@ describe('tree', () => {
 		expect(validateTranslation('a < b and { c', 'anything')).toBeUndefined()
 	})
 })
+
+describe('tree edge cases', () => {
+	it('keeps comparison operators inside a placeholder', () => {
+		const { tokens, nodes } = parseSource('{a < b} or {c > d}')
+
+		expect(nodes.map(node => node.label)).toStrictEqual(['a < b', 'c > d'])
+		expect(buildTree(tokenizeTranslation('{c > d} ou {a < b}', nodes), nodes).tree).toStrictEqual([
+			[1],
+			' ou ',
+			[0],
+		])
+		expect(buildTree(tokens, nodes).tree).toStrictEqual([[0], ' or ', [1]])
+	})
+
+	it('handles store, html and render placeholders', () => {
+		const { nodes } = parseSource('{$count} {@html raw} {@render icon()}')
+
+		expect(nodes.map(node => `${node.prefix}${node.label}}`)).toStrictEqual([
+			'{$count}',
+			'{@html raw}',
+			'{@render icon()}',
+		])
+		expect(
+			buildTree(tokenizeTranslation('{@render icon()} {$count} {@html raw}', nodes), nodes).tree
+		).toStrictEqual([[2], ' ', [0], ' ', [1]])
+	})
+
+	it('lets a placeholder leave its element', () => {
+		const { nodes } = parseSource('<b>{n} items</b>')
+
+		expect(buildTree(tokenizeTranslation('{n} <b>éléments</b>', nodes), nodes).tree).toStrictEqual([
+			[1],
+			' ',
+			[0, ['éléments']],
+		])
+	})
+
+	it('allows an element to end up empty', () => {
+		const { nodes } = parseSource('<b>x</b>')
+
+		expect(buildTree(tokenizeTranslation('<b></b>y', nodes), nodes).tree).toStrictEqual([[0, []], 'y'])
+	})
+
+	it('treats unknown tags and stray characters as text', () => {
+		const { nodes } = parseSource('<b>x</b>')
+
+		expect(buildTree(tokenizeTranslation('1 < 2 } <i>y</i> <b>x</b> $', nodes), nodes).tree).toStrictEqual([
+			'1 < 2 } <i>y</i> ',
+			[0, ['x']],
+			' $',
+		])
+	})
+
+	it('decodes text through the given decoder', () => {
+		const { tokens, nodes } = parseSource('a &amp; <b>b</b>')
+
+		expect(buildTree(tokens, nodes, text => text.replace('&amp;', '&')).tree).toStrictEqual(['a & ', [0, ['b']]])
+	})
+
+	it('merges adjacent text', () => {
+		const { nodes } = parseSource('<b>x</b>')
+
+		expect(
+			buildTree(
+				[
+					{ kind: 'text', text: 'a' },
+					{ kind: 'text', text: 'b' },
+					{ kind: 'leaf', id: 0 },
+				],
+				nodes
+			).tree
+		).toStrictEqual(['ab', [0]])
+	})
+
+	it('rejects a translation with a swapped closing tag', () => {
+		expect(validateTranslation('<b>x</b> <i>y</i>', '<b>x</i> <i>y</b>')).toBe('unexpected closing tag for <i>')
+	})
+})
