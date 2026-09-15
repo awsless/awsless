@@ -36,7 +36,7 @@ describe('i18n', () => {
 
 	it('check all translations', async () => {
 		const cache = await loadCache(process.cwd())
-		const result = cache.toJSON()
+		const result = cache.toJSON()['']!
 
 		const sourceTexts = Object.keys(result)
 		const translatedTexts = Object.values(result)
@@ -47,6 +47,7 @@ describe('i18n', () => {
 			'Loading...',
 			"Right now it's ${new Date()}.",
 			'Title',
+			'You have <b>{num}</b> new <a>messages</a>.',
 			'head',
 			'test',
 			'the count is ${num}',
@@ -70,10 +71,11 @@ describe('i18n', () => {
 		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
 		const cache = new Cache()
 
-		cache.set('zulu', 'jp', 'zulu-jp')
-		cache.set('alpha', 'jp', 'alpha-jp')
-		cache.set('alpha', 'fr', 'alpha-fr')
-		cache.set('zulu', 'fr', 'zulu-fr')
+		cache.set({ source: 'zulu' }, 'jp', 'zulu-jp')
+		cache.set({ source: 'alpha' }, 'jp', 'alpha-jp')
+		cache.set({ source: 'alpha' }, 'fr', 'alpha-fr')
+		cache.set({ source: 'zulu' }, 'fr', 'zulu-fr')
+		cache.set({ source: 'alpha', context: 'menu' }, 'fr', 'alpha-menu-fr')
 
 		await saveCache(cwd, cache)
 
@@ -81,13 +83,20 @@ describe('i18n', () => {
 
 		expect(file).toBe(
 			'{\n' +
-				'\t"alpha": {\n' +
-				'\t\t"fr": "alpha-fr",\n' +
-				'\t\t"jp": "alpha-jp"\n' +
+				'\t"": {\n' +
+				'\t\t"alpha": {\n' +
+				'\t\t\t"fr": "alpha-fr",\n' +
+				'\t\t\t"jp": "alpha-jp"\n' +
+				'\t\t},\n' +
+				'\t\t"zulu": {\n' +
+				'\t\t\t"fr": "zulu-fr",\n' +
+				'\t\t\t"jp": "zulu-jp"\n' +
+				'\t\t}\n' +
 				'\t},\n' +
-				'\t"zulu": {\n' +
-				'\t\t"fr": "zulu-fr",\n' +
-				'\t\t"jp": "zulu-jp"\n' +
+				'\t"menu": {\n' +
+				'\t\t"alpha": {\n' +
+				'\t\t\t"fr": "alpha-menu-fr"\n' +
+				'\t\t}\n' +
 				'\t}\n' +
 				'}\n'
 		)
@@ -96,7 +105,7 @@ describe('i18n', () => {
 	it('leaves the cache file alone when nothing changed', async () => {
 		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
 		const cache = new Cache()
-		cache.set('alpha', 'fr', 'alpha-fr')
+		cache.set({ source: 'alpha' }, 'fr', 'alpha-fr')
 
 		expect(await saveCache(cwd, cache)).toBe(true)
 		const { mtimeMs } = await stat(resolve(cwd, 'i18n.generated.json'))
@@ -104,7 +113,7 @@ describe('i18n', () => {
 		expect(await saveCache(cwd, cache)).toBe(false)
 		expect((await stat(resolve(cwd, 'i18n.generated.json'))).mtimeMs).toBe(mtimeMs)
 
-		cache.set('alpha', 'jp', 'alpha-jp')
+		cache.set({ source: 'alpha' }, 'jp', 'alpha-jp')
 		expect(await saveCache(cwd, cache)).toBe(true)
 	})
 
@@ -123,7 +132,7 @@ describe('i18n', () => {
 			// @ts-expect-error only the hook body is exercised
 			await plugin.buildStart.call(context)
 
-			expect((await loadCache(cwd)).get('Hello', 'fr')).toBe('TRANSLATED')
+			expect((await loadCache(cwd)).get({ source: 'Hello' }, 'fr')).toBe('TRANSLATED')
 
 			const update = (code: string) => ({ file, read: async () => code })
 
@@ -142,8 +151,8 @@ describe('i18n', () => {
 			expect(translate).toHaveBeenCalledTimes(1)
 
 			const cache = await loadCache(cwd)
-			expect(cache.get('Goodbye', 'fr')).toBe('TRANSLATED')
-			expect(cache.get('Hello', 'fr')).toBe('TRANSLATED')
+			expect(cache.get({ source: 'Goodbye' }, 'fr')).toBe('TRANSLATED')
+			expect(cache.get({ source: 'Hello' }, 'fr')).toBe('TRANSLATED')
 
 			// @ts-expect-error only the hook body is exercised
 			const transformed = plugin.transform.call(context, 'lang.t`Goodbye`')
@@ -160,9 +169,16 @@ describe('i18n', () => {
 			resolve(cwd, 'i18n.generated.json'),
 			JSON.stringify(
 				{
-					greeting: {
-						fr: 'bonjour-generated',
-						jp: 'こんにちは-generated',
+					'': {
+						greeting: {
+							fr: 'bonjour-generated',
+							jp: 'こんにちは-generated',
+						},
+					},
+					menu: {
+						greeting: {
+							fr: 'bonjour-menu',
+						},
 					},
 				},
 				undefined,
@@ -185,8 +201,10 @@ describe('i18n', () => {
 
 		const cache = await loadCache(cwd)
 
-		expect(cache.get('greeting', 'fr')).toBe('bonjour-override')
-		expect(cache.get('greeting', 'jp')).toBe('こんにちは-generated')
+		// The override file is still in the format without contexts
+		expect(cache.get({ source: 'greeting' }, 'fr')).toBe('bonjour-override')
+		expect(cache.get({ source: 'greeting' }, 'jp')).toBe('こんにちは-generated')
+		expect(cache.get({ source: 'greeting', context: 'menu' }, 'fr')).toBe('bonjour-menu')
 	})
 
 	// it('Skip adding translations if they are the same', async () => {

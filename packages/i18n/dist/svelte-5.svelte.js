@@ -1,3 +1,4 @@
+import T from "./T.svelte";
 //#region src/framework/svelte-5.svelte.ts
 let locale = $state("en");
 let t = $derived.by(() => {
@@ -38,4 +39,4 @@ const lang = {
 	}
 };
 //#endregion
-export { lang };
+export { T, lang };

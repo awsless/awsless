@@ -1,3 +1,4 @@
+import T from "./T.svelte";
 //#region src/framework/svelte-5.svelte.d.ts
 type StringArgs = Array<string | number | {
   toString(): string;
@@ -22,4 +23,4 @@ declare const lang: {
   readonly t: Translate;
 };
 //#endregion
-export { lang };
+export { T, lang };
