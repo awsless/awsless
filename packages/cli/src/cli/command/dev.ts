@@ -1,3 +1,4 @@
+import { networkInterfaces } from 'os'
 import { log } from '@awsless/clui'
 import { Command } from 'commander'
 import { AppConfig } from '../../config/app.js'
@@ -11,12 +12,27 @@ import { layout } from '../ui/complex/layout.js'
 import { logError } from '../ui/error/error.js'
 import { color } from '../ui/style.js'
 
+// The first routable ipv4 address, since that is the one a phone on
+// the same network can reach.
+const findLanIp = () => {
+	for (const entries of Object.values(networkInterfaces())) {
+		for (const entry of entries ?? []) {
+			if (entry.family === 'IPv4' && !entry.internal) {
+				return entry.address
+			}
+		}
+	}
+
+	return undefined
+}
+
 export const dev = (program: Command) => {
 	program
 		.command('dev')
 		.description('Start the development service')
 		.option('--port <port>', 'The port for the local router', '3000')
-		.action(async (options: { port: string }) => {
+		.option('--host', 'Expose the routers on the local network, for testing on a phone')
+		.action(async (options: { port: string; host?: boolean }) => {
 			await layout('dev', async ({ exit, ...props }) => {
 				await buildTypes(props)
 
@@ -86,6 +102,7 @@ export const dev = (program: Command) => {
 						appConfig,
 						stackConfigs,
 						port,
+						host: options.host,
 						pool,
 						phase,
 						onLog(message) {
@@ -95,12 +112,15 @@ export const dev = (program: Command) => {
 
 					log.success('Local dev environment ready.')
 
+					// The lan address is what you type on the phone.
+					const lanIp = options.host ? findLanIp() : undefined
+
 					log.list('Endpoints', {
 						Dashboard: color.info(`http://localhost:${instance.dashboardPort}`),
 						...Object.fromEntries(
-							Object.entries(instance.routerPorts).map(([id, routerPort]) => [
-								`Router ${id}`,
-								color.info(`http://localhost:${routerPort}`),
+							Object.entries(instance.routerPorts).flatMap(([id, routerPort]) => [
+								[`Router ${id}`, color.info(`http://localhost:${routerPort}`)],
+								...(lanIp ? [[`Router ${id} (lan)`, color.info(`http://${lanIp}:${routerPort}`)]] : []),
 							])
 						),
 					})

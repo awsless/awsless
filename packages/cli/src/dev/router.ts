@@ -266,6 +266,8 @@ type SocketData = {
 export const startDevRouter = async (props: {
 	routes: DevRoute[]
 	port: number
+	// Opt-in lan exposure, for testing the site on a phone.
+	host?: boolean
 	dispatch: DevDispatch
 	// Handler errors surface here, so they reach the terminal & the
 	// dashboard's worker log instead of vanishing into a bare 500.
@@ -275,9 +277,9 @@ export const startDevRouter = async (props: {
 
 	const server = Bun.serve<SocketData>({
 		port: props.port,
-		// Loopback only, like every other local server - the router
-		// carries the whole app & must never listen on the lan.
-		hostname: '127.0.0.1',
+		// Loopback by default, like every other local server - the
+		// router carries the whole app, so the lan is opt-in only.
+		hostname: props.host ? '0.0.0.0' : '127.0.0.1',
 		idleTimeout: 120,
 		async fetch(request, server) {
 			const url = new URL(request.url)

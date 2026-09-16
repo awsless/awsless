@@ -224,6 +224,8 @@ export const startDev = async (props: {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
 	port: number
+	// Expose the routers on the lan, so a phone can open the sites.
+	host?: boolean
 	pool: ServerPool
 	onLog?: (message: string) => void
 	phase?: DevPhase
@@ -713,6 +715,7 @@ export const startDev = async (props: {
 			await startDevRouter({
 				routes: dev.routes.filter(route => route.routerId === id),
 				port,
+				host: props.host,
 				dispatch,
 				onError(error, routeKey) {
 					// Handler errors from web routes would otherwise never
