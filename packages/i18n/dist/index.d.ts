@@ -4,10 +4,14 @@ import { Plugin } from "vite";
 type Translator = (defaultLocale: string, list: {
   source: string;
   locale: string;
+  /** A hint about where the text is used, from the context attribute of a <T>. */
+  context?: string;
 }[]) => TranslationResponse[] | Promise<TranslationResponse[]>;
 type TranslationResponse = {
   source: string;
   locale: string;
+  /** Must be echoed from the request, it's part of the translation key. */
+  context?: string;
   translation: string;
 };
 type I18nPluginProps = {

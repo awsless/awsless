@@ -1,12 +1,12 @@
-import { Cache } from './cache'
+import { Cache, Key } from './cache'
 
-export const findNewTranslations = (cache: Cache, sources: string[], locales: string[]) => {
-	const list: { source: string; locale: string }[] = []
+export const findNewTranslations = (cache: Cache, keys: Key[], locales: string[]) => {
+	const list: (Key & { locale: string })[] = []
 
-	for (const source of sources) {
+	for (const key of keys) {
 		for (const locale of locales) {
-			if (!cache.has(source, locale)) {
-				list.push({ source, locale })
+			if (!cache.has(key, locale)) {
+				list.push({ ...key, locale })
 			}
 		}
 	}
@@ -14,10 +14,12 @@ export const findNewTranslations = (cache: Cache, sources: string[], locales: st
 	return list
 }
 
-export const removeUnusedTranslations = (cache: Cache, sources: string[], locales: string[]) => {
+export const removeUnusedTranslations = (cache: Cache, keys: Key[], locales: string[]) => {
+	const used = new Set(keys.map(key => `${key.context ?? ''}\n${key.source}`))
+
 	for (const item of cache.entries()) {
-		if (!locales.includes(item.locale) || !sources.includes(item.source)) {
-			cache.delete(item.source, item.locale)
+		if (!locales.includes(item.locale) || !used.has(`${item.context ?? ''}\n${item.source}`)) {
+			cache.delete(item, item.locale)
 		}
 	}
 }
