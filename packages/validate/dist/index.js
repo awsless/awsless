@@ -1,4 +1,4 @@
-import { array, bigint, check, date, getMetadata, instance, metadata, minLength, number, object, optional, picklist, pipe, rawTransform, regex, safeParse, string, toDate, transform, union, unknown, uuid as uuid$1 } from "valibot";
+import { array, bigint, check, date, finite, getMetadata, instance, metadata, minLength, number, object, optional, picklist, pipe, rawTransform, regex, safeParse, string, toDate, transform, union, unknown, uuid as uuid$1 } from "valibot";
 import { parse } from "@awsless/json";
 import { BigFloat, isPositive, parse as parse$1 } from "@awsless/big-float";
 import { Duration } from "@awsless/duration";
@@ -68,7 +68,7 @@ function bigfloat(message = "Invalid bigfloat") {
 		instance(BigFloat),
 		pipe(string(), regex(/^[+-]?((\d+\.?\d*)|(\.\d+))([eE][+-]?\d+)?$/), transform((v) => parse$1(v))),
 		pipe(bigint(), transform((v) => parse$1(v))),
-		pipe(number(), transform((v) => parse$1(v)))
+		pipe(number(), finite(), transform((v) => parse$1(v)))
 	], message);
 }
 //#endregion

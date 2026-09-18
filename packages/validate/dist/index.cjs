@@ -68,7 +68,7 @@ function bigfloat(message = "Invalid bigfloat") {
 		(0, valibot.instance)(_awsless_big_float.BigFloat),
 		(0, valibot.pipe)((0, valibot.string)(), (0, valibot.regex)(/^[+-]?((\d+\.?\d*)|(\.\d+))([eE][+-]?\d+)?$/), (0, valibot.transform)((v) => (0, _awsless_big_float.parse)(v))),
 		(0, valibot.pipe)((0, valibot.bigint)(), (0, valibot.transform)((v) => (0, _awsless_big_float.parse)(v))),
-		(0, valibot.pipe)((0, valibot.number)(), (0, valibot.transform)((v) => (0, _awsless_big_float.parse)(v)))
+		(0, valibot.pipe)((0, valibot.number)(), (0, valibot.finite)(), (0, valibot.transform)((v) => (0, _awsless_big_float.parse)(v)))
 	], message);
 }
 //#endregion

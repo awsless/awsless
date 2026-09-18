@@ -9,7 +9,7 @@ const schema = json(
 
 testSchema('json', {
 	valid: ['{"foo":"bar"}'],
-	invalid: [undefined, null, '', '{}', {}, { foo: 'bar' }, [], 1, new Set()],
+	invalid: [undefined, null, '', '{}', {}, { foo: 'bar' }, [], 1, new Set(), '{"$bigfloat":null}'],
 	validate(input) {
 		parse(schema, input)
 	},

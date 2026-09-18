@@ -4,6 +4,7 @@ import {
 	ErrorMessage,
 	GenericIssue,
 	bigint,
+	finite,
 	instance,
 	number,
 	pipe,
@@ -30,6 +31,7 @@ export function bigfloat(message: ErrorMessage<GenericIssue> = 'Invalid bigfloat
 			),
 			pipe(
 				number(),
+				finite(),
 				transform(v => parse(v))
 			),
 		],

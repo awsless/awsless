@@ -4,7 +4,23 @@ import { testSchema } from '../_util'
 
 testSchema('bigfloat', {
 	valid: [0, -1, 1, 5.0e-5, 1e1, '0', '1', '-1', '5.0E-5', '5.0e-5', '1e1', new BigFloat(1), new BigFloat('1')],
-	invalid: [null, undefined, true, false, NaN, '', 'a', [], {}, new Date(), new Set(), new Map()],
+	invalid: [
+		null,
+		undefined,
+		true,
+		false,
+		NaN,
+		Infinity,
+		-Infinity,
+		1e999,
+		'',
+		'a',
+		[],
+		{},
+		new Date(),
+		new Set(),
+		new Map(),
+	],
 	validate: value => {
 		const result = parse(bigfloat(), value)
 		expect(result).toBeInstanceOf(BigFloat)
