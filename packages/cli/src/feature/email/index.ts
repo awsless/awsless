@@ -5,13 +5,13 @@ export const emailFeature = defineFeature({
 	name: 'email',
 	onApp(ctx) {
 		// Email.send works out of the box through any verified ses
-		// identity of the account. Sending through the app configuration
-		// set is authorized against its own ARN, not just the identity.
+		// identity of the account. An identity can carry a default
+		// configuration set, which ses authorizes by its own ARN too.
 		ctx.addPermission({
 			actions: ['ses:SendEmail', 'ses:SendRawEmail'],
 			resources: [
 				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
-				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:configuration-set/${ctx.app.name}`,
+				`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:configuration-set/*`,
 			],
 		})
 	},

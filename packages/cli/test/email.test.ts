@@ -11,7 +11,7 @@ describe('email', () => {
 		expect(statements[0]!.actions).toEqual(['ses:SendEmail', 'ses:SendRawEmail'])
 		expect(statements[0]!.resources).toEqual([
 			'arn:aws:ses:us-east-1:123456789012:identity/*',
-			'arn:aws:ses:us-east-1:123456789012:configuration-set/test-app',
+			'arn:aws:ses:us-east-1:123456789012:configuration-set/*',
 		])
 	})
 
