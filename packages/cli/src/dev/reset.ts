@@ -60,7 +60,7 @@ export const createDataReset = (props: { pool: ServerPool; stackConfigs: StackCo
 			// Every cache redis flushes completely.
 			for (const stack of props.stackConfigs) {
 				for (const id of Object.keys(stack.caches ?? {})) {
-					const port = props.pool.peek<number>(`cache:${stack.name}:${id}`)
+					const port = props.pool.peek<{ port: number }>(`cache:${stack.name}:${id}`)?.port
 
 					if (!port) {
 						continue

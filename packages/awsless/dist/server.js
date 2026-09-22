@@ -1311,13 +1311,6 @@ const Auth = /*@__PURE__*/ createProxy((name) => {
 });
 //#endregion
 //#region src/lib/server/cache.ts
-const tryGetContext = () => {
-	try {
-		return getContext();
-	} catch {
-		return;
-	}
-};
 const getCacheProps = (name, stack = getStack()) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`;
 	return {
@@ -1325,38 +1318,11 @@ const getCacheProps = (name, stack = getStack()) => {
 		port: parseInt(process.env[`${prefix}_PORT`], 10)
 	};
 };
-const destroyPerInvocation = (client) => {
-	const registered = /* @__PURE__ */ new WeakSet();
-	const track = () => {
-		const context = tryGetContext();
-		if (context && !registered.has(context)) {
-			registered.add(context);
-			context.onFinally(() => client.destroy());
-		}
-	};
-	return {
-		send(name, args, options) {
-			track();
-			return client.send(name, args, options);
-		},
-		batch(commands) {
-			track();
-			return client.batch(commands);
-		},
-		transact(commands) {
-			track();
-			return client.transact(commands);
-		},
-		destroy() {
-			return client.destroy();
-		}
-	};
-};
 const Cache = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		return (db = 0) => {
-			const client = createLazyClient(() => {
-				return createIoRedisClient({
+			return createLazyClient(() => {
+				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
 					db,
 					...IS_LOCAL ? {
@@ -1367,12 +1333,10 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 						tls: { checkServerIdentity: () => void 0 }
 					}
 				});
-			});
-			if (isTest()) {
-				registerTestCleanup(() => client.destroy());
+				if (isTest()) registerTestCleanup(() => client.destroy());
+				else getContext().onFinally(() => client.destroy());
 				return client;
-			}
-			return destroyPerInvocation(client);
+			});
 		};
 	});
 });

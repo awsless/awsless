@@ -28,29 +28,35 @@ describe('cache', () => {
 		vi.unstubAllEnvs()
 	})
 
-	it('creates the client outside a lambda invocation', async () => {
+	it('needs a lambda invocation to create the client', async () => {
+		const { lambda } = await import('@awsless/lambda')
 		const { createIoRedisClient } = await import('@awsless/redis')
 		const { Cache } = await import('../src/lib/server/cache')
 		const client = (Cache as any).stack.main()
 
-		await expect(client.send('PING', [])).resolves.toBe('PONG')
+		// The cleanup is tied to the invocation context, so the client can
+		// only be created while one is active.
+		expect(() => client.send('PING', [])).toThrow('Lambda context is not available')
+
+		await lambda({ handle: async () => client.send('PING', []) })({})
 
 		expect(createIoRedisClient).toHaveBeenCalledWith(
 			expect.objectContaining({ host: 'localhost', port: 6379, db: 0, cluster: true })
 		)
-		expect(clients.at(-1)!.destroy).not.toHaveBeenCalled()
 	})
 
-	it('destroys the client at the end of every invocation that uses it', async () => {
+	it('registers the cleanup once, on the invocation that first uses the client', async () => {
 		const { lambda } = await import('@awsless/lambda')
 		const { Cache } = await import('../src/lib/server/cache')
 		const client = (Cache as any).stack.main(1)
 
-		// One module scope client, used by two warm invocations.
+		// One module scope client, used by two warm invocations and by an
+		// inner call within the first: only the first invocation's cleanup
+		// runs, the client is not torn down per call.
 		const handle = lambda({
 			handle: async () => {
 				await client.send('PING', [])
-				await client.send('PING', [])
+				await lambda({ handle: async () => client.send('PING', []) })({})
 			},
 		})
 
@@ -61,7 +67,7 @@ describe('cache', () => {
 
 		await handle({})
 
-		expect(destroy).toHaveBeenCalledTimes(2)
+		expect(destroy).toHaveBeenCalledTimes(1)
 	})
 
 	it('leaves an untouched client alone', async () => {

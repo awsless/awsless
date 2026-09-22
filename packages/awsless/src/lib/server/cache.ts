@@ -1,17 +1,9 @@
-import { Context, getContext } from '@awsless/lambda'
-import { createIoRedisClient, createLazyClient, RedisClient } from '@awsless/redis'
+import { getContext } from '@awsless/lambda'
+import { createIoRedisClient, createLazyClient } from '@awsless/redis'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { registerTestCleanup } from '../test/cleanup.js'
 import { getStack, IS_LOCAL, isTest } from './util.js'
-
-const tryGetContext = () => {
-	try {
-		return getContext()
-	} catch {
-		return undefined
-	}
-}
 
 export const getCacheProps = (name: string, stack: string = getStack()) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`
@@ -22,46 +14,13 @@ export const getCacheProps = (name: string, stack: string = getStack()) => {
 	} as const
 }
 
-// The connection closes with each invocation that used it, so a module
-// scope client must register anew; processes without an invocation keep it.
-const destroyPerInvocation = (client: RedisClient): RedisClient => {
-	const registered = new WeakSet<Context>()
-
-	const track = () => {
-		const context = tryGetContext()
-
-		if (context && !registered.has(context)) {
-			registered.add(context)
-			context.onFinally(() => client.destroy())
-		}
-	}
-
-	return {
-		send(name, args, options) {
-			track()
-			return client.send(name, args, options)
-		},
-		batch(commands) {
-			track()
-			return client.batch(commands)
-		},
-		transact(commands) {
-			track()
-			return client.transact(commands)
-		},
-		destroy() {
-			return client.destroy()
-		},
-	}
-}
-
 export interface CacheResources {}
 
 export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
 		return (db: number = 0) => {
-			const client = createLazyClient(() => {
-				return createIoRedisClient({
+			return createLazyClient(() => {
+				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
 					db,
 					// The local dev cache is a plain single node without tls.
@@ -79,16 +38,21 @@ export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 								},
 							}),
 				})
-			})
 
-			// Tests call handlers without a lambda context, so the
-			// client cleans up when the test file finishes.
-			if (isTest()) {
-				registerTestCleanup(() => client.destroy())
+				// Tests call handlers without a lambda context, so the
+				// client cleans up when the test file finishes. Otherwise the
+				// invocation that first uses the client owns its cleanup; a
+				// module scope client is shared by every invocation and every
+				// internal call in between, so it must not be torn down for
+				// each of them.
+				if (isTest()) {
+					registerTestCleanup(() => client.destroy())
+				} else {
+					getContext().onFinally(() => client.destroy())
+				}
+
 				return client
-			}
-
-			return destroyPerInvocation(client)
+			})
 		}
 	})
 })
