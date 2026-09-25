@@ -27,6 +27,17 @@ describe('domain', () => {
 		expect(shared.entry('domain', 'global-certificate-arn', 'main')).toBeDefined()
 	})
 
+	it('creates a hosted zone per domain', () => {
+		const { app, shared } = createTestApp({
+			app: { domains: { main: { domain: 'example.com' }, other: { domain: 'example.org' } } },
+		})
+
+		const zones = listResources(app, 'aws_route53_zone')
+
+		expect(zones.map(meta => meta.input.name)).toEqual(['example.com', 'example.org'])
+		expect(shared.entry('domain', 'zone-id', 'main')).not.toBe(shared.entry('domain', 'zone-id', 'other'))
+	})
+
 	it('requests a separate global certificate outside us-east-1', () => {
 		const local = createTestApp({ app: { domains: { main: { domain: 'example.com' } } } })
 		const remote = createTestApp({

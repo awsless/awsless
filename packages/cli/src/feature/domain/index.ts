@@ -135,7 +135,7 @@ export const domainFeature = defineFeature({
 			const group = new Group(ctx.base, 'domain', id)
 
 			const zone = new aws.route53.Zone(
-				ctx.zones,
+				new Group(ctx.zones, 'domain', id),
 				'zone',
 				{
 					name: props.domain,
