@@ -164,42 +164,65 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			functionUrlAuthType?: 'AWS_IAM'
 			invokedViaFunctionUrl?: boolean
 		}) => {
-			try {
-				await lambda.send(
-					new AddPermissionCommand({
-						FunctionName: state.functionName,
-						Qualifier: state.id,
-						StatementId: props.statementId,
-						Action: props.action,
-						Principal: 'cloudfront.amazonaws.com',
-						SourceArn: props.sourceArn,
-						FunctionUrlAuthType: props.functionUrlAuthType,
-						InvokedViaFunctionUrl: props.invokedViaFunctionUrl,
-					})
-				)
-			} catch (error) {
-				if (!isError(error, 'ResourceConflictException')) {
-					throw error
+			for (let attempt = 1; ; attempt++) {
+				try {
+					await lambda.send(
+						new AddPermissionCommand({
+							FunctionName: state.functionName,
+							Qualifier: state.id,
+							StatementId: props.statementId,
+							Action: props.action,
+							Principal: 'cloudfront.amazonaws.com',
+							SourceArn: props.sourceArn,
+							FunctionUrlAuthType: props.functionUrlAuthType,
+							InvokedViaFunctionUrl: props.invokedViaFunctionUrl,
+						})
+					)
+
+					return
+				} catch (error) {
+					if (!isError(error, 'ResourceConflictException')) {
+						throw error
+					}
+
+					// A reused deployment id already carries the statement.
+					if (error.message.includes('already exists')) {
+						return
+					}
+
+					// Lambda reports the same conflict while another writer is
+					// updating the policy, which would silently drop the
+					// permission if we treated it as "already exists".
+					if (attempt >= 5) {
+						throw error
+					}
+
+					await new Promise(resolve => setTimeout(resolve, attempt * 500))
 				}
 			}
 		}
 
-		await Promise.all(
-			state.sourceArns.flatMap((sourceArn, index) => [
-				addPermission({
-					statementId: `cloudfront-url-${index}`,
-					action: 'lambda:InvokeFunctionUrl',
-					functionUrlAuthType: 'AWS_IAM',
-					sourceArn,
-				}),
-				addPermission({
-					statementId: `cloudfront-invoke-${index}`,
-					action: 'lambda:InvokeFunction',
-					invokedViaFunctionUrl: true,
-					sourceArn,
-				}),
-			])
-		)
+		// Policy writes on one function conflict with each other, so the
+		// permissions are added one at a time. The statement id carries the
+		// distribution id, so an existing statement on a reused deployment
+		// id is guaranteed to grant the same distribution.
+		for (const sourceArn of state.sourceArns) {
+			const distributionId = sourceArn.split('/').at(-1)
+
+			await addPermission({
+				statementId: `cloudfront-url-${distributionId}`,
+				action: 'lambda:InvokeFunctionUrl',
+				functionUrlAuthType: 'AWS_IAM',
+				sourceArn,
+			})
+
+			await addPermission({
+				statementId: `cloudfront-invoke-${distributionId}`,
+				action: 'lambda:InvokeFunction',
+				invokedViaFunctionUrl: true,
+				sourceArn,
+			})
+		}
 
 		return url
 	}

@@ -14,7 +14,7 @@ export type ProviderProps = {
 	region: Region
 }
 
-export const isError = (error: unknown, name: string) => {
+export const isError = (error: unknown, name: string): error is Error => {
 	return error instanceof Error && error.name === name
 }
 

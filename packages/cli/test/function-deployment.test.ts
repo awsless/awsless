@@ -16,15 +16,35 @@ const sourceArn = 'arn:aws:cloudfront::123456789012:distribution/test'
 const sourceArns = [sourceArn]
 const onFailureArn = 'arn:aws:s3:::test-on-failure'
 
-const conflict = () => {
-	const error = new Error('Alias already exists')
+const conflict = (message = 'Alias already exists') => {
+	const error = new Error(message)
 	error.name = 'ResourceConflictException'
 
 	return error
 }
 
-const mockLambda = (options: { liveVersion?: string; liveDescription?: string; aliasExists?: boolean } = {}) => {
+const mockLambda = (
+	options: {
+		liveVersion?: string
+		liveDescription?: string
+		aliasExists?: boolean
+		// Conflicts thrown by the first permission calls, in order.
+		permissionConflicts?: string[]
+	} = {}
+) => {
+	const permissionConflicts = [...(options.permissionConflicts ?? [])]
+
 	return vi.spyOn(LambdaClient.prototype, 'send').mockImplementation(async command => {
+		if (command instanceof AddPermissionCommand) {
+			const message = permissionConflicts.shift()
+
+			if (message) {
+				throw conflict(message)
+			}
+
+			return {}
+		}
+
 		if (command instanceof GetAliasCommand) {
 			if (options.liveVersion) {
 				return { Description: options.liveDescription, FunctionVersion: options.liveVersion }
@@ -49,7 +69,6 @@ const mockLambda = (options: { liveVersion?: string; liveDescription?: string; a
 
 		if (
 			command instanceof UpdateAliasCommand ||
-			command instanceof AddPermissionCommand ||
 			command instanceof DeleteFunctionUrlConfigCommand ||
 			command instanceof PutFunctionEventInvokeConfigCommand
 		) {
@@ -191,7 +210,7 @@ describe('Lambda function deployment', () => {
 			{
 				FunctionName: 'test-function',
 				Qualifier: 'main-1',
-				StatementId: 'cloudfront-url-0',
+				StatementId: 'cloudfront-url-test',
 				Action: 'lambda:InvokeFunctionUrl',
 				Principal: 'cloudfront.amazonaws.com',
 				SourceArn: sourceArn,
@@ -200,13 +219,42 @@ describe('Lambda function deployment', () => {
 			{
 				FunctionName: 'test-function',
 				Qualifier: 'main-1',
-				StatementId: 'cloudfront-invoke-0',
+				StatementId: 'cloudfront-invoke-test',
 				Action: 'lambda:InvokeFunction',
 				Principal: 'cloudfront.amazonaws.com',
 				SourceArn: sourceArn,
 				InvokedViaFunctionUrl: true,
 			},
 		])
+	})
+
+	it('should retry permissions blocked by a concurrent policy update & skip existing ones', async () => {
+		vi.useFakeTimers()
+
+		const send = mockLambda({
+			permissionConflicts: [
+				'The operation cannot be performed at this time. An update is in progress',
+				'The statement id (cloudfront-invoke-test) provided already exists',
+			],
+		})
+		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
+		const pending = provider.createResource({
+			type: 'function-deployment',
+			state: {
+				functionName: 'test-function',
+				id: 'main-1',
+				sourceArns,
+			},
+		})
+
+		await vi.runAllTimersAsync()
+		await pending
+
+		const statements = sent(send, AddPermissionCommand).map(command => command.input.StatementId)
+
+		expect(statements).toEqual(['cloudfront-url-test', 'cloudfront-url-test', 'cloudfront-invoke-test'])
+
+		vi.useRealTimers()
 	})
 
 	it('should create a new url without changing the previous deployment', async () => {
