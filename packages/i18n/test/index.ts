@@ -118,7 +118,7 @@ describe('i18n', () => {
 
 		try {
 			let plugin = i18n({ locales: ['fr'], translate: mock('TRANSLATED') })
-			const context = { info() {}, environment: { logger: { info() {} } } }
+			const context = { info() {}, warn() {}, environment: { logger: { info() {}, warn() {} } } }
 
 			// @ts-expect-error only the hook body is exercised
 			await plugin.buildStart.call(context)

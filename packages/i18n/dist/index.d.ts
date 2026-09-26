@@ -1,5 +1,17 @@
+import "svelte/compiler";
 import { LanguageModel } from "ai";
 import { Plugin } from "vite";
+//#region src/svelte-internal.d.ts
+type Namespace = 'html' | 'svg' | 'mathml';
+//#endregion
+//#region src/t.d.ts
+/** The compiler options the cleaning depends on, as the Svelte plugin has them. */
+type TOptions = {
+  preserveWhitespace?: boolean;
+  preserveComments?: boolean;
+  namespace?: Namespace;
+};
+//#endregion
 //#region src/vite.d.ts
 type Translator = (defaultLocale: string, list: {
   source: string;
@@ -19,6 +31,16 @@ type I18nPluginProps = {
   locales: string[];
   /** Function that performs the translation of a given text. */
   translate: Translator;
+  /** Whether whitespace inside `<T>` is kept as written. Defaults to the
+   * Svelte plugin's `compilerOptions.preserveWhitespace`; a component's own
+   * `<svelte:options preserveWhitespace>` always wins. */
+  preserveWhitespace?: boolean;
+  /** Whether comments inside `<T>` stay in the output. Defaults to the
+   * Svelte plugin's `compilerOptions.preserveComments`. */
+  preserveComments?: boolean;
+  /** The namespace components are compiled in. Defaults to the Svelte
+   * plugin's `compilerOptions.namespace`; `<svelte:options namespace>` wins. */
+  namespace?: TOptions['namespace'];
 };
 declare const i18n: (props: I18nPluginProps) => Plugin;
 //#endregion
