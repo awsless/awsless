@@ -1,8 +1,23 @@
+import { extname } from 'node:path'
 import MagicString from 'magic-string'
 import { Plugin } from 'vite'
 import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
-import { findTranslatable, findTranslatableInCode, isIgnoredPath } from './find'
+import { findTranslatable, findTranslatableInCode, isIgnoredPath, Source, Tagged } from './find'
+import { findTaggedTemplates } from './find/svelte'
+import { findTypescriptTagged } from './find/typescript'
+import { svelteInternals } from './svelte-internal'
+import {
+	aliasFor,
+	Edit,
+	hasT,
+	parseT,
+	Runs,
+	TOptions,
+	transformT,
+	validatePlaceholders,
+	validateTranslation,
+} from './t'
 
 export type Translator = (
 	defaultLocale: string,
@@ -29,12 +44,59 @@ export type I18nPluginProps = {
 
 	/** Function that performs the translation of a given text. */
 	translate: Translator
+
+	/** Whether whitespace inside `<T>` is kept as written. Defaults to the
+	 * Svelte plugin's `compilerOptions.preserveWhitespace`; a component's own
+	 * `<svelte:options preserveWhitespace>` always wins. */
+	preserveWhitespace?: boolean
+
+	/** Whether comments inside `<T>` stay in the output. Defaults to the
+	 * Svelte plugin's `compilerOptions.preserveComments`. */
+	preserveComments?: boolean
+
+	/** The namespace components are compiled in. Defaults to the Svelte
+	 * plugin's `compilerOptions.namespace`; `<svelte:options namespace>` wins. */
+	namespace?: TOptions['namespace']
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
+// A private alias, so a `lang` of the component itself can't shadow the calls,
+// followed by the one-time registration of the file's translated runs.
+const langImport = (alias: string, runs: Runs) =>
+	`import { lang as ${alias} } from '@awsless/i18n/svelte'\n${alias}.t.runs(${JSON.stringify(runs)})`
+
+type Logger = {
+	info: (message: string) => void
+	warn: (message: string) => void
+}
+
+const outermost = (tagged: Tagged[]) =>
+	tagged.filter(item => !tagged.some(other => other !== item && other.start <= item.start && item.end <= other.end))
+
+// Vite ids keep their query (?svelte&type=style), which extname would not strip.
+const isSvelteFile = (id = '') => extname(id.split('?')[0]!) === '.svelte'
+
+// The svelte plugin publishes its resolved options on its `api` once the
+// config is resolved, which is where the compiler defaults live.
+const svelteCompilerOptions = (plugins: readonly Plugin[]): TOptions => {
+	for (const plugin of plugins) {
+		const api = plugin.api as { options?: { compilerOptions?: TOptions } } | undefined
+
+		if (plugin.name.startsWith('vite-plugin-svelte') && api?.options?.compilerOptions) {
+			return api.options.compilerOptions
+		}
+	}
+
+	return {}
+}
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
+	let options: TOptions = {
+		preserveWhitespace: props.preserveWhitespace,
+		preserveComments: props.preserveComments,
+		namespace: props.namespace,
+	}
 	let generatedCache: Cache
 	let overrideCache: Cache
 
@@ -42,22 +104,48 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	// previous one translated instead of asking for the same texts again.
 	let queue: Promise<void> = Promise.resolve()
 
-	const translateMissing = (cwd: string, sourceTexts: string[], log: (message: string) => void) => {
-		queue = queue.catch(() => {}).then(() => translateNow(cwd, sourceTexts, log))
+	const translateMissing = (cwd: string, sources: Source[], log: Logger) => {
+		queue = queue.catch(() => {}).then(() => translateNow(cwd, sources, log))
 		return queue
 	}
 
-	const translateNow = async (cwd: string, sourceTexts: string[], log: (message: string) => void) => {
-		const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales)
+	const translateNow = async (cwd: string, sources: Source[], log: Logger) => {
+		const newSourceTexts = findNewTranslations(
+			cache,
+			sources.map(item => item.source),
+			props.locales
+		)
+
+		// Numbered tags only mean something in markup; the same text found as
+		// both is held to the markup rules, with every sealed run it has anywhere.
+		const markup = new Map<string, number[]>()
+
+		for (const item of sources) {
+			if (item.kind === 'markup') {
+				markup.set(item.source, [...new Set([...(markup.get(item.source) ?? []), ...(item.sealed ?? [])])])
+			}
+		}
 
 		if (newSourceTexts.length > 0) {
-			log(`Translating ${newSourceTexts.length} new texts.`)
+			log.info(`Translating ${newSourceTexts.length} new texts.`)
 
 			const translations = await props.translate(props.default ?? 'en', newSourceTexts)
 
-			log(`Translated ${translations.length} texts.`)
+			log.info(`Translated ${translations.length} texts.`)
 
 			for (const item of translations) {
+				// A translation that lost a placeholder or tag would break the
+				// markup, so the source text is shown for that locale instead.
+				const sealed = markup.get(item.source)
+				const problem = sealed
+					? validateTranslation(item.source, item.translation, sealed)
+					: validatePlaceholders(item.source, item.translation)
+
+				if (problem) {
+					log.warn(`Skipped the "${item.locale}" translation of "${item.source}": ${problem}.`)
+					continue
+				}
+
 				generatedCache.set(item.source, item.locale, item.translation)
 			}
 		}
@@ -70,21 +158,40 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	return {
 		name: 'awsless/i18n',
 		enforce: 'pre',
+		configResolved(config) {
+			// Fails here, with the svelte version named, rather than on the first file.
+			svelteInternals()
+
+			const compiler = svelteCompilerOptions(config.plugins)
+
+			options = {
+				preserveWhitespace: props.preserveWhitespace ?? compiler.preserveWhitespace,
+				preserveComments: props.preserveComments ?? compiler.preserveComments,
+				namespace: props.namespace ?? compiler.namespace,
+			}
+		},
 		async buildStart() {
 			const cwd = process.cwd()
 
 			this.info('Finding all translatable text...')
-			const sourceTexts = await findTranslatable(cwd)
+			const sources = await findTranslatable(cwd, options)
 
 			generatedCache = await loadGeneratedCache(cwd)
 			overrideCache = await loadOverrideCache(cwd)
 
 			// Clean up the unused transations from the cache
-			removeUnusedTranslations(generatedCache, sourceTexts, props.locales)
+			removeUnusedTranslations(
+				generatedCache,
+				sources.map(item => item.source),
+				props.locales
+			)
 
 			cache = mergeCaches(generatedCache, overrideCache)
 
-			await translateMissing(cwd, sourceTexts, message => this.info(message))
+			await translateMissing(cwd, sources, {
+				info: message => this.info(message),
+				warn: message => this.warn(message),
+			})
 
 			this.info(`Translating done.`)
 		},
@@ -95,44 +202,142 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				return
 			}
 
-			const sourceTexts = await findTranslatableInCode(file, await read())
+			const sources = await findTranslatableInCode(file, await read(), options)
 
-			if (sourceTexts.length > 0) {
-				await translateMissing(process.cwd(), sourceTexts, message => this.environment.logger.info(message))
+			if (sources.length > 0) {
+				await translateMissing(process.cwd(), sources, this.environment.logger)
 			}
 		},
-		transform(code) {
-			if (code.includes('lang.t`')) {
-				const transformedCode = new MagicString(code)
+		transform(code, id) {
+			const svelte = isSvelteFile(id)
 
-				for (const item of cache.entries()) {
-					transformedCode.replaceAll(
-						`lang.t\`${item.source}\``,
-						`lang.t.get(\`${item.source}\`, {${props.locales
-							.map(locale => {
-								const translation = cache.get(item.source, locale)
+			if (!code.includes('lang.t`') && !(svelte && hasT(code))) {
+				return
+			}
 
-								// Skip adding the translated text if it's the
-								// same as the original source text.
-								if (translation === item.source) {
-									return
-								}
+			const sources = new Set<string>()
 
-								return `"${locale}":\`${translation}\``
-							})
-							.filter(v => !!v)
-							.join(',')}})`
-					)
+			for (const item of cache.entries()) {
+				sources.add(item.source)
+			}
+
+			// Templates inside a template compose from the inside out: the inner
+			// call is spliced into the outer text, and into its translations, at
+			// the offsets oxc reports for that text parsed as a template literal.
+			const compose = (text: string): string => {
+				const inner = outermost(findTypescriptTagged(`\`${text}\``).filter(item => sources.has(item.source)))
+				let result = text
+
+				for (const item of inner.toSorted((a, b) => b.start - a.start)) {
+					result = result.slice(0, item.start - 1) + render(item.source) + result.slice(item.end - 1)
 				}
-				return {
-					code: transformedCode.toString(),
-					map: transformedCode.generateMap({
-						hires: true,
-					}),
+
+				return result
+			}
+
+			const render = (source: string): string => {
+				const translations = props.locales
+					.map(locale => {
+						const translation = cache.get(source, locale)
+
+						// Skip adding the translated text if it's the
+						// same as the original source text.
+						if (translation === undefined || translation === source) {
+							return
+						}
+
+						return `"${locale}":\`${compose(translation)}\``
+					})
+					.filter(v => !!v)
+
+				return `lang.t.get(\`${compose(source)}\`, {${translations.join(',')}})`
+			}
+
+			// Only templates the cache knows are rewritten, the rest keep working
+			// as tagged calls. Nested ones are part of their outermost edit.
+			const rewrites = (tagged: Tagged[]): Edit[] =>
+				outermost(tagged.filter(item => sources.has(item.source))).map(item => ({
+					...item,
+					text: render(item.source),
+				}))
+
+			const transformedCode = new MagicString(code)
+
+			if (svelte) {
+				const { ast, components } = parseT(code, id, options)
+				const alias = aliasFor(ast)
+				const templates = rewrites(findTaggedTemplates(ast, code))
+				const lookup = (source: string, locale: string) => cache.get(source, locale)
+				const edits: Edit[] = []
+				const runs: Runs = {}
+				let called = false
+
+				for (const component of components) {
+					const result = transformT(
+						component,
+						code,
+						props.locales,
+						lookup,
+						message => this.warn(message),
+						templates,
+						alias
+					)
+					edits.push(...result.edits)
+					Object.assign(runs, result.runs)
+					called ||= result.translated
+				}
+
+				for (const edit of edits) {
+					if (edit.text === '') {
+						if (edit.end > edit.start) {
+							transformedCode.remove(edit.start, edit.end)
+						}
+					} else if (edit.start === edit.end) {
+						transformedCode.appendLeft(edit.start, edit.text)
+					} else {
+						transformedCode.overwrite(edit.start, edit.end, edit.text)
+					}
+				}
+
+				// A template inside a replaced range went with it: into the values
+				// of its run, or away with a dropped <T> tag.
+				for (const template of templates) {
+					const covered = edits.some(
+						edit => edit.start < edit.end && edit.start <= template.start && template.end <= edit.end
+					)
+
+					if (!covered) {
+						transformedCode.overwrite(template.start, template.end, template.text)
+					}
+				}
+
+				if (called) {
+					if (ast.instance) {
+						// Right after the `<script ...>` tag; a semicolon only when the
+						// first statement would otherwise share the import's line.
+						const { start } = ast.instance.content as unknown as { start: number }
+						const first = ast.instance.content.body[0] as unknown as { start: number } | undefined
+						const sameLine = !code.slice(start, first?.start ?? start).includes('\n')
+
+						transformedCode.appendLeft(start, `${langImport(alias, runs)}${sameLine ? ';\n' : ''}`)
+					} else {
+						transformedCode.prepend(
+							`<script>\n\t${langImport(alias, runs).replace('\n', '\n\t')}\n</script>\n`
+						)
+					}
+				}
+			} else {
+				for (const template of rewrites(findTypescriptTagged(code))) {
+					transformedCode.overwrite(template.start, template.end, template.text)
 				}
 			}
 
-			return
+			return {
+				code: transformedCode.toString(),
+				map: transformedCode.generateMap({
+					hires: true,
+				}),
+			}
 		},
 	}
 }

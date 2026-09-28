@@ -1,43 +1,70 @@
-import { Node, walk } from 'estree-walker'
-import lineColumn from 'line-column'
-import { parse as parseSvelte } from 'svelte/compiler'
+import { AST } from 'svelte/compiler'
+import { Source, Tagged } from '../find'
+import { collectSources, parseT, TOptions } from '../t'
 
-export const findSvelteTranslatable = (code: string) => {
-	const found: string[] = []
-	const origin = lineColumn(code)
-	const ast = parseSvelte(code)
+type Range = { start: number; end: number }
 
-	const enter = (node: Node) => {
-		if (
-			node.type === 'TaggedTemplateExpression' &&
-			node.tag.type === 'MemberExpression' &&
-			node.tag.object.type === 'Identifier' &&
-			node.tag.object.name === 'lang' &&
-			node.tag.property.type === 'Identifier' &&
-			node.tag.property.name === 't' &&
-			node.quasi.type === 'TemplateLiteral' &&
-			node.quasi.loc
-		) {
-			const start = node.quasi.loc.start
-			const end = node.quasi.loc.end
-			const content = code.substring(
-				origin.toIndex(start.line, start.column) + 2,
-				origin.toIndex(end.line, end.column)
-			)
+// Only a plain `lang.t`; `lang[t]` is somebody else's call.
+const isLangT = (tag: unknown) => {
+	const node = tag as {
+		type?: string
+		computed?: boolean
+		object?: { type?: string; name?: string }
+		property?: { type?: string; name?: string }
+	}
 
-			found.push(content)
+	return (
+		node.type === 'MemberExpression' &&
+		node.computed === false &&
+		node.object?.type === 'Identifier' &&
+		node.object.name === 'lang' &&
+		node.property?.type === 'Identifier' &&
+		node.property.name === 't'
+	)
+}
+
+// Visits every node once, wherever it sits: script, template, attributes or
+// blocks. The AST shares some objects between branches, hence the set.
+export const findTaggedTemplates = (ast: AST.Root, code: string) => {
+	const found: Tagged[] = []
+	const seen = new Set<object>()
+
+	const walk = (value: unknown) => {
+		if (!value || typeof value !== 'object' || seen.has(value)) {
+			return
 		}
+
+		seen.add(value)
+
+		if (Array.isArray(value)) {
+			value.forEach(walk)
+			return
+		}
+
+		const node = value as Record<string, unknown>
+
+		if (node.type === 'TaggedTemplateExpression' && isLangT(node.tag)) {
+			const { start, end } = node as unknown as Range
+			const quasi = node.quasi as Range
+
+			found.push({ start, end, source: code.slice(quasi.start + 1, quasi.end - 1) })
+		}
+
+		Object.values(node).forEach(walk)
 	}
 
-	walk(ast.html as Node, { enter })
+	walk(ast)
 
-	if (ast.instance) {
-		walk(ast.instance.content, { enter })
-	}
+	return found.toSorted((a, b) => a.start - b.start)
+}
 
-	if (ast.module) {
-		walk(ast.module.content, { enter })
-	}
+export const findSvelteTranslatable = (code: string, file?: string, options: TOptions = {}): Source[] => {
+	const { ast, components } = parseT(code, file, options)
 
-	return found
+	return [
+		...findTaggedTemplates(ast, code).map(item => ({ source: item.source, kind: 't' as const })),
+		...components.flatMap(component =>
+			collectSources(component).map(item => ({ ...item, kind: 'markup' as const }))
+		),
+	]
 }
