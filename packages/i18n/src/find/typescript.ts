@@ -1,8 +1,9 @@
 import { Node, walk } from 'estree-walker'
 import { parseSync } from 'oxc-parser'
+import { Translatable } from '../find'
 
-export const findTypescriptTranslatable = async (code: string) => {
-	const found: string[] = []
+export const findTypescriptTranslatable = (code: string) => {
+	const found: Translatable[] = []
 	const ast = parseSync('module.ts', code)
 
 	walk(ast.program as Node, {
@@ -17,7 +18,7 @@ export const findTypescriptTranslatable = async (code: string) => {
 			) {
 				const quasi = node.quasi as Node & { start: number; end: number }
 
-				found.push(code.slice(quasi.start + 1, quasi.end - 1))
+				found.push({ source: code.slice(quasi.start + 1, quasi.end - 1) })
 			}
 		},
 	})

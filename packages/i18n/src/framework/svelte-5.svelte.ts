@@ -49,3 +49,5 @@ export const lang = {
 		return t
 	},
 }
+
+export { default as T } from './T.svelte'
