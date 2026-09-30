@@ -219,7 +219,16 @@ export const RouterDefaultSchema = z
 
 				cookieAuth: z
 					.object({
-						password: z.string().min(1).describe('The password that grants a session.'),
+						password: z
+							.string()
+							.min(1)
+							// The login page sends the password in a fetch header, which
+							// only carries printable ascii & drops surrounding whitespace.
+							.regex(
+								/^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/,
+								'The password may only contain printable ascii characters, without leading or trailing spaces.'
+							)
+							.describe('The password that grants a session.'),
 						sessionDuration: DurationSchema.prefault('30 days').describe(
 							'How long a session cookie stays valid.'
 						),

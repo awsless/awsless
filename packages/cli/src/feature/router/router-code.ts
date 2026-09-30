@@ -19,7 +19,8 @@ export const getViewerRequestFunctionCode = (props: {
 				props.redirectWww ? REDIRECT_WWW : '',
 				props.basicAuth || props.cookieAuth ? AUTH_WRAPPER(props) : '',
 			],
-			ACTIVE_PREFIX(props.router)
+			ACTIVE_PREFIX(props.router),
+			!!props.cookieAuth
 		)
 	)
 }
@@ -104,13 +105,22 @@ if(authHeader && authHeader.startsWith('Basic ') && authHeader.slice(6) === '${B
 const COOKIE_AUTH_CHECK = (auth: CookieAuth) => {
 	const name = JSON.stringify(auth.name)
 	const attributes = ['Path=/', 'Secure', 'HttpOnly', 'SameSite=Lax', ...(auth.domain ? [`Domain=${auth.domain}`] : [])]
-	const cookie = `{ ${name}: { value: ${JSON.stringify(auth.token)}, attributes: ${JSON.stringify([...attributes, `Max-Age=${auth.maxAge}`].join('; '))} } }`
+	const cookie = `{ ${name}: { value: expires + '.' + sign(expires), attributes: ${JSON.stringify([...attributes, `Max-Age=${auth.maxAge}`].join('; '))} } }`
 
+	// A session is its expiry plus an hmac over it, so a leaked cookie
+	// stops working when the session ends & can't be forged without the secret.
 	return `
+const sign = function (value) {
+	return crypto.createHmac('sha256', ${JSON.stringify(auth.secret)}).update(value).digest('hex');
+};
 const authCookie = request.cookies && request.cookies[${name}];
 
-if(authCookie && authCookie.value === ${JSON.stringify(auth.token)}) {
-	isAuthorized = true;
+if(authCookie) {
+	const session = authCookie.value.split('.');
+
+	if(session.length === 2 && Number(session[0]) > Date.now() / 1000 && session[1] === sign(session[0])) {
+		isAuthorized = true;
+	}
 }
 
 if(!isAuthorized && authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === ${JSON.stringify(auth.password)}) {
@@ -121,6 +131,8 @@ if(request.method === 'POST' && path === ${JSON.stringify(LOGIN_PATH)}) {
 	if(!isAuthorized) {
 		return { statusCode: 401 };
 	}
+
+	const expires = String(Math.floor(Date.now() / 1000) + ${auth.maxAge});
 
 	return { statusCode: 204, cookies: ${cookie} };
 }
@@ -180,8 +192,9 @@ try {
 	};
 }`
 
-const CODE = (injection: string[], prefixCode: string) => `
+const CODE = (injection: string[], prefixCode: string, withCrypto: boolean) => `
 import cf from "cloudfront";
+${withCrypto ? 'import crypto from "crypto";' : ''}
 
 function getPossibleRouteKeys(path) {
 	if (path === '' || path === '/') {

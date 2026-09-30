@@ -1,9 +1,10 @@
 import { days } from '@awsless/duration'
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
+import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { createCookieAuth } from '../src/feature/router/cookie-auth'
+import { CookieAuth, createCookieAuth } from '../src/feature/router/cookie-auth'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
-import { RouteSchema } from '../src/feature/router/schema'
+import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
 import { createTestApp } from './_kit'
 
 type Request = {
@@ -41,10 +42,11 @@ const evaluate = (code: string, values: Map<string, string>) => {
 		kvs: () => ({ get }),
 		updateRequestOrigin: vi.fn(),
 	}
+	const body = code.replace('import cf from "cloudfront";', '').replace('import crypto from "crypto";', '')
 	// oxlint-disable-next-line no-implied-eval
-	const handler = new Function('cf', `${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`)(
-		cf
-	) as (event: { request: Request }) => Promise<Request | Response>
+	const handler = new Function('cf', 'crypto', `${body}\nreturn handler;`)(cf, crypto) as (event: {
+		request: Request
+	}) => Promise<Request | Response>
 
 	return { get, handler, updateRequestOrigin: cf.updateRequestOrigin }
 }
@@ -699,6 +701,11 @@ describe('router cookie auth', () => {
 			}),
 		],
 	])
+	// A session cookie the way the function issues it: expiry plus its hmac.
+	const session = (auth: CookieAuth, expires: number) => {
+		return `${expires}.${crypto.createHmac('sha256', auth.secret).update(String(expires)).digest('hex')}`
+	}
+	const now = Math.floor(Date.now() / 1000)
 	const page = (uri: string, method = 'GET') => {
 		const request = createRequest(uri, 'app.example.com')
 
@@ -708,16 +715,26 @@ describe('router cookie auth', () => {
 		return request
 	}
 
-	it('should derive a stable cookie name & token from the password', () => {
+	it('should derive a stable cookie name & secret from the password', () => {
 		const again = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
 		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
 
 		expect(auth.name).toBe(again.name)
-		expect(auth.token).toBe(again.token)
+		expect(auth.secret).toBe(again.secret)
 		expect(auth.name).not.toBe(other.name)
-		expect(auth.token).not.toBe(other.token)
-		expect(auth.token).not.toContain('secret')
+		expect(auth.secret).not.toBe(other.secret)
+		expect(auth.secret).not.toContain('secret')
 		expect(auth.maxAge).toBe(30 * 24 * 60 * 60)
+	})
+
+	it('should only accept passwords that survive a fetch header', () => {
+		const parse = (password: string) => RouterDefaultSchema.parse({ main: { cookieAuth: { password } } })
+
+		expect(() => parse('secret')).not.toThrow()
+		expect(() => parse('pass word')).not.toThrow()
+		expect(() => parse('secret ')).toThrow('printable ascii')
+		expect(() => parse('sécret')).toThrow('printable ascii')
+		expect(() => parse('🔒')).toThrow('printable ascii')
 	})
 
 	it('should serve the login page to browsers without a session', async () => {
@@ -749,7 +766,7 @@ describe('router cookie auth', () => {
 		const { handler } = createRouter(values, { cookieAuth: auth })
 		const request = page('/dashboard')
 
-		request.cookies = { [auth.name]: { value: auth.token }, theme: { value: 'dark' } }
+		request.cookies = { [auth.name]: { value: session(auth, now + 60) }, theme: { value: 'dark' } }
 
 		const result = (await handler({ request })) as Request
 
@@ -757,11 +774,35 @@ describe('router cookie auth', () => {
 		expect(result.cookies).toEqual({ theme: { value: 'dark' } })
 	})
 
-	it('should reject a wrong session cookie', async () => {
+	it('should reject a forged or tampered session cookie', async () => {
 		const { handler } = createRouter(values, { cookieAuth: auth })
+		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
+		const valid = session(auth, now + 60)
+
+		for (const value of [
+			'forged',
+			// a signature from another password
+			session(other, now + 60),
+			// a moved expiry with the old signature
+			`${now + 999999}.${valid.split('.')[1]}`,
+		]) {
+			const request = page('/dashboard')
+
+			request.cookies = { [auth.name]: { value } }
+
+			const result = (await handler({ request })) as Request
+
+			expect(result.uri).toBe('/router/main/login-abc.html')
+		}
+	})
+
+	it('should reject an expired session even while the browser still sends it', async () => {
+		const short = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { cookieAuth: short })
 		const request = page('/dashboard')
 
-		request.cookies = { [auth.name]: { value: 'forged' } }
+		// issued 31 days ago for one day
+		request.cookies = { [short.name]: { value: session(short, now - 30 * 24 * 60 * 60) } }
 
 		const result = (await handler({ request })) as Request
 
@@ -790,10 +831,17 @@ describe('router cookie auth', () => {
 		const result = (await handler({ request })) as Response
 
 		expect(result.statusCode).toBe(204)
-		expect(result.cookies?.[auth.name]).toEqual({
-			value: auth.token,
-			attributes: 'Path=/; Secure; HttpOnly; SameSite=Lax; Domain=example.com; Max-Age=2592000',
-		})
+		expect(result.cookies?.[auth.name]?.attributes).toBe(
+			'Path=/; Secure; HttpOnly; SameSite=Lax; Domain=example.com; Max-Age=2592000'
+		)
+
+		// The session expires with the cookie & carries a signature the function accepts back.
+		const value = result.cookies![auth.name]!.value
+		const expires = Number(value.split('.')[0])
+
+		expect(expires).toBeGreaterThanOrEqual(now + auth.maxAge)
+		expect(expires).toBeLessThanOrEqual(now + auth.maxAge + 5)
+		expect(value).toBe(session(auth, expires))
 	})
 
 	it('should reject a login with the wrong password', async () => {

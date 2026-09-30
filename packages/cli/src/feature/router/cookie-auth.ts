@@ -10,9 +10,9 @@ export const LOGIN_PAGE_METADATA = { 'awsless-login': '1' }
 export const LOGIN_PAGE_HEADER = 'x-amz-meta-awsless-login'
 
 export type CookieAuth = {
-	// The viewer request function compares the cookie against this static token.
 	name: string
-	token: string
+	// The viewer request function signs the session expiry with this secret.
+	secret: string
 	password: string
 	domain?: string
 	maxAge: number
@@ -31,7 +31,7 @@ export const createCookieAuth = (props: {
 
 	return {
 		name: `awsless-auth-${hash('cookie').slice(0, 8)}`,
-		token: hash('token'),
+		secret: hash('secret'),
 		password: props.password,
 		domain: props.domain,
 		maxAge: toSeconds(props.sessionDuration),
