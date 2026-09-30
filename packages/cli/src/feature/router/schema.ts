@@ -229,9 +229,15 @@ export const RouterDefaultSchema = z
 								'The password may only contain printable ascii characters, without leading or trailing spaces.'
 							)
 							.describe('The password that grants a session.'),
-						sessionDuration: DurationSchema.prefault('30 days').describe(
-							'How long a session cookie stays valid.'
-						),
+						sessionDuration: z
+							.union([z.literal('temporary'), DurationSchema])
+							.prefault('30 days')
+							.describe(
+								[
+									'How long a session stays valid.',
+									'Use "temporary" for a session cookie that the browser drops when it closes, which is capped at 1 day.',
+								].join('\n')
+							),
 					})
 					.optional()
 					.describe(

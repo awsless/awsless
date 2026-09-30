@@ -26,7 +26,8 @@
 		"main": {
 			"domain": "main",
 			"cookieAuth": {
-				"password": "password"
+				"password": "password",
+				"sessionDuration": "temporary"
 			}
 		}
 	},

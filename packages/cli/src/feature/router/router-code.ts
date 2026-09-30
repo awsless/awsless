@@ -105,7 +105,7 @@ if(authHeader && authHeader.startsWith('Basic ') && authHeader.slice(6) === '${B
 const COOKIE_AUTH_CHECK = (auth: CookieAuth) => {
 	const name = JSON.stringify(auth.name)
 	const attributes = ['Path=/', 'Secure', 'HttpOnly', 'SameSite=Lax', ...(auth.domain ? [`Domain=${auth.domain}`] : [])]
-	const cookie = `{ ${name}: { value: expires + '.' + sign(expires), attributes: ${JSON.stringify([...attributes, `Max-Age=${auth.maxAge}`].join('; '))} } }`
+	const cookie = `{ ${name}: { value: expires + '.' + sign(expires), attributes: ${JSON.stringify([...attributes, ...(auth.maxAge ? [`Max-Age=${auth.maxAge}`] : [])].join('; '))} } }`
 
 	// A session is its expiry plus an hmac over it, so a leaked cookie
 	// stops working when the session ends & can't be forged without the secret.
@@ -132,7 +132,7 @@ if(request.method === 'POST' && path === ${JSON.stringify(LOGIN_PATH)}) {
 		return { statusCode: 401 };
 	}
 
-	const expires = String(Math.floor(Date.now() / 1000) + ${auth.maxAge});
+	const expires = String(Math.floor(Date.now() / 1000) + ${auth.validity});
 
 	return { statusCode: 204, cookies: ${cookie} };
 }

@@ -724,7 +724,32 @@ describe('router cookie auth', () => {
 		expect(auth.name).not.toBe(other.name)
 		expect(auth.secret).not.toBe(other.secret)
 		expect(auth.secret).not.toContain('secret')
+		expect(auth.validity).toBe(30 * 24 * 60 * 60)
 		expect(auth.maxAge).toBe(30 * 24 * 60 * 60)
+	})
+
+	it('should issue a browser session cookie for a temporary session', async () => {
+		const temporary = createCookieAuth({ password: 'secret', sessionDuration: 'temporary', domain: 'example.com' })
+		const { handler } = createRouter(values, { cookieAuth: temporary })
+		const request = createRequest('/__awsless/login', 'app.example.com')
+
+		request.method = 'POST'
+		request.headers.authorization = { value: 'Password secret' }
+
+		const result = (await handler({ request })) as Response
+		const cookie = result.cookies![temporary.name]!
+
+		// no max age, so the browser drops it when it closes
+		expect(cookie.attributes).toBe('Path=/; Secure; HttpOnly; SameSite=Lax; Domain=example.com')
+
+		// but the signed validity still caps it at a day
+		const expires = Number(cookie.value.split('.')[0])
+
+		expect(expires).toBeGreaterThanOrEqual(now + 24 * 60 * 60)
+		expect(expires).toBeLessThanOrEqual(now + 24 * 60 * 60 + 5)
+		expect(RouterDefaultSchema.parse({ main: { cookieAuth: { password: 'x', sessionDuration: 'temporary' } } })).toMatchObject({
+			main: { cookieAuth: { sessionDuration: 'temporary' } },
+		})
 	})
 
 	it('should only accept passwords that survive a fetch header', () => {
@@ -839,8 +864,8 @@ describe('router cookie auth', () => {
 		const value = result.cookies![auth.name]!.value
 		const expires = Number(value.split('.')[0])
 
-		expect(expires).toBeGreaterThanOrEqual(now + auth.maxAge)
-		expect(expires).toBeLessThanOrEqual(now + auth.maxAge + 5)
+		expect(expires).toBeGreaterThanOrEqual(now + auth.validity)
+		expect(expires).toBeLessThanOrEqual(now + auth.validity + 5)
 		expect(value).toBe(session(auth, expires))
 	})
 

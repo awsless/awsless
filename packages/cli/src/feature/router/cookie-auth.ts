@@ -1,4 +1,4 @@
-import { Duration, toSeconds } from '@awsless/duration'
+import { days, Duration, toSeconds } from '@awsless/duration'
 import { createHash } from 'crypto'
 
 // Reserved router path for the cookie session.
@@ -15,16 +15,24 @@ export type CookieAuth = {
 	secret: string
 	password: string
 	domain?: string
-	maxAge: number
+	// How long a signed session stays valid.
+	validity: number
+	// A temporary session leaves the cookie without a max age, so the browser drops it when it closes.
+	maxAge?: number
 }
+
+// A temporary session still needs a signed bound, or the cookie could be replayed forever.
+export const TEMPORARY_SESSION_VALIDITY = days(1)
 
 // The cookie name carries its own password derived suffix, so routers on
 // one root domain with different passwords never overwrite each other's session.
 export const createCookieAuth = (props: {
 	password: string
-	sessionDuration: Duration
+	sessionDuration: Duration | 'temporary'
 	domain?: string
 }): CookieAuth => {
+	const temporary = props.sessionDuration === 'temporary'
+	const validity = toSeconds(props.sessionDuration === 'temporary' ? TEMPORARY_SESSION_VALIDITY : props.sessionDuration)
 	const hash = (scope: string) => {
 		return createHash('sha256').update(`awsless:router:${scope}:${props.password}`).digest('hex')
 	}
@@ -34,7 +42,8 @@ export const createCookieAuth = (props: {
 		secret: hash('secret'),
 		password: props.password,
 		domain: props.domain,
-		maxAge: toSeconds(props.sessionDuration),
+		validity,
+		maxAge: temporary ? undefined : validity,
 	}
 }
 
