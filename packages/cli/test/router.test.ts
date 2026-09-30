@@ -1,18 +1,24 @@
+import { days } from '@awsless/duration'
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
+import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { getViewerRequestFunctionCode } from '../src/feature/router/router-code'
-import { RouteSchema } from '../src/feature/router/schema'
+import { CookieAuth, createCookieAuth } from '../src/feature/router/cookie-auth'
+import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
+import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
 import { createTestApp } from './_kit'
 
 type Request = {
 	uri: string
 	method: string
 	headers: Record<string, { value: string }>
+	cookies?: Record<string, { value: string }>
 	querystring: Record<string, unknown>
 }
 
 type Response = {
 	statusCode: number
+	headers?: Record<string, { value: string }>
+	cookies?: Record<string, { value: string; attributes: string }>
 }
 
 const createRequest = (uri: string, host?: string): Request => ({
@@ -36,10 +42,11 @@ const evaluate = (code: string, values: Map<string, string>) => {
 		kvs: () => ({ get }),
 		updateRequestOrigin: vi.fn(),
 	}
+	const body = code.replace('import cf from "cloudfront";', '').replace('import crypto from "crypto";', '')
 	// oxlint-disable-next-line no-implied-eval
-	const handler = new Function('cf', `${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`)(
-		cf
-	) as (event: { request: Request }) => Promise<Request | Response>
+	const handler = new Function('cf', 'crypto', `${body}\nreturn handler;`)(cf, crypto) as (event: {
+		request: Request
+	}) => Promise<Request | Response>
 
 	return { get, handler, updateRequestOrigin: cf.updateRequestOrigin }
 }
@@ -677,5 +684,320 @@ describe('router route patterns', () => {
 				},
 			})
 		).toThrow('too large')
+	})
+})
+
+describe('router cookie auth', () => {
+	const auth = createCookieAuth({ password: 'secret', sessionDuration: days(30), domain: 'example.com' })
+	const values = new Map([
+		['$active', 'v1:1'],
+		['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		[
+			'v1:main:/__awsless/login',
+			JSON.stringify({
+				type: 's3',
+				domainName: 'assets.s3.amazonaws.com',
+				rewrite: { to: '/router/main/login-abc.html' },
+			}),
+		],
+	])
+	// A session cookie the way the function issues it: expiry plus its hmac.
+	const session = (auth: CookieAuth, expires: number) => {
+		return `${expires}.${crypto.createHmac('sha256', auth.secret).update(String(expires)).digest('hex')}`
+	}
+	const now = Math.floor(Date.now() / 1000)
+	const page = (uri: string, method = 'GET') => {
+		const request = createRequest(uri, 'app.example.com')
+
+		request.method = method
+		request.headers.accept = { value: 'text/html,application/xhtml+xml,*/*;q=0.8' }
+
+		return request
+	}
+
+	it('should derive a stable cookie name & secret from the password', () => {
+		const again = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
+		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
+
+		expect(auth.name).toBe(again.name)
+		expect(auth.secret).toBe(again.secret)
+		expect(auth.name).not.toBe(other.name)
+		expect(auth.secret).not.toBe(other.secret)
+		expect(auth.secret).not.toContain('secret')
+		expect(auth.validity).toBe(30 * 24 * 60 * 60)
+		expect(auth.maxAge).toBe(30 * 24 * 60 * 60)
+	})
+
+	it('should issue a browser session cookie for a temporary session', async () => {
+		const temporary = createCookieAuth({ password: 'secret', sessionDuration: 'temporary', domain: 'example.com' })
+		const { handler } = createRouter(values, { cookieAuth: temporary })
+		const request = createRequest('/__awsless/login', 'app.example.com')
+
+		request.method = 'POST'
+		request.headers.authorization = { value: 'Password secret' }
+
+		const result = (await handler({ request })) as Response
+		const cookie = result.cookies![temporary.name]!
+
+		// no max age, so the browser drops it when it closes
+		expect(cookie.attributes).toBe('Path=/; Secure; HttpOnly; SameSite=Lax; Domain=example.com')
+
+		// but the signed validity still caps it at a day
+		const expires = Number(cookie.value.split('.')[0])
+
+		expect(expires).toBeGreaterThanOrEqual(now + 24 * 60 * 60)
+		expect(expires).toBeLessThanOrEqual(now + 24 * 60 * 60 + 5)
+		expect(RouterDefaultSchema.parse({ main: { cookieAuth: { password: 'x', sessionDuration: 'temporary' } } })).toMatchObject({
+			main: { cookieAuth: { sessionDuration: 'temporary' } },
+		})
+	})
+
+	it('should only accept passwords that survive a fetch header', () => {
+		const parse = (password: string) => RouterDefaultSchema.parse({ main: { cookieAuth: { password } } })
+
+		expect(() => parse('secret')).not.toThrow()
+		expect(() => parse('pass word')).not.toThrow()
+		expect(() => parse('secret ')).toThrow('printable ascii')
+		expect(() => parse('sécret')).toThrow('printable ascii')
+		expect(() => parse('🔒')).toThrow('printable ascii')
+	})
+
+	it('should serve the login page to browsers without a session', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = page('/dashboard')
+
+		request.querystring = { tab: { value: 'billing' } }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/router/main/login-abc.html')
+		expect(result.headers['x-origin']?.value).toBe('assets.s3.amazonaws.com')
+		expect(result.querystring).toEqual({})
+	})
+
+	it('should reject non page requests without a session', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = createRequest('/api/users', 'app.example.com')
+
+		request.headers.accept = { value: 'application/json' }
+
+		const result = (await handler({ request })) as Response
+
+		expect(result.statusCode).toBe(401)
+		expect(result.headers?.['www-authenticate']).toBeUndefined()
+	})
+
+	it('should pass requests with a session cookie & hide the cookie from the origin', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = page('/dashboard')
+
+		request.cookies = { [auth.name]: { value: session(auth, now + 60) }, theme: { value: 'dark' } }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/dashboard')
+		expect(result.cookies).toEqual({ theme: { value: 'dark' } })
+	})
+
+	it('should reject a forged or tampered session cookie', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
+		const valid = session(auth, now + 60)
+
+		for (const value of [
+			'forged',
+			// a signature from another password
+			session(other, now + 60),
+			// a moved expiry with the old signature
+			`${now + 999999}.${valid.split('.')[1]}`,
+		]) {
+			const request = page('/dashboard')
+
+			request.cookies = { [auth.name]: { value } }
+
+			const result = (await handler({ request })) as Request
+
+			expect(result.uri).toBe('/router/main/login-abc.html')
+		}
+	})
+
+	it('should reject an expired session even while the browser still sends it', async () => {
+		const short = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { cookieAuth: short })
+		const request = page('/dashboard')
+
+		// issued 31 days ago for one day
+		request.cookies = { [short.name]: { value: session(short, now - 30 * 24 * 60 * 60) } }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/router/main/login-abc.html')
+	})
+
+	it('should still accept the password header per request', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = createRequest('/api/users', 'app.example.com')
+
+		request.headers.authorization = { value: 'Password secret' }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/api/users')
+		expect(result.headers['x-awsless-authorization']).toEqual({ value: 'Password secret' })
+	})
+
+	it('should set a root domain session cookie on login', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = createRequest('/__awsless/login', 'app.example.com')
+
+		request.method = 'POST'
+		request.headers.authorization = { value: 'Password secret' }
+
+		const result = (await handler({ request })) as Response
+
+		expect(result.statusCode).toBe(204)
+		expect(result.cookies?.[auth.name]?.attributes).toBe(
+			'Path=/; Secure; HttpOnly; SameSite=Lax; Domain=example.com; Max-Age=2592000'
+		)
+
+		// The session expires with the cookie & carries a signature the function accepts back.
+		const value = result.cookies![auth.name]!.value
+		const expires = Number(value.split('.')[0])
+
+		expect(expires).toBeGreaterThanOrEqual(now + auth.validity)
+		expect(expires).toBeLessThanOrEqual(now + auth.validity + 5)
+		expect(value).toBe(session(auth, expires))
+	})
+
+	it('should reject a login with the wrong password', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = createRequest('/__awsless/login', 'app.example.com')
+
+		request.method = 'POST'
+		request.headers.authorization = { value: 'Password wrong' }
+
+		const result = (await handler({ request })) as Response
+
+		expect(result.statusCode).toBe(401)
+		expect(result.cookies).toBeUndefined()
+	})
+
+	it('should set a host only cookie without a router domain', async () => {
+		const local = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { cookieAuth: local })
+		const request = createRequest('/__awsless/login')
+
+		request.method = 'POST'
+		request.headers.authorization = { value: 'Password secret' }
+
+		const result = (await handler({ request })) as Response
+
+		expect(result.cookies?.[local.name]?.attributes).toBe('Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=86400')
+	})
+
+	it('should keep basic auth working next to the cookie session', async () => {
+		const { handler } = createRouter(values, {
+			basicAuth: { username: 'user', password: 'pass' },
+			cookieAuth: auth,
+		})
+		const request = createRequest('/api/users', 'app.example.com')
+
+		request.headers.authorization = { value: `Basic ${Buffer.from('user:pass').toString('base64')}` }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/api/users')
+
+		const denied = (await handler({ request: createRequest('/api/users', 'app.example.com') })) as Response
+
+		expect(denied.statusCode).toBe(401)
+		expect(denied.headers?.['www-authenticate']?.value).toBe('Basic realm="Protected"')
+	})
+
+	it('should keep the function under the cloudfront size cap with every option', () => {
+		const code = getViewerRequestFunctionCode({
+			router: 'main',
+			blockDirectAccess: true,
+			redirectWww: true,
+			basicAuth: { username: 'user', password: 'pass' },
+			cookieAuth: auth,
+		})
+
+		expect(Buffer.byteLength(code)).toBeLessThan(10 * 1024)
+		expect(code).not.toContain('\t')
+	})
+
+	it('should turn the login page into a 401 on the way to the viewer', () => {
+		// oxlint-disable-next-line no-implied-eval
+		const handler = new Function(`${getViewerResponseFunctionCode()}\nreturn handler;`)() as (event: {
+			response: Response
+		}) => Response
+
+		const page = handler({
+			response: {
+				statusCode: 200,
+				headers: { 'content-type': { value: 'text/html' }, 'x-amz-meta-awsless-login': { value: '1' } },
+			},
+		})
+
+		expect(page.statusCode).toBe(401)
+		expect(page.headers?.['x-amz-meta-awsless-login']).toBeUndefined()
+		expect(page.headers?.['x-robots-tag']?.value).toBe('noindex, nofollow')
+
+		const site = handler({ response: { statusCode: 200, headers: { 'content-type': { value: 'text/html' } } } })
+
+		expect(site.statusCode).toBe(200)
+		expect(site.headers?.['x-robots-tag']).toBeUndefined()
+	})
+
+	it('should publish the login page to the asset bucket & route it', async () => {
+		const result = createRouterApp(
+			{ main: { domain: 'main', subDomain: 'app', cookieAuth: { password: 'secret' } } },
+			{ domains: { main: { domain: 'example.com' } } }
+		)
+		result.ready()
+
+		const resources = result.app.resources.map(getMeta)
+		const page = resources.find(resource => resource.type === 'aws_s3_bucket_object')!
+		const deployment = resources.find(resource => resource.type === 'route-deployment')!
+		const cfFunction = resources.find(
+			resource => resource.type === 'aws_cloudfront_function' && String(resource.input.code).includes('$active')
+		)!
+
+		expect(page.input.key).toMatch(/^router\/main\/login-[a-f0-9]{10}\.html$/)
+		expect(page.input.contentType).toBe('text/html; charset=utf-8')
+		expect(page.input.cacheControl).toBe('public, max-age=0, s-maxage=31536000')
+		expect(String(page.input.content)).toContain('/__awsless/login')
+
+		expect(String(cfFunction.input.code)).toContain('Domain=example.com')
+		expect(String(cfFunction.input.code)).not.toContain('<html')
+		expect(page.input.metadata).toEqual({ 'awsless-login': '1' })
+		expect(page.config).toMatchObject({ createBeforeReplace: true })
+
+		// The response function only exists for cookie auth & hangs off the viewer response.
+		const functions = resources.filter(resource => resource.type === 'aws_cloudfront_function')
+		const distribution = resources.find(resource => resource.type === 'aws_cloudfront_multitenant_distribution')!
+
+		expect(functions).toHaveLength(2)
+		expect(distribution.input.defaultCacheBehavior[0].functionAssociation.map((a: { eventType: string }) => a.eventType)).toEqual([
+			'viewer-request',
+			'viewer-response',
+		])
+
+		// CloudFront may only read the bucket prefixes the policy lists, so the page has to live in one.
+		const bucket = result.app.resources.find(resource => getMeta(resource).type === 'aws_s3_bucket')!
+		const policy = resources.find(resource => resource.type === 'aws_s3_bucket_policy')!
+
+		getMeta(bucket).resolve({ arn: 'arn:aws:s3:::assets' })
+
+		const statement = JSON.parse(await resolveInputs(policy.input.policy)).Statement[0]
+
+		expect(statement.Resource).toContainEqual(expect.stringMatching(/\/router\/\*$/))
+
+		// The login route targets the asset bucket & waits for the page upload.
+		expect(findInputDeps(deployment.input.routes).map(dependency => dependency.type)).toContain('aws_s3_bucket')
+		expect(deployment.config?.dependsOn?.map(dependency => getMeta(dependency).type)).toContain(
+			'aws_s3_bucket_object'
+		)
 	})
 })

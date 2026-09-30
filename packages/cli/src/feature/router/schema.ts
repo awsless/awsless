@@ -217,15 +217,35 @@ export const RouterDefaultSchema = z
 					.optional()
 					.describe('Specify the cors headers.'),
 
-				passwordAuth: z
+				cookieAuth: z
 					.object({
-						password: z.string().describe('Password.'),
+						password: z
+							.string()
+							.min(1)
+							// The login page sends the password in a fetch header, which
+							// only carries printable ascii & drops surrounding whitespace.
+							.regex(
+								/^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/,
+								'The password may only contain printable ascii characters, without leading or trailing spaces.'
+							)
+							.describe('The password that grants a session.'),
+						sessionDuration: z
+							.union([z.literal('temporary'), DurationSchema])
+							.prefault('30 days')
+							.describe(
+								[
+									'How long a session stays valid.',
+									'Use "temporary" for a session cookie that the browser drops when it closes, which is capped at 1 day.',
+								].join('\n')
+							),
 					})
 					.optional()
 					.describe(
 						[
-							'Enable password authentication for the router.',
-							'You can authenicate by adding a "authorization" header with the value "Password [YOUR_PASSWORD]".',
+							'Enable cookie based session authentication for the router.',
+							'Browsers without a session see a login page, and a correct password sets a session cookie that is shared with every subdomain of the router domain that uses the same password.',
+							'Scripts can authenticate per request with an "authorization" header with the value "Password [YOUR_PASSWORD]".',
+							'The router reserves the "/__awsless/login" path for the session.',
 						].join('\n')
 					),
 

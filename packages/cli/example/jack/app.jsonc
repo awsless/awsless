@@ -24,7 +24,11 @@
 	},
 	"router": {
 		"main": {
-			"domain": "main"
+			"domain": "main",
+			"cookieAuth": {
+				"password": "password",
+				"sessionDuration": "temporary"
+			}
 		}
 	},
 	"rpc": {

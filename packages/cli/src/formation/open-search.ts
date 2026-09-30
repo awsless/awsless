@@ -78,6 +78,8 @@ export const createOpenSearchProvider = ({ credentials, region }: ProviderProps)
 					? fromTemporaryCredentials({
 							params: { RoleArn: role, RoleSessionName: 'awsless-search-index' },
 							masterCredentials: credentials,
+							// The sts client must never fall back to the region of the local aws profile.
+							clientConfig: { region },
 						})
 					: credentials,
 			}),
