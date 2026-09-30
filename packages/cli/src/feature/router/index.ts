@@ -2,6 +2,7 @@ import { days, seconds, toSeconds, years } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { constantCase, kebabCase } from 'change-case'
+import { createHash } from 'crypto'
 import { ExpectedError, FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
@@ -9,10 +10,11 @@ import { FunctionDeployment } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
-import { formatFullDomainName } from '../domain/util.js'
+import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
+import { createCookieAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './cookie-auth.js'
 import { compileRoutePattern } from './pattern.js'
 import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
-import { getViewerRequestFunctionCode } from './router-code.js'
+import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from './router-code.js'
 
 // The bundle route key of a route pattern, shared by the deployed
 // route store & the local dev router so both dispatch the same keys.
@@ -64,6 +66,68 @@ export const routerFeature = defineFeature({
 
 			routeStores[id] = routeStore
 
+			// ------------------------------------------------------------
+			// Cookie Auth
+
+			const cookieAuth = props.cookieAuth
+				? createCookieAuth({
+						password: props.cookieAuth.password,
+						sessionDuration: props.cookieAuth.sessionDuration,
+						// The root domain lets every subdomain share the session.
+						domain: props.domain ? getDomainNameById(ctx.appConfig, props.domain) : undefined,
+					})
+				: undefined
+
+			let responseFunction: aws.cloudfront.Function | undefined
+
+			if (cookieAuth) {
+				const bucket = ctx.shared.get('asset', 'bucket')
+				const version = createHash('sha1').update(LOGIN_PAGE).digest('hex').slice(0, 10)
+				const key = `router/${kebabCase(id)}/login-${version}.html`
+
+				const page = new aws.s3.BucketObject(
+					group,
+					'login-page',
+					{
+						bucket: bucket.name,
+						key,
+						content: LOGIN_PAGE,
+						contentType: 'text/html; charset=utf-8',
+						metadata: LOGIN_PAGE_METADATA,
+						// The page is served under the url the viewer asked for,
+						// so only the edge may cache it, never the browser.
+						cacheControl: 'public, max-age=0, s-maxage=31536000',
+					},
+					{
+						replaceOnChanges: ['bucket', 'key'],
+						// The old page must outlive the route switch, or logged out
+						// viewers get an s3 access denied during the deploy.
+						createBeforeReplace: true,
+					}
+				)
+
+				routes[id]![`${id}:${LOGIN_PATH}`] = {
+					type: 's3',
+					domainName: bucket.regionalDomainName,
+					rewrite: { to: `/${key}` },
+				}
+
+				routeDependencies[id]!.add(page)
+				routeDependencies[id]!.add(bucket.policy)
+
+				responseFunction = new aws.cloudfront.Function(group, 'response-function', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: id,
+						postfix: 'response',
+					}),
+					runtime: 'cloudfront-js-2.0',
+					code: getViewerResponseFunctionCode(),
+					publish: true,
+				})
+			}
+
 			// the function names are capped at 64 characters
 			const cfFunction = new aws.cloudfront.Function(
 				group,
@@ -76,7 +140,7 @@ export const routerFeature = defineFeature({
 						blockDirectAccess: !!props.domain,
 						redirectWww: !!props.domain && props.redirectWww,
 						basicAuth: props.basicAuth,
-						passwordAuth: props.passwordAuth,
+						cookieAuth,
 					}),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],
@@ -390,6 +454,9 @@ export const routerFeature = defineFeature({
 								eventType: 'viewer-request',
 								functionArn: cfFunction.arn,
 							},
+							...(responseFunction
+								? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
+								: []),
 						],
 						originRequestPolicyId: originRequest.id,
 						cachePolicyId: cache.id,

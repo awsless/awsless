@@ -1,6 +1,25 @@
+import { fromTemporaryCredentials } from '@aws-sdk/credential-providers'
+import { Client } from '@opensearch-project/opensearch'
 import { describe, expect, it, vi } from 'vitest'
 import { applySearchIndex, createOpenSearchProvider } from '../src/formation/open-search'
 import { credentials } from './_kit'
+
+vi.mock('@aws-sdk/credential-providers', () => ({
+	fromTemporaryCredentials: vi.fn(() => credentials),
+}))
+
+vi.mock('@opensearch-project/opensearch', () => ({
+	// The provider news up the client, which an arrow function can't satisfy.
+	Client: vi.fn(function () {
+		return {
+			indices: {
+				exists: vi.fn(async () => ({ body: true })),
+				create: vi.fn(async () => ({})),
+				putMapping: vi.fn(async () => ({})),
+			},
+		}
+	}),
+}))
 
 const fakeClient = (exists: boolean) => {
 	const indices = {
@@ -97,5 +116,28 @@ describe('search index resource', () => {
 		it('should never replace a resource that is being created', async () => {
 			await expect(plan(null, state)).resolves.toMatchObject({ requiresReplacement: false })
 		})
+	})
+
+	it('should assume the access role in the app region instead of the local profile region', async () => {
+		const provider = createOpenSearchProvider({ credentials, region: 'eu-west-1' })
+
+		await provider.createResource!({
+			type: 'index',
+			state: {
+				endpoint: 'https://abc.eu-west-1.aoss.amazonaws.com',
+				role: 'arn:aws:iam::123456789012:role/search-access',
+				index: 'products',
+				mappings: '{}',
+				settings: '{}',
+			},
+		} as never)
+
+		expect(Client).toHaveBeenCalled()
+		expect(fromTemporaryCredentials).toHaveBeenCalledWith(
+			expect.objectContaining({
+				params: expect.objectContaining({ RoleArn: 'arn:aws:iam::123456789012:role/search-access' }),
+				clientConfig: { region: 'eu-west-1' },
+			})
+		)
 	})
 })

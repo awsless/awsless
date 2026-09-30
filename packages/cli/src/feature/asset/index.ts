@@ -74,7 +74,8 @@ export const assetFeature = defineFeature({
 			}
 		)
 
-		// Any distribution in the account may read the public site assets.
+		// Any distribution in the account may read the public site assets
+		// & the router login page.
 		const policy = new aws.s3.BucketPolicy(group, 'policy', {
 			bucket: bucket.bucket,
 			policy: bucket.arn.pipe(arn =>
@@ -84,7 +85,7 @@ export const assetFeature = defineFeature({
 						{
 							Effect: 'Allow',
 							Action: 's3:GetObject',
-							Resource: `${arn}/site/*`,
+							Resource: [`${arn}/site/*`, `${arn}/router/*`],
 							Principal: {
 								Service: 'cloudfront.amazonaws.com',
 							},
