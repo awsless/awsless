@@ -224,7 +224,7 @@ describe('router routes', () => {
 
 		const result = (await handler({ request })) as Request
 
-		expect(result.headers['x-awsless-authorization']).toEqual({ value: 'Bearer viewer-token' })
+		expect(result.headers['x-forwarded-authorization']).toEqual({ value: 'Bearer viewer-token' })
 		expect(updateRequestOrigin).toHaveBeenCalledWith(
 			expect.objectContaining({
 				timeouts: {
@@ -243,11 +243,11 @@ describe('router routes', () => {
 		const { handler } = createRouter(values)
 		const request = createRequest('/api')
 
-		request.headers['x-awsless-authorization'] = { value: 'Bearer spoofed' }
+		request.headers['x-forwarded-authorization'] = { value: 'Bearer spoofed' }
 
 		const result = (await handler({ request })) as Request
 
-		expect(result.headers['x-awsless-authorization']).toBeUndefined()
+		expect(result.headers['x-forwarded-authorization']).toBeUndefined()
 	})
 
 	it('should match trailing slash urls against their exact route', async () => {

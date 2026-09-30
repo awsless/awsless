@@ -1,96 +1,72 @@
-import { log, prompt } from '@awsless/clui'
-import { createApp } from '../../../../app.js'
+import { prompt } from '@awsless/clui'
 import { AppConfig } from '../../../../config/app.js'
-import { StackConfig } from '../../../../config/stack.js'
 import { ExpectedError } from '../../../../error.js'
 import { Credentials } from '../../../../util/aws.js'
-import { createWorkSpace } from '../../../../util/workspace.js'
+import { SsmStore } from '../../../../util/ssm.js'
+import { createWorkOsClient, WorkOsClient } from '../../../../util/workos.js'
 
-export type UserPoolProps = AppConfig['auth'][string]
+export type AuthEnvironmentProps = AppConfig['auth'][string]
 
-// The user commands all start from the same pool: named, implied when
-// there is only one, or picked from a prompt.
-export const selectUserPool = async (appConfig: AppConfig, pool?: string) => {
-	const pools = Object.keys(appConfig.auth ?? {})
+// The user commands all start from the same environment: named, implied
+// when there is only one, or picked from a prompt.
+export const selectAuthEnvironment = async (appConfig: AppConfig, name?: string) => {
+	const names = Object.keys(appConfig.auth ?? {})
 
-	if (pools.length === 0) {
+	if (names.length === 0) {
 		throw new ExpectedError('No auth resources are defined.')
 	}
 
-	if (pool && !pools.includes(pool)) {
-		throw new ExpectedError(`The auth userpool "${pool}" doesn't exist.`)
+	if (name && !names.includes(name)) {
+		throw new ExpectedError(`The auth environment "${name}" doesn't exist.`)
 	}
 
-	let name = pool
+	let selected = name
 
-	if (!name) {
-		if (pools.length === 1) {
-			name = pools[0]!
+	if (!selected) {
+		if (names.length === 1) {
+			selected = names[0]!
 		} else if (process.env.SKIP_PROMPT) {
-			throw new ExpectedError(`Pass --pool <name> when running with --skip-prompt: [ ${pools.join(', ')} ]`)
+			throw new ExpectedError(`Pass --env <name> when running with --skip-prompt: [ ${names.join(', ')} ]`)
 		} else {
-			name = await prompt.select({
-				message: 'Select the auth userpool:',
-				initialValue: pools.at(0),
-				options: pools.map(name => ({
-					label: name,
-					value: name,
-				})),
+			selected = await prompt.select({
+				message: 'Select the auth environment:',
+				initialValue: names.at(0),
+				options: names.map(name => ({ label: name, value: name })),
 			})
 		}
 	}
 
-	return { name, props: appConfig.auth[name]! }
+	return { name: selected, props: appConfig.auth[selected]! }
 }
 
-// The pool id only exists in the deployed state, so the graph is
-// hydrated to read it.
-export const loadUserPoolId = async (props: {
+// Nothing in a deployed app carries the api key, so the commands read
+// it straight from the app's remote config.
+export const createClient = async (props: {
 	appConfig: AppConfig
-	stackConfigs: StackConfig[]
-	accountId: string
 	credentials: Credentials
-	name: string
+	auth: AuthEnvironmentProps
 }) => {
-	return log.task({
-		initialMessage: 'Loading auth userpool...',
-		successMessage: 'Done loading auth userpool.',
-		errorMessage: 'Failed loading auth userpool.',
-		async task() {
-			const { shared, app } = createApp({
-				appConfig: props.appConfig,
-				stackConfigs: props.stackConfigs,
-				accountId: props.accountId,
-			})
+	const store = new SsmStore({ credentials: props.credentials, appConfig: props.appConfig })
+	const apiKey = await store.get(props.auth.apiKey)
 
-			const { workspace } = await createWorkSpace({
-				credentials: props.credentials,
-				accountId: props.accountId,
-				region: props.appConfig.region,
-			})
+	if (!apiKey) {
+		throw new ExpectedError(`The "${props.auth.apiKey}" config doesn't hold a WorkOS api key yet.`)
+	}
 
-			await workspace.hydrate(app)
-
-			try {
-				return await shared.entry('auth', `user-pool-id`, props.name)
-			} catch {
-				throw new ExpectedError(`The auth userpool hasn't been deployed yet.`)
-			}
-		},
-	})
+	return createWorkOsClient({ apiKey })
 }
 
-export const askUsername = async (username?: string) => {
-	if (username) {
-		return username
+export const askEmail = async (email?: string) => {
+	if (email) {
+		return email
 	}
 
 	if (process.env.SKIP_PROMPT) {
-		throw new ExpectedError('Pass --username <username> when running with --skip-prompt.')
+		throw new ExpectedError('Pass --email <email> when running with --skip-prompt.')
 	}
 
 	return prompt.text({
-		message: 'Username:',
+		message: 'Email:',
 		validate(value) {
 			if (!value) {
 				return 'Required'
@@ -101,32 +77,79 @@ export const askUsername = async (username?: string) => {
 	})
 }
 
-// Mirrors the pool's password policy, so a rejected password fails
-// here with a reason instead of with a cognito error.
-export const validatePassword = (props: UserPoolProps, value: string | undefined) => {
-	if (!value) {
-		return 'Required'
+export const askPassword = async (password?: string) => {
+	if (password) {
+		return password
 	}
 
-	if (value.length < props.password.minLength) {
-		return `Min length is ${props.password.minLength}`
+	if (process.env.SKIP_PROMPT) {
+		throw new ExpectedError('Pass --password <password> when running with --skip-prompt.')
 	}
 
-	if (props.password.lowercase && value.toUpperCase() === value) {
-		return `Should include lowercase characters`
+	// WorkOS enforces the environment's own password policy, so a local
+	// check would only be an out of date copy of it.
+	return prompt.password({
+		message: 'Password:',
+		validate: value => (value ? undefined : 'Required'),
+	})
+}
+
+// Roles are assigned through an organization membership, so a role
+// always needs an organization to hang off.
+export const selectOrganization = async (client: WorkOsClient, name?: string) => {
+	const organizations = await client.listOrganizations()
+
+	if (organizations.length === 0) {
+		return
 	}
 
-	if (props.password.uppercase && value.toLowerCase() === value) {
-		return `Should include uppercase characters`
+	if (name) {
+		const found = organizations.find(org => org.id === name || org.name === name)
+
+		if (!found) {
+			throw new ExpectedError(`The organization "${name}" doesn't exist.`)
+		}
+
+		return found
 	}
 
-	if (props.password.numbers && !/\d/.test(value)) {
-		return `Should include numbers`
+	if (organizations.length === 1) {
+		return organizations[0]!
 	}
 
-	if (props.password.symbols && !/[ `!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)) {
-		return `Should include symbols`
+	if (process.env.SKIP_PROMPT) {
+		throw new ExpectedError('Pass --organization <name> when running with --skip-prompt.')
 	}
 
-	return
+	return prompt.select({
+		message: 'Select the organization:',
+		initialValue: organizations.at(0),
+		options: organizations.map(org => ({ label: org.name, value: org })),
+	})
+}
+
+export const validateRole = (props: AuthEnvironmentProps, role: string) => {
+	if (!(role in props.roles)) {
+		throw new ExpectedError(`The role "${role}" doesn't exist.`)
+	}
+}
+
+export const askRole = async (props: AuthEnvironmentProps, role?: string, current?: string) => {
+	if (role) {
+		validateRole(props, role)
+
+		return role
+	}
+
+	const roles = Object.keys(props.roles)
+
+	if (roles.length === 0 || process.env.SKIP_PROMPT) {
+		return current
+	}
+
+	return prompt.select({
+		message: 'Role:',
+		initialValue: current ?? roles.at(0),
+		options: roles.map(slug => ({ label: props.roles[slug]!.name, value: slug })),
+	})
 }

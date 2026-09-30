@@ -104,6 +104,9 @@ importers:
       '@aws-sdk/signature-v4a':
         specifier: 3.1111.0
         version: 3.1111.0
+      '@awsless/terraforge-workos':
+        specifier: workspace:^
+        version: link:../terraforge-workos
       rolldown:
         specifier: 1.2.4
         version: 1.2.4
@@ -291,6 +294,9 @@ importers:
       ioredis:
         specifier: 6.0.0
         version: 6.0.0(supports-color@8.1.1)
+      jose:
+        specifier: 6.1.0
+        version: 6.1.0
       json5:
         specifier: 2.2.3
         version: 2.2.3
@@ -813,6 +819,15 @@ importers:
         specifier: 0.0.2
         version: 0.0.2
 
+  packages/terraforge-workos:
+    dependencies:
+      '@terraforge/core':
+        specifier: 0.0.45
+        version: 0.0.45(graphology-types@0.24.8)
+      '@terraforge/terraform':
+        specifier: 0.0.35
+        version: 0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8))
+
   packages/ts-file-cache:
     dependencies:
       estree-walker:
@@ -833,6 +848,9 @@ importers:
 
   packages/validate:
     dependencies:
+      '@valibot/to-json-schema':
+        specifier: 1.8.0
+        version: 1.8.0(valibot@1.4.2(typescript@7.0.2))
       valibot:
         specifier: 1.4.2
         version: 1.4.2(typescript@7.0.2)
@@ -2668,6 +2686,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@valibot/to-json-schema@1.8.0':
+    resolution: {integrity: sha512-a0M+uwCuQZEPAo65NYkFSJ14O5c213KoSZmPdoCfuFvUhfULi4T2Z6Tpjv6lTVMW9RoLm74RpRAjNEa43KcN+g==}
+    peerDependencies:
+      valibot: ^1.5.0
+
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
     engines: {node: '>= 20'}
@@ -3550,6 +3573,9 @@ packages:
 
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
+
+  jose@6.1.0:
+    resolution: {integrity: sha512-TTQJyoEoKcC1lscpVDCSsVgYzUDg/0Bt3WE//WiTPK6uOCQC2KZS4MpugbMWt/zyjkopgZoXhZuCi00gLudfUA==}
 
   js-cookie@3.0.8:
     resolution: {integrity: sha512-yeJd4aNAdYZQjaon2bpD/Gb0B/omw7HQOsynXXcOiWVCacbBcPlgn8S/d1X6blFSaHao7ozqtW7NZW19xpCtIw==}
@@ -6152,6 +6178,10 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
+  '@valibot/to-json-schema@1.8.0(valibot@1.4.2(typescript@7.0.2))':
+    dependencies:
+      valibot: 1.4.2(typescript@7.0.2)
+
   '@vercel/oidc@3.2.0': {}
 
   '@vitest/expect@4.1.11':
@@ -7033,6 +7063,8 @@ snapshots:
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
     optional: true
+
+  jose@6.1.0: {}
 
   js-cookie@3.0.8: {}
 

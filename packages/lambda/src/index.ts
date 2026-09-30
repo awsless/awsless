@@ -20,6 +20,6 @@ export { lambdaClient } from './helpers/client'
 export { isTestEnv } from './helpers/env'
 // mock
 export { mockLambda } from './helpers/mock'
-export { lambda, type LambdaFunction, type LambdaFactory } from './lambda'
+export { lambda, getHandleSchema, type LambdaFunction, type LambdaFactory } from './lambda'
 // types
 export { type Context, type ExtraMetaData, type Handler, type Input, type Logger, type Loggers } from './type'

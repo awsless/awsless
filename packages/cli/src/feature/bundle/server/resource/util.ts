@@ -22,11 +22,11 @@ export const asyncRoute = (key: string, payload: unknown): RouteMatch => {
 // The cloudfront OAC signing claims the authorization header,
 // so the router tunnels the viewer authorization in a custom header that we restore here.
 export const webRoute = (key: string, event: BundleEvent): RouteMatch => {
-	const authorization = event.headers?.['x-awsless-authorization']
+	const authorization = event.headers?.['x-forwarded-authorization']
 
 	if (typeof authorization === 'string') {
 		event.headers!.authorization = authorization
-		delete event.headers!['x-awsless-authorization']
+		delete event.headers!['x-forwarded-authorization']
 	}
 
 	return { key, payload: event }

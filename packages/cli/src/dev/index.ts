@@ -762,7 +762,7 @@ export const startDev = async (props: {
 		configPulled: Object.keys(props.pool.peek<Record<string, string>>('config:pull') ?? {}),
 		auth: createAuthAdmin({
 			appConfig,
-			resolvedPools: () => props.pool.peek('auth:pull'),
+			apiKeys: () => props.pool.peek<Record<string, string>>('config:pull'),
 		}),
 		events: dev.events,
 	})

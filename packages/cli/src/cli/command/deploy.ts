@@ -12,7 +12,7 @@ import {
 } from '../../util/deployment.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { SsmStore } from '../../util/ssm.js'
-import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
+import { createWorkSpace, loadWorkOsProviders, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
@@ -142,6 +142,7 @@ export const deploy = (program: Command) => {
 					credentials,
 					accountId,
 					region,
+					workos: await loadWorkOsProviders({ credentials, appConfig }),
 				})
 				const releaseUrn = getAppReleaseLockUrn(globalAppId)
 

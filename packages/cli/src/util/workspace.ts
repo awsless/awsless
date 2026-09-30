@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
+import { workos } from '@awsless/terraforge-workos'
 import { aws } from '@terraforge/aws'
 import {
 	App,
@@ -11,7 +12,10 @@ import {
 	WorkSpace,
 } from '@terraforge/core'
 import { debug } from '../cli/debug.js'
+import { AppConfig } from '../config/app.js'
 import { Region } from '../config/schema/region.js'
+import { ExpectedError } from '../error.js'
+import { formatProviderId } from '../feature/auth/index.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
@@ -19,6 +23,7 @@ import { createOpenSearchProvider } from '../formation/open-search.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
+import { SsmStore } from './ssm.js'
 
 export const getStateBucketName = (region: Region, accountId: string) => {
 	return `awsless-state-${region}-${accountId}`
@@ -32,6 +37,47 @@ type BackendProps = {
 	credentials: Credentials
 	accountId: string
 	region: Region
+}
+
+// One provider per auth environment, since each carries its own api key.
+export type WorkOsProviderProps = {
+	id: string
+	apiKey: string
+	clientId: string
+}
+
+// The api key lives in the app's remote config, so every command that
+// touches workos resources resolves it the same way instead of each
+// one plumbing config values through.
+export const loadWorkOsProviders = async (props: {
+	credentials: Credentials
+	appConfig: AppConfig
+}): Promise<WorkOsProviderProps[]> => {
+	const environments = Object.entries(props.appConfig.auth ?? {})
+
+	if (environments.length === 0) {
+		return []
+	}
+
+	const store = new SsmStore(props)
+
+	return Promise.all(
+		environments.map(async ([id, auth]) => {
+			const apiKey = await store.get(auth.apiKey)
+
+			if (!apiKey) {
+				throw new ExpectedError(
+					`The auth environment "${id}" needs the "${auth.apiKey}" config to hold your WorkOS api key.`
+				)
+			}
+
+			return {
+				id: formatProviderId(id),
+				clientId: auth.clientId,
+				apiKey,
+			}
+		})
+	)
 }
 
 export const createDeploymentBackends = (props: BackendProps) => {
@@ -51,13 +97,17 @@ export const createDeploymentBackends = (props: BackendProps) => {
 	}
 }
 
-export const createWorkSpace = async (props: BackendProps) => {
+export const createWorkSpace = async (props: BackendProps & { workos?: WorkOsProviderProps[] }) => {
 	const { lock, state } = createDeploymentBackends(props)
 
 	// The engine debug output always streams into the debug log file.
 	enableDebug((group, ...args) => debug(`${group}:`, ...args))
 
 	await aws.install()
+
+	if (props.workos?.length) {
+		await workos.install()
+	}
 
 	const cred = await props.credentials()
 
@@ -96,6 +146,9 @@ export const createWorkSpace = async (props: BackendProps) => {
 					id: 'global-aws',
 				}
 			),
+			...(props.workos ?? []).map(({ id, apiKey, clientId }) => {
+				return workos({ apiKey, clientId }, { id })
+			}),
 		],
 		concurrency: 15,
 		backend: {

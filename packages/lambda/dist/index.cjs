@@ -234,9 +234,10 @@ const mockLambda = (lambdas, options) => {
 };
 //#endregion
 //#region src/lambda.ts
+const SCHEMA_PROPERTY = Symbol.for("awsless.lambda.schema");
 /** Create a lambda handle function. */
 const lambda = (options) => {
-	return (async (event, context) => {
+	const handle = (async (event, context) => {
 		const log = async (maybeError) => {
 			const error = normalizeError(maybeError);
 			const list = [options.logger].flat(10);
@@ -288,6 +289,16 @@ const lambda = (options) => {
 			await Promise.all(finallyCallbacks.map((cb) => cb()));
 		}
 	});
+	Object.defineProperty(handle, SCHEMA_PROPERTY, {
+		value: options.schema,
+		enumerable: false
+	});
+	return handle;
+};
+/** The input schema of a handle, when it was created with one. */
+const getHandleSchema = (handle) => {
+	if (typeof handle !== "function") return;
+	return handle[SCHEMA_PROPERTY];
 };
 //#endregion
 exports.ExpectedError = ExpectedError;
@@ -301,6 +312,7 @@ exports.TimeoutError = TimeoutError;
 exports.ValidationError = ValidationError;
 exports.ViewableError = ViewableError;
 exports.getContext = getContext;
+exports.getHandleSchema = getHandleSchema;
 exports.invoke = invoke;
 exports.isErrorResponse = isErrorResponse;
 exports.isTestEnv = isTestEnv;

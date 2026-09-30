@@ -8,6 +8,7 @@ import { IconsSchema } from '../feature/icon/schema.js'
 import { ImagesSchema } from '../feature/image/schema.js'
 import { InstancesSchema } from '../feature/instance/schema.js'
 import { JobsSchema } from '../feature/job/schema.js'
+import { McpSchema } from '../feature/mcp/schema.js'
 import { MetricsSchema } from '../feature/metric/schema.js'
 import { PubSubSchema } from '../feature/pubsub/schema.js'
 import { QueuesSchema } from '../feature/queue/schema.js'
@@ -37,6 +38,7 @@ export const StackSchema = z
 		commands: CommandsSchema,
 		rest: RestSchema,
 		rpc: RpcSchema,
+		mcp: McpSchema,
 		crons: CronsSchema,
 		caches: CachesSchema,
 		subscribers: SubscribersSchema,

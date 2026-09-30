@@ -165,6 +165,7 @@ export type DevResource = {
 		| 'image'
 		| 'icon'
 		| 'rpc'
+		| 'mcp'
 		| 'rest'
 		| 'site'
 		| 'auth'

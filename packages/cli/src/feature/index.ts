@@ -14,6 +14,7 @@ import { imageFeature } from './image/index.js'
 import { instanceFeature } from './instance/index.js'
 import { jobFeature } from './job/index.js'
 import { layerFeature } from './layer/index.js'
+import { mcpFeature } from './mcp/index.js'
 import { metricFeature } from './metric/index.js'
 import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
@@ -76,6 +77,7 @@ export const features = [
 	imageFeature,
 	iconFeature,
 
-	// 5. The rpc api serves routes from the features above.
+	// 5. The rpc & mcp api's serve routes from the features above.
 	rpcFeature,
+	mcpFeature,
 ]

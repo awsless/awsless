@@ -19,6 +19,8 @@ const handlers: {
 }[] = [
 	{ name: 'bundle', entry: 'src/feature/bundle/server/handle.ts' },
 	{ name: 'rpc', entry: 'src/feature/rpc/server/handle.ts' },
+	{ name: 'mcp', entry: 'src/feature/mcp/server/handle.ts' },
+	{ name: 'mcp-metadata', entry: 'src/feature/mcp/server/metadata.ts' },
 	{ name: 'image', entry: 'src/feature/image/server/handle.ts' },
 	{ name: 'icon', entry: 'src/feature/icon/server/handle.ts' },
 	{ name: 'on-error-log', entry: 'src/feature/on-error-log/server/handle.ts' },

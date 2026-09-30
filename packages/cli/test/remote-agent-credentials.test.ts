@@ -12,7 +12,7 @@ import { sent } from './_kit'
 
 const noSuchEntity = () => Object.assign(new Error('not found'), { name: 'NoSuchEntityException' })
 
-const policy = buildRemoteAgentPolicy({ appName: 'app', region: 'eu-west-1', accountId: '123456789012', auth: true })
+const policy = buildRemoteAgentPolicy({ appName: 'app', region: 'eu-west-1', accountId: '123456789012' })
 
 // A fake iam that answers per command type, and records every call.
 const fakeClient = (handlers: Record<string, (input: any) => unknown>) => {
@@ -30,7 +30,7 @@ const fakeClient = (handlers: Record<string, (input: any) => unknown>) => {
 }
 
 describe('remote agent policy', () => {
-	it('grants only the config & auth lookups the dev commands make', () => {
+	it('grants only the config lookups the dev commands make', () => {
 		expect(policy).toStrictEqual({
 			Version: '2012-10-17',
 			Statement: [
@@ -50,20 +50,8 @@ describe('remote agent policy', () => {
 					Resource: 'arn:aws:kms:eu-west-1:123456789012:key/*',
 					Condition: { StringEquals: { 'kms:ViaService': 'ssm.eu-west-1.amazonaws.com' } },
 				},
-				{
-					Sid: 'ResolveAuthPools',
-					Effect: 'Allow',
-					Action: ['cognito-idp:ListUserPools', 'cognito-idp:ListUserPoolClients'],
-					Resource: '*',
-				},
 			],
 		})
-	})
-
-	it('leaves cognito out for apps without auth', () => {
-		const without = buildRemoteAgentPolicy({ appName: 'app', region: 'eu-west-1', accountId: '1', auth: false })
-
-		expect(without.Statement.map(statement => statement.Sid)).toStrictEqual(['ReadConfig', 'DecryptConfig'])
 	})
 
 	it('names the user after the app', () => {
@@ -115,7 +103,7 @@ describe('remote agent iam', () => {
 	})
 
 	it('rewrites a drifted policy', async () => {
-		const stale = buildRemoteAgentPolicy({ appName: 'app', region: 'us-east-1', accountId: '1', auth: false })
+		const stale = buildRemoteAgentPolicy({ appName: 'app', region: 'us-east-1', accountId: '1' })
 		const client = fakeClient({
 			GetUserPolicyCommand: () => ({ PolicyDocument: encodeURIComponent(JSON.stringify(stale)) }),
 			PutUserPolicyCommand: () => ({}),

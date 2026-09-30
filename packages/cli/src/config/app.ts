@@ -7,6 +7,7 @@ import { FunctionDefaultSchema } from '../feature/function/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { JobDefaultSchema } from '../feature/job/schema.js'
 import { LayerSchema } from '../feature/layer/schema.js'
+import { McpDefaultSchema } from '../feature/mcp/schema.js'
 import { OnErrorLogDefaultSchema } from '../feature/on-error-log/schema.js'
 import { OnFailureDefaultSchema } from '../feature/on-failure/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
@@ -57,6 +58,7 @@ export const AppSchema = z
 		queue: QueueDefaultSchema,
 		rest: RestDefaultSchema,
 		rpc: RpcDefaultSchema,
+		mcp: McpDefaultSchema,
 		pubsub: PubSubDefaultSchema,
 		alerts: AlertsDefaultSchema,
 		topics: TopicsDefaultSchema,

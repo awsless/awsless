@@ -3,6 +3,7 @@ let valibot = require("valibot");
 let _awsless_json = require("@awsless/json");
 let _awsless_big_float = require("@awsless/big-float");
 let _awsless_duration = require("@awsless/duration");
+let _valibot_to_json_schema = require("@valibot/to-json-schema");
 //#region src/action/redact.ts
 const REDACTED = "[REDACTED]";
 const redact = () => {
@@ -202,6 +203,12 @@ exports.redact = redact;
 exports.s3Event = s3Event;
 exports.snsTopic = snsTopic;
 exports.sqsQueue = sqsQueue;
+Object.defineProperty(exports, "toJsonSchema", {
+	enumerable: true,
+	get: function() {
+		return _valibot_to_json_schema.toJsonSchema;
+	}
+});
 exports.unique = unique;
 exports.uuid = uuid;
 Object.keys(valibot).forEach(function(k) {

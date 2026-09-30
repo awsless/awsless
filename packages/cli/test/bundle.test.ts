@@ -383,7 +383,7 @@ describe('bundle handler', () => {
 		const event = {
 			headers: {
 				'x-awsless-route': 'stack-1:site:web',
-				'x-awsless-authorization': 'Bearer viewer-token',
+				'x-forwarded-authorization': 'Bearer viewer-token',
 			},
 		}
 
@@ -392,7 +392,7 @@ describe('bundle handler', () => {
 		}
 
 		expect(result.headers.authorization).toBe('Bearer viewer-token')
-		expect(result.headers['x-awsless-authorization']).toBeUndefined()
+		expect(result.headers['x-forwarded-authorization']).toBeUndefined()
 	})
 
 	it.each([

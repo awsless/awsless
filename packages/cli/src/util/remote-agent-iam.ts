@@ -20,15 +20,12 @@ type PolicyInput = {
 	appName: string
 	region: string
 	accountId: string
-	// Only apps with auth resources need the cognito lookups.
-	auth: boolean
 }
 
 // The complete set of aws calls the dev & test commands make: reading
-// the app's config parameters, and resolving the deployed userpools.
-// The cognito actions are list-only, so a wildcard keeps the policy
-// valid across redeployed pools.
-export const buildRemoteAgentPolicy = ({ appName, region, accountId, auth }: PolicyInput) => {
+// the app's config parameters. Auth lives in WorkOS, which the agent
+// reaches with an api key from the config instead of aws credentials.
+export const buildRemoteAgentPolicy = ({ appName, region, accountId }: PolicyInput) => {
 	return {
 		Version: '2012-10-17',
 		Statement: [
@@ -50,16 +47,6 @@ export const buildRemoteAgentPolicy = ({ appName, region, accountId, auth }: Pol
 				Resource: `arn:aws:kms:${region}:${accountId}:key/*`,
 				Condition: { StringEquals: { 'kms:ViaService': `ssm.${region}.amazonaws.com` } },
 			},
-			...(auth
-				? [
-						{
-							Sid: 'ResolveAuthPools',
-							Effect: 'Allow',
-							Action: ['cognito-idp:ListUserPools', 'cognito-idp:ListUserPoolClients'],
-							Resource: '*',
-						},
-					]
-				: []),
 		],
 	}
 }

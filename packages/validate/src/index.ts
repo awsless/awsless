@@ -28,3 +28,8 @@ export { positive } from './validation/positive.js'
 export { precision } from './validation/precision.js'
 export { unique } from './validation/unique.js'
 export { minDuration, maxDuration } from './validation/duration.js'
+
+// --------------------------------------------
+// JSON Schema
+
+export { toJsonSchema } from '@valibot/to-json-schema'

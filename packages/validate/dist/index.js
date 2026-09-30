@@ -2,6 +2,7 @@ import { array, bigint, check, date, finite, getMetadata, instance, metadata, mi
 import { parse } from "@awsless/json";
 import { BigFloat, isPositive, parse as parse$1 } from "@awsless/big-float";
 import { Duration } from "@awsless/duration";
+import { toJsonSchema } from "@valibot/to-json-schema";
 export * from "valibot";
 //#region src/action/redact.ts
 const REDACTED = "[REDACTED]";
@@ -189,4 +190,4 @@ function maxDuration(max, message = "Invalid duration") {
 	return check((input) => input.value <= max.value, message);
 }
 //#endregion
-export { applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, s3Event, snsTopic, sqsQueue, unique, uuid };
+export { applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, s3Event, snsTopic, sqsQueue, toJsonSchema, unique, uuid };

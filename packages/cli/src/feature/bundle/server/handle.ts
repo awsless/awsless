@@ -2,9 +2,11 @@ import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext, RoutedLambdaContext } from '@awsless/lambda'
 import {
 	captureInvokedQualifier,
+	describeHandle,
 	formatRoutePayload,
 	getInvokedQualifier,
 	getStandaloneFunctionName,
+	isMcpDescribeRequest,
 	LIVE_BUNDLE_ALIAS,
 	ROUTE_HEADER,
 	ROUTE_PROPERTY,
@@ -16,6 +18,7 @@ import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
 import { imageHandler } from './resource/image.js'
 import { logHandler } from './resource/log.js'
+import { mcpHandler } from './resource/mcp.js'
 import { metricHandler } from './resource/metric.js'
 import { onFailureHandler } from './resource/on-failure.js'
 import { pubsubHandler } from './resource/pubsub.js'
@@ -58,6 +61,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		restHandler,
 		routeHandler,
 		rpcHandler,
+		mcpHandler,
 		siteHandler,
 		storeHandler,
 		tableHandler,
@@ -102,6 +106,13 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				internalInvoke,
 				async () => {
 					const handle = await load()
+
+					// The mcp server asks a route for its input contract rather
+					// than running it, so any existing function can be exposed
+					// as a tool without being wrapped.
+					if (isMcpDescribeRequest(match.payload)) {
+						return describeHandle(handle)
+					}
 
 					// Error logs carry the route, so log consumers attribute an error
 					// to a logical resource instead of the shared bundle.

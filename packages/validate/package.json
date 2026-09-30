@@ -29,6 +29,7 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
+		"@valibot/to-json-schema": "1.8.0",
 		"valibot": "1.4.2"
 	},
 	"devDependencies": {

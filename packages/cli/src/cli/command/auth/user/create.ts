@@ -1,116 +1,64 @@
-import {
-	AdminAddUserToGroupCommand,
-	AdminCreateUserCommand,
-	AdminSetUserPasswordCommand,
-	CognitoIdentityProviderClient,
-	UsernameExistsException,
-} from '@aws-sdk/client-cognito-identity-provider'
-import { log, prompt } from '@awsless/clui'
+import { log } from '@awsless/clui'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../../error.js'
 import { layout } from '../../../ui/complex/layout.js'
 import { createClients } from '../../util.js'
-import { askUsername, loadUserPoolId, selectUserPool, validatePassword } from './util.js'
+import { askEmail, askPassword, askRole, createClient, selectAuthEnvironment, selectOrganization } from './util.js'
 
 export const create = (program: Command) => {
 	program
 		.command('create')
-		.description('Create an user in your userpool')
-		.option('--pool <name>', 'The auth userpool name')
-		.option('--username <username>', 'The username for the new user')
+		.description('Create an user in your auth environment')
+		.option('--env <name>', 'The auth environment name')
+		.option('--email <email>', 'The email for the new user')
 		.option('--password <password>', 'The password for the new user')
-		.option('--groups <groups...>', 'The groups to add the new user to')
-		.action(async (options: { pool?: string; username?: string; password?: string; groups?: string[] }) => {
-			await layout('auth user create', async ({ appConfig, stackConfigs }) => {
-				const { region, credentials, accountId } = await createClients(appConfig)
+		.option('--organization <name>', 'The organization to add the new user to')
+		.option('--role <role>', 'The role the new user gets in the organization')
+		.action(
+			async (options: {
+				env?: string
+				email?: string
+				password?: string
+				organization?: string
+				role?: string
+			}) => {
+				await layout('auth user create', async ({ appConfig }) => {
+					const { credentials } = await createClients(appConfig)
 
-				const { name, props } = await selectUserPool(appConfig, options.pool)
-				const userPoolId = await loadUserPoolId({ appConfig, stackConfigs, accountId, credentials, name })
-				const username = await askUsername(options.username)
+					const { props } = await selectAuthEnvironment(appConfig, options.env)
+					const client = await createClient({ appConfig, credentials, auth: props })
 
-				let password = options.password
+					const email = await askEmail(options.email)
+					const password = await askPassword(options.password)
 
-				if (password) {
-					const issue = validatePassword(props, password)
+					const organization = await selectOrganization(client, options.organization)
+					const role = organization ? await askRole(props, options.role) : undefined
 
-					if (issue) {
-						throw new ExpectedError(`Invalid password: ${issue}`)
+					if (options.role && !organization) {
+						throw new ExpectedError('A role needs an organization, and this environment has none.')
 					}
-				} else {
-					if (process.env.SKIP_PROMPT) {
-						throw new ExpectedError('Pass --password <password> when running with --skip-prompt.')
-					}
 
-					password = await prompt.password({
-						message: 'Password:',
-						validate: value => validatePassword(props, value),
-					})
-				}
-
-				let groups: string[] = options.groups ?? []
-
-				for (const group of groups) {
-					if (!props.groups.includes(group)) {
-						throw new ExpectedError(`The group "${group}" doesn't exist.`)
-					}
-				}
-
-				if (!options.groups && !process.env.SKIP_PROMPT && props.groups.length > 0) {
-					groups = await prompt.multiSelect({
-						message: 'Groups:',
-						required: false,
-						options: props.groups.map(g => ({
-							value: g,
-						})),
-					})
-				}
-
-				const client = new CognitoIdentityProviderClient({
-					region,
-					credentials,
-				})
-
-				await log.task({
-					initialMessage: 'Creating user...',
-					successMessage: 'User created.',
-					errorMessage: 'Failed creating user.',
-					async task() {
-						try {
-							await client.send(
-								new AdminCreateUserCommand({
-									UserPoolId: userPoolId,
-									Username: username,
-									TemporaryPassword: password,
-								})
-							)
-						} catch (error) {
-							if (error instanceof UsernameExistsException) {
+					await log.task({
+						initialMessage: 'Creating user...',
+						successMessage: 'User created.',
+						errorMessage: 'Failed creating user.',
+						async task() {
+							if (await client.findUser(email)) {
 								throw new ExpectedError('User already exists')
 							}
 
-							throw error
-						}
+							const user = await client.createUser({ email, password })
 
-						await client.send(
-							new AdminSetUserPasswordCommand({
-								UserPoolId: userPoolId,
-								Username: username,
-								Password: password,
-								Permanent: true,
-							})
-						)
-
-						for (const group of groups) {
-							await client.send(
-								new AdminAddUserToGroupCommand({
-									UserPoolId: userPoolId,
-									Username: username,
-									GroupName: group,
+							if (organization) {
+								await client.createMembership({
+									userId: user.id,
+									organizationId: organization.id,
+									role,
 								})
-							)
-						}
-					},
+							}
+						},
+					})
 				})
-			})
-		})
+			}
+		)
 }

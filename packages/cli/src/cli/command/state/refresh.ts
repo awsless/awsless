@@ -5,7 +5,7 @@ import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../../app.js'
 import { Cancelled, ExpectedError } from '../../../error.js'
-import { createWorkSpace } from '../../../util/workspace.js'
+import { createWorkSpace, loadWorkOsProviders } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
 import { color } from '../../ui/style.js'
 import { createClients } from '../util.js'
@@ -26,7 +26,12 @@ export const refresh = (program: Command) => {
 				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { workspace } = await createWorkSpace({ credentials, region, accountId })
+				const { workspace } = await createWorkSpace({
+					credentials,
+					region,
+					accountId,
+					workos: await loadWorkOsProviders({ credentials, appConfig }),
+				})
 
 				const stackNames = app.stacks
 					.filter(stack => {

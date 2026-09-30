@@ -14,7 +14,6 @@ export const createRemoteAgentIam = async (appConfig: AppConfig) => {
 		appName: appConfig.name,
 		region: appConfig.region,
 		accountId,
-		auth: Object.keys(appConfig.auth ?? {}).length > 0,
 	})
 
 	return { iam, policy }

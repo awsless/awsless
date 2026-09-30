@@ -14,6 +14,7 @@ export * from './lib/server/email.js';
 export * from './lib/server/function.js';
 export * from './lib/server/instance.js';
 export * from './lib/server/job.js';
+export * from './lib/server/mcp.js';
 export * from './lib/server/metric.js';
 export * from './lib/server/on-failure.js';
 export * from './lib/server/pubsub.js';

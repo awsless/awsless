@@ -1,149 +1,28 @@
-import {
-	AdminAddUserToGroupCommand,
-	AdminCreateUserCommand,
-	AdminGetUserCommand,
-	AdminListGroupsForUserCommand,
-	AdminRemoveUserFromGroupCommand,
-	AdminSetUserPasswordCommand,
-	CognitoIdentityProviderClient,
-	ListUserPoolClientsCommand,
-	ListUserPoolsCommand,
-	ListUsersCommand,
-	UserNotFoundException,
-	UsernameExistsException,
-} from '@aws-sdk/client-cognito-identity-provider'
 import { constantCase } from 'change-case'
-import { debug } from '../../cli/debug.js'
 import { AppConfig } from '../../config/app.js'
 import { DevContext } from '../../feature.js'
-import { getCredentials } from '../../util/aws.js'
-import { formatGlobalResourceName } from '../../util/name.js'
+import { createWorkOsClient, WorkOsClient } from '../../util/workos.js'
 
-type ResolvedPool = {
-	userPoolId: string
-	clientId: string
-}
-
-// Local dev never emulates Cognito - the local environment binds
-// against the REAL deployed user pools instead, so logins & token
-// verification behave exactly like production. The pools resolve from
-// their deterministic resource names, once per dev session.
+// Local dev never emulates WorkOS - it binds against the REAL
+// environment, so logins & token verification behave exactly like
+// production. Point a dev app at your WorkOS staging environment.
 export const authOnDev = async (ctx: DevContext) => {
-	const ids = Object.keys(ctx.appConfig.auth ?? {})
+	for (const [id, props] of Object.entries(ctx.appConfig.auth ?? {})) {
+		ctx.addEnv(`AUTH_${constantCase(id)}_ISSUER`, props.issuer)
+		ctx.addEnv(`AUTH_${constantCase(id)}_CLIENT_ID`, props.clientId)
 
-	if (ids.length === 0) {
-		return
-	}
-
-	const pools = await ctx.keep('auth:pull', [...ids].toSorted().join(','), async () => {
-		const values: Record<string, ResolvedPool> = {}
-
-		try {
-			ctx.log(`Resolving ${ids.length} auth userpool${ids.length === 1 ? '' : 's'} from Cognito...`)
-
-			const credentials = await getCredentials(ctx.appConfig.profile)
-			const client = new CognitoIdentityProviderClient({
-				region: ctx.appConfig.region,
-				credentials,
-			})
-
-			let timer: ReturnType<typeof setTimeout> | undefined
-			const timeout = new Promise<never>((_, reject) => {
-				timer = setTimeout(() => reject(new Error('the lookup timed out after 15s')), 15_000)
-			})
-
-			const resolve = async () => {
-				// One pool listing serves every auth resource.
-				const poolIdsByName: Record<string, string> = {}
-				let token: string | undefined
-
-				do {
-					const result = await client.send(
-						new ListUserPoolsCommand({
-							MaxResults: 60,
-							NextToken: token,
-						})
-					)
-
-					for (const pool of result.UserPools ?? []) {
-						if (pool.Name && pool.Id) {
-							poolIdsByName[pool.Name] = pool.Id
-						}
-					}
-
-					token = result.NextToken
-				} while (token)
-
-				for (const id of ids) {
-					const name = formatGlobalResourceName({
-						appName: ctx.appConfig.name,
-						resourceType: 'auth',
-						resourceName: id,
-					})
-
-					const userPoolId = poolIdsByName[name]
-
-					if (!userPoolId) {
-						ctx.log(`The auth userpool "${id}" isn't deployed yet - its login won't work locally.`)
-						continue
-					}
-
-					const clients = await client.send(
-						new ListUserPoolClientsCommand({
-							UserPoolId: userPoolId,
-							MaxResults: 60,
-						})
-					)
-
-					const appClient =
-						clients.UserPoolClients?.find(client => client.ClientName === name) ??
-						clients.UserPoolClients?.[0]
-
-					if (!appClient?.ClientId) {
-						ctx.log(`The auth userpool "${id}" has no client - its login won't work locally.`)
-						continue
-					}
-
-					values[id] = {
-						userPoolId,
-						clientId: appClient.ClientId,
-					}
-				}
-			}
-
-			await Promise.race([resolve(), timeout]).finally(() => clearTimeout(timer))
-		} catch (error) {
-			debug('Auth userpool lookup failed', error)
-			ctx.log(
-				`Couldn't resolve the auth userpools from Cognito (${
-					error instanceof Error ? error.message : String(error)
-				}) - logins won't work locally.`
-			)
-		}
-
-		return { value: values, stop: () => {} }
-	})
-
-	for (const [id, pool] of Object.entries(pools)) {
-		ctx.addEnv(`AUTH_${constantCase(id)}_USER_POOL_ID`, pool.userPoolId)
-		ctx.addEnv(`AUTH_${constantCase(id)}_CLIENT_ID`, pool.clientId)
-	}
-
-	// Every configured pool lists on the dashboard - an unresolved one
-	// shows its not-deployed state on the panel instead of hiding.
-	for (const id of ids) {
 		ctx.registerResource({
 			kind: 'auth',
 			id,
-			detail: pools[id]?.userPoolId ?? 'not deployed',
+			detail: props.issuer,
 		})
 	}
 }
 
 // ------------------------------------------------------------------
-// The dashboard's auth panel: list the users of a pool, create users
-// & update their groups - the same operations as the auth user cli
-// commands, against the same real deployed pool.
+// The dashboard's auth panel: list the users of an environment, create
+// users & change their role - the same operations as the auth user cli
+// commands, against the same real WorkOS environment.
 
 export type AuthUser = {
 	username: string
@@ -156,265 +35,135 @@ export type AuthUser = {
 
 export type AuthAdmin = ReturnType<typeof createAuthAdmin>
 
-export const createAuthAdmin = (props: {
-	appConfig: AppConfig
-	resolvedPools: () => Record<string, ResolvedPool> | undefined
-}) => {
-	let client: CognitoIdentityProviderClient | undefined
+export const createAuthAdmin = (props: { appConfig: AppConfig; apiKeys: () => Record<string, string> | undefined }) => {
+	const clients = new Map<string, WorkOsClient>()
 
-	const getClient = async () => {
-		client ??= new CognitoIdentityProviderClient({
-			region: props.appConfig.region,
-			credentials: await getCredentials(props.appConfig.profile),
-		})
+	const getEnvironment = (id: string) => {
+		const auth = props.appConfig.auth?.[id]
+
+		if (!auth) {
+			throw new Error(`The auth environment "${id}" doesn't exist.`)
+		}
+
+		return auth
+	}
+
+	const getClient = (id: string) => {
+		let client = clients.get(id)
+
+		if (!client) {
+			const apiKey = props.apiKeys()?.[getEnvironment(id).apiKey]
+
+			if (!apiKey) {
+				throw new Error(`The auth environment "${id}" has no WorkOS api key configured.`)
+			}
+
+			client = createWorkOsClient({ apiKey })
+
+			clients.set(id, client)
+		}
 
 		return client
 	}
 
-	const getPool = (id: string) => {
-		const authProps = props.appConfig.auth?.[id]
-		const resolved = props.resolvedPools()?.[id]
+	// Roles hang off an organization membership. The panel has no place
+	// to pick one, so it manages the single organization case & sends
+	// everyone else to the cli, which takes --organization.
+	const getOrganization = async (id: string) => {
+		const organizations = await getClient(id).listOrganizations()
 
-		if (!authProps) {
-			throw new Error(`The auth userpool "${id}" doesn't exist.`)
-		}
-
-		if (!resolved) {
-			throw new Error(`The auth userpool "${id}" isn't deployed yet.`)
-		}
-
-		return { ...authProps, userPoolId: resolved.userPoolId }
-	}
-
-	// The same password policy check as the auth user cli commands.
-	const validatePassword = (pool: ReturnType<typeof getPool>, value: string) => {
-		if (!value) {
-			return 'A password is required'
-		}
-
-		if (value.length < pool.password.minLength) {
-			return `The password min length is ${pool.password.minLength}`
-		}
-
-		if (pool.password.lowercase && value.toUpperCase() === value) {
-			return `The password should include lowercase characters`
-		}
-
-		if (pool.password.uppercase && value.toLowerCase() === value) {
-			return `The password should include uppercase characters`
-		}
-
-		if (pool.password.numbers && !/\d/.test(value)) {
-			return `The password should include numbers`
-		}
-
-		if (pool.password.symbols && !/[ `!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)) {
-			return `The password should include symbols`
-		}
-
-		return
-	}
-
-	const validateGroups = (pool: ReturnType<typeof getPool>, groups: string[]) => {
-		for (const group of groups) {
-			if (!pool.groups.includes(group)) {
-				throw new Error(`The group "${group}" doesn't exist.`)
-			}
-		}
-	}
-
-	const listUserGroups = async (userPoolId: string, username: string) => {
-		const client = await getClient()
-		const groups: string[] = []
-		let token: string | undefined
-
-		do {
-			const result = await client.send(
-				new AdminListGroupsForUserCommand({
-					UserPoolId: userPoolId,
-					Username: username,
-					NextToken: token,
-				})
+		if (organizations.length > 1) {
+			throw new Error(
+				`The "${id}" environment has more than one organization - use "awsless auth user" with --organization.`
 			)
+		}
 
-			groups.push(...(result.Groups?.map(group => group.GroupName!) ?? []))
-			token = result.NextToken
-		} while (token)
+		return organizations.at(0)
+	}
 
-		return groups
+	const validateRole = (id: string, role: string) => {
+		if (!(role in getEnvironment(id).roles)) {
+			throw new Error(`The role "${role}" doesn't exist.`)
+		}
 	}
 
 	return {
 		describePool(id: string) {
-			const pool = getPool(id)
-
-			// Only json-safe fields - the password policy holds Duration
-			// bigints & the panel never needs it, validation runs here.
 			return {
-				groups: pool.groups,
+				groups: Object.keys(getEnvironment(id).roles),
 			}
 		},
 
 		async listUsers(id: string): Promise<AuthUser[]> {
-			const pool = getPool(id)
-			const client = await getClient()
+			const client = getClient(id)
+			const [users, memberships] = await Promise.all([client.listUsers(), client.listMemberships()])
 
-			const users: AuthUser[] = []
-			let token: string | undefined
-
-			do {
-				const result = await client.send(
-					new ListUsersCommand({
-						UserPoolId: pool.userPoolId,
-						PaginationToken: token,
-					})
-				)
-
-				for (const user of result.Users ?? []) {
-					users.push({
-						username: user.Username!,
-						email: user.Attributes?.find(a => a.Name === 'email')?.Value,
-						status: user.UserStatus,
-						enabled: user.Enabled ?? true,
-						createdAt: user.UserCreateDate?.toISOString(),
-						groups: [],
-					})
-				}
-
-				token = result.PaginationToken
-
-				// An admin pool stays small - a runaway listing is capped
-				// instead of hammering cognito.
-			} while (token && users.length < 500)
-
-			await Promise.all(
-				users.map(async user => {
-					user.groups = await listUserGroups(pool.userPoolId, user.username)
-				})
-			)
-
-			return users.toSorted((a, b) => a.username.localeCompare(b.username))
+			return users.map(user => ({
+				username: user.email,
+				email: user.email,
+				status: user.emailVerified ? 'VERIFIED' : 'UNVERIFIED',
+				enabled: true,
+				createdAt: user.createdAt,
+				groups: memberships
+					.filter(membership => membership.userId === user.id && membership.role)
+					.map(membership => membership.role!),
+			}))
 		},
 
 		async createUser(id: string, input: { username: string; password: string; groups: string[] }) {
-			const pool = getPool(id)
+			const client = getClient(id)
 
-			if (!input.username) {
-				throw new Error('A username is required')
+			input.groups.forEach(role => validateRole(id, role))
+
+			if (await client.findUser(input.username)) {
+				throw new Error('User already exists')
 			}
 
-			const issue = validatePassword(pool, input.password)
+			const organization = await getOrganization(id)
+			const user = await client.createUser({ email: input.username, password: input.password })
 
-			if (issue) {
-				throw new Error(issue)
-			}
-
-			validateGroups(pool, input.groups)
-
-			const client = await getClient()
-
-			try {
-				await client.send(
-					new AdminCreateUserCommand({
-						UserPoolId: pool.userPoolId,
-						Username: input.username,
-						TemporaryPassword: input.password,
-					})
-				)
-			} catch (error) {
-				if (error instanceof UsernameExistsException) {
-					throw new Error('The user already exists', { cause: error })
-				}
-
-				throw error
-			}
-
-			await client.send(
-				new AdminSetUserPasswordCommand({
-					UserPoolId: pool.userPoolId,
-					Username: input.username,
-					Password: input.password,
-					Permanent: true,
+			if (organization) {
+				await client.createMembership({
+					userId: user.id,
+					organizationId: organization.id,
+					role: input.groups.at(0),
 				})
-			)
-
-			for (const group of input.groups) {
-				await client.send(
-					new AdminAddUserToGroupCommand({
-						UserPoolId: pool.userPoolId,
-						Username: input.username,
-						GroupName: group,
-					})
-				)
 			}
 		},
 
-		async updateUser(id: string, input: { username: string; groups: string[]; password?: string }) {
-			const pool = getPool(id)
+		async updateUser(id: string, input: { username: string; password?: string; groups: string[] }) {
+			const client = getClient(id)
 
-			validateGroups(pool, input.groups)
+			input.groups.forEach(role => validateRole(id, role))
 
-			if (input.password) {
-				const issue = validatePassword(pool, input.password)
+			const user = await client.findUser(input.username)
 
-				if (issue) {
-					throw new Error(issue)
-				}
-			}
-
-			const client = await getClient()
-
-			let oldGroups: string[]
-
-			try {
-				await client.send(
-					new AdminGetUserCommand({
-						UserPoolId: pool.userPoolId,
-						Username: input.username,
-					})
-				)
-
-				oldGroups = await listUserGroups(pool.userPoolId, input.username)
-			} catch (error) {
-				if (error instanceof UserNotFoundException) {
-					throw new Error('The user does not exist', { cause: error })
-				}
-
-				throw error
+			if (!user) {
+				throw new Error('User does not exist')
 			}
 
 			if (input.password) {
-				await client.send(
-					new AdminSetUserPasswordCommand({
-						UserPoolId: pool.userPoolId,
-						Username: input.username,
-						Password: input.password,
-						Permanent: true,
-					})
-				)
+				await client.updateUser(user.id, { password: input.password })
 			}
 
-			const removed = oldGroups.filter(group => !input.groups.includes(group))
-			const added = input.groups.filter(group => !oldGroups.includes(group))
+			const organization = await getOrganization(id)
 
-			for (const group of removed) {
-				await client.send(
-					new AdminRemoveUserFromGroupCommand({
-						UserPoolId: pool.userPoolId,
-						Username: input.username,
-						GroupName: group,
-					})
-				)
+			if (!organization) {
+				return
 			}
 
-			for (const group of added) {
-				await client.send(
-					new AdminAddUserToGroupCommand({
-						UserPoolId: pool.userPoolId,
-						Username: input.username,
-						GroupName: group,
-					})
-				)
+			const role = input.groups.at(0)
+			const memberships = await client.listMemberships({ userId: user.id })
+			const membership = memberships.find(entry => entry.organizationId === organization.id)
+
+			if (role === membership?.role) {
+				return
+			}
+
+			if (membership) {
+				await client.updateMembership(membership.id, { role })
+			} else {
+				await client.createMembership({ userId: user.id, organizationId: organization.id, role })
 			}
 		},
 	}

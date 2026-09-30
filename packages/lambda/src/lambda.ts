@@ -30,6 +30,9 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
 	throwExpectedErrors?: boolean | (() => boolean)
 }
 
+// A symbol, so it can't collide with a handler's own exports.
+const SCHEMA_PROPERTY = Symbol.for('awsless.lambda.schema')
+
 export type LambdaFactory = {
 	<H extends Handler>(options: Options<H>): (event?: unknown, context?: Context) => Promise<Awaited<ReturnType<H>>>
 	<H extends Handler<S>, S extends Schema>(
@@ -45,7 +48,7 @@ export type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> =
 export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = undefined>(
 	options: Options<H, S>
 ): LambdaFunction<H, S> => {
-	return (async (event?: unknown, context?: Context) => {
+	const handle = (async (event?: unknown, context?: Context) => {
 		const log = async (maybeError: unknown) => {
 			const error = normalizeError(maybeError)
 			const list = [options.logger].flat(10) as Array<Logger | undefined>
@@ -129,4 +132,23 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			await Promise.all(finallyCallbacks.map(cb => cb()))
 		}
 	}) as LambdaFunction<H, S>
+
+	// The schema rides along on the handle, so tooling that needs the
+	// input contract (like the mcp tool listing) reads the same
+	// validator the handler enforces instead of a second copy of it.
+	Object.defineProperty(handle, SCHEMA_PROPERTY, {
+		value: options.schema,
+		enumerable: false,
+	})
+
+	return handle
+}
+
+/** The input schema of a handle, when it was created with one. */
+export const getHandleSchema = (handle: unknown): Schema => {
+	if (typeof handle !== 'function') {
+		return undefined
+	}
+
+	return (handle as Record<symbol, Schema>)[SCHEMA_PROPERTY]
 }

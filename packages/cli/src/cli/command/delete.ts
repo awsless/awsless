@@ -4,7 +4,7 @@ import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
 import { listDeployments, removeDeployment } from '../../util/deployment.js'
 import { playSuccessSound } from '../../util/sound.js'
-import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
+import { createWorkSpace, loadWorkOsProviders, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 import { createClients } from './util.js'
@@ -66,6 +66,7 @@ export const del = (program: Command) => {
 					credentials,
 					accountId,
 					region,
+					workos: await loadWorkOsProviders({ credentials, appConfig }),
 				})
 
 				await log.task({

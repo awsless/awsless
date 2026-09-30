@@ -391,9 +391,9 @@ async function handler(event) {
 
 	if(route.type === 'lambda') {
 		if(headers.authorization) {
-			headers['x-awsless-authorization'] = headers.authorization;
+			headers['x-forwarded-authorization'] = headers.authorization;
 		} else {
-			delete headers['x-awsless-authorization'];
+			delete headers['x-forwarded-authorization'];
 		}
 	}
 

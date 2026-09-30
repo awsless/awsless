@@ -92,7 +92,8 @@ type SharedEntries = {
 	}
 
 	auth: {
-		'user-pool-id': Output<string>
+		issuer: string
+		'client-id': string
 	}
 
 	rest: {

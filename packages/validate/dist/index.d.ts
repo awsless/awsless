@@ -1,6 +1,7 @@
 import { BaseSchema, CheckIssue, ErrorMessage, GenericIssue, GenericSchema, InferInput, InferOutput, MetadataAction } from "valibot";
 import { BigFloat } from "@awsless/big-float";
 import { Duration } from "@awsless/duration";
+import { toJsonSchema } from "@valibot/to-json-schema";
 import { UUID } from "crypto";
 import { AnyTable, Infer, PrimaryKey } from "@awsless/dynamodb";
 export * from "valibot";
@@ -97,4 +98,4 @@ declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) 
 declare function minDuration(min: Duration, message?: ErrorMessage<CheckIssue<Duration>>): import("valibot").CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
 declare function maxDuration(max: Duration, message?: ErrorMessage<CheckIssue<Duration>>): import("valibot").CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
 //#endregion
-export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, s3Event, snsTopic, sqsQueue, unique, uuid };
+export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, s3Event, snsTopic, sqsQueue, toJsonSchema, unique, uuid };

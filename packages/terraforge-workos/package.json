@@ -1,0 +1,25 @@
+{
+	"name": "@awsless/terraforge-workos",
+	"version": "2.5.0",
+	"description": "Terraforge bridge for the community WorkOS terraform provider.",
+	"license": "MIT",
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@terraforge/terraform": "0.0.35"
+	},
+	"peerDependencies": {
+		"@terraforge/core": "0.0.45"
+	}
+}

@@ -4,8 +4,8 @@ import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search
 import * as t from "@awsless/dynamodb";
 import { define as define$1 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
-import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda } from "@awsless/lambda";
+import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, toJsonSchema, transform, union, unknown } from "@awsless/validate";
+import { ExpectedError, ViewableError, getContext, getHandleSchema, invoke, isErrorResponse, isTestEnv, lambda } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
 import { stringify } from "@awsless/json";
@@ -1298,14 +1298,14 @@ const mock = {
 //#region src/lib/server/auth.ts
 const getAuthProps = (name) => {
 	return {
-		userPoolId: process.env[`AUTH_${constantCase(name)}_USER_POOL_ID`],
+		issuer: process.env[`AUTH_${constantCase(name)}_ISSUER`],
 		clientId: process.env[`AUTH_${constantCase(name)}_CLIENT_ID`]
 	};
 };
 const Auth = /*@__PURE__*/ createProxy((name) => {
-	const { userPoolId, clientId } = getAuthProps(name);
+	const { issuer, clientId } = getAuthProps(name);
 	return {
-		userPoolId,
+		issuer,
 		clientId
 	};
 });
@@ -1345,6 +1345,22 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 const Email = { async send(props) {
 	await sendEmail(props);
 } };
+//#endregion
+//#region src/lib/server/mcp.ts
+const MCP_DESCRIBE_PROPERTY = "$awsless-mcp-describe";
+const EMPTY_INPUT = {
+	type: "object",
+	properties: {}
+};
+const isMcpDescribeRequest = (payload) => {
+	return typeof payload === "object" && payload !== null && "$awsless-mcp-describe" in payload;
+};
+const describeHandle = (handle) => {
+	const schema = getHandleSchema(handle);
+	if (!schema) return { inputSchema: EMPTY_INPUT };
+	const json = toJsonSchema(schema, { errorMode: "ignore" });
+	return { inputSchema: json.type === "object" ? json : EMPTY_INPUT };
+};
 //#endregion
 //#region src/lib/server/metric.ts
 const getMetricName = (name) => {
@@ -1446,4 +1462,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreBucketName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
+export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, MCP_DESCRIBE_PROPERTY, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, describeHandle, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreBucketName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isMcpDescribeRequest, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };

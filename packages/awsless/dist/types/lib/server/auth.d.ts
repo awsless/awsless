@@ -1,5 +1,5 @@
 export declare const getAuthProps: (name: string) => {
-    readonly userPoolId: string | undefined;
+    readonly issuer: string | undefined;
     readonly clientId: string | undefined;
 };
 export interface AuthResources {
