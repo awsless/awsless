@@ -225,7 +225,7 @@ describe('stage patch schema generation', () => {
 		}
 
 		expect(matchesPath('/domains/main/domain')).toBe(true)
-		expect(matchesPath('/router/casino/basicAuth')).toBe(true)
+		expect(matchesPath('/router/casino/passwordAuth')).toBe(true)
 		expect(matchesPath('/domains/main/unknown')).toBe(false)
 	})
 })

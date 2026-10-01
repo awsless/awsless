@@ -2,7 +2,7 @@ import { days } from '@awsless/duration'
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
 import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { CookieAuth, createCookieAuth } from '../src/feature/router/cookie-auth'
+import { createPasswordAuth, PasswordAuth } from '../src/feature/router/password-auth'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
 import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
 import { createTestApp } from './_kit'
@@ -687,8 +687,8 @@ describe('router route patterns', () => {
 	})
 })
 
-describe('router cookie auth', () => {
-	const auth = createCookieAuth({ password: 'secret', sessionDuration: days(30), domain: 'example.com' })
+describe('router password auth', () => {
+	const auth = createPasswordAuth({ password: 'secret', sessionDuration: days(30), domain: 'example.com' })
 	const values = new Map([
 		['$active', 'v1:1'],
 		['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
@@ -702,7 +702,7 @@ describe('router cookie auth', () => {
 		],
 	])
 	// A session cookie the way the function issues it: expiry plus its hmac.
-	const session = (auth: CookieAuth, expires: number) => {
+	const session = (auth: PasswordAuth, expires: number) => {
 		return `${expires}.${crypto.createHmac('sha256', auth.secret).update(String(expires)).digest('hex')}`
 	}
 	const now = Math.floor(Date.now() / 1000)
@@ -716,8 +716,8 @@ describe('router cookie auth', () => {
 	}
 
 	it('should derive a stable cookie name & secret from the password', () => {
-		const again = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
-		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
+		const again = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
+		const other = createPasswordAuth({ password: 'other', sessionDuration: days(1) })
 
 		expect(auth.name).toBe(again.name)
 		expect(auth.secret).toBe(again.secret)
@@ -729,8 +729,8 @@ describe('router cookie auth', () => {
 	})
 
 	it('should issue a browser session cookie for a temporary session', async () => {
-		const temporary = createCookieAuth({ password: 'secret', sessionDuration: 'temporary', domain: 'example.com' })
-		const { handler } = createRouter(values, { cookieAuth: temporary })
+		const temporary = createPasswordAuth({ password: 'secret', sessionDuration: 'temporary', domain: 'example.com' })
+		const { handler } = createRouter(values, { passwordAuth: temporary })
 		const request = createRequest('/__awsless/login', 'app.example.com')
 
 		request.method = 'POST'
@@ -747,13 +747,13 @@ describe('router cookie auth', () => {
 
 		expect(expires).toBeGreaterThanOrEqual(now + 24 * 60 * 60)
 		expect(expires).toBeLessThanOrEqual(now + 24 * 60 * 60 + 5)
-		expect(RouterDefaultSchema.parse({ main: { cookieAuth: { password: 'x', sessionDuration: 'temporary' } } })).toMatchObject({
-			main: { cookieAuth: { sessionDuration: 'temporary' } },
+		expect(RouterDefaultSchema.parse({ main: { passwordAuth: { password: 'x', sessionDuration: 'temporary' } } })).toMatchObject({
+			main: { passwordAuth: { sessionDuration: 'temporary' } },
 		})
 	})
 
 	it('should only accept passwords that survive a fetch header', () => {
-		const parse = (password: string) => RouterDefaultSchema.parse({ main: { cookieAuth: { password } } })
+		const parse = (password: string) => RouterDefaultSchema.parse({ main: { passwordAuth: { password } } })
 
 		expect(() => parse('secret')).not.toThrow()
 		expect(() => parse('pass word')).not.toThrow()
@@ -763,7 +763,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should serve the login page to browsers without a session', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = page('/dashboard')
 
 		request.querystring = { tab: { value: 'billing' } }
@@ -775,8 +775,22 @@ describe('router cookie auth', () => {
 		expect(result.querystring).toEqual({})
 	})
 
+	it('should fail closed when the login route is not in the active table yet', async () => {
+		// a deploy publishes the function before it promotes the route table
+		const stale = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		])
+		const { handler, updateRequestOrigin } = createRouter(stale, { passwordAuth: auth })
+
+		const result = (await handler({ request: page('/dashboard') })) as Response
+
+		expect(result.statusCode).toBe(401)
+		expect(updateRequestOrigin).not.toHaveBeenCalled()
+	})
+
 	it('should reject non page requests without a session', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = createRequest('/api/users', 'app.example.com')
 
 		request.headers.accept = { value: 'application/json' }
@@ -788,7 +802,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should pass requests with a session cookie & hide the cookie from the origin', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = page('/dashboard')
 
 		request.cookies = { [auth.name]: { value: session(auth, now + 60) }, theme: { value: 'dark' } }
@@ -800,7 +814,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should hand the origin the password header a session stands in for', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = page('/dashboard')
 
 		request.cookies = { [auth.name]: { value: session(auth, now + 60) } }
@@ -821,7 +835,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should accept a valid session next to a stale cookie of the same name', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = page('/dashboard')
 		const valid = session(auth, now + 60)
 
@@ -836,8 +850,8 @@ describe('router cookie auth', () => {
 	})
 
 	it('should reject a forged or tampered session cookie', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
-		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { passwordAuth: auth })
+		const other = createPasswordAuth({ password: 'other', sessionDuration: days(1) })
 		const valid = session(auth, now + 60)
 
 		for (const value of [
@@ -858,8 +872,8 @@ describe('router cookie auth', () => {
 	})
 
 	it('should reject an expired session even while the browser still sends it', async () => {
-		const short = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
-		const { handler } = createRouter(values, { cookieAuth: short })
+		const short = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { passwordAuth: short })
 		const request = page('/dashboard')
 
 		// issued 31 days ago for one day
@@ -871,7 +885,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should still accept the password header per request', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = createRequest('/api/users', 'app.example.com')
 
 		request.headers.authorization = { value: 'Password secret' }
@@ -883,7 +897,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should accept cached basic credentials that carry the cookie password', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const login = (credentials: string) => {
 			const request = createRequest('/__awsless/login', 'app.example.com')
 
@@ -901,7 +915,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should set a root domain session cookie on login', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = createRequest('/__awsless/login', 'app.example.com')
 
 		request.method = 'POST'
@@ -924,7 +938,7 @@ describe('router cookie auth', () => {
 	})
 
 	it('should reject a login with the wrong password', async () => {
-		const { handler } = createRouter(values, { cookieAuth: auth })
+		const { handler } = createRouter(values, { passwordAuth: auth })
 		const request = createRequest('/__awsless/login', 'app.example.com')
 
 		request.method = 'POST'
@@ -937,8 +951,8 @@ describe('router cookie auth', () => {
 	})
 
 	it('should set a host only cookie without a router domain', async () => {
-		const local = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
-		const { handler } = createRouter(values, { cookieAuth: local })
+		const local = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { passwordAuth: local })
 		const request = createRequest('/__awsless/login')
 
 		request.method = 'POST'
@@ -949,32 +963,12 @@ describe('router cookie auth', () => {
 		expect(result.cookies?.[local.name]?.attributes).toBe('Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=86400')
 	})
 
-	it('should keep basic auth working next to the cookie session', async () => {
-		const { handler } = createRouter(values, {
-			basicAuth: { username: 'user', password: 'pass' },
-			cookieAuth: auth,
-		})
-		const request = createRequest('/api/users', 'app.example.com')
-
-		request.headers.authorization = { value: `Basic ${Buffer.from('user:pass').toString('base64')}` }
-
-		const result = (await handler({ request })) as Request
-
-		expect(result.uri).toBe('/api/users')
-
-		const denied = (await handler({ request: createRequest('/api/users', 'app.example.com') })) as Response
-
-		expect(denied.statusCode).toBe(401)
-		expect(denied.headers?.['www-authenticate']?.value).toBe('Basic realm="Protected"')
-	})
-
 	it('should keep the function under the cloudfront size cap with every option', () => {
 		const code = getViewerRequestFunctionCode({
 			router: 'main',
 			blockDirectAccess: true,
 			redirectWww: true,
-			basicAuth: { username: 'user', password: 'pass' },
-			cookieAuth: auth,
+			passwordAuth: auth,
 		})
 
 		expect(Buffer.byteLength(code)).toBeLessThan(10 * 1024)
@@ -997,6 +991,7 @@ describe('router cookie auth', () => {
 		expect(page.statusCode).toBe(401)
 		expect(page.headers?.['x-amz-meta-awsless-login']).toBeUndefined()
 		expect(page.headers?.['x-robots-tag']?.value).toBe('noindex, nofollow')
+		expect(page.headers?.['cache-control']?.value).toBe('no-store')
 
 		const site = handler({ response: { statusCode: 200, headers: { 'content-type': { value: 'text/html' } } } })
 
@@ -1006,7 +1001,7 @@ describe('router cookie auth', () => {
 
 	it('should publish the login page to the asset bucket & route it', async () => {
 		const result = createRouterApp(
-			{ main: { domain: 'main', subDomain: 'app', cookieAuth: { password: 'secret' } } },
+			{ main: { domain: 'main', subDomain: 'app', passwordAuth: { password: 'secret' } } },
 			{ domains: { main: { domain: 'example.com' } } }
 		)
 		result.ready()
@@ -1086,6 +1081,21 @@ describe('router maintenance', () => {
 		}
 	})
 
+	it('should fail closed when the maintenance route is not in the active table yet', async () => {
+		const stale = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		])
+		const auth = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler, updateRequestOrigin } = createRouter(stale, { maintenance: true, passwordAuth: auth })
+
+		const result = (await handler({ request: createRequest('/dashboard', 'app.example.com') })) as Response
+
+		expect(result.statusCode).toBe(503)
+		expect(result.headers?.['retry-after']?.value).toBe('300')
+		expect(updateRequestOrigin).not.toHaveBeenCalled()
+	})
+
 	it('should answer other methods with a bare 503', async () => {
 		const { handler } = createRouter(values, { maintenance: true })
 		const request = createRequest('/api/users', 'app.example.com')
@@ -1099,8 +1109,8 @@ describe('router maintenance', () => {
 	})
 
 	it('should keep even authenticated viewers on the maintenance page', async () => {
-		const auth = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
-		const { handler } = createRouter(values, { maintenance: true, cookieAuth: auth })
+		const auth = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { maintenance: true, passwordAuth: auth })
 		const request = createRequest('/dashboard', 'app.example.com')
 
 		request.headers.authorization = { value: 'Password secret' }
@@ -1110,7 +1120,7 @@ describe('router maintenance', () => {
 		expect(result.uri).toBe('/router/main/maintenance-abc.html')
 
 		// the auth code & its crypto import stay out of the function while in maintenance
-		const code = getViewerRequestFunctionCode({ router: 'main', maintenance: true, cookieAuth: auth })
+		const code = getViewerRequestFunctionCode({ router: 'main', maintenance: true, passwordAuth: auth })
 
 		expect(code).not.toContain('crypto')
 		expect(code).not.toContain(auth.password)
@@ -1133,6 +1143,8 @@ describe('router maintenance', () => {
 		expect(page.headers?.['x-amz-meta-awsless-maintenance']).toBeUndefined()
 		expect(page.headers?.['retry-after']?.value).toBe('300')
 		expect(page.headers?.['x-robots-tag']?.value).toBe('noindex, nofollow')
+		// the edge keeps its copy, every cache further down must not
+		expect(page.headers?.['cache-control']?.value).toBe('no-store')
 	})
 
 	it('should publish the maintenance page & route it when the flag is on', () => {

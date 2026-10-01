@@ -224,7 +224,7 @@ export const RouterDefaultSchema = z
 						'Take the router offline: every request gets a maintenance page with a 503 status until the flag is turned off again.'
 					),
 
-				cookieAuth: z
+				passwordAuth: z
 					.object({
 						password: z
 							.string()
@@ -249,20 +249,12 @@ export const RouterDefaultSchema = z
 					.optional()
 					.describe(
 						[
-							'Enable cookie based session authentication for the router.',
+							'Enable password authentication for the router.',
 							'Browsers without a session see a login page, and a correct password sets a session cookie that is shared with every subdomain of the router domain that uses the same password.',
-							'Scripts can authenticate per request with an "authorization" header with the value "Password [YOUR_PASSWORD]".',
+							'Scripts can authenticate per request with an "authorization" header with the value "Password [YOUR_PASSWORD]", and basic credentials that carry the password are accepted as well.',
 							'The router reserves the "/__awsless/login" path for the session.',
 						].join('\n')
 					),
-
-				basicAuth: z
-					.object({
-						username: z.string().describe('Basic auth username.'),
-						password: z.string().describe('Basic auth password.'),
-					})
-					.optional()
-					.describe('Enable basic authentication for the router.'),
 
 				cache: z
 					.object({

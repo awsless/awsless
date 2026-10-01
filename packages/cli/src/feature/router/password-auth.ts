@@ -10,7 +10,7 @@ export const LOGIN_PATH = '/__awsless/login'
 export const LOGIN_PAGE_METADATA = { 'awsless-login': '1' }
 export const LOGIN_PAGE_HEADER = 'x-amz-meta-awsless-login'
 
-export type CookieAuth = {
+export type PasswordAuth = {
 	name: string
 	// The viewer request function signs the session expiry with this secret.
 	secret: string
@@ -27,11 +27,11 @@ export const TEMPORARY_SESSION_VALIDITY = days(1)
 
 // The cookie name carries its own password derived suffix, so routers on
 // one root domain with different passwords never overwrite each other's session.
-export const createCookieAuth = (props: {
+export const createPasswordAuth = (props: {
 	password: string
 	sessionDuration: Duration | 'temporary'
 	domain?: string
-}): CookieAuth => {
+}): PasswordAuth => {
 	const temporary = props.sessionDuration === 'temporary'
 	const validity = toSeconds(props.sessionDuration === 'temporary' ? TEMPORARY_SESSION_VALIDITY : props.sessionDuration)
 	const hash = (scope: string) => {
