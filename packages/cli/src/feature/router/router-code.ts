@@ -116,15 +116,38 @@ const sign = function (value) {
 const authCookie = request.cookies && request.cookies[${name}];
 
 if(authCookie) {
-	const session = authCookie.value.split('.');
+	// A stale cookie of the same name can sit next to the current one, so every value gets a chance.
+	const values = authCookie.multiValue || [authCookie];
 
-	if(session.length === 2 && Number(session[0]) > Date.now() / 1000 && session[1] === sign(session[0])) {
-		isAuthorized = true;
+	for(const i in values) {
+		const session = values[i].value.split('.');
+
+		if(session.length === 2 && Number(session[0]) > Date.now() / 1000 && session[1] === sign(session[0])) {
+			isAuthorized = true;
+		}
 	}
+
+	// Origins keep seeing the password header a session stands in for,
+	// while the session itself stays between the viewer & the router.
+	if(isAuthorized && !authHeader) {
+		headers.authorization = { value: 'Password ' + ${JSON.stringify(auth.password)} };
+	}
+
+	delete request.cookies[${name}];
 }
 
 if(!isAuthorized && authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === ${JSON.stringify(auth.password)}) {
 	isAuthorized = true;
+}
+
+// Browsers keep sending basic credentials cached from an earlier basic auth
+// setup, and put them in place of the login page's own header.
+if(!isAuthorized && authHeader && authHeader.startsWith('Basic ')) {
+	const basic = atob(authHeader.slice(6));
+
+	if(basic.slice(basic.indexOf(':') + 1) === ${JSON.stringify(auth.password)}) {
+		isAuthorized = true;
+	}
 }
 
 if(request.method === 'POST' && path === ${JSON.stringify(LOGIN_PATH)}) {
@@ -137,9 +160,6 @@ if(request.method === 'POST' && path === ${JSON.stringify(LOGIN_PATH)}) {
 	return { statusCode: 204, cookies: ${cookie} };
 }
 
-if(request.cookies) {
-	delete request.cookies[${name}];
-}
 `
 }
 

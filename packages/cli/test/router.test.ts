@@ -11,7 +11,7 @@ type Request = {
 	uri: string
 	method: string
 	headers: Record<string, { value: string }>
-	cookies?: Record<string, { value: string }>
+	cookies?: Record<string, { value: string; multiValue?: { value: string }[] }>
 	querystring: Record<string, unknown>
 }
 
@@ -799,6 +799,42 @@ describe('router cookie auth', () => {
 		expect(result.cookies).toEqual({ theme: { value: 'dark' } })
 	})
 
+	it('should hand the origin the password header a session stands in for', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = page('/dashboard')
+
+		request.cookies = { [auth.name]: { value: session(auth, now + 60) } }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.headers['x-awsless-authorization']).toEqual({ value: 'Password secret' })
+
+		// A header the viewer sent itself wins over the stand in.
+		const own = page('/dashboard')
+
+		own.cookies = { [auth.name]: { value: session(auth, now + 60) } }
+		own.headers.authorization = { value: 'Bearer viewer-token' }
+
+		const kept = (await handler({ request: own })) as Request
+
+		expect(kept.headers['x-awsless-authorization']).toEqual({ value: 'Bearer viewer-token' })
+	})
+
+	it('should accept a valid session next to a stale cookie of the same name', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const request = page('/dashboard')
+		const valid = session(auth, now + 60)
+
+		request.cookies = {
+			[auth.name]: { value: 'stale-token', multiValue: [{ value: 'stale-token' }, { value: valid }] },
+		}
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/dashboard')
+		expect(result.cookies).toEqual({})
+	})
+
 	it('should reject a forged or tampered session cookie', async () => {
 		const { handler } = createRouter(values, { cookieAuth: auth })
 		const other = createCookieAuth({ password: 'other', sessionDuration: days(1) })
@@ -844,6 +880,24 @@ describe('router cookie auth', () => {
 
 		expect(result.uri).toBe('/api/users')
 		expect(result.headers['x-awsless-authorization']).toEqual({ value: 'Password secret' })
+	})
+
+	it('should accept cached basic credentials that carry the cookie password', async () => {
+		const { handler } = createRouter(values, { cookieAuth: auth })
+		const login = (credentials: string) => {
+			const request = createRequest('/__awsless/login', 'app.example.com')
+
+			request.method = 'POST'
+			request.headers.authorization = { value: `Basic ${Buffer.from(credentials).toString('base64')}` }
+
+			return handler({ request }) as Promise<Response>
+		}
+
+		// any username works, only the password counts
+		expect((await login('old-user:secret')).statusCode).toBe(204)
+		expect((await login('other:secret')).statusCode).toBe(204)
+		expect((await login('old-user:wrong')).statusCode).toBe(401)
+		expect((await login('secret')).statusCode).toBe(204)
 	})
 
 	it('should set a root domain session cookie on login', async () => {
