@@ -25,6 +25,7 @@
 	"router": {
 		"main": {
 			"domain": "main",
+			"maintenance": true,
 			"cookieAuth": {
 				"password": "password",
 				"sessionDuration": "temporary"

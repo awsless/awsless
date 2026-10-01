@@ -1,5 +1,6 @@
 import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { CookieAuth, LOGIN_PAGE_HEADER, LOGIN_PATH } from './cookie-auth.js'
+import { MAINTENANCE_PAGE_HEADER, MAINTENANCE_PATH } from './maintenance.js'
 
 // updateRequestOrigin accepts 1-120s, while functions may run for 15 minutes.
 const ORIGIN_READ_TIMEOUT = toSeconds(minutes(2))
@@ -11,38 +12,66 @@ export const getViewerRequestFunctionCode = (props: {
 	redirectWww?: boolean
 	basicAuth?: { username: string; password: string }
 	cookieAuth?: CookieAuth
+	maintenance?: boolean
 }): string => {
+	// A router in maintenance serves nothing but the maintenance page, so the auth code stays out.
+	const auth = !props.maintenance && (props.basicAuth || props.cookieAuth)
+
 	return compact(
 		CODE(
 			[
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
-				props.basicAuth || props.cookieAuth ? AUTH_WRAPPER(props) : '',
+				props.maintenance ? MAINTENANCE : '',
+				auth ? AUTH_WRAPPER(props) : '',
 			],
 			ACTIVE_PREFIX(props.router),
-			!!props.cookieAuth
+			!!(auth && props.cookieAuth)
 		)
 	)
 }
 
-// The login page comes out of s3 as a 200, so the viewer response
-// turns it into the 401 that browsers, crawlers & monitors expect.
+// The router pages come out of s3 as a 200, so the viewer response
+// gives them the status that browsers, crawlers & monitors expect.
 export const getViewerResponseFunctionCode = (): string => {
 	return compact(`
 function handler(event) {
 	const response = event.response;
+	const headers = response.headers;
 
-	if (response.headers[${JSON.stringify(LOGIN_PAGE_HEADER)}]) {
-		delete response.headers[${JSON.stringify(LOGIN_PAGE_HEADER)}];
+	if (headers[${JSON.stringify(LOGIN_PAGE_HEADER)}]) {
+		delete headers[${JSON.stringify(LOGIN_PAGE_HEADER)}];
 		response.statusCode = 401;
 		response.statusDescription = 'Unauthorized';
-		response.headers['x-robots-tag'] = { value: 'noindex, nofollow' };
+		headers['x-robots-tag'] = { value: 'noindex, nofollow' };
+	}
+
+	if (headers[${JSON.stringify(MAINTENANCE_PAGE_HEADER)}]) {
+		delete headers[${JSON.stringify(MAINTENANCE_PAGE_HEADER)}];
+		response.statusCode = 503;
+		response.statusDescription = 'Service Unavailable';
+		headers['retry-after'] = { value: '300' };
+		headers['x-robots-tag'] = { value: 'noindex, nofollow' };
 	}
 
 	return response;
 }
 `)
 }
+
+// Page loads get the maintenance page from the asset bucket, everything else a bare 503.
+const MAINTENANCE = `
+if (request.method === 'GET' || request.method === 'HEAD') {
+	path = ${JSON.stringify(MAINTENANCE_PATH)};
+	request.uri = path;
+	request.querystring = {};
+} else {
+	return {
+		statusCode: 503,
+		statusDescription: 'Service Unavailable',
+		headers: { 'retry-after': { value: '300' } }
+	};
+}`
 
 // CloudFront caps a function at 10KB, so the indentation & comments stay out of it.
 const compact = (code: string) => {
