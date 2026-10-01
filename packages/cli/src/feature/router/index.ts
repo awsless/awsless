@@ -12,6 +12,7 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
 import { createCookieAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './cookie-auth.js'
+import { MAINTENANCE_PAGE, MAINTENANCE_PAGE_METADATA, MAINTENANCE_PATH } from './maintenance.js'
 import { compileRoutePattern } from './pattern.js'
 import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from './router-code.js'
@@ -78,35 +79,37 @@ export const routerFeature = defineFeature({
 					})
 				: undefined
 
-			let responseFunction: aws.cloudfront.Function | undefined
+			// ------------------------------------------------------------
+			// Router Pages
 
-			if (cookieAuth) {
+			// A page the router serves itself from the asset bucket, behind a reserved route.
+			const publishPage = (logicalId: string, slug: string, html: string, metadata: Record<string, string>, route: string) => {
 				const bucket = ctx.shared.get('asset', 'bucket')
-				const version = createHash('sha1').update(LOGIN_PAGE).digest('hex').slice(0, 10)
-				const key = `router/${kebabCase(id)}/login-${version}.html`
+				const version = createHash('sha1').update(html).digest('hex').slice(0, 10)
+				const key = `router/${kebabCase(id)}/${slug}-${version}.html`
 
 				const page = new aws.s3.BucketObject(
 					group,
-					'login-page',
+					logicalId,
 					{
 						bucket: bucket.name,
 						key,
-						content: LOGIN_PAGE,
+						content: html,
 						contentType: 'text/html; charset=utf-8',
-						metadata: LOGIN_PAGE_METADATA,
+						metadata,
 						// The page is served under the url the viewer asked for,
 						// so only the edge may cache it, never the browser.
 						cacheControl: 'public, max-age=0, s-maxage=31536000',
 					},
 					{
 						replaceOnChanges: ['bucket', 'key'],
-						// The old page must outlive the route switch, or logged out
-						// viewers get an s3 access denied during the deploy.
+						// The old page must outlive the route switch, or viewers
+						// get an s3 access denied during the deploy.
 						createBeforeReplace: true,
 					}
 				)
 
-				routes[id]![`${id}:${LOGIN_PATH}`] = {
+				routes[id]![`${id}:${route}`] = {
 					type: 's3',
 					domainName: bucket.regionalDomainName,
 					rewrite: { to: `/${key}` },
@@ -114,19 +117,31 @@ export const routerFeature = defineFeature({
 
 				routeDependencies[id]!.add(page)
 				routeDependencies[id]!.add(bucket.policy)
-
-				responseFunction = new aws.cloudfront.Function(group, 'response-function', {
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: id,
-						postfix: 'response',
-					}),
-					runtime: 'cloudfront-js-2.0',
-					code: getViewerResponseFunctionCode(),
-					publish: true,
-				})
 			}
+
+			if (cookieAuth) {
+				publishPage('login-page', 'login', LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH)
+			}
+
+			if (props.maintenance) {
+				publishPage('maintenance-page', 'maintenance', MAINTENANCE_PAGE, MAINTENANCE_PAGE_METADATA, MAINTENANCE_PATH)
+			}
+
+			// The router pages leave s3 as a 200 & get their real status on the way out.
+			const responseFunction =
+				cookieAuth || props.maintenance
+					? new aws.cloudfront.Function(group, 'response-function', {
+							name: formatGlobalResourceName({
+								appName: ctx.app.name,
+								resourceType: 'router',
+								resourceName: id,
+								postfix: 'response',
+							}),
+							runtime: 'cloudfront-js-2.0',
+							code: getViewerResponseFunctionCode(),
+							publish: true,
+						})
+					: undefined
 
 			// the function names are capped at 64 characters
 			const cfFunction = new aws.cloudfront.Function(
@@ -141,6 +156,7 @@ export const routerFeature = defineFeature({
 						redirectWww: !!props.domain && props.redirectWww,
 						basicAuth: props.basicAuth,
 						cookieAuth,
+						maintenance: props.maintenance,
 					}),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],

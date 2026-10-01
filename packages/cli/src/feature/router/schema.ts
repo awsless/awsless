@@ -217,6 +217,13 @@ export const RouterDefaultSchema = z
 					.optional()
 					.describe('Specify the cors headers.'),
 
+				maintenance: z
+					.boolean()
+					.default(false)
+					.describe(
+						'Take the router offline: every request gets a maintenance page with a 503 status until the flag is turned off again.'
+					),
+
 				cookieAuth: z
 					.object({
 						password: z

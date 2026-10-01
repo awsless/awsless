@@ -1055,3 +1055,111 @@ describe('router cookie auth', () => {
 		)
 	})
 })
+
+describe('router maintenance', () => {
+	const values = new Map([
+		['$active', 'v1:1'],
+		['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		[
+			'v1:main:/__awsless/maintenance',
+			JSON.stringify({
+				type: 's3',
+				domainName: 'assets.s3.amazonaws.com',
+				rewrite: { to: '/router/main/maintenance-abc.html' },
+			}),
+		],
+	])
+
+	it('should serve the maintenance page for every page load', async () => {
+		const { handler } = createRouter(values, { maintenance: true })
+
+		for (const uri of ['/', '/dashboard', '/assets/app.js', '/__awsless/login']) {
+			const request = createRequest(uri, 'app.example.com')
+
+			request.querystring = { tab: { value: 'billing' } }
+
+			const result = (await handler({ request })) as Request
+
+			expect(result.uri).toBe('/router/main/maintenance-abc.html')
+			expect(result.headers['x-origin']?.value).toBe('assets.s3.amazonaws.com')
+			expect(result.querystring).toEqual({})
+		}
+	})
+
+	it('should answer other methods with a bare 503', async () => {
+		const { handler } = createRouter(values, { maintenance: true })
+		const request = createRequest('/api/users', 'app.example.com')
+
+		request.method = 'POST'
+
+		const result = (await handler({ request })) as Response
+
+		expect(result.statusCode).toBe(503)
+		expect(result.headers?.['retry-after']?.value).toBe('300')
+	})
+
+	it('should keep even authenticated viewers on the maintenance page', async () => {
+		const auth = createCookieAuth({ password: 'secret', sessionDuration: days(1) })
+		const { handler } = createRouter(values, { maintenance: true, cookieAuth: auth })
+		const request = createRequest('/dashboard', 'app.example.com')
+
+		request.headers.authorization = { value: 'Password secret' }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.uri).toBe('/router/main/maintenance-abc.html')
+
+		// the auth code & its crypto import stay out of the function while in maintenance
+		const code = getViewerRequestFunctionCode({ router: 'main', maintenance: true, cookieAuth: auth })
+
+		expect(code).not.toContain('crypto')
+		expect(code).not.toContain(auth.password)
+	})
+
+	it('should turn the maintenance page into a 503 on the way to the viewer', () => {
+		// oxlint-disable-next-line no-implied-eval
+		const handler = new Function(`${getViewerResponseFunctionCode()}\nreturn handler;`)() as (event: {
+			response: Response
+		}) => Response
+
+		const page = handler({
+			response: {
+				statusCode: 200,
+				headers: { 'content-type': { value: 'text/html' }, 'x-amz-meta-awsless-maintenance': { value: '1' } },
+			},
+		})
+
+		expect(page.statusCode).toBe(503)
+		expect(page.headers?.['x-amz-meta-awsless-maintenance']).toBeUndefined()
+		expect(page.headers?.['retry-after']?.value).toBe('300')
+		expect(page.headers?.['x-robots-tag']?.value).toBe('noindex, nofollow')
+	})
+
+	it('should publish the maintenance page & route it when the flag is on', () => {
+		const off = createRouterApp({ main: {} })
+		off.ready()
+
+		// other features keep their own objects in the bucket, only router pages count here
+		const routerPages = (resources: ReturnType<typeof getMeta>[]) =>
+			resources.filter(
+				resource => resource.type === 'aws_s3_bucket_object' && String(resource.input.key).startsWith('router/')
+			)
+
+		expect(routerPages(off.app.resources.map(getMeta))).toHaveLength(0)
+
+		const on = createRouterApp({ main: { maintenance: true } })
+		on.ready()
+
+		const resources = on.app.resources.map(getMeta)
+		const page = routerPages(resources)[0]!
+		const functions = resources.filter(resource => resource.type === 'aws_cloudfront_function')
+		const request = functions.find(item => String(item.input.code).includes('$active'))!
+
+		expect(page.input.key).toMatch(/^router\/main\/maintenance-[a-f0-9]{10}\.html$/)
+		expect(page.input.metadata).toEqual({ 'awsless-maintenance': '1' })
+		expect(String(page.input.content)).toContain('Down for maintenance')
+		expect(functions).toHaveLength(2)
+		expect(String(request.input.code)).toContain('/__awsless/maintenance')
+		expect(RouterDefaultSchema.parse({ main: {} })).toMatchObject({ main: { maintenance: false } })
+	})
+})
