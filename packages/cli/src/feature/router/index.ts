@@ -11,7 +11,7 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
-import { createCookieAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './cookie-auth.js'
+import { createPasswordAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './password-auth.js'
 import { MAINTENANCE_PAGE, MAINTENANCE_PAGE_METADATA, MAINTENANCE_PATH } from './maintenance.js'
 import { compileRoutePattern } from './pattern.js'
 import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
@@ -68,12 +68,12 @@ export const routerFeature = defineFeature({
 			routeStores[id] = routeStore
 
 			// ------------------------------------------------------------
-			// Cookie Auth
+			// Password Auth
 
-			const cookieAuth = props.cookieAuth
-				? createCookieAuth({
-						password: props.cookieAuth.password,
-						sessionDuration: props.cookieAuth.sessionDuration,
+			const passwordAuth = props.passwordAuth
+				? createPasswordAuth({
+						password: props.passwordAuth.password,
+						sessionDuration: props.passwordAuth.sessionDuration,
 						// The root domain lets every subdomain share the session.
 						domain: props.domain ? getDomainNameById(ctx.appConfig, props.domain) : undefined,
 					})
@@ -119,7 +119,7 @@ export const routerFeature = defineFeature({
 				routeDependencies[id]!.add(bucket.policy)
 			}
 
-			if (cookieAuth) {
+			if (passwordAuth) {
 				publishPage('login-page', 'login', LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH)
 			}
 
@@ -129,7 +129,7 @@ export const routerFeature = defineFeature({
 
 			// The router pages leave s3 as a 200 & get their real status on the way out.
 			const responseFunction =
-				cookieAuth || props.maintenance
+				passwordAuth || props.maintenance
 					? new aws.cloudfront.Function(group, 'response-function', {
 							name: formatGlobalResourceName({
 								appName: ctx.app.name,
@@ -154,8 +154,7 @@ export const routerFeature = defineFeature({
 						router: id,
 						blockDirectAccess: !!props.domain,
 						redirectWww: !!props.domain && props.redirectWww,
-						basicAuth: props.basicAuth,
-						cookieAuth,
+						passwordAuth,
 						maintenance: props.maintenance,
 					}),
 					publish: true,

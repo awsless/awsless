@@ -1,5 +1,5 @@
 import { minutes, seconds, toSeconds } from '@awsless/duration'
-import { CookieAuth, LOGIN_PAGE_HEADER, LOGIN_PATH } from './cookie-auth.js'
+import { LOGIN_PAGE_HEADER, LOGIN_PATH, PasswordAuth } from './password-auth.js'
 import { MAINTENANCE_PAGE_HEADER, MAINTENANCE_PATH } from './maintenance.js'
 
 // updateRequestOrigin accepts 1-120s, while functions may run for 15 minutes.
@@ -10,12 +10,19 @@ export const getViewerRequestFunctionCode = (props: {
 	router: string
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
-	basicAuth?: { username: string; password: string }
-	cookieAuth?: CookieAuth
+	passwordAuth?: PasswordAuth
 	maintenance?: boolean
 }): string => {
 	// A router in maintenance serves nothing but the maintenance page, so the auth code stays out.
-	const auth = !props.maintenance && (props.basicAuth || props.cookieAuth)
+	const auth = !props.maintenance && props.passwordAuth
+
+	// The router pages only exist once their route is in the active table,
+	// so a page load fails closed instead of falling through to the origin.
+	const pageGuard = props.maintenance
+		? PAGE_GUARD({ path: MAINTENANCE_PATH, fallback: SERVICE_UNAVAILABLE })
+		: auth
+			? PAGE_GUARD({ path: LOGIN_PATH, fallback: `{ statusCode: 401, statusDescription: 'Unauthorized' }`, when: 'showPage' })
+			: ''
 
 	return compact(
 		CODE(
@@ -23,16 +30,43 @@ export const getViewerRequestFunctionCode = (props: {
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
 				props.maintenance ? MAINTENANCE : '',
-				auth ? AUTH_WRAPPER(props) : '',
+				auth ? AUTH_WRAPPER(auth) : '',
 			],
 			ACTIVE_PREFIX(props.router),
-			!!(auth && props.cookieAuth)
+			pageGuard,
+			!!auth
 		)
 	)
 }
 
-// The router pages come out of s3 as a 200, so the viewer response
-// gives them the status that browsers, crawlers & monitors expect.
+const SERVICE_UNAVAILABLE = `{
+		statusCode: 503,
+		statusDescription: 'Service Unavailable',
+		headers: { 'retry-after': { value: '300' } }
+	}`
+
+// Looks the page route up by its exact key, so a wildcard route can never stand in for it.
+const PAGE_GUARD = (props: { path: string; fallback: string; when?: string }) => `
+${props.when ? `if (${props.when}) {` : '{'}
+	let pageRoute;
+
+	try {
+		pageRoute = await cf.kvs().get(prefix + ${JSON.stringify(props.path)}, { format: 'json' });
+	} catch (e) {}
+
+	if (!pageRoute) {
+		return ${props.fallback};
+	}
+
+	path = ${JSON.stringify(props.path)};
+	request.uri = path;
+	request.querystring = {};
+}
+`
+
+// The router pages come out of s3 as a 200 with a long shared cache
+// lifetime for the edge, so the viewer response gives them their real
+// status & keeps every cache further downstream from holding on to them.
 export const getViewerResponseFunctionCode = (): string => {
 	return compact(`
 function handler(event) {
@@ -44,6 +78,7 @@ function handler(event) {
 		response.statusCode = 401;
 		response.statusDescription = 'Unauthorized';
 		headers['x-robots-tag'] = { value: 'noindex, nofollow' };
+		headers['cache-control'] = { value: 'no-store' };
 	}
 
 	if (headers[${JSON.stringify(MAINTENANCE_PAGE_HEADER)}]) {
@@ -52,6 +87,7 @@ function handler(event) {
 		response.statusDescription = 'Service Unavailable';
 		headers['retry-after'] = { value: '300' };
 		headers['x-robots-tag'] = { value: 'noindex, nofollow' };
+		headers['cache-control'] = { value: 'no-store' };
 	}
 
 	return response;
@@ -61,16 +97,8 @@ function handler(event) {
 
 // Page loads get the maintenance page from the asset bucket, everything else a bare 503.
 const MAINTENANCE = `
-if (request.method === 'GET' || request.method === 'HEAD') {
-	path = ${JSON.stringify(MAINTENANCE_PATH)};
-	request.uri = path;
-	request.querystring = {};
-} else {
-	return {
-		statusCode: 503,
-		statusDescription: 'Service Unavailable',
-		headers: { 'retry-after': { value: '300' } }
-	};
+if (request.method !== 'GET' && request.method !== 'HEAD') {
+	return ${SERVICE_UNAVAILABLE};
 }`
 
 // CloudFront caps a function at 10KB, so the indentation & comments stay out of it.
@@ -123,15 +151,9 @@ if (headers.host && headers.host.value.startsWith('www.')) {
 	};
 }`
 
-const BASIC_AUTH_CHECK = (username: string, password: string) => `
-if(authHeader && authHeader.startsWith('Basic ') && authHeader.slice(6) === '${Buffer.from(`${username}:${password}`).toString('base64')}') {
-	isAuthorized = true;
-}
-`
-
 // The login page posts the password as a "Password" authorization header,
 // which doubles as the per request auth for scripts without a cookie jar.
-const COOKIE_AUTH_CHECK = (auth: CookieAuth) => {
+const PASSWORD_AUTH_CHECK = (auth: PasswordAuth) => {
 	const name = JSON.stringify(auth.name)
 	const attributes = ['Path=/', 'Secure', 'HttpOnly', 'SameSite=Lax', ...(auth.domain ? [`Domain=${auth.domain}`] : [])]
 	const cookie = `{ ${name}: { value: expires + '.' + sign(expires), attributes: ${JSON.stringify([...attributes, ...(auth.maxAge ? [`Max-Age=${auth.maxAge}`] : [])].join('; '))} } }`
@@ -198,31 +220,24 @@ const LOGIN_PAGE_REWRITE = `
 const accept = headers.accept && headers.accept.value;
 
 if((request.method === 'GET' || request.method === 'HEAD') && accept && accept.includes('text/html')) {
-	path = ${JSON.stringify(LOGIN_PATH)};
-	request.uri = path;
-	request.querystring = {};
+	showPage = true;
 	isAuthorized = true;
 }
 `
 
-const AUTH_WRAPPER = (props: { basicAuth?: { username: string; password: string }; cookieAuth?: CookieAuth }) => `
+const AUTH_WRAPPER = (auth: PasswordAuth) => `
 const authHeader = headers.authorization && headers.authorization.value;
 let isAuthorized = false;
+let showPage = false;
 
-${props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : ''}
-${props.cookieAuth ? COOKIE_AUTH_CHECK(props.cookieAuth) : ''}
-${props.cookieAuth ? `if (!isAuthorized) {${LOGIN_PAGE_REWRITE}}` : ''}
+${PASSWORD_AUTH_CHECK(auth)}
+if (!isAuthorized) {${LOGIN_PAGE_REWRITE}}
 
 if (!isAuthorized) {
 	return {
 		statusCode: 401,
 		headers: {
-			'access-control-allow-origin': { value: '*' }${
-				props.basicAuth
-					? `,
-			'www-authenticate': { value: 'Basic realm="Protected"' }`
-					: ''
-			}
+			'access-control-allow-origin': { value: '*' }
 		}
 	};
 }`
@@ -241,7 +256,7 @@ try {
 	};
 }`
 
-const CODE = (injection: string[], prefixCode: string, withCrypto: boolean) => `
+const CODE = (injection: string[], prefixCode: string, pageGuard: string, withCrypto: boolean) => `
 import cf from "cloudfront";
 ${withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -469,6 +484,8 @@ async function handler(event) {
 	${injection.join('\n')}
 
 	${prefixCode}
+
+	${pageGuard}
 
 	const result = await findRoute(path, request.method, prefix);
 
