@@ -1,8 +1,8 @@
+import { createHash } from 'crypto'
 import { days, seconds, toSeconds, years } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { constantCase, kebabCase } from 'change-case'
-import { createHash } from 'crypto'
 import { ExpectedError, FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
@@ -11,8 +11,8 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
+import { createMaintenanceEntries, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { createPasswordAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './password-auth.js'
-import { MAINTENANCE_PAGE, MAINTENANCE_PAGE_METADATA, MAINTENANCE_PATH } from './maintenance.js'
 import { compileRoutePattern } from './pattern.js'
 import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from './router-code.js'
@@ -83,7 +83,13 @@ export const routerFeature = defineFeature({
 			// Router Pages
 
 			// A page the router serves itself from the asset bucket, behind a reserved route.
-			const publishPage = (logicalId: string, slug: string, html: string, metadata: Record<string, string>, route: string) => {
+			const publishPage = (
+				logicalId: string,
+				slug: string,
+				html: string,
+				metadata: Record<string, string>,
+				route: string
+			) => {
 				const bucket = ctx.shared.get('asset', 'bucket')
 				const version = createHash('sha1').update(html).digest('hex').slice(0, 10)
 				const key = `router/${kebabCase(id)}/${slug}-${version}.html`
@@ -123,25 +129,20 @@ export const routerFeature = defineFeature({
 				publishPage('login-page', 'login', LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH)
 			}
 
-			if (props.maintenance) {
-				publishPage('maintenance-page', 'maintenance', MAINTENANCE_PAGE, MAINTENANCE_PAGE_METADATA, MAINTENANCE_PATH)
-			}
-
-			// The router pages leave s3 as a 200 & get their real status on the way out.
-			const responseFunction =
-				passwordAuth || props.maintenance
-					? new aws.cloudfront.Function(group, 'response-function', {
-							name: formatGlobalResourceName({
-								appName: ctx.app.name,
-								resourceType: 'router',
-								resourceName: id,
-								postfix: 'response',
-							}),
-							runtime: 'cloudfront-js-2.0',
-							code: getViewerResponseFunctionCode(),
-							publish: true,
-						})
-					: undefined
+			// The login page leaves s3 as a 200 & gets its real status on the way out.
+			const responseFunction = passwordAuth
+				? new aws.cloudfront.Function(group, 'response-function', {
+						name: formatGlobalResourceName({
+							appName: ctx.app.name,
+							resourceType: 'router',
+							resourceName: id,
+							postfix: 'response',
+						}),
+						runtime: 'cloudfront-js-2.0',
+						code: getViewerResponseFunctionCode(),
+						publish: true,
+					})
+				: undefined
 
 			// the function names are capped at 64 characters
 			const cfFunction = new aws.cloudfront.Function(
@@ -155,7 +156,6 @@ export const routerFeature = defineFeature({
 						blockDirectAccess: !!props.domain,
 						redirectWww: !!props.domain && props.redirectWww,
 						passwordAuth,
-						maintenance: props.maintenance,
 					}),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],
@@ -249,37 +249,37 @@ export const routerFeature = defineFeature({
 			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
 				corsConfig: {
-					originOverride: props.cors?.override ?? true,
-					accessControlMaxAgeSec: toSeconds(props.cors?.maxAge ?? years(1)),
-					accessControlAllowHeaders: { items: props.cors?.headers ?? ['*'] },
-					accessControlAllowMethods: { items: props.cors?.methods ?? ['ALL'] },
-					accessControlAllowOrigins: { items: props.cors?.origins ?? ['*'] },
-					accessControlExposeHeaders: { items: props.cors?.exposeHeaders ?? ['*'] },
-					accessControlAllowCredentials: props.cors?.credentials ?? false,
+					originOverride: props.cors.override,
+					accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
+					accessControlAllowHeaders: { items: props.cors.headers },
+					accessControlAllowMethods: { items: props.cors.methods },
+					accessControlAllowOrigins: { items: props.cors.origins },
+					accessControlExposeHeaders: { items: props.cors.exposeHeaders },
+					accessControlAllowCredentials: props.cors.credentials,
 				},
 				removeHeadersConfig: {
 					items: [{ header: 'server' }],
 				},
 				securityHeadersConfig: {
 					contentTypeOptions: {
-						override: true,
+						override: false,
 					},
 					frameOptions: {
-						override: true,
+						override: false,
 						frameOption: 'SAMEORIGIN',
 					},
 					referrerPolicy: {
-						override: true,
+						override: false,
 						referrerPolicy: 'same-origin',
 					},
 					strictTransportSecurity: {
-						override: true,
+						override: false,
 						preload: true,
 						accessControlMaxAgeSec: toSeconds(years(1)),
 						includeSubdomains: true,
 					},
 					xssProtection: {
-						override: true,
+						override: false,
 						modeBlock: true,
 						protection: true,
 					},
@@ -594,7 +594,7 @@ export const routerFeature = defineFeature({
 					bundleDependencies.push(bundle.policy, bundle.alias, deployment)
 				}
 
-				for (const [id] of routers) {
+				for (const [id, props] of routers) {
 					const dependencies = routeDependencies[id]!
 
 					// Only routers that route into the bundle wait for its policy, alias & url.
@@ -612,6 +612,9 @@ export const routerFeature = defineFeature({
 							deploymentId: ctx.deploymentId ?? 'local-0',
 							storeArn: routeStores[id]!.arn,
 							functionVersion: bundle.lambda.version,
+							// Maintenance is a property of the route table, so it starts & ends
+							// when the table is promoted instead of when a function propagates.
+							...(props.maintenance ? { tablePrefix: MAINTENANCE_TABLE_PREFIX } : {}),
 							routes: $resolve([routes[id]!, lambdaUrlHost], (routes, lambdaUrlHost) => {
 								const withOrigin = (route: Route) => {
 									return route.type === 'lambda' && !route.domainName
@@ -619,12 +622,15 @@ export const routerFeature = defineFeature({
 										: route
 								}
 
-								return Object.entries(routes).flatMap(([key, route]) =>
-									createRouteStoreEntries(
-										key,
-										Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
-									)
-								)
+								return [
+									...Object.entries(routes).flatMap(([key, route]) =>
+										createRouteStoreEntries(
+											key,
+											Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
+										)
+									),
+									...(props.maintenance ? createMaintenanceEntries(id) : []),
+								]
 							}),
 						},
 						{

@@ -49,6 +49,9 @@ type RouteDeploymentInput = {
 	storeArn: Input<string>
 	routes: Input<RouteEntry[]>
 	functionVersion: Input<string>
+	// Marks the kind of table in its id. The viewer function reads the id
+	// straight from the live pointer, so it knows the kind without another read.
+	tablePrefix?: Input<string>
 }
 
 export const RouteDeployment = createCustomResourceClass<RouteDeploymentInput, {}>('cloudfront-kvs', 'route-deployment')
@@ -58,6 +61,11 @@ const routeDeploymentInputSchema = z.object({
 	storeArn: z.string(),
 	routes: z.array(routeSchema),
 	functionVersion: z.string(),
+	// Table ids are hex hashes, so a marker outside of hex can never be mistaken for one.
+	tablePrefix: z
+		.string()
+		.regex(/^[g-z]*$/)
+		.default(''),
 })
 
 // store values are plain '<table>:<id or version>' pairs
@@ -150,7 +158,7 @@ export const getRouteStoreArn = async (cloudfront: CloudFrontClient, name: strin
 
 const stageRoutes = async (kvs: CloudFrontKeyValueStoreClient, state: z.output<typeof routeDeploymentInputSchema>) => {
 	const routes = sortRoutes(state.routes)
-	const table = getRouteTableId(routes)
+	const table = `${state.tablePrefix}${getRouteTableId(routes)}`
 
 	const mutations: Mutation[] = [
 		...routes.map((route): Mutation => ({

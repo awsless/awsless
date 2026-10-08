@@ -125,6 +125,38 @@ describe('CloudFront route deployments', () => {
 		)
 	})
 
+	it('should mark the kind of a table in its id', async () => {
+		const { getStore } = mockAws()
+		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })
+
+		await provider.createResource({ type: 'route-deployment', state })
+		await provider.createResource({
+			type: 'route-deployment',
+			state: { ...state, deploymentId: 'main-2', tablePrefix: 'm' },
+		})
+
+		const store = getStore(storeArn)
+		const plain = deployEntry(store, 'main-1')
+		const marked = deployEntry(store, 'main-2')
+
+		// the same routes live in two tables that the viewer function can tell apart
+		expect(plain.table).toMatch(/^[0-9a-f]{8}$/)
+		expect(marked.table).toBe(`m${plain.table}`)
+		expect(store.get(`${marked.table}:/api/*`)).toBe(state.routes[0]!.value)
+
+		// the marker reaches the live pointer, which is all the function reads
+		await setActiveRouteDeployment(cliClients().kvs, storeArn, { id: 'main-2', ...marked })
+		expect(store.get('$active')).toBe(`${marked.table}:main-2`)
+
+		// a marker that could pass for a table hash is refused
+		await expect(
+			provider.createResource({
+				type: 'route-deployment',
+				state: { ...state, deploymentId: 'main-3', tablePrefix: 'a' },
+			})
+		).rejects.toThrow()
+	})
+
 	it('should share the route table of a deployment with unchanged routes', async () => {
 		const { getStore, kvs } = mockAws()
 		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })

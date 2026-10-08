@@ -205,7 +205,7 @@ export const RouterDefaultSchema = z
 					.object({
 						override: z.boolean().default(false),
 						maxAge: DurationSchema.prefault('365 days'),
-						exposeHeaders: z.string().array().optional(),
+						exposeHeaders: z.string().array().default(['*']),
 						credentials: z.boolean().default(false),
 						headers: z.string().array().default(['*']),
 						origins: z.string().array().default(['*']),
@@ -214,7 +214,7 @@ export const RouterDefaultSchema = z
 							.array()
 							.default(['ALL']),
 					})
-					.optional()
+					.prefault({})
 					.describe('Specify the cors headers.'),
 
 				maintenance: z

@@ -1,6 +1,6 @@
 import { minutes, seconds, toSeconds } from '@awsless/duration'
+import { MAINTENANCE_KEY, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { LOGIN_PAGE_HEADER, LOGIN_PATH, PasswordAuth } from './password-auth.js'
-import { MAINTENANCE_PAGE_HEADER, MAINTENANCE_PATH } from './maintenance.js'
 
 // updateRequestOrigin accepts 1-120s, while functions may run for 15 minutes.
 const ORIGIN_READ_TIMEOUT = toSeconds(minutes(2))
@@ -11,62 +11,71 @@ export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
-	maintenance?: boolean
 }): string => {
-	// A router in maintenance serves nothing but the maintenance page, so the auth code stays out.
-	const auth = !props.maintenance && props.passwordAuth
-
-	// The router pages only exist once their route is in the active table,
-	// so a page load fails closed instead of falling through to the origin.
-	const pageGuard = props.maintenance
-		? PAGE_GUARD({ path: MAINTENANCE_PATH, fallback: SERVICE_UNAVAILABLE })
-		: auth
-			? PAGE_GUARD({ path: LOGIN_PATH, fallback: `{ statusCode: 401, statusDescription: 'Unauthorized' }`, when: 'showPage' })
-			: ''
-
 	return compact(
-		CODE(
-			[
+		CODE({
+			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
-				props.maintenance ? MAINTENANCE : '',
-				auth ? AUTH_WRAPPER(auth) : '',
 			],
-			ACTIVE_PREFIX(props.router),
-			pageGuard,
-			!!auth
-		)
+			prefix: ACTIVE_PREFIX(props.router),
+			// Everything from here on depends on the live route table, so every
+			// edge switches behavior in the instant a deploy promotes its table.
+			after: [
+				MAINTENANCE,
+				props.passwordAuth ? AUTH_WRAPPER(props.passwordAuth) : '',
+				props.passwordAuth ? LOGIN_PAGE_GUARD : '',
+			],
+			withCrypto: !!props.passwordAuth,
+		})
 	)
 }
 
-const SERVICE_UNAVAILABLE = `{
-		statusCode: 503,
-		statusDescription: 'Service Unavailable',
-		headers: { 'retry-after': { value: '300' } }
-	}`
+// A table in maintenance answers every request itself, with the page it
+// carries in its own rows, so nothing reaches an origin or needs a login.
+// Every router function carries this, so it stays as short as it can be.
+const MAINTENANCE = `
+if (table.charAt(0) === ${JSON.stringify(MAINTENANCE_TABLE_PREFIX)}) {
+	const down = { statusCode: 503, headers: { 'retry-after': { value: '300' }, 'cache-control': { value: 'no-store' } } };
+	let body = '';
 
-// Looks the page route up by its exact key, so a wildcard route can never stand in for it.
-const PAGE_GUARD = (props: { path: string; fallback: string; when?: string }) => `
-${props.when ? `if (${props.when}) {` : '{'}
+	if (request.method === 'GET' || request.method === 'HEAD') {
+		try {
+			for (let i = 0; i < 16; i++) body += await cf.kvs().get(prefix + ${JSON.stringify(MAINTENANCE_KEY + '#')} + i);
+		} catch (e) {}
+	}
+
+	if (body) {
+		down.headers['content-type'] = { value: 'text/html; charset=utf-8' };
+		down.body = body;
+	}
+
+	return down;
+}`
+
+// Looks the login page route up by its exact key, so a wildcard route can
+// never stand in for it & hand the site to a viewer that hasn't logged in.
+const LOGIN_PAGE_GUARD = `
+if (showPage) {
 	let pageRoute;
 
 	try {
-		pageRoute = await cf.kvs().get(prefix + ${JSON.stringify(props.path)}, { format: 'json' });
+		pageRoute = await cf.kvs().get(prefix + ${JSON.stringify(LOGIN_PATH)}, { format: 'json' });
 	} catch (e) {}
 
 	if (!pageRoute) {
-		return ${props.fallback};
+		return { statusCode: 401, statusDescription: 'Unauthorized' };
 	}
 
-	path = ${JSON.stringify(props.path)};
+	path = ${JSON.stringify(LOGIN_PATH)};
 	request.uri = path;
 	request.querystring = {};
 }
 `
 
-// The router pages come out of s3 as a 200 with a long shared cache
-// lifetime for the edge, so the viewer response gives them their real
-// status & keeps every cache further downstream from holding on to them.
+// The login page comes out of s3 as a 200 with a long shared cache
+// lifetime for the edge, so the viewer response gives it its real status
+// & keeps every cache further downstream from holding on to it.
 export const getViewerResponseFunctionCode = (): string => {
 	return compact(`
 function handler(event) {
@@ -81,25 +90,10 @@ function handler(event) {
 		headers['cache-control'] = { value: 'no-store' };
 	}
 
-	if (headers[${JSON.stringify(MAINTENANCE_PAGE_HEADER)}]) {
-		delete headers[${JSON.stringify(MAINTENANCE_PAGE_HEADER)}];
-		response.statusCode = 503;
-		response.statusDescription = 'Service Unavailable';
-		headers['retry-after'] = { value: '300' };
-		headers['x-robots-tag'] = { value: 'noindex, nofollow' };
-		headers['cache-control'] = { value: 'no-store' };
-	}
-
 	return response;
 }
 `)
 }
-
-// Page loads get the maintenance page from the asset bucket, everything else a bare 503.
-const MAINTENANCE = `
-if (request.method !== 'GET' && request.method !== 'HEAD') {
-	return ${SERVICE_UNAVAILABLE};
-}`
 
 // CloudFront caps a function at 10KB, so the indentation & comments stay out of it.
 const compact = (code: string) => {
@@ -245,20 +239,22 @@ if (!isAuthorized) {
 // '$active' points at the route table of the live deployment.
 const ACTIVE_PREFIX = (router: string) => `
 const router = ${JSON.stringify(router)};
-let prefix;
+let table;
 
 try {
-	prefix = (await cf.kvs().get('$active')).split(':')[0] + ':' + router + ':';
+	table = (await cf.kvs().get('$active')).split(':')[0];
 } catch (e) {
 	return {
 		statusCode: 503,
 		statusDescription: 'Service Unavailable'
 	};
-}`
+}
 
-const CODE = (injection: string[], prefixCode: string, pageGuard: string, withCrypto: boolean) => `
+const prefix = table + ':' + router + ':';`
+
+const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean }) => `
 import cf from "cloudfront";
-${withCrypto ? 'import crypto from "crypto";' : ''}
+${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
 function getPossibleRouteKeys(path) {
 	if (path === '' || path === '/') {
@@ -481,11 +477,11 @@ async function handler(event) {
 		};
 	}
 
-	${injection.join('\n')}
+	${props.before.join('\n')}
 
-	${prefixCode}
+	${props.prefix}
 
-	${pageGuard}
+	${props.after.join('\n')}
 
 	const result = await findRoute(path, request.method, prefix);
 

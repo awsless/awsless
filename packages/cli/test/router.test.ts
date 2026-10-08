@@ -2,6 +2,7 @@ import { days } from '@awsless/duration'
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
 import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
+import { MAINTENANCE_PAGE } from '../src/feature/router/maintenance'
 import { createPasswordAuth, PasswordAuth } from '../src/feature/router/password-auth'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
 import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
@@ -1052,126 +1053,161 @@ describe('router password auth', () => {
 })
 
 describe('router maintenance', () => {
-	const values = new Map([
+	const lambda = JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })
+	const page = ['<!doctype html><html>', '<body>maintenance</body>', '</html>']
+
+	// The same routes, once as a normal table & once as a table in maintenance.
+	const live = new Map([
 		['$active', 'v1:1'],
-		['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
-		[
-			'v1:main:/__awsless/maintenance',
-			JSON.stringify({
-				type: 's3',
-				domainName: 'assets.s3.amazonaws.com',
-				rewrite: { to: '/router/main/maintenance-abc.html' },
-			}),
-		],
+		['v1:main:/*', lambda],
+	])
+	const down = new Map([
+		['$active', 'm1a2b3c4:2'],
+		['m1a2b3c4:main:/*', lambda],
+		...page.map((part, index): [string, string] => [`m1a2b3c4:main:$maintenance#${index}`, part]),
 	])
 
-	it('should serve the maintenance page for every page load', async () => {
-		const { handler } = createRouter(values, { maintenance: true })
+	it('should answer every page load with the page of a table in maintenance', async () => {
+		const { handler, updateRequestOrigin } = createRouter(down)
 
 		for (const uri of ['/', '/dashboard', '/assets/app.js', '/__awsless/login']) {
-			const request = createRequest(uri, 'app.example.com')
+			const result = (await handler({ request: createRequest(uri, 'app.example.com') })) as Response & {
+				body?: string
+			}
 
-			request.querystring = { tab: { value: 'billing' } }
-
-			const result = (await handler({ request })) as Request
-
-			expect(result.uri).toBe('/router/main/maintenance-abc.html')
-			expect(result.headers['x-origin']?.value).toBe('assets.s3.amazonaws.com')
-			expect(result.querystring).toEqual({})
+			expect(result.statusCode).toBe(503)
+			expect(result.body).toBe(page.join(''))
+			expect(result.headers?.['content-type']?.value).toBe('text/html; charset=utf-8')
+			expect(result.headers?.['retry-after']?.value).toBe('300')
+			// no cache downstream may hold on to the page once maintenance ends
+			expect(result.headers?.['cache-control']?.value).toBe('no-store')
 		}
-	})
 
-	it('should fail closed when the maintenance route is not in the active table yet', async () => {
-		const stale = new Map([
-			['$active', 'v1:1'],
-			['v1:main:/*', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
-		])
-		const auth = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
-		const { handler, updateRequestOrigin } = createRouter(stale, { maintenance: true, passwordAuth: auth })
-
-		const result = (await handler({ request: createRequest('/dashboard', 'app.example.com') })) as Response
-
-		expect(result.statusCode).toBe(503)
-		expect(result.headers?.['retry-after']?.value).toBe('300')
 		expect(updateRequestOrigin).not.toHaveBeenCalled()
 	})
 
 	it('should answer other methods with a bare 503', async () => {
-		const { handler } = createRouter(values, { maintenance: true })
+		const { handler, updateRequestOrigin } = createRouter(down)
 		const request = createRequest('/api/users', 'app.example.com')
 
 		request.method = 'POST'
 
-		const result = (await handler({ request })) as Response
+		const result = (await handler({ request })) as Response & { body?: string }
 
 		expect(result.statusCode).toBe(503)
+		expect(result.body).toBeUndefined()
 		expect(result.headers?.['retry-after']?.value).toBe('300')
+		expect(updateRequestOrigin).not.toHaveBeenCalled()
 	})
 
-	it('should keep even authenticated viewers on the maintenance page', async () => {
+	it('should switch with the live table instead of with the function', async () => {
+		// One & the same function: only the table that the live pointer names differs.
+		const code = getViewerRequestFunctionCode({ router: 'main' })
+		const before = evaluate(code, live)
+		const after = evaluate(code, down)
+
+		const serving = (await before.handler({ request: createRequest('/dashboard', 'app.example.com') })) as Request
+		const closed = (await after.handler({ request: createRequest('/dashboard', 'app.example.com') })) as Response
+
+		expect(serving.uri).toBe('/dashboard')
+		expect(before.updateRequestOrigin).toHaveBeenCalled()
+		expect(closed.statusCode).toBe(503)
+	})
+
+	it('should put maintenance in front of the login', async () => {
 		const auth = createPasswordAuth({ password: 'secret', sessionDuration: days(1) })
-		const { handler } = createRouter(values, { maintenance: true, passwordAuth: auth })
-		const request = createRequest('/dashboard', 'app.example.com')
+		const request = () => {
+			const request = createRequest('/dashboard', 'app.example.com')
 
-		request.headers.authorization = { value: 'Password secret' }
+			request.headers.accept = { value: 'text/html' }
 
-		const result = (await handler({ request })) as Request
+			return request
+		}
 
-		expect(result.uri).toBe('/router/main/maintenance-abc.html')
+		// in maintenance nobody gets asked for a password, & nobody gets in with one either
+		const closed = createRouter(down, { passwordAuth: auth })
+		const anonymous = (await closed.handler({ request: request() })) as Response
+		const authorized = request()
 
-		// the auth code & its crypto import stay out of the function while in maintenance
-		const code = getViewerRequestFunctionCode({ router: 'main', maintenance: true, passwordAuth: auth })
+		authorized.headers.authorization = { value: 'Password secret' }
 
-		expect(code).not.toContain('crypto')
-		expect(code).not.toContain(auth.password)
+		expect(anonymous.statusCode).toBe(503)
+		expect(((await closed.handler({ request: authorized })) as Response).statusCode).toBe(503)
+		expect(closed.updateRequestOrigin).not.toHaveBeenCalled()
+
+		// until the table in maintenance is live, the password check keeps guarding the site
+		const open = createRouter(live, { passwordAuth: auth })
+
+		expect(((await open.handler({ request: request() })) as Response).statusCode).toBe(401)
 	})
 
-	it('should turn the maintenance page into a 503 on the way to the viewer', () => {
-		// oxlint-disable-next-line no-implied-eval
-		const handler = new Function(`${getViewerResponseFunctionCode()}\nreturn handler;`)() as (event: {
-			response: Response
-		}) => Response
+	it('should fail closed with a bare 503 when the table carries no page', async () => {
+		const empty = new Map([
+			['$active', 'm1a2b3c4:2'],
+			['m1a2b3c4:main:/*', lambda],
+		])
+		const { handler, updateRequestOrigin } = createRouter(empty)
 
-		const page = handler({
-			response: {
-				statusCode: 200,
-				headers: { 'content-type': { value: 'text/html' }, 'x-amz-meta-awsless-maintenance': { value: '1' } },
-			},
-		})
+		const result = (await handler({ request: createRequest('/dashboard', 'app.example.com') })) as Response & {
+			body?: string
+		}
 
-		expect(page.statusCode).toBe(503)
-		expect(page.headers?.['x-amz-meta-awsless-maintenance']).toBeUndefined()
-		expect(page.headers?.['retry-after']?.value).toBe('300')
-		expect(page.headers?.['x-robots-tag']?.value).toBe('noindex, nofollow')
-		// the edge keeps its copy, every cache further down must not
-		expect(page.headers?.['cache-control']?.value).toBe('no-store')
+		expect(result.statusCode).toBe(503)
+		expect(result.body).toBeUndefined()
+		expect(updateRequestOrigin).not.toHaveBeenCalled()
 	})
 
-	it('should publish the maintenance page & route it when the flag is on', () => {
-		const off = createRouterApp({ main: {} })
-		off.ready()
+	it('should carry the flag & the page inside the route table', async () => {
+		const build = (router: Record<string, unknown>) => {
+			const result = createRouterApp({ main: router })
+			result.ready()
 
-		// other features keep their own objects in the bucket, only router pages count here
-		const routerPages = (resources: ReturnType<typeof getMeta>[]) =>
-			resources.filter(
+			const resources = result.app.resources.map(getMeta)
+
+			return {
+				resources,
+				deployment: resources.find(resource => resource.type === 'route-deployment')!,
+				functions: resources.filter(resource => resource.type === 'aws_cloudfront_function'),
+			}
+		}
+
+		const off = build({})
+		const on = build({ maintenance: true })
+
+		// the flag marks the table & the page rides along as rows
+		expect(off.deployment.input.tablePrefix).toBeUndefined()
+		expect(on.deployment.input.tablePrefix).toBe('m')
+
+		const rows = (await resolveInputs(on.deployment.input.routes)) as { key: string; value: string }[]
+
+		expect(rows.map(row => row.key)).toEqual(rows.map((_, index) => `main:$maintenance#${index}`))
+		expect(rows.map(row => row.value).join('')).toBe(MAINTENANCE_PAGE)
+		expect(rows.every(row => Buffer.byteLength(row.value) <= 1000)).toBe(true)
+		await expect(resolveInputs(off.deployment.input.routes)).resolves.toEqual([])
+
+		// nothing else moves: the same function, no response function & no page in s3
+		expect(on.functions).toHaveLength(1)
+		expect(String(on.functions[0]!.input.code)).toBe(String(off.functions[0]!.input.code))
+		expect(
+			on.resources.filter(
 				resource => resource.type === 'aws_s3_bucket_object' && String(resource.input.key).startsWith('router/')
 			)
-
-		expect(routerPages(off.app.resources.map(getMeta))).toHaveLength(0)
-
-		const on = createRouterApp({ main: { maintenance: true } })
-		on.ready()
-
-		const resources = on.app.resources.map(getMeta)
-		const page = routerPages(resources)[0]!
-		const functions = resources.filter(resource => resource.type === 'aws_cloudfront_function')
-		const request = functions.find(item => String(item.input.code).includes('$active'))!
-
-		expect(page.input.key).toMatch(/^router\/main\/maintenance-[a-f0-9]{10}\.html$/)
-		expect(page.input.metadata).toEqual({ 'awsless-maintenance': '1' })
-		expect(String(page.input.content)).toContain('Down for maintenance')
-		expect(functions).toHaveLength(2)
-		expect(String(request.input.code)).toContain('/__awsless/maintenance')
+		).toHaveLength(0)
 		expect(RouterDefaultSchema.parse({ main: {} })).toMatchObject({ main: { maintenance: false } })
+	})
+
+	it('should keep the function under the cloudfront size cap with every option', () => {
+		const code = getViewerRequestFunctionCode({
+			router: 'a-router-with-quite-a-long-name',
+			blockDirectAccess: true,
+			redirectWww: true,
+			passwordAuth: createPasswordAuth({
+				password: 'a-long-password-of-thirty-two-ch',
+				sessionDuration: days(30),
+				domain: 'a-rather-long-domain-name.example.com',
+			}),
+		})
+
+		expect(Buffer.byteLength(code)).toBeLessThan(10 * 1024)
 	})
 })
