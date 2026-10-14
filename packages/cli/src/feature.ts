@@ -1,6 +1,6 @@
 import { aws } from '@terraforge/aws'
 import { App, Input, Stack } from '@terraforge/core'
-import { Warning } from './app.js'
+import { EvalCase, Warning } from './app.js'
 import { Builder } from './build/index.js'
 import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
@@ -20,6 +20,7 @@ type RegisterBuild = (
 type RegisterConfig = (name: string) => void
 
 type RegisterTest = (name: string, paths: string[]) => void
+type RegisterEval = (entry: EvalCase) => void
 
 export type AddEnv = (name: string, value: Input<string>) => void
 export type OnEnv = (cb: OnEnvListener) => void
@@ -43,6 +44,7 @@ export type StackContext = AppContext & {
 	stack: Stack
 
 	registerTest: RegisterTest
+	registerEval: RegisterEval
 }
 
 export type BeforeContext = {

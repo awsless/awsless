@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { CachesSchema } from '../feature/cache/schema.js'
 import { CommandsSchema } from '../feature/command/schema.js'
 import { CronsSchema } from '../feature/cron/schema/index.js'
+import { EvalsSchema } from '../feature/eval/schema.js'
 import { StackDnsSchema } from '../feature/domain/schema.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
 import { IconsSchema } from '../feature/icon/schema.js'
@@ -51,6 +52,7 @@ export const StackSchema = z
 		searchs: SearchsSchema,
 		sites: SitesSchema,
 		tests: TestsSchema,
+		evals: EvalsSchema,
 		images: ImagesSchema,
 		icons: IconsSchema,
 		metrics: MetricsSchema,

@@ -34,6 +34,11 @@ export type TestCase = {
 	paths: string[]
 }
 
+export type EvalCase = TestCase & {
+	configs: string[]
+	threshold: number
+}
+
 export type BuildTask = {
 	stackName: string
 	type: string
@@ -109,6 +114,7 @@ export const createApp = (props: CreateAppProps) => {
 	const commands: Command[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
+	const evals: EvalCase[] = []
 	const warnings: Warning[] = []
 	const builders: BuildTask[] = []
 	const domainZones: aws.route53.Zone[] = []
@@ -178,6 +184,9 @@ export const createApp = (props: CreateAppProps) => {
 			registerTest(name, paths) {
 				tests.push({ stackName: stack.name, name, paths })
 			},
+			registerEval(entry) {
+				evals.push(entry)
+			},
 		}
 	}
 
@@ -239,6 +248,7 @@ export const createApp = (props: CreateAppProps) => {
 		ready,
 		domainZones,
 		tests,
+		evals,
 		binds,
 		shared,
 		configs,

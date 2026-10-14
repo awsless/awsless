@@ -9,6 +9,7 @@ import { deploy } from './deploy.js'
 import { deployments } from './deployment.js'
 import { dev } from './dev.js'
 import { domain } from './domain/index.js'
+import { evaluate } from './eval.js'
 import { icon } from './icon/index.js'
 import { image } from './image/index.js'
 import { logs } from './logs/index.js'
@@ -43,6 +44,7 @@ export const commands = [
 	config,
 	remoteAgent,
 	test,
+	evaluate,
 	cron,
 	image,
 	icon,

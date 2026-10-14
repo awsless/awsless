@@ -2,6 +2,11 @@
 	"$schema": "../../../dist/stack.json",
 	"name": "todo",
 	"tests": "./test",
+	"evals": {
+		"path": "./eval",
+		"configs": ["admin-secret"],
+		"threshold": 0.8
+	},
 
 	"rpc": {
 		"main": {
