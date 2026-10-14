@@ -24,8 +24,8 @@ describe('env', () => {
 		expect(bundle.getBundleName()).toBe('my-app--function--bundle')
 		expect(onFailure.getOnFailureBucketName()).toBe('my-app--on-failure--failure--abc')
 		expect(onFailure.getOnFailureQueueArn()).toBe('arn:aws:sqs:eu-west-1:123:my-app--on-failure--failure')
-		expect(store.getStoreBucketName()).toBe('my-app--store--assets--abc')
-		expect((store.Store as any).stack.files.name).toBe('my-app--store--assets--abc')
+		expect(store.getStoreName('files', 'stack')).toBe('my-app--stack--store--files--abc')
+		expect((store.Store as any).stack.files.name).toBe('my-app--stack--store--files--abc')
 		expect(job.getJobClusterName()).toBe('my-app-job')
 	})
 

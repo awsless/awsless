@@ -23,3 +23,18 @@ export const task = async <T>(message: string, cb: (update: (message: string) =>
 		throw error
 	}
 }
+
+// Deploys run for minutes, so longer runs read as "2m 14s".
+export const formatElapsed = (start: number) => {
+	const ms = Math.round(performance.now() - start)
+
+	if (ms < 1000) {
+		return `${ms}ms`
+	}
+
+	if (ms < 60_000) {
+		return `${(ms / 1000).toFixed(1)}s`
+	}
+
+	return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`
+}

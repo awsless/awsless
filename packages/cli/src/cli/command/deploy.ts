@@ -19,6 +19,8 @@ import { layout } from '../ui/complex/layout.js'
 import { createTestEnv, runTests } from '../ui/complex/run-tests.js'
 import { showWarnings } from '../ui/complex/show-warnings.js'
 import { verifyAlertEndpoints } from '../ui/complex/verify-alert-endpoints.js'
+import { color } from '../ui/style.js'
+import { formatElapsed } from '../ui/util.js'
 import { createClients } from './util.js'
 
 export const deploy = (program: Command) => {
@@ -148,7 +150,8 @@ export const deploy = (program: Command) => {
 				await log.task({
 					initialMessage: 'Deploying the stacks to AWS',
 					successMessage: 'Done deploying the stacks to AWS.',
-					async task() {
+					async task(ctx) {
+						const start = performance.now()
 						const release = await releaseLock.lock(releaseUrn)
 
 						try {
@@ -173,6 +176,10 @@ export const deploy = (program: Command) => {
 								appConfig,
 								id: deployment.id,
 							})
+
+							ctx.updateSuccessMessage(
+								`Done deploying the stacks to AWS. ${color.dim(`(${formatElapsed(start)})`)}`
+							)
 						} finally {
 							await release()
 						}

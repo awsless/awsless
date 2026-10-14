@@ -7,6 +7,7 @@ import { build, Metadata } from '../../../build/index.js'
 import { ExpectedError } from '../../../error.js'
 import { directories } from '../../../util/path.js'
 import { color } from '../style.js'
+import { formatElapsed } from '../util.js'
 
 export const buildAssets = async (builders: BuildTask[], stackFilters: string[], showResult = false) => {
 	const filteredBuilders = builders.filter(builder => {
@@ -39,6 +40,7 @@ export const buildAssets = async (builders: BuildTask[], stackFilters: string[],
 		successMessage: 'Done building assets.',
 		errorMessage: 'Failed building assets.',
 		async task(ctx) {
+			const start = performance.now()
 			const workspace = await loadWorkspace(directories.root)
 			let i = 0
 			for (const builder of filteredBuilders) {
@@ -59,6 +61,8 @@ export const buildAssets = async (builders: BuildTask[], stackFilters: string[],
 					]
 				}
 			}
+
+			ctx.updateSuccessMessage(`Done building assets. ${color.dim(`(${formatElapsed(start)})`)}`)
 		},
 	})
 

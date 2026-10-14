@@ -1,15 +1,18 @@
 import { Body, deleteObject, getObject, headObject, putObject, StorageClass } from '@awsless/s3'
-import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { formatResourceName, getAppId } from './util.js'
+import { formatResourceName, getAppId, getStack } from './util.js'
 
-// Every store is a folder in the shared app bucket; read lazily for the CLI run command.
-export const getStoreBucketName = () => {
+// Every store owns its own bucket; read lazily for the CLI run command.
+export const getStoreName = <N extends string, S extends string = ReturnType<typeof getStack>>(
+	name: N,
+	stack: S = getStack() as S
+) => {
 	return formatResourceName({
+		stackName: stack,
 		resourceType: 'store',
-		resourceName: 'assets',
+		resourceName: name,
 		postfix: getAppId(),
-	})
+	}) as `${string}--${S}--store--${N}--${string}`
 }
 
 export interface StoreResources {}
@@ -21,24 +24,20 @@ type Options = {
 
 export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
-		const scoped = (key: string) => `store/${kebabCase(stack)}/${kebabCase(name)}/${key}`
-
 		return {
 			get name() {
-				return getStoreBucketName()
+				return getStoreName(name, stack)
 			},
-			// For callers building their own s3 requests inside the store's folder.
-			folder: scoped(''),
 			async put(key: string, body: Body, options: Options = {}) {
 				await putObject({
-					bucket: getStoreBucketName(),
-					key: scoped(key),
+					bucket: getStoreName(name, stack),
+					key,
 					body,
 					...options,
 				})
 			},
 			async get(key: string) {
-				const object = await getObject({ bucket: getStoreBucketName(), key: scoped(key) })
+				const object = await getObject({ bucket: getStoreName(name, stack), key })
 				if (object) {
 					return object.body
 				}
@@ -46,11 +45,11 @@ export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 				return undefined
 			},
 			async has(key: string) {
-				const object = await headObject({ bucket: getStoreBucketName(), key: scoped(key) })
+				const object = await headObject({ bucket: getStoreName(name, stack), key })
 				return !!object
 			},
 			delete(key: string) {
-				return deleteObject({ bucket: getStoreBucketName(), key: scoped(key) })
+				return deleteObject({ bucket: getStoreName(name, stack), key })
 			},
 		}
 	})

@@ -8,7 +8,7 @@ import { decodeAwsChunked, parseTraceHeader, readBody, TRACE_HEADER, trackConnec
 export type StoreNotificationRule = {
 	id: string
 	events: string[]
-	prefix: string
+	bucket: string
 }
 
 // Keys & messages land inside xml documents, so the xml specials must
@@ -47,7 +47,7 @@ export const createS3Server = (props: { root: string; region: string; rules: Sto
 				return type === eventName || (type.endsWith('*') && eventName.startsWith(type.slice(0, -1)))
 			})
 
-			if (!matches || !key.startsWith(rule.prefix)) {
+			if (!matches || rule.bucket !== bucket) {
 				continue
 			}
 

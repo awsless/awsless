@@ -5,15 +5,13 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { kebabCase } from 'change-case'
 import { glob } from 'glob'
-import { StackConfig } from '../../config/stack.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { getCacheControl, getContentType } from '../../util/content.js'
 import { shortId } from '../../util/id.js'
-import { formatGlobalResourceName } from '../../util/name.js'
+import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { getFeatureFolder } from '../asset/index.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 
 const typeGenCode = `
@@ -21,7 +19,6 @@ import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
 
 type Store = {
 	readonly name: string
-	readonly folder: string
 	readonly put: (key: string, body: Body, options?: Pick<PutObjectProps, 'metadata' | 'storageClass'>) => Promise<void>
 	readonly get: (key: string) => Promise<BodyStream | undefined>
 	readonly has: (key: string) => Promise<boolean>
@@ -45,17 +42,13 @@ const formatEventRouteKey = (stackName: string, id: string, event: string) => {
 	return formatRouteKey(stackName, 'store', kebabCase(`${id}-${shortId(event)}`))
 }
 
-// Every store event of the app, for the shared bucket notification &
-// its local dev mirror.
-const listStoreEvents = (stackConfigs: StackConfig[]) => {
-	return stackConfigs.flatMap(stack => {
-		return Object.entries(stack.stores ?? {}).flatMap(([id, props]) => {
-			return Object.keys(props.events ?? {}).map(event => ({
-				routeKey: formatEventRouteKey(stack.name, id, event),
-				event: eventMap[event]!,
-				prefix: getFeatureFolder('store', stack.name, id),
-			}))
-		})
+export const getStoreName = (appName: string, stackName: string, id: string, appId: string) => {
+	return formatLocalResourceName({
+		appName,
+		stackName,
+		resourceType: 'store',
+		resourceName: id,
+		postfix: appId,
 	})
 }
 
@@ -68,45 +61,33 @@ export const storeFeature = defineFeature({
 			return
 		}
 
+		// The shared s3 server hosts every store bucket - this feature
+		// contributes its notification rules & its declared static files.
+		const shared = await ctx.useStore()
+
 		for (const stack of ctx.stackConfigs) {
-			for (const id of Object.keys(stack.stores ?? {})) {
+			for (const [id, props] of Object.entries(stack.stores ?? {})) {
+				const bucket = getStoreName(ctx.appConfig.name, stack.name, id, ctx.appId)
+
 				ctx.registerResource({
 					kind: 'store',
 					stack: stack.name,
 					id,
-					detail: getFeatureFolder('store', stack.name, id),
+					detail: bucket,
 				})
-			}
-		}
 
-		// The shared store server carries every feature's bucket data -
-		// this feature contributes its notification rules & its declared
-		// static files.
-		const shared = await ctx.useStore()
+				for (const event of Object.keys(props.events ?? {})) {
+					shared.rules.push({
+						id: formatEventRouteKey(stack.name, id, event),
+						events: [eventMap[event]!],
+						bucket,
+					})
+				}
 
-		shared.rules.push(
-			...listStoreEvents(ctx.stackConfigs).map(({ routeKey, event, prefix }) => ({
-				id: routeKey,
-				events: [event],
-				prefix,
-			}))
-		)
-
-		// The static files exist locally like the deploy uploads them,
-		// so Store.has/get find them.
-		const bucket = formatGlobalResourceName({
-			appName: ctx.appConfig.name,
-			resourceType: 'store',
-			resourceName: 'assets',
-			postfix: ctx.appId,
-		})
-
-		for (const stack of ctx.stackConfigs) {
-			for (const [id, props] of Object.entries(stack.stores ?? {})) {
+				// The static files exist locally like the deploy uploads them,
+				// so Store.has/get find them.
 				if (typeof props.static === 'string') {
-					const folder = getFeatureFolder('store', stack.name, id)
-
-					await cp(props.static, join(directories.output, 'local', 'store', bucket, folder), {
+					await cp(props.static, join(directories.output, 'local', 'store', bucket), {
 						recursive: true,
 						force: true,
 					})
@@ -134,18 +115,104 @@ export const storeFeature = defineFeature({
 		await ctx.write('store.d.ts', gen, true)
 	},
 	onApp(ctx) {
-		// The store events of every stack share one bucket notification.
-		const events = listStoreEvents(ctx.stackConfigs)
+		const name = formatLocalResourceName({
+			appName: ctx.app.name,
+			stackName: '*',
+			resourceType: 'store',
+			resourceName: '*',
+		})
 
-		if (events.length === 0) {
-			return
-		}
+		ctx.addPermission({
+			actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
+			resources: [
+				//
+				`arn:aws:s3:::${name}`,
+				`arn:aws:s3:::${name}/*`,
+			],
+			conditions: {
+				StringEquals: {
+					// This will protect anyone from taking our bucket name,
+					// and us sending our items to the wrong s3 bucket
+					's3:ResourceAccount': ctx.accountId,
+				},
+			},
+		})
+	},
+	onStack(ctx) {
+		for (const [id, props] of Object.entries(ctx.stackConfig.stores ?? {})) {
+			const group = new Group(ctx.stack, 'store', id)
+			const name = getStoreName(ctx.app.name, ctx.stack.name, id, ctx.appId)
 
-		const bucket = ctx.shared.get('asset', 'bucket')
+			const lifecycleRule = props.lifecycle?.map((rule, index) => ({
+				id: rule.prefix ? `expire-${kebabCase(rule.prefix)}` : `expire-rule-${index}`,
+				enabled: true,
+				...(rule.prefix ? { prefix: rule.prefix } : {}),
+				expiration: { days: toDays(rule.expiration) },
+			}))
 
-		ctx.onReadyLast(() => {
+			const bucket = new aws.s3.Bucket(
+				group,
+				'store',
+				{
+					bucket: name,
+					versioning: {
+						enabled: props.versioning,
+					},
+					forceDestroy: true,
+					corsRule: [
+						// Support for presigned post requests
+						{
+							allowedOrigins: ['*'],
+							allowedMethods: ['POST'],
+						},
+					],
+					...(lifecycleRule?.length ? { lifecycleRule } : {}),
+				},
+				{
+					retainOnDelete: ctx.appConfig.removal === 'retain',
+					import: ctx.import ? name : undefined,
+				}
+			)
+
+			// ------------------------------------------------------------
+			// Get all static files
+
+			ctx.onReady(() => {
+				if (typeof props.static === 'string') {
+					const files = glob.sync('**', {
+						cwd: props.static,
+						nodir: true,
+					})
+
+					for (const file of files) {
+						new aws.s3.BucketObject(group, file, {
+							bucket: bucket.bucket,
+							key: file,
+							cacheControl: getCacheControl(file),
+							contentType: getContentType(file),
+							source: join(props.static, file),
+							sourceHash: $hash(join(props.static, file)),
+						})
+					}
+				}
+			})
+
+			// ------------------------------------------------------------
+			// Event notification consumers
+
+			const events = Object.entries(props.events ?? {})
+
+			if (events.length === 0) {
+				continue
+			}
+
+			for (const [event, taskProps] of events) {
+				registerBundleFunction(ctx, formatEventRouteKey(ctx.stack.name, id, event), taskProps.consumer)
+			}
+
+			// A bucket holds a single notification config, so all events
+			// of the store share one.
 			const bundle = ctx.shared.get('bundle', 'main')
-			const group = new Group(ctx.base, 'store', 'events')
 			const permission = new aws.lambda.Permission(group, 'permission', {
 				action: 'lambda:InvokeFunction',
 				principal: 's3.amazonaws.com',
@@ -159,71 +226,15 @@ export const storeFeature = defineFeature({
 				group,
 				'notification',
 				{
-					bucket: bucket.name,
-					lambdaFunction: events.map(({ routeKey, event, prefix }) => ({
-						id: routeKey,
-						events: [event],
-						filterPrefix: prefix,
+					bucket: bucket.bucket,
+					lambdaFunction: events.map(([event]) => ({
+						id: formatEventRouteKey(ctx.stack.name, id, event),
+						events: [eventMap[event]!],
 						lambdaFunctionArn: bundle.alias.arn,
 					})),
 				},
 				{ dependsOn: [permission] }
 			)
-		})
-	},
-	onStack(ctx) {
-		const bucket = ctx.shared.get('asset', 'bucket')
-
-		for (const [id, props] of Object.entries(ctx.stackConfig.stores ?? {})) {
-			const group = new Group(ctx.stack, 'store', id)
-			const folder = getFeatureFolder('store', ctx.stack.name, id)
-
-			for (const [index, rule] of Object.entries(props.lifecycle ?? [])) {
-				bucket.addLifecycleRule({
-					// The folder scopes the rule id, since all stacks share one bucket.
-					id: `expire-${kebabCase(`${folder}${rule.prefix ?? `rule-${index}`}`)}`,
-					enabled: true,
-					prefix: `${folder}${rule.prefix ?? ''}`,
-					expiration: { days: toDays(rule.expiration) },
-				})
-			}
-
-			// ------------------------------------------------------------
-			// Get all static files
-
-			ctx.onReady(() => {
-				if (typeof props.static === 'string') {
-					const files = glob.sync('**', {
-						cwd: props.static,
-						nodir: true,
-					})
-
-					for (const file of files) {
-						new aws.s3.BucketObject(
-							group,
-							file,
-							{
-								bucket: bucket.name,
-								key: `${folder}${file}`,
-								cacheControl: getCacheControl(file),
-								contentType: getContentType(file),
-								source: join(props.static, file),
-								sourceHash: $hash(join(props.static, file)),
-							},
-							{
-								replaceOnChanges: ['bucket', 'key'],
-							}
-						)
-					}
-				}
-			})
-
-			// ------------------------------------------------------------
-			// Event notification consumers
-
-			for (const [event, taskProps] of Object.entries(props.events ?? {})) {
-				registerBundleFunction(ctx, formatEventRouteKey(ctx.stack.name, id, event), taskProps.consumer)
-			}
 		}
 	},
 })
