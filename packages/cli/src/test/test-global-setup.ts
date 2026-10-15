@@ -27,6 +27,12 @@ const manifestFile = process.env.AWSLESS_TEST_MANIFEST
 if (manifestFile) {
 	const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'))
 
+	// The real config values of an eval run come through the env, so
+	// the secrets never land in the manifest file on disk.
+	if (process.env.AWSLESS_EVAL_CONFIGS) {
+		manifest.configs = { ...manifest.configs, ...JSON.parse(process.env.AWSLESS_EVAL_CONFIGS) }
+	}
+
 	// Resources on a shared run-wide server (like the search indexes)
 	// namespace through a unique per-file app prefix - full isolation
 	// without booting those servers per file.

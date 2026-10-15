@@ -8,6 +8,7 @@ export type ProjectTest = {
 	name: string
 	dir: string
 	env?: Record<string, string>
+	timeout?: number
 }
 
 export const startProjectsTest = async (props: {
@@ -80,6 +81,7 @@ export const startProjectsTest = async (props: {
 					exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 					globals: true,
 					env: project.env,
+					testTimeout: project.timeout,
 					setupFiles: [join(__dirname, 'test-global-setup.js')],
 				},
 			})),

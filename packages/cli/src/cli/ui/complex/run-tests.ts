@@ -25,8 +25,25 @@ const formatDuration = (duration: bigint) => {
 	return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
 }
 
-const formatResult = (props: { stack: string; cached: boolean; event: TestResponse }) => {
-	const line: string[] = [`Test ${color.info(props.stack)}`, color.dim(icon.arrow.right)]
+// Evals pass on a share of their cases, since model answers vary between runs.
+type Score = Pick<TestResponse, 'passed' | 'failed'>
+
+const isPassing = (event: Score, threshold = 1) => {
+	const total = event.passed + event.failed
+
+	return event.failed === 0 || (total > 0 && event.passed / total >= threshold)
+}
+
+const formatResult = (props: {
+	label: string
+	stack: string
+	cached: boolean
+	event: TestResponse
+	threshold?: number
+	// The stack wide score the threshold applies to.
+	score?: Score
+}) => {
+	const line: string[] = [`${props.label} ${color.info(props.stack)}`, color.dim(icon.arrow.right)]
 	const stats: string[] = []
 
 	if (props.cached) {
@@ -46,6 +63,15 @@ const formatResult = (props: { stack: string; cached: boolean; event: TestRespon
 	}
 
 	line.push(stats.join(color.line.dim(` ${icon.dot} `)))
+
+	const score = props.score ?? props.event
+
+	if (typeof props.threshold === 'number' && score.failed > 0) {
+		const rate = Math.floor((score.passed / (score.passed + score.failed)) * 100)
+		const text = `(${rate}% passed, needs ${Math.round(props.threshold * 100)}%)`
+
+		line.push(isPassing(score, props.threshold) ? color.dim(text) : color.error(text))
+	}
 
 	// Results cached by older versions carry a bogus duration.
 	if (props.event.duration > 0n) {
@@ -215,12 +241,20 @@ export const createTestEnv = (props: {
 	AWSLESS_TEST_MANIFEST: props.manifestFile,
 })
 
+export type RunCase = TestCase & {
+	env?: Record<string, string>
+	threshold?: number
+}
+
 export const runTests = async (
-	tests: TestCase[],
+	tests: RunCase[],
 	stackFilters: string[] = [],
 	testFilters: string[] = [],
 	opts: {
 		showLogs: boolean
+		// Evals call real models, so their results never cache & a slow
+		// answer gets more time than a unit test.
+		kind?: 'test' | 'eval'
 		env?: Record<string, string>
 		manifest?: TestManifest
 		// Boots the shared resource servers, called before the first
@@ -228,6 +262,12 @@ export const runTests = async (
 		ensureReady?: () => Promise<void>
 	}
 ) => {
+	const kind = opts.kind ?? 'test'
+	const label = kind === 'eval' ? 'Eval' : 'Test'
+	const noun = kind === 'eval' ? 'evals' : 'tests'
+	const done = kind === 'eval' ? 'Evaluated' : 'Tested'
+	const timeout = kind === 'eval' ? 60_000 : undefined
+
 	const workspace = await loadWorkspace(directories.root)
 
 	// The manifest & every handler file it references join the cache
@@ -266,6 +306,7 @@ export const runTests = async (
 		files: number
 		fingerprint: string
 		env?: Record<string, string>
+		threshold?: number
 	}
 
 	const pending: PendingTest[] = []
@@ -306,10 +347,10 @@ export const runTests = async (
 			const name = test.paths.length > 1 ? `${test.name}:${index}` : test.name
 			const file = join(directories.test, `${name.replace(':', '-')}.json`)
 			const fingerprint = fingerprints.get(dir)!
-			const cached = await readCachedResult(file, fingerprint)
+			const cached = kind === 'test' ? await readCachedResult(file, fingerprint) : undefined
 
 			if (cached) {
-				log.step(formatResult({ stack: test.name, cached: true, event: cached }))
+				log.step(formatResult({ label, stack: test.name, cached: true, event: cached }))
 
 				if (opts.showLogs) {
 					logTestLogs(cached)
@@ -331,8 +372,10 @@ export const runTests = async (
 				file,
 				files,
 				fingerprint,
+				threshold: test.threshold,
 				env: {
 					...opts.env,
+					...test.env,
 					STACK: test.stackName,
 				},
 			})
@@ -350,12 +393,33 @@ export const runTests = async (
 
 	let results!: Map<string, TestResponse>
 
+	// A threshold covers every folder of the stack, so the folder
+	// layout never changes whether a stack passes.
+	const scoreOf = (stack: string): Score => {
+		const score = { passed: 0, failed: 0 }
+
+		for (const entry of pending) {
+			const result = entry.stack === stack ? results.get(entry.name) : undefined
+
+			score.passed += result?.passed ?? 0
+			score.failed += result?.failed ?? 0
+		}
+
+		return score
+	}
+
+	const passes = (entry: PendingTest, result: TestResponse) => {
+		return typeof entry.threshold === 'number'
+			? isPassing(scoreOf(entry.stack), entry.threshold)
+			: result.failed === 0
+	}
+
 	await log.task({
 		initialMessage:
 			pending.length === 1
-				? `Run tests for the ${color.info(pending[0]!.stack)} stack`
-				: `Run tests for ${pending.length} stacks`,
-		errorMessage: `Running tests failed`,
+				? `Run ${noun} for the ${color.info(pending[0]!.stack)} stack`
+				: `Run ${noun} for ${pending.length} stacks`,
+		errorMessage: `Running ${noun} failed`,
 		async task(ctx) {
 			// A stack counts as done when its last test file finishes.
 			// Test file filters make the expected counts unreachable, so
@@ -366,7 +430,7 @@ export const runTests = async (
 
 			const run = (entries: PendingTest[]) => {
 				return startProjectsTest({
-					projects: entries.map(entry => ({ name: entry.name, dir: entry.dir, env: entry.env })),
+					projects: entries.map(entry => ({ name: entry.name, dir: entry.dir, env: entry.env, timeout })),
 					filters: testFilters,
 					workers,
 					onFileFinished(project) {
@@ -383,7 +447,7 @@ export const runTests = async (
 								? `${[...finishedFiles.values()].reduce((sum, value) => sum + value, 0)} files done`
 								: `${finishedStacks.size}/${pending.length} stacks done`
 
-						ctx.updateMessage(`Run tests for ${pending.length} stacks ${color.dim(`(${progress})`)}`)
+						ctx.updateMessage(`Run ${noun} for ${pending.length} stacks ${color.dim(`(${progress})`)}`)
 					},
 				})
 			}
@@ -417,13 +481,13 @@ export const runTests = async (
 			const failed = pending.filter(entry => {
 				const result = results.get(entry.name)
 
-				return !result || result.errors.length > 0 || result.failed > 0
+				return !result || result.errors.length > 0 || !passes(entry, result)
 			}).length
 
 			ctx.updateSuccessMessage(
 				failed === 0
-					? `Tested ${pending.length} ${pending.length === 1 ? 'stack' : 'stacks'}`
-					: `Tested ${pending.length} ${pending.length === 1 ? 'stack' : 'stacks'} ${color.error(`(${failed} failed)`)}`
+					? `${done} ${pending.length} ${pending.length === 1 ? 'stack' : 'stacks'}`
+					: `${done} ${pending.length} ${pending.length === 1 ? 'stack' : 'stacks'} ${color.error(`(${failed} failed)`)}`
 			)
 		},
 	})
@@ -472,14 +536,23 @@ export const runTests = async (
 					color.dim(icon.arrow.right),
 					color.info(entry.stack),
 					color.dim(icon.arrow.right),
-					'No tests ran for this stack.',
+					`No ${noun} ran for this stack.`,
 				].join(' ')
 			)
 
 			continue
 		}
 
-		log.step(formatResult({ stack: entry.stack, cached: false, event: result }))
+		log.step(
+			formatResult({
+				label,
+				stack: entry.stack,
+				cached: false,
+				event: result,
+				threshold: entry.threshold,
+				score: scoreOf(entry.stack),
+			})
+		)
 
 		if (opts.showLogs) {
 			logTestLogs(result)
@@ -487,8 +560,12 @@ export const runTests = async (
 
 		logTestErrors(result)
 
-		if (result.failed > 0) {
+		if (!passes(entry, result)) {
 			passed = false
+		}
+
+		if (kind === 'eval') {
+			continue
 		}
 
 		await writeFile(

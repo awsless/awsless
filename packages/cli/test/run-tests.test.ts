@@ -202,4 +202,64 @@ describe('test runner cache', () => {
 		).resolves.toBe(true)
 		expect(mocks.start).not.toHaveBeenCalled()
 	})
+
+	describe('evals', () => {
+		const evals = (threshold = 1) => [{ stackName: 'a', name: 'a', paths: [dir], threshold, env: { KEY: 'value' } }]
+		const result = (passed: number, failed: number) => ({ ...response(failed), passed })
+
+		it('should never cache an eval run', async () => {
+			mocks.start.mockResolvedValue(new Map([['a', result(1, 0)]]))
+
+			await expect(runTests(evals(), [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(true)
+			await expect(runTests(evals(), [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(true)
+			expect(mocks.start).toHaveBeenCalledTimes(2)
+		})
+
+		it('should pass the stack env & a longer timeout to the project', async () => {
+			mocks.start.mockResolvedValue(new Map([['a', result(1, 0)]]))
+
+			await runTests(evals(), [], [], { showLogs: false, kind: 'eval', env: { APP: 'app' } })
+
+			expect(mocks.start.mock.calls[0]![0].projects).toEqual([
+				{
+					name: 'a',
+					dir,
+					env: { APP: 'app', KEY: 'value', STACK: 'a' },
+					timeout: 60_000,
+				},
+			])
+		})
+
+		it('should pass when enough cases pass the threshold', async () => {
+			mocks.start.mockResolvedValue(new Map([['a', result(9, 1)]]))
+
+			await expect(runTests(evals(0.9), [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(true)
+		})
+
+		it('should apply the threshold to the whole stack, not each folder', async () => {
+			const first = join(root, 'stacks/e/one')
+			const second = join(root, 'stacks/e/two')
+			await mkdir(first, { recursive: true })
+			await mkdir(second, { recursive: true })
+			await writeFile(join(first, 'a.ts'), `it('works', () => {})\n`)
+			await writeFile(join(second, 'b.ts'), `it('works', () => {})\n`)
+
+			mocks.start.mockResolvedValue(
+				new Map([
+					['e:0', result(9, 0)],
+					['e:1', result(0, 1)],
+				])
+			)
+
+			const stack = [{ stackName: 'e', name: 'e', paths: [first, second], threshold: 0.9 }]
+
+			await expect(runTests(stack, [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(true)
+		})
+
+		it('should fail below the threshold', async () => {
+			mocks.start.mockResolvedValue(new Map([['a', result(8, 2)]]))
+
+			await expect(runTests(evals(0.9), [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(false)
+		})
+	})
 })

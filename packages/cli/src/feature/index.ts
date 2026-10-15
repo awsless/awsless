@@ -8,6 +8,7 @@ import { configFeature } from './config/index.js'
 import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
 import { emailFeature } from './email/index.js'
+import { evalFeature } from './eval/index.js'
 import { functionFeature } from './function/index.js'
 import { iconFeature } from './icon/index.js'
 import { imageFeature } from './image/index.js'
@@ -70,6 +71,7 @@ export const features = [
 	cacheFeature,
 	taskFeature,
 	testFeature,
+	evalFeature,
 	cronFeature,
 	restFeature,
 	siteFeature,
