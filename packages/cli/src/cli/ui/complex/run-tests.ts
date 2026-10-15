@@ -26,7 +26,9 @@ const formatDuration = (duration: bigint) => {
 }
 
 // Evals pass on a share of their cases, since model answers vary between runs.
-const isPassing = (event: TestResponse, threshold = 1) => {
+type Score = Pick<TestResponse, 'passed' | 'failed'>
+
+const isPassing = (event: Score, threshold = 1) => {
 	const total = event.passed + event.failed
 
 	return event.failed === 0 || (total > 0 && event.passed / total >= threshold)
@@ -38,6 +40,8 @@ const formatResult = (props: {
 	cached: boolean
 	event: TestResponse
 	threshold?: number
+	// The stack wide score the threshold applies to.
+	score?: Score
 }) => {
 	const line: string[] = [`${props.label} ${color.info(props.stack)}`, color.dim(icon.arrow.right)]
 	const stats: string[] = []
@@ -60,11 +64,13 @@ const formatResult = (props: {
 
 	line.push(stats.join(color.line.dim(` ${icon.dot} `)))
 
-	if (typeof props.threshold === 'number' && props.event.failed > 0) {
-		const rate = Math.floor((props.event.passed / (props.event.passed + props.event.failed)) * 100)
+	const score = props.score ?? props.event
+
+	if (typeof props.threshold === 'number' && score.failed > 0) {
+		const rate = Math.floor((score.passed / (score.passed + score.failed)) * 100)
 		const text = `(${rate}% passed, needs ${Math.round(props.threshold * 100)}%)`
 
-		line.push(isPassing(props.event, props.threshold) ? color.dim(text) : color.error(text))
+		line.push(isPassing(score, props.threshold) ? color.dim(text) : color.error(text))
 	}
 
 	// Results cached by older versions carry a bogus duration.
@@ -387,6 +393,27 @@ export const runTests = async (
 
 	let results!: Map<string, TestResponse>
 
+	// A threshold covers every folder of the stack, so the folder
+	// layout never changes whether a stack passes.
+	const scoreOf = (stack: string): Score => {
+		const score = { passed: 0, failed: 0 }
+
+		for (const entry of pending) {
+			const result = entry.stack === stack ? results.get(entry.name) : undefined
+
+			score.passed += result?.passed ?? 0
+			score.failed += result?.failed ?? 0
+		}
+
+		return score
+	}
+
+	const passes = (entry: PendingTest, result: TestResponse) => {
+		return typeof entry.threshold === 'number'
+			? isPassing(scoreOf(entry.stack), entry.threshold)
+			: result.failed === 0
+	}
+
 	await log.task({
 		initialMessage:
 			pending.length === 1
@@ -454,7 +481,7 @@ export const runTests = async (
 			const failed = pending.filter(entry => {
 				const result = results.get(entry.name)
 
-				return !result || result.errors.length > 0 || !isPassing(result, entry.threshold)
+				return !result || result.errors.length > 0 || !passes(entry, result)
 			}).length
 
 			ctx.updateSuccessMessage(
@@ -517,7 +544,14 @@ export const runTests = async (
 		}
 
 		log.step(
-			formatResult({ label, stack: entry.stack, cached: false, event: result, threshold: entry.threshold })
+			formatResult({
+				label,
+				stack: entry.stack,
+				cached: false,
+				event: result,
+				threshold: entry.threshold,
+				score: scoreOf(entry.stack),
+			})
 		)
 
 		if (opts.showLogs) {
@@ -526,7 +560,7 @@ export const runTests = async (
 
 		logTestErrors(result)
 
-		if (!isPassing(result, entry.threshold)) {
+		if (!passes(entry, result)) {
 			passed = false
 		}
 

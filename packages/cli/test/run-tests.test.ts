@@ -236,6 +236,26 @@ describe('test runner cache', () => {
 			await expect(runTests(evals(0.9), [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(true)
 		})
 
+		it('should apply the threshold to the whole stack, not each folder', async () => {
+			const first = join(root, 'stacks/e/one')
+			const second = join(root, 'stacks/e/two')
+			await mkdir(first, { recursive: true })
+			await mkdir(second, { recursive: true })
+			await writeFile(join(first, 'a.ts'), `it('works', () => {})\n`)
+			await writeFile(join(second, 'b.ts'), `it('works', () => {})\n`)
+
+			mocks.start.mockResolvedValue(
+				new Map([
+					['e:0', result(9, 0)],
+					['e:1', result(0, 1)],
+				])
+			)
+
+			const stack = [{ stackName: 'e', name: 'e', paths: [first, second], threshold: 0.9 }]
+
+			await expect(runTests(stack, [], [], { showLogs: false, kind: 'eval' })).resolves.toBe(true)
+		})
+
 		it('should fail below the threshold', async () => {
 			mocks.start.mockResolvedValue(new Map([['a', result(8, 2)]]))
 

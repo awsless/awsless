@@ -27,6 +27,12 @@ export const configFeature = defineFeature({
 					resources.addConst(name, 'string')
 				}
 			}
+
+			// Eval configs can live outside the app configs, like a model
+			// api key that only the evals need.
+			for (const name of stack.evals?.configs ?? []) {
+				resources.addConst(name, 'string')
+			}
 		}
 
 		gen.addInterface('ConfigResources', resources.toString())
@@ -37,6 +43,12 @@ export const configFeature = defineFeature({
 
 		for (const name of ctx.appConfig.configs ?? []) {
 			testConfigs.addConst(name, 'string')
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const name of stack.evals?.configs ?? []) {
+				testConfigs.addConst(name, 'string')
+			}
 		}
 
 		const testMock = new TypeObject(1)
