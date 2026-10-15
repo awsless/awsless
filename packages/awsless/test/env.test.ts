@@ -24,9 +24,16 @@ describe('env', () => {
 		expect(bundle.getBundleName()).toBe('my-app--function--bundle')
 		expect(onFailure.getOnFailureBucketName()).toBe('my-app--on-failure--failure--abc')
 		expect(onFailure.getOnFailureQueueArn()).toBe('arn:aws:sqs:eu-west-1:123:my-app--on-failure--failure')
-		expect(store.getStoreBucketName()).toBe('my-app--store--assets--abc')
-		expect((store.Store as any).stack.files.name).toBe('my-app--store--assets--abc')
+		expect(store.getStoreName('files', 'stack')).toBe('my-app--stack--store--files--abc')
+		expect((store.Store as any).stack.files.name).toBe('my-app--stack--store--files--abc')
 		expect(job.getJobClusterName()).toBe('my-app-job')
+
+		// The cli store test pins the same name.
+		vi.stubEnv('APP', 'a'.repeat(24))
+		vi.stubEnv('APP_ID', 'abcdef12')
+		expect(store.getStoreName('i'.repeat(24), 's'.repeat(24))).toBe(
+			'aaaaaaaaaaaaaaaaaaaaaaaa--f61b754bb858aad6--store--abcdef12'
+		)
 	})
 
 	it('keeps a name part that kebab-case reduces to nothing, like the cli', async () => {

@@ -326,8 +326,14 @@ export const createDashboardServer = (props: {
 		}
 
 		if (url.pathname === '/api/store') {
-			const prefix = url.searchParams.get('prefix') ?? ''
+			const bucket = url.searchParams.get('bucket') ?? ''
+			const bucketDir = join(props.storeRoot, bucket)
 			const files: { key: string; size: number; modified: string }[] = []
+
+			// The bucket param must not walk out of the local store folder.
+			if (!bucket || bucket === '.' || bucket === '..' || /[\\/]/.test(bucket)) {
+				return { status: 400, body: JSON.stringify({ error: 'Invalid bucket name.' }) }
+			}
 
 			const walk = async (dir: string) => {
 				let entries
@@ -343,17 +349,17 @@ export const createDashboardServer = (props: {
 					if (entry.isDirectory()) {
 						await walk(path)
 					} else {
-						const key = relative(props.storeRoot, path).split(sep).slice(1).join('/')
-
-						if (key.startsWith(prefix)) {
-							const info = await stat(path)
-							files.push({ key, size: info.size, modified: info.mtime.toISOString() })
-						}
+						const info = await stat(path)
+						files.push({
+							key: relative(bucketDir, path).split(sep).join('/'),
+							size: info.size,
+							modified: info.mtime.toISOString(),
+						})
 					}
 				}
 			}
 
-			await walk(props.storeRoot)
+			await walk(bucketDir)
 
 			return { status: 200, body: JSON.stringify({ files }) }
 		}

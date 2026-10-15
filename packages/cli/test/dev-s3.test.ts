@@ -27,7 +27,7 @@ const raw = (port: number, method: string, path: string, body?: string, headers:
 describe('dev s3 emulator', () => {
 	const cleanup: (() => Promise<void>)[] = []
 
-	const boot = async (rules: { id: string; events: string[]; prefix: string }[] = []) => {
+	const boot = async (rules: { id: string; events: string[]; bucket: string }[] = []) => {
 		const root = await mkdtemp(join(tmpdir(), 'awsless-s3-'))
 		const server = createS3Server({ root, region: 'us-east-1', rules })
 		const port = await server.listen()
@@ -119,7 +119,9 @@ describe('dev s3 emulator', () => {
 	})
 
 	it('should copy the source object on a copy request instead of storing an empty one', async () => {
-		const { server, port } = await boot([{ id: 'stack:on-copy', events: ['s3:ObjectCreated:Copy'], prefix: '' }])
+		const { server, port } = await boot([
+			{ id: 'stack:on-copy', events: ['s3:ObjectCreated:Copy'], bucket: 'bucket' },
+		])
 		const dispatch = vi.fn(async (_event: unknown) => {})
 
 		server.connect(dispatch)
@@ -149,14 +151,14 @@ describe('dev s3 emulator', () => {
 
 	it('should dispatch bucket notifications for matching rules', async () => {
 		const { server, port } = await boot([
-			{ id: 'stack:on-upload', events: ['s3:ObjectCreated:*'], prefix: 'uploads/' },
+			{ id: 'stack:on-upload', events: ['s3:ObjectCreated:*'], bucket: 'uploads' },
 		])
 		const dispatch = vi.fn(async (_event: unknown) => {})
 
 		server.connect(dispatch)
 
-		await raw(port, 'PUT', '/bucket/other/file.txt', 'x')
-		await raw(port, 'PUT', '/bucket/uploads/a%20b.txt', 'hello')
+		await raw(port, 'PUT', '/other/file.txt', 'x')
+		await raw(port, 'PUT', '/uploads/a%20b.txt', 'hello')
 
 		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1))
 
@@ -166,8 +168,8 @@ describe('dev s3 emulator', () => {
 					eventName: 'ObjectCreated:Put',
 					s3: {
 						configurationId: 'stack:on-upload',
-						bucket: { name: 'bucket' },
-						object: { key: 'uploads/a+b.txt', size: 5 },
+						bucket: { name: 'uploads' },
+						object: { key: 'a+b.txt', size: 5 },
 					},
 				},
 			],

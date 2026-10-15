@@ -1243,7 +1243,7 @@ const storePanel = async (main, r) => {
 	main.append(holder)
 
 	try {
-		const data = await api('/api/store?prefix=' + encodeURIComponent(r.detail))
+		const data = await api('/api/store?bucket=' + encodeURIComponent(r.detail))
 		holder.innerHTML = ''
 
 		if (data.files.length === 0) {
@@ -1254,7 +1254,7 @@ const storePanel = async (main, r) => {
 		holder.append($('table', {}, [
 			$('tr', {}, [$('th', {}, 'Key'), $('th', {}, 'Size'), $('th', {}, 'Modified')]),
 			...data.files.map(file => $('tr', {}, [
-				$('td', {}, file.key.slice(r.detail.length)),
+				$('td', {}, file.key),
 				$('td', {}, String(file.size)),
 				$('td', {}, file.modified),
 			])),

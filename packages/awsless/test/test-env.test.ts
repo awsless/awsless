@@ -175,8 +175,7 @@ describe('store', () => {
 	it('rides the in-memory s3', async () => {
 		const files = store.stack.files
 
-		expect(files.name).toBe('app--store--assets--abc')
-		expect(files.folder).toBe('store/stack/files/')
+		expect(files.name).toBe('app--stack--store--files--abc')
 
 		await files.put('a.txt', 'hello')
 
