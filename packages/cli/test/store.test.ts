@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getStoreName } from '../src/feature/store/index'
 import { createTestApp, listResources } from './_kit'
 
 const code = { file: { nocheck: './on-export.ts' } }
@@ -66,5 +67,15 @@ describe('store', () => {
 		result.ready()
 
 		expect(listResources(result.app, 'aws_s3_bucket_notification')).toHaveLength(0)
+	})
+
+	it('keeps bucket names within the s3 limit', () => {
+		expect(getStoreName('app', 'stack', 'files', 'abcdef12')).toBe('app--stack--store--files--abcdef12')
+
+		// The awsless runtime test pins the same name.
+		const long = getStoreName('a'.repeat(24), 's'.repeat(24), 'i'.repeat(24), 'abcdef12')
+
+		expect(long).toBe('aaaaaaaaaaaaaaaaaaaaaaaa--f61b754bb858aad6--store--abcdef12')
+		expect(long.length).toBeLessThanOrEqual(63)
 	})
 })

@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { cp } from 'fs/promises'
 import { join } from 'path'
 import { toDays } from '@awsless/duration'
@@ -10,7 +11,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { getCacheControl, getContentType } from '../../util/content.js'
 import { shortId } from '../../util/id.js'
-import { formatLocalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
 
@@ -42,14 +43,32 @@ const formatEventRouteKey = (stackName: string, id: string, event: string) => {
 	return formatRouteKey(stackName, 'store', kebabCase(`${id}-${shortId(event)}`))
 }
 
+// S3 caps bucket names at 63 chars. Too long names swap the stack & id
+// for a hash, keeping the "--store--" shape the permission wildcard needs.
+// Must match getStoreName in the awsless runtime.
 export const getStoreName = (appName: string, stackName: string, id: string, appId: string) => {
-	return formatLocalResourceName({
+	const name = formatLocalResourceName({
 		appName,
 		stackName,
 		resourceType: 'store',
 		resourceName: id,
 		postfix: appId,
 	})
+
+	if (name.length <= 63) {
+		return name
+	}
+
+	return formatGlobalResourceName({
+		appName,
+		resourceType: shortHash(`${kebabCase(stackName)}:${kebabCase(id)}`),
+		resourceName: 'store',
+		postfix: appId,
+	})
+}
+
+const shortHash = (value: string) => {
+	return createHash('md5').update(value).digest('hex').substring(0, 16)
 }
 
 export const storeFeature = defineFeature({

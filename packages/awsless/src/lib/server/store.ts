@@ -1,18 +1,36 @@
+import { createHash } from 'node:crypto'
 import { Body, deleteObject, getObject, headObject, putObject, StorageClass } from '@awsless/s3'
+import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { formatResourceName, getAppId, getStack } from './util.js'
 
 // Every store owns its own bucket; read lazily for the CLI run command.
+// Too long names fall back to a hash, like the CLI's getStoreName.
 export const getStoreName = <N extends string, S extends string = ReturnType<typeof getStack>>(
 	name: N,
 	stack: S = getStack() as S
 ) => {
-	return formatResourceName({
+	const bucket = formatResourceName({
 		stackName: stack,
 		resourceType: 'store',
 		resourceName: name,
 		postfix: getAppId(),
-	}) as `${string}--${S}--store--${N}--${string}`
+	})
+
+	if (bucket.length <= 63) {
+		return bucket
+	}
+
+	const hash = createHash('md5')
+		.update(`${kebabCase(stack)}:${kebabCase(name)}`)
+		.digest('hex')
+		.substring(0, 16)
+
+	return formatResourceName({
+		resourceType: hash,
+		resourceName: 'store',
+		postfix: getAppId(),
+	})
 }
 
 export interface StoreResources {}
