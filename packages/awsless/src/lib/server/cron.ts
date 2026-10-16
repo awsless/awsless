@@ -7,7 +7,7 @@ export const getCronName = bindLocalResourceName('cron')
 
 export interface CronResources {}
 
-type Options = Omit<InvokeOptions, 'payload' | 'name' | 'type' | 'qualifier' | 'reflectViewableErrors'>
+type Options = Omit<InvokeOptions, 'payload' | 'name' | 'type' | 'qualifier' | 'reflectExpectedErrors'>
 
 export const Cron: CronResources = /*@__PURE__*/ createProxy(stackName => {
 	return createProxy(cronName => {

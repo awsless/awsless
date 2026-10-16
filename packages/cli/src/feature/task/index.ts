@@ -16,7 +16,7 @@ import type { Mock } from 'vitest'
 
 ${funcType}
 
-type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'qualifier' | 'reflectViewableErrors'> & {
+type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'qualifier' | 'reflectExpectedErrors'> & {
 	schedule?: Duration | Date
 }
 ${invokeTypes({ returns: 'Promise<void>', options: 'Options' })}${testMockTypes({

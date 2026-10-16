@@ -1,5 +1,4 @@
 # TODO
-- Rename ViewableError to ExpectedError
 - Think of ways to type errors (TypeScript might need to figure this out first.)
 
 # Basic usage

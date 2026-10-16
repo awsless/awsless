@@ -8,7 +8,7 @@ export type InvokeOptions = {
 	name: string
 	qualifier?: string
 	payload?: unknown
-	reflectViewableErrors?: boolean
+	reflectExpectedErrors?: boolean
 }
 
 export type UnknownInvokeOptions = InvokeOptions & {
@@ -33,13 +33,13 @@ export type ErrorResponse = {
 type LambdaFunction = (event?: any, context?: Context) => Promise<unknown>
 
 export type Invoke = {
-	({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>
+	({ client, name, qualifier, type, payload, reflectExpectedErrors }: UnknownInvokeOptions): Promise<unknown>
 	<Lambda extends LambdaFunction>({
 		client,
 		name,
 		qualifier,
 		type,
 		payload,
-		reflectViewableErrors,
+		reflectExpectedErrors,
 	}: KnownInvokeOptions<Lambda>): InvokeResponse<Lambda>
 }

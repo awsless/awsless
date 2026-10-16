@@ -1,4 +1,4 @@
-import { ExpectedError, Handler, isErrorResponse, lambda, LambdaContext, ViewableError } from '@awsless/lambda'
+import { ExpectedError, Handler, isErrorResponse, lambda, LambdaContext, toErrorResponse } from '@awsless/lambda'
 import {
 	BaseSchema,
 	boolean,
@@ -324,8 +324,8 @@ export function route(
 		} catch (error) {
 			// Test mode throws expected errors instead of returning them;
 			// the route contract is http, so they still render as a response.
-			if (error instanceof ExpectedError || error instanceof ViewableError) {
-				return jsonErrorResponse(error)
+			if (error instanceof ExpectedError) {
+				return jsonErrorResponse(toErrorResponse(error).__error__)
 			}
 
 			throw error

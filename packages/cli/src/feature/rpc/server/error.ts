@@ -1,4 +1,4 @@
-import { ExpectedError, ViewableError } from '@awsless/lambda'
+import { ExpectedError } from '@awsless/lambda'
 import { GenericIssue } from '@awsless/validate'
 import { FunctionError, GlobalError } from './response'
 
@@ -66,7 +66,7 @@ export const UNKNOWN_ERROR: FunctionError = {
 	},
 }
 
-export const EXPECTED_ERROR = (error: ViewableError | ExpectedError): FunctionError => ({
+export const EXPECTED_ERROR = (error: ExpectedError): FunctionError => ({
 	ok: false,
 	error: {
 		type: error.type,

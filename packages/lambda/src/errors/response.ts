@@ -1,3 +1,5 @@
+import { unpatch } from '@awsless/json'
+
 export type ErrorResponse = {
 	__error__: {
 		type: string
@@ -20,8 +22,9 @@ export const toErrorResponse = (error: Error & { type: string; data?: unknown })
 		__error__: {
 			type: error.type,
 			message: error.message,
-			// The data rides along, so a caller keeps the structured details.
-			data: error.data,
+			// Unpatched like a success result, so bigints and dates survive the
+			// runtime's plain JSON.stringify and the invoker can parse them back.
+			data: unpatch(error.data),
 		},
 	}
 }

@@ -10,7 +10,7 @@ export const getTaskName = bindLocalResourceName('task')
 
 export interface TaskResources {}
 
-type Options = Omit<InvokeOptions, 'payload' | 'name' | 'type' | 'qualifier' | 'reflectViewableErrors'> & {
+type Options = Omit<InvokeOptions, 'payload' | 'name' | 'type' | 'qualifier' | 'reflectExpectedErrors'> & {
 	schedule?: Duration | Date
 }
 

@@ -7,7 +7,6 @@ import { ExpectedError } from './errors/expected.js'
 import { toErrorResponse } from './errors/response.js'
 import { createTimeoutWrap } from './errors/timeout.js'
 import { transformValidationErrors } from './errors/validation.js'
-import { ViewableError } from './errors/viewable.js'
 import { isTestEnv } from './helpers/env.js'
 import { normalizeError } from './helpers/error.js'
 import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
@@ -106,7 +105,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 		} catch (error) {
 			await Promise.all(failureCallbacks.map(cb => cb(error)))
 
-			const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError
+			const isExpectedError = error instanceof ExpectedError
 			const throwExpectedErrors =
 				typeof options.throwExpectedErrors === 'function'
 					? options.throwExpectedErrors()

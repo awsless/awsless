@@ -53,7 +53,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 
 				// Bundled functions call each other in-process, unless a qualifier or client is given.
 				if (!options.qualifier && !options.client) {
-					if (options.reflectViewableErrors === false) {
+					if (options.reflectExpectedErrors === false) {
 						return internalInvoke(routeKey, payload).catch(error => {
 							if (error instanceof ExpectedError) {
 								throw new Error(error.message)

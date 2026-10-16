@@ -15,7 +15,7 @@ type InvokeOptions = {
   name: string;
   qualifier?: string;
   payload?: unknown;
-  reflectViewableErrors?: boolean;
+  reflectExpectedErrors?: boolean;
 };
 type UnknownInvokeOptions = InvokeOptions & {
   payload?: unknown;
@@ -28,8 +28,8 @@ type KnownInvokeOptions<Lambda extends LambdaFunction$1> = unknown extends Param
 type InvokeResponse<Lambda extends LambdaFunction$1> = Promise<AsyncReturnType<Lambda>>;
 type LambdaFunction$1 = (event?: any, context?: Context$1) => Promise<unknown>;
 type Invoke = {
-  ({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>;
-  <Lambda extends LambdaFunction$1>({ client, name, qualifier, type, payload, reflectViewableErrors }: KnownInvokeOptions<Lambda>): InvokeResponse<Lambda>;
+  ({ client, name, qualifier, type, payload, reflectExpectedErrors }: UnknownInvokeOptions): Promise<unknown>;
+  <Lambda extends LambdaFunction$1>({ client, name, qualifier, type, payload, reflectExpectedErrors }: KnownInvokeOptions<Lambda>): InvokeResponse<Lambda>;
 };
 //#endregion
 //#region src/commands/invoke.d.ts
@@ -79,14 +79,6 @@ type ExtraMetaData = Record<string, unknown>;
 //#endregion
 //#region src/context/lambda-context.d.ts
 declare const getContext: () => Context;
-//#endregion
-//#region src/errors/viewable.d.ts
-declare class ViewableError extends Error {
-  readonly type: string;
-  readonly data?: unknown;
-  readonly name = "ViewableError";
-  constructor(type: string, message: string, data?: unknown);
-}
 //#endregion
 //#region src/errors/response.d.ts
 type ErrorResponse = {
@@ -143,4 +135,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 //#endregion
-export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

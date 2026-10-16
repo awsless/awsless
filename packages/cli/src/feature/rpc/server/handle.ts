@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { ExpectedError, ViewableError } from '@awsless/lambda'
+import { ExpectedError } from '@awsless/lambda'
 import { APIGatewayProxyEventV2 } from 'aws-lambda'
 import { internalInvoke } from 'awsless'
 import { authenticate } from './auth.js'
@@ -123,7 +123,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 						viewer: buildViewerPayload(request.output),
 					})
 				} catch (error) {
-					if (error instanceof ViewableError || error instanceof ExpectedError) {
+					if (error instanceof ExpectedError) {
 						return EXPECTED_ERROR(error)
 					} else {
 						console.error(error)

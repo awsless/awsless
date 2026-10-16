@@ -1,4 +1,4 @@
-import { ExpectedError, Handler, isErrorResponse, ViewableError } from '@awsless/lambda'
+import { ExpectedError, Handler, isErrorResponse } from '@awsless/lambda'
 import {
 	array,
 	date,
@@ -122,7 +122,7 @@ export const error = <H extends Handler<ErrorSchema>>(handle: H) => {
 
 			return result
 		} catch (error) {
-			if (error instanceof ExpectedError || error instanceof ViewableError) {
+			if (error instanceof ExpectedError) {
 				skip(error)
 				return
 			}

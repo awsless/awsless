@@ -84,7 +84,7 @@ describe('function inside the bundle', () => {
 		await expect(reflected).rejects.toBeInstanceOf(ExpectedError)
 
 		const flattened = withBundleRouteContext('stack:function:caller', dispatch, () =>
-			func({}, { reflectViewableErrors: false })
+			func({}, { reflectExpectedErrors: false })
 		)
 		await expect(flattened).rejects.toThrow('Expected failure')
 		await expect(flattened).rejects.not.toBeInstanceOf(ExpectedError)

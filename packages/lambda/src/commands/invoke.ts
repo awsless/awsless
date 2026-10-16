@@ -20,7 +20,7 @@ export const invoke: Invoke = async ({
 	qualifier,
 	type = 'RequestResponse',
 	payload,
-	reflectViewableErrors = true,
+	reflectExpectedErrors = true,
 }: UnknownInvokeOptions) => {
 	const command = new InvokeCommand({
 		InvocationType: type,
@@ -44,7 +44,7 @@ export const invoke: Invoke = async ({
 	if (isErrorResponse(response)) {
 		const e = response.__error__
 
-		if (reflectViewableErrors) {
+		if (reflectExpectedErrors) {
 			throw new ExpectedError(e.type, e.message, e.data)
 		} else {
 			throw new Error(e.message)

@@ -22,7 +22,7 @@ const toErrorResponse = (error) => {
 	return { __error__: {
 		type: error.type,
 		message: error.message,
-		data: error.data
+		data: unpatch(error.data)
 	} };
 };
 //#endregion
@@ -36,7 +36,7 @@ const isLambdaErrorResponse = (response) => {
 	return typeof response === "object" && response !== null && typeof response.errorMessage === "string";
 };
 /** Invoke lambda function */
-const invoke = async ({ client = lambdaClient(), name, qualifier, type = "RequestResponse", payload, reflectViewableErrors = true }) => {
+const invoke = async ({ client = lambdaClient(), name, qualifier, type = "RequestResponse", payload, reflectExpectedErrors = true }) => {
 	const command = new InvokeCommand({
 		InvocationType: type,
 		FunctionName: name,
@@ -50,7 +50,7 @@ const invoke = async ({ client = lambdaClient(), name, qualifier, type = "Reques
 	const response = parse(json);
 	if (isErrorResponse(response)) {
 		const e = response.__error__;
-		if (reflectViewableErrors) throw new ExpectedError(e.type, e.message, e.data);
+		if (reflectExpectedErrors) throw new ExpectedError(e.type, e.message, e.data);
 		else throw new Error(e.message);
 	}
 	if (isLambdaErrorResponse(response)) {
@@ -178,18 +178,6 @@ const getContext = () => {
 	return ctx;
 };
 //#endregion
-//#region src/errors/viewable.ts
-var ViewableError = class extends Error {
-	type;
-	data;
-	name = "ViewableError";
-	constructor(type, message, data) {
-		super(message);
-		this.type = type;
-		this.data = data;
-	}
-};
-//#endregion
 //#region src/helpers/env.ts
 const isTestEnv = () => {
 	if (process.env.LAMBDA_ENV) return process.env.LAMBDA_ENV === "test";
@@ -277,7 +265,7 @@ const lambda = (options) => {
 			return unpatch(result);
 		} catch (error) {
 			await Promise.all(failureCallbacks.map((cb) => cb(error)));
-			const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError;
+			const isExpectedError = error instanceof ExpectedError;
 			const throwExpectedErrors = typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
 			if (!isExpectedError || throwExpectedErrors) await log(error);
 			if (!isTest && !throwExpectedErrors && isExpectedError) return toErrorResponse(error);
@@ -289,4 +277,4 @@ const lambda = (options) => {
 	});
 };
 //#endregion
-export { ExpectedError, LambdaClient, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { ExpectedError, LambdaClient, TimeoutError, ValidationError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

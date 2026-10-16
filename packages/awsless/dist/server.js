@@ -5,7 +5,7 @@ import * as t from "@awsless/dynamodb";
 import { define as define$1 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
 import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, ViewableError, getContext, invoke, isErrorResponse, isTestEnv, lambda } from "@awsless/lambda";
+import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
 import { stringify } from "@awsless/json";
@@ -190,7 +190,7 @@ const error = (handle) => {
 			}
 			return result;
 		} catch (error) {
-			if (error instanceof ExpectedError || error instanceof ViewableError) {
+			if (error instanceof ExpectedError) {
 				skip(error);
 				return;
 			}
@@ -372,7 +372,7 @@ function route(arg1, arg2) {
 		try {
 			result = await handler(event, context);
 		} catch (error) {
-			if (error instanceof ExpectedError || error instanceof ViewableError) return jsonErrorResponse(error);
+			if (error instanceof ExpectedError) return jsonErrorResponse(toErrorResponse(error).__error__);
 			throw error;
 		}
 		if (isErrorResponse(result)) return jsonErrorResponse(result.__error__);
@@ -614,7 +614,7 @@ const Fn = /*@__PURE__*/ createProxy((stackName) => {
 					payload
 				});
 				if (!options.qualifier && !options.client) {
-					if (options.reflectViewableErrors === false) return internalInvoke(routeKey, payload).catch((error) => {
+					if (options.reflectExpectedErrors === false) return internalInvoke(routeKey, payload).catch((error) => {
 						if (error instanceof ExpectedError) throw new Error(error.message);
 						throw error;
 					});
@@ -1400,50 +1400,56 @@ const seed = { uuid(name) {
 } };
 //#endregion
 //#region src/lib/server/store.ts
-const getStoreBucketName = () => {
-	return formatResourceName({
+const getStoreName = (name, stack = getStack()) => {
+	const bucket = formatResourceName({
+		stackName: stack,
 		resourceType: "store",
-		resourceName: "assets",
+		resourceName: name,
+		postfix: getAppId()
+	});
+	if (bucket.length <= 63) return bucket;
+	const hash = createHash("md5").update(`${kebabCase(stack)}:${kebabCase(name)}`).digest("hex").substring(0, 16);
+	return formatResourceName({
+		resourceType: hash,
+		resourceName: "store",
 		postfix: getAppId()
 	});
 };
 const Store = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
-		const scoped = (key) => `store/${kebabCase(stack)}/${kebabCase(name)}/${key}`;
 		return {
 			get name() {
-				return getStoreBucketName();
+				return getStoreName(name, stack);
 			},
-			folder: scoped(""),
 			async put(key, body, options = {}) {
 				await putObject({
-					bucket: getStoreBucketName(),
-					key: scoped(key),
+					bucket: getStoreName(name, stack),
+					key,
 					body,
 					...options
 				});
 			},
 			async get(key) {
 				const object = await getObject({
-					bucket: getStoreBucketName(),
-					key: scoped(key)
+					bucket: getStoreName(name, stack),
+					key
 				});
 				if (object) return object.body;
 			},
 			async has(key) {
 				return !!await headObject({
-					bucket: getStoreBucketName(),
-					key: scoped(key)
+					bucket: getStoreName(name, stack),
+					key
 				});
 			},
 			delete(key) {
 				return deleteObject({
-					bucket: getStoreBucketName(),
-					key: scoped(key)
+					bucket: getStoreName(name, stack),
+					key
 				});
 			}
 		};
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreBucketName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
+export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
