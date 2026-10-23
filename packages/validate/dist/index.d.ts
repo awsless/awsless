@@ -38,7 +38,7 @@ declare const sqsQueue: <S extends GenericSchema>(schema: S, message?: ErrorMess
 type SnsTopicSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | {
   Records: {
     Sns: {
-      Message: string | InferInput<S>;
+      Message: string;
     };
   }[];
 }, InferOutput<S>, GenericIssue>;

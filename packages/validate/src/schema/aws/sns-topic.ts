@@ -5,17 +5,17 @@ import {
 	GenericSchema,
 	InferInput,
 	InferOutput,
-	array,
-	minLength,
+	length,
 	object,
 	pipe,
 	transform,
+	tuple,
 	union,
 } from 'valibot'
 import { json } from '../json'
 
 export type SnsTopicSchema<S extends GenericSchema> = BaseSchema<
-	InferInput<S> | { Records: { Sns: { Message: string | InferInput<S> } }[] },
+	InferInput<S> | { Records: { Sns: { Message: string } }[] },
 	InferOutput<S>,
 	GenericIssue
 >
@@ -29,9 +29,18 @@ export const snsTopic = <S extends GenericSchema>(
 			// SNS always delivers exactly one record per invocation.
 			pipe(
 				object({
-					Records: pipe(array(object({ Sns: object({ Message: json(schema) }) })), minLength(1)),
+					Records: pipe(
+						tuple([
+							object({
+								Sns: object({
+									Message: json(schema),
+								}),
+							}),
+						]),
+						length(1)
+					),
 				}),
-				transform(v => v.Records[0]!.Sns.Message)
+				transform(v => v.Records[0].Sns.Message)
 			),
 			// The plain payload is allowed during testing
 			schema,

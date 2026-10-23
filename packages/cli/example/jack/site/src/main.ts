@@ -47,6 +47,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 		<input id="search" placeholder="Search tasks…" autocomplete="off" />
 		<ul id="list"></ul>
 		<footer id="stats"></footer>
+		<footer id="ip"></footer>
 		<button id="break" type="button">Break something</button>
 	</main>
 `
@@ -56,6 +57,7 @@ const stats = document.querySelector<HTMLElement>('#stats')!
 const form = document.querySelector<HTMLFormElement>('#create')!
 const name = document.querySelector<HTMLInputElement>('#name')!
 const search = document.querySelector<HTMLInputElement>('#search')!
+const ip = document.querySelector<HTMLElement>('#ip')!
 
 let tasks: Task[] = []
 let matches: string[] | undefined
@@ -142,4 +144,17 @@ document.querySelector<HTMLButtonElement>('#break')!.addEventListener('click', a
 	await rpc('breakTask').catch(error => console.log('breakTask failed as intended:', error))
 })
 
+// Both paths should resolve the same caller ip - a mismatch means one
+// of them reads the CloudFront edge address instead.
+const loadIp = async () => {
+	const [viaRpc, viaRoute] = await Promise.all([
+		rpc<{ ip?: string }>('ip'),
+		fetch('/ip').then(response => response.json() as Promise<{ ip?: string }>),
+	])
+
+	const match = viaRpc.ip === viaRoute.ip ? '✓' : '✗'
+	ip.textContent = `rpc ip ${viaRpc.ip ?? '-'} · route ip ${viaRoute.ip ?? '-'} ${match}`
+}
+
 load()
+loadIp()

@@ -56,6 +56,25 @@ describe('route request', () => {
 	})
 })
 
+describe('route ip', () => {
+	it.each([
+		['198.51.100.10:46532', '198.51.100.10'],
+		['2001:db8::8a2e:370:7334:46532', '2001:db8::8a2e:370:7334'],
+	])('reads the cloudfront viewer address %s', async (address, ip) => {
+		const handle = route(request => Response.json({ ip: request.ip }))
+		const result = await handle(event({ headers: { 'cloudfront-viewer-address': address } }))
+
+		expect(parseBody(result)).toStrictEqual({ ip })
+	})
+
+	it('falls back to the lambda source ip', async () => {
+		const handle = route(request => Response.json({ ip: request.ip }))
+		const result = await handle(event())
+
+		expect(parseBody(result)).toStrictEqual({ ip: '1.1.1.1' })
+	})
+})
+
 describe('route response', () => {
 	it('converts a web response into a lambda url result', async () => {
 		const handle = route(() => {

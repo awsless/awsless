@@ -185,6 +185,14 @@ const partsSchema = <P extends RouteSchemaProps>(props: P) => {
 	}) as GenericSchema<Extracted, Parts<P>>
 }
 
+// CloudFront sends "ip:port" for both ipv4 & ipv6, so the port is
+// always the last colon segment.
+const stripPort = (address: string) => {
+	const index = address.lastIndexOf(':')
+
+	return index === -1 ? address : address.slice(0, index)
+}
+
 const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): RouteRequestOf<P> => {
 	const { event, params, query, body } = parts
 	const headers = new Headers()
@@ -194,6 +202,12 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 	}
 
 	const method = event.requestContext.http.method
+
+	// Behind the router the lambda sourceIp is the CloudFront edge,
+	// only the viewer address header holds the real caller.
+	const viewerAddress = headers.get('cloudfront-viewer-address')
+	const ip = viewerAddress ? stripPort(viewerAddress) : event.requestContext.http.sourceIp
+
 	// The forwarded host is the domain the caller used; synthetic test
 	// events may carry none, so the url must still parse.
 	const domain = headers.get('x-forwarded-host') || event.requestContext.domainName || 'localhost'
@@ -219,7 +233,7 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 		params,
 		query,
 		data,
-		ip: event.requestContext.http.sourceIp,
+		ip,
 		userAgent: event.requestContext.http.userAgent,
 		body: rawBody,
 	})

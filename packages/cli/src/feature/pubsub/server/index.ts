@@ -29,7 +29,23 @@ const isOriginSecret = (value: string | null) => {
 	return expected.byteLength === actual.byteLength && timingSafeEqual(expected, actual)
 }
 
+// CloudFront sends "ip:port" for both ipv4 & ipv6, so the port is
+// always the last colon segment.
+const stripPort = (address: string) => {
+	const index = address.lastIndexOf(':')
+
+	return index === -1 ? address : address.slice(0, index)
+}
+
 const getClientIp = (request: Request, server: Bun.Server<SocketData>) => {
+	// The same source the rpc viewer & routes use, so every feature
+	// agrees on the caller ip.
+	const viewerAddress = request.headers.get('cloudfront-viewer-address')
+
+	if (viewerAddress) {
+		return stripPort(viewerAddress)
+	}
+
 	const forwarded = request.headers.get('x-forwarded-for')
 
 	if (forwarded) {

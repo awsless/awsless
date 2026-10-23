@@ -93,7 +93,7 @@ const sqsQueue = (schema, message = "Invalid SQS Queue payload") => {
 //#endregion
 //#region src/schema/aws/sns-topic.ts
 const snsTopic = (schema, message = "Invalid SNS Topic payload") => {
-	return (0, valibot.union)([(0, valibot.pipe)((0, valibot.object)({ Records: (0, valibot.pipe)((0, valibot.array)((0, valibot.object)({ Sns: (0, valibot.object)({ Message: json(schema) }) })), (0, valibot.minLength)(1)) }), (0, valibot.transform)((v) => v.Records[0].Sns.Message)), schema], message);
+	return (0, valibot.union)([(0, valibot.pipe)((0, valibot.object)({ Records: (0, valibot.pipe)((0, valibot.tuple)([(0, valibot.object)({ Sns: (0, valibot.object)({ Message: json(schema) }) })]), (0, valibot.length)(1)) }), (0, valibot.transform)((v) => v.Records[0].Sns.Message)), schema], message);
 };
 //#endregion
 //#region src/schema/aws/dynamodb-stream.ts

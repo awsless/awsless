@@ -1,4 +1,4 @@
-import { array, bigint, check, date, finite, getMetadata, instance, metadata, minLength, number, object, optional, picklist, pipe, rawTransform, regex, safeParse, string, toDate, transform, union, unknown, uuid as uuid$1 } from "valibot";
+import { array, bigint, check, date, finite, getMetadata, instance, length, metadata, number, object, optional, picklist, pipe, rawTransform, regex, safeParse, string, toDate, transform, tuple, union, unknown, uuid as uuid$1 } from "valibot";
 import { parse } from "@awsless/json";
 import { BigFloat, isPositive, parse as parse$1 } from "@awsless/big-float";
 import { Duration } from "@awsless/duration";
@@ -93,7 +93,7 @@ const sqsQueue = (schema, message = "Invalid SQS Queue payload") => {
 //#endregion
 //#region src/schema/aws/sns-topic.ts
 const snsTopic = (schema, message = "Invalid SNS Topic payload") => {
-	return union([pipe(object({ Records: pipe(array(object({ Sns: object({ Message: json(schema) }) })), minLength(1)) }), transform((v) => v.Records[0].Sns.Message)), schema], message);
+	return union([pipe(object({ Records: pipe(tuple([object({ Sns: object({ Message: json(schema) }) })]), length(1)) }), transform((v) => v.Records[0].Sns.Message)), schema], message);
 };
 //#endregion
 //#region src/schema/aws/dynamodb-stream.ts

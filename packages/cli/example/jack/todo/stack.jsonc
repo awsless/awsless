@@ -16,7 +16,14 @@
 			"remindTask": "./src/rpc/remind.ts",
 			"breakTask": "./src/rpc/break.ts",
 			"tasksStats": "./src/rpc/stats.ts",
-			"tasks": "./src/rpc/list.ts"
+			"tasks": "./src/rpc/list.ts",
+			"ip": "./src/rpc/ip.ts"
+		}
+	},
+
+	"routes": {
+		"main": {
+			"/ip": "./src/route/ip.ts"
 		}
 	},
 

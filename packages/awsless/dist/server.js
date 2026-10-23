@@ -312,11 +312,17 @@ const partsSchema = (props) => {
 		body: props.body ? json(props.body) : optional(unknown())
 	});
 };
+const stripPort = (address) => {
+	const index = address.lastIndexOf(":");
+	return index === -1 ? address : address.slice(0, index);
+};
 const buildRequest = (props, parts) => {
 	const { event, params, query, body } = parts;
 	const headers = new Headers();
 	for (const [name, value] of Object.entries(event.headers ?? {})) headers.set(name, value);
 	const method = event.requestContext.http.method;
+	const viewerAddress = headers.get("cloudfront-viewer-address");
+	const ip = viewerAddress ? stripPort(viewerAddress) : event.requestContext.http.sourceIp;
 	const domain = headers.get("x-forwarded-host") || event.requestContext.domainName || "localhost";
 	const path = event.rawPath || event.requestContext.http.path || "/";
 	const url = `${headers.get("x-forwarded-proto") ?? "https"}://${domain}${path}${event.rawQueryString ? `?${event.rawQueryString}` : ""}`;
@@ -328,7 +334,7 @@ const buildRequest = (props, parts) => {
 		params,
 		query,
 		data: props.body ? body : void 0,
-		ip: event.requestContext.http.sourceIp,
+		ip,
 		userAgent: event.requestContext.http.userAgent,
 		body: rawBody
 	});
