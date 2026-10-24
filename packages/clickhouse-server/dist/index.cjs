@@ -5514,6 +5514,7 @@ const define = (names, fn, insensitive = false) => {
 		if (insensitive) caseInsensitive.set(name.toLowerCase(), name);
 	}
 };
+const countsRows = (base) => /^(count|uniq)/.test(base) || base === "countDistinct" || base === "count_distinct";
 const lookup = (name) => aggregates.get(name) ?? aggregates.get(caseInsensitive.get(name.toLowerCase()) ?? "");
 const findAggregate = (name) => {
 	const combinators = [];
@@ -5542,7 +5543,8 @@ const findAggregate = (name) => {
 	}
 	return {
 		fn: lookup(base),
-		combinators
+		combinators,
+		base
 	};
 };
 const isAggregate = (name) => {
@@ -5552,14 +5554,15 @@ const isAggregate = (name) => {
 		return true;
 	}
 };
-const createAccumulator = (name, params, argCount, distinct) => {
+const createAccumulator = (name, params, argCount, distinct, nullable = false) => {
 	const found = findAggregate(name);
 	if (!found) throw illegalType(`Unknown aggregate function ${name}`);
-	const { fn, combinators } = found;
+	const { fn, combinators, base } = found;
 	const conditional = combinators.includes("If");
 	const array = combinators.includes("Array");
 	const orNull = combinators.includes("OrNull");
 	const orDefault = combinators.includes("OrDefault");
+	const nullableResult = nullable && !countsRows(base);
 	const valueArgs = conditional ? argCount - 1 : argCount;
 	if (fn.min !== void 0 && valueArgs < fn.min || fn.max !== void 0 && valueArgs > fn.max) throw badArguments(`Aggregate function ${name} requires ${fn.min === fn.max ? fn.min : `${fn.min} to ${fn.max ?? "any"}`} arguments, got ${valueArgs}`);
 	let inner = fn.create(params, valueArgs);
@@ -5596,7 +5599,7 @@ const createAccumulator = (name, params, argCount, distinct) => {
 			}
 			accept(values);
 		},
-		result: () => (orNull || orDefault) && accepted === 0 ? null : inner.result()
+		result: () => (orNull || orDefault || nullableResult) && accepted === 0 ? null : inner.result()
 	};
 };
 const skipNulls = (accumulator) => ({
@@ -6565,8 +6568,9 @@ const SAME_AS_FIRST = /* @__PURE__ */ new Set([
 const aggregateType = (name, args, scope, expr) => {
 	const found = findAggregate(name);
 	if (!found) return;
-	const base = [...lookupNames(name)].find(Boolean) ?? name;
-	const orNull = found.combinators.includes("OrNull");
+	const base = found.base;
+	const nullableArgs = args.some((arg) => arg !== void 0 && isNullable(arg));
+	const orNull = found.combinators.includes("OrNull") || nullableArgs && !countsRows(base);
 	const wrap = (type) => orNull && !isNullable(type) ? {
 		name: "Nullable",
 		inner: type
@@ -6593,13 +6597,6 @@ const aggregateType = (name, args, scope, expr) => {
 		inner: UInt8
 	};
 	if (/^groupBit/.test(base)) return first ?? UInt64;
-};
-const lookupNames = (name) => {
-	const found = findAggregate(name);
-	if (!found) return [name];
-	let base = name;
-	for (const combinator of [...found.combinators].reverse()) base = base.slice(0, -combinator.length);
-	return [base];
 };
 const FUNCTION_TYPES = {
 	length: UInt64,
@@ -7885,7 +7882,11 @@ const runSelect = (select, executor, ctx, outer, parentCtes) => {
 			accumulators: aggregates.map((expr) => {
 				const call = expr;
 				const params = (call.params ?? []).map((param) => evaluate(param, scope));
-				return createAccumulator(call.distinct && call.name === "count" ? "uniqExact" : call.name, params, call.args.length, call.distinct === true && call.name !== "count");
+				const nullable = call.args.some((arg) => {
+					const type = inferType(arg, scope);
+					return type !== void 0 && isNullable(type);
+				});
+				return createAccumulator(call.distinct && call.name === "count" ? "uniqExact" : call.name, params, call.args.length, call.distinct === true && call.name !== "count", nullable);
 			})
 		});
 		for (const row of rows) {
