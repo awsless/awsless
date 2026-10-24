@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { DeleteParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resolveColumnType } from '../src/feature/clickhouse/schema'
 import { hasClickHouseTables } from '../src/feature/clickhouse/util'
 import { createClickHouseProvider } from '../src/formation/clickhouse'
 import { TypeObject } from '../src/type-gen/object'
@@ -154,6 +155,50 @@ describe('clickhouse', () => {
 
 		expect(hasClickHouseTables([stack({})])).toBe(false)
 		expect(hasClickHouseTables([stack({ clickhouse: { events } })])).toBe(true)
+	})
+})
+
+describe('clickhouse column types', () => {
+	it('reads friendly names as ClickHouse types', () => {
+		expect(resolveColumnType('string')).toBe('String')
+		expect(resolveColumnType('keyword')).toBe('LowCardinality(String)')
+		expect(resolveColumnType('keyword[]')).toBe('Array(LowCardinality(String))')
+		expect(resolveColumnType('keyword?')).toBe('LowCardinality(Nullable(String))')
+		expect(resolveColumnType('string?')).toBe('Nullable(String)')
+		expect(resolveColumnType('number[]?')).toBe('Array(Nullable(Float64))')
+		expect(resolveColumnType('date')).toBe("DateTime64(3, 'UTC')")
+		expect(resolveColumnType('Decimal(18, 4)')).toBe('Decimal(18, 4)')
+		expect(resolveColumnType('UInt8')).toBe('UInt8')
+	})
+
+	it('deploys the ClickHouse types of friendly columns', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					clickhouse: {
+						events: {
+							columns: {
+								id: 'string',
+								country: 'keyword',
+								flags: 'keyword[]',
+								at: { type: 'date', default: 'now64(3)' },
+							},
+							orderBy: ['at'],
+						},
+					},
+				},
+			],
+		})
+
+		const [table] = listResources(app, 'table')
+
+		expect(JSON.parse(table!.input.definition).columns).toEqual({
+			id: 'String',
+			country: 'LowCardinality(String)',
+			flags: 'Array(LowCardinality(String))',
+			at: { type: "DateTime64(3, 'UTC')", default: 'now64(3)' },
+		})
 	})
 })
 

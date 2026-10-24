@@ -68,14 +68,71 @@ const ColumnNameSchema = z
 	.string()
 	.regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'Column names start with a letter or underscore, like "createdAt".')
 
-const ColumnSchema = z.union([
+// Friendly names for the column types apps use most, each standing for the
+// ClickHouse type the deploy creates. `[]` makes an array, `?` lets it be
+// NULL. Any ClickHouse type works too, written as ClickHouse writes it.
+const SHORTHANDS = {
+	string: { type: 'String', description: 'Text of any kind, like ids or user agents.' },
+	keyword: {
+		type: 'LowCardinality(String)',
+		description:
+			'Text that repeats a lot, like countries, tags or ids of a few thousand projects: stored once & far smaller.',
+	},
+	number: { type: 'Float64', description: 'A number with decimals, like a score.' },
+	integer: { type: 'Int64', description: 'A whole number that can be negative.' },
+	count: { type: 'UInt64', description: 'A whole number of zero or more.' },
+	boolean: { type: 'Bool', description: 'True or false.' },
+	uuid: { type: 'UUID', description: 'A UUID.' },
+	date: { type: "DateTime64(3, 'UTC')", description: 'A moment in time to the millisecond, in UTC.' },
+	day: { type: 'Date', description: 'A calendar day, without a time.' },
+	ip: { type: 'IPv6', description: 'An IPv4 or IPv6 address.' },
+	json: { type: 'JSON', description: 'A JSON object, with fast access to each of its paths.' },
+} as const
+
+type Shorthand = keyof typeof SHORTHANDS
+
+// "keyword[]?" style names to ClickHouse types; anything else is taken as
+// a ClickHouse type already.
+export const resolveColumnType = (type: string): string => {
+	const match = /^([a-z]+)(\[\])?(\?)?$/.exec(type.trim())
+
+	if (!match || !(match[1]! in SHORTHANDS)) {
+		return type
+	}
+
+	const base = SHORTHANDS[match[1] as Shorthand].type
+	const nullable = (inner: string) => {
+		const low = /^LowCardinality\((.*)\)$/.exec(inner)
+		return low ? `LowCardinality(Nullable(${low[1]}))` : `Nullable(${inner})`
+	}
+
+	if (match[2]) {
+		return `Array(${match[3] ? nullable(base) : base})`
+	}
+
+	return match[3] ? nullable(base) : base
+}
+
+const suggestions = Object.entries(SHORTHANDS).flatMap(([name, { type, description }]) => [
+	z.literal(name).describe(`${description} (${type})`),
 	z
-		.string()
-		.min(1)
-		.describe('The ClickHouse type, like "String", "LowCardinality(String)" or "DateTime64(3, \'UTC\')".'),
+		.literal(`${name}[]`)
+		.describe(`A list of: ${description.charAt(0).toLowerCase()}${description.slice(1)} (Array(${type}))`),
+	z.literal(`${name}?`).describe(`${description} Or nothing (NULL).`),
+])
+
+const TypeSchema = z
+	.union([...suggestions, z.string().min(1)] as unknown as [z.ZodString, ...z.ZodString[]])
+	.transform(resolveColumnType)
+	.describe(
+		'The column type: a friendly name like "string", "keyword", "number", "date" or "keyword[]" (a list) or "string?" (may be NULL), or any ClickHouse type like "Decimal(18, 4)".'
+	)
+
+const ColumnSchema = z.union([
+	TypeSchema,
 	z
 		.object({
-			type: z.string().min(1).describe('The ClickHouse type.'),
+			type: TypeSchema,
 			default: z
 				.string()
 				.optional()
@@ -92,7 +149,7 @@ const TableSchema = z
 		columns: z
 			.record(ColumnNameSchema, ColumnSchema)
 			.refine(columns => Object.keys(columns).length > 0, 'A table needs at least one column.')
-			.describe('The columns in order, each with its ClickHouse type.'),
+			.describe('The columns in order, each with its type.'),
 		engine: z
 			.string()
 			.optional()
