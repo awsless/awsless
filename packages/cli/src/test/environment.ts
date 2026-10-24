@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { ClickHouseServer } from '@awsless/clickhouse-server'
 import { OpenSearchServer } from '@awsless/open-search-server'
 import { RedisServer } from '@awsless/redis'
 import { AppConfig } from '../config/app.js'
@@ -27,6 +28,7 @@ export const withTestEnvironment = async (
 	// race over ports. Tables stay in-process so streams settle inline.
 	let redis: RedisServer | undefined
 	let search: OpenSearchServer | undefined
+	let clickhouse: ClickHouseServer | undefined
 	let booting: Promise<void> | undefined
 
 	// The boots are deferred until a stack actually misses the test
@@ -40,6 +42,13 @@ export const withTestEnvironment = async (
 				await search.listen()
 
 				manifest.servers.search = { endpoint: `http://localhost:${search.port}` }
+			}
+
+			if ((manifest.clickhouse ?? []).length > 0) {
+				clickhouse = new ClickHouseServer({ engine: localEngine() === 'real' ? 'clickhouse' : 'memory' })
+				await clickhouse.listen()
+
+				manifest.servers.clickhouse = { endpoint: clickhouse.endpoint }
 			}
 
 			if (manifest.caches.length > 0) {
@@ -65,5 +74,6 @@ export const withTestEnvironment = async (
 	} finally {
 		await redis?.kill()
 		await search?.close()
+		await clickhouse?.close()
 	}
 }

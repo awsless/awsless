@@ -1,4 +1,5 @@
 export * as s from '@awsless/open-search';
+export * as c from '@awsless/clickhouse';
 export * as t from '@awsless/dynamodb';
 export * as v from '@awsless/validate';
 export * as h from './lib/handle/index.js';
@@ -8,6 +9,7 @@ export * from './lib/server/alert.js';
 export * from './lib/server/auth.js';
 export * from './lib/server/bundle.js';
 export * from './lib/server/cache.js';
+export * from './lib/server/clickhouse.js';
 export * from './lib/server/config.js';
 export * from './lib/server/cron.js';
 export * from './lib/server/email.js';

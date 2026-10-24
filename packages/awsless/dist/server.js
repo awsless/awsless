@@ -1,8 +1,10 @@
 import { t as createProxy } from "./proxy-HAezNYiX.js";
 import * as s from "@awsless/open-search";
 import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search";
+import * as c from "@awsless/clickhouse";
+import { clickhouseClient, define as define$1 } from "@awsless/clickhouse";
 import * as t from "@awsless/dynamodb";
-import { define as define$1 } from "@awsless/dynamodb";
+import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
 import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
 import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
@@ -884,6 +886,53 @@ const Topic = /*@__PURE__*/ createProxy((name) => {
 	};
 });
 //#endregion
+//#region src/lib/server/clickhouse.ts
+const getClickHouseTableName = (stackName, tableName) => {
+	return `${kebabCase(stackName)}--${tableName}`;
+};
+const getClickHouseProps = (name, stack = getStack()) => {
+	const table = getClickHouseTableName(stack, name);
+	return {
+		endpoint: process.env.CLICKHOUSE_ENDPOINT,
+		name: isTest() ? `${kebabCase(getApp())}--${table}` : table
+	};
+};
+let client;
+const getClient = () => {
+	if (!client) {
+		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER;
+		client = clickhouseClient({
+			endpoint: process.env.CLICKHOUSE_ENDPOINT,
+			password: parameter ? async () => (await ssm({ password: parameter })).password : void 0
+		});
+	}
+	return client;
+};
+const assertMatchingColumns = (label, declared, defined) => {
+	for (const column of Object.keys(defined)) if (!declared[column]) throw new Error(`The schema of ClickHouse table "${label}" defines the column "${column}", which the stack file doesn't declare.`);
+	for (const [column, type] of Object.entries(declared)) {
+		const definedType = defined[column];
+		if (!definedType) throw new Error(`The stack file declares the column "${column}" for ClickHouse table "${label}", which the code schema doesn't define.`);
+		if (definedType.replaceAll(" ", "") !== type.replaceAll(" ", "")) throw new Error(`The column "${column}" of ClickHouse table "${label}" is a "${definedType}" in the code schema but a "${type}" in the stack file.`);
+	}
+};
+const ClickHouse = /*@__PURE__*/ createProxy((stack) => {
+	return /* @__PURE__ */ createProxy((name) => {
+		const { endpoint, name: table } = getClickHouseProps(name, stack);
+		return {
+			name: table,
+			endpoint,
+			define(schema) {
+				if (isTest()) {
+					const declared = process.env[`CLICKHOUSE_COLUMNS_${table}`];
+					if (declared) assertMatchingColumns(`${stack}.${name}`, JSON.parse(declared), schema.columns);
+				}
+				return define$1(table, schema, getClient);
+			}
+		};
+	});
+});
+//#endregion
 //#region src/lib/server/search.ts
 const formatSearchIndexName = (stackName, indexName) => {
 	return `${kebabCase(stackName)}--${indexName}`;
@@ -969,7 +1018,7 @@ const Table = /*@__PURE__*/ createProxy((stack) => {
 				const { name: tableName, keys } = getTableProps(name, stack);
 				if (!keys) throw new Error(`No table key config found for "${stack}.${name}". Is the table defined in your stack file?`);
 				if (isTest()) assertKeyAttributes(`${stack}.${name}`, keys, schema);
-				return define$1(tableName, {
+				return define$2(tableName, {
 					hash: keys.hash,
 					sort: keys.sort,
 					indexes: keys.indexes,
@@ -1028,6 +1077,7 @@ const setupTestEnv = async (manifest, options) => {
 	applyTestConfigValues(manifest);
 	materializeTables(manifest, options.importFile, dynamodb);
 	await createSearchIndexes(manifest);
+	await createClickHouseTables(manifest);
 	s3.mockS3();
 	await redirectCacheClients(manifest);
 	const spies = registerResourceSpies(manifest, options.importFile);
@@ -1098,6 +1148,17 @@ const createSearchIndexes = async (manifest) => {
 			})
 		});
 		if (!result.ok) throw new Error(`Failed to create the search index "${name}": ${await result.text()}`);
+	}
+};
+const createClickHouseTables = async (manifest) => {
+	const endpoint = manifest.servers?.clickhouse?.endpoint;
+	if (!endpoint) return;
+	const { clickhouseClient, createTableStatement } = await import("@awsless/clickhouse");
+	const client = clickhouseClient({ endpoint });
+	for (const entry of manifest.clickhouse ?? []) {
+		const { name } = getClickHouseProps(entry.id, entry.stack);
+		process.env[`CLICKHOUSE_COLUMNS_${name}`] = JSON.stringify(entry.columns);
+		await client.command(createTableStatement(name, entry.definition));
 	}
 };
 const redirectCacheClients = async (manifest) => {
@@ -1458,4 +1519,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };

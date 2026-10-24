@@ -5,6 +5,7 @@ declare const beforeEach: (typeof import('vitest'))['beforeEach']
 declare const afterEach: (typeof import('vitest'))['afterEach']
 declare const expect: (typeof import('vitest'))['expect']
 import { getAlertName } from '../server/alert.js'
+import { getClickHouseProps } from '../server/clickhouse.js'
 import { setConfigValue } from '../server/config.js'
 import { getCronName } from '../server/cron.js'
 import { getFunctionName } from '../server/function.js'
@@ -33,6 +34,10 @@ export type TestManifest = {
 	// The declared search indexes, created per test file on the shared
 	// run-wide opensearch server.
 	searches: { stack: string; id: string; mappings: unknown; settings?: unknown }[]
+	// The declared ClickHouse tables, created per test file on the shared
+	// run-wide ClickHouse server, with their column types to check the
+	// code schemas against.
+	clickhouse?: { stack: string; id: string; definition: unknown; columns: Record<string, string> }[]
 	functions: { stack: string; id: string; file: string }[]
 	tasks: { stack: string; id: string; file: string }[]
 	// Crons run their real handler on a manual Cron.x.y() trigger.
@@ -51,6 +56,7 @@ export type TestManifest = {
 	servers?: {
 		redis?: { host: string; port: number }
 		search?: { endpoint: string }
+		clickhouse?: { endpoint: string }
 	}
 }
 
@@ -106,6 +112,7 @@ export const setupTestEnv = async (manifest: TestManifest, options: { importFile
 	applyTestConfigValues(manifest)
 	materializeTables(manifest, options.importFile, dynamodb)
 	await createSearchIndexes(manifest)
+	await createClickHouseTables(manifest)
 
 	// Stores ride an in-memory s3.
 	s3.mockS3()
@@ -239,6 +246,27 @@ const createSearchIndexes = async (manifest: TestManifest) => {
 		if (!result.ok) {
 			throw new Error(`Failed to create the search index "${name}": ${await result.text()}`)
 		}
+	}
+}
+
+// The declared ClickHouse tables exist on the shared run-wide server
+// before any test runs, namespaced by the app prefix.
+const createClickHouseTables = async (manifest: TestManifest) => {
+	const endpoint = manifest.servers?.clickhouse?.endpoint
+
+	if (!endpoint) {
+		return
+	}
+
+	const { clickhouseClient, createTableStatement } = await import('@awsless/clickhouse')
+	const client = clickhouseClient({ endpoint })
+
+	for (const entry of manifest.clickhouse ?? []) {
+		const { name } = getClickHouseProps(entry.id, entry.stack)
+
+		process.env[`CLICKHOUSE_COLUMNS_${name}`] = JSON.stringify(entry.columns)
+
+		await client.command(createTableStatement(name, entry.definition as Parameters<typeof createTableStatement>[1]))
 	}
 }
 

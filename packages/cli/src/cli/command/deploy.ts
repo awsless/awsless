@@ -144,6 +144,7 @@ export const deploy = (program: Command) => {
 					credentials,
 					accountId,
 					region,
+					stackConfigs,
 				})
 				const releaseUrn = getAppReleaseLockUrn(globalAppId)
 

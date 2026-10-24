@@ -26,6 +26,7 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		tableKeys: [],
 		streams: [],
 		searches: [],
+		clickhouse: [],
 		functions: [],
 		tasks: [],
 		crons,
@@ -67,6 +68,20 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 				id,
 				mappings: resolveSearchMappings(props),
 				settings: props.settings,
+			})
+		}
+
+		for (const [id, props] of Object.entries(stack.clickhouse ?? {})) {
+			manifest.clickhouse!.push({
+				stack: stack.name,
+				id,
+				definition: props,
+				columns: Object.fromEntries(
+					Object.entries(props.columns).map(([column, type]) => [
+						column,
+						typeof type === 'string' ? type : type.type,
+					])
+				),
 			})
 		}
 
