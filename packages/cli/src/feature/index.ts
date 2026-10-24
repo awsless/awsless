@@ -3,6 +3,7 @@ import { assetFeature } from './asset/index.js'
 import { authFeature } from './auth/index.js'
 import { bundleFeature } from './bundle/index.js'
 import { cacheFeature } from './cache/index.js'
+import { clickhouseFeature } from './clickhouse/index.js'
 import { commandFeature } from './command/index.js'
 import { configFeature } from './config/index.js'
 import { cronFeature } from './cron/index.js'
@@ -61,6 +62,7 @@ export const features = [
 	configFeature,
 	emailFeature,
 	searchFeature,
+	clickhouseFeature,
 	pubsubFeature,
 	metricFeature,
 	tableFeature,

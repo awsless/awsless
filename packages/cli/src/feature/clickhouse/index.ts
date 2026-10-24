@@ -1,0 +1,136 @@
+import { toMinutes } from '@awsless/duration'
+import { clickhouse } from '@terraforge/clickhouse'
+import { Group } from '@terraforge/core'
+import { formatClickHouseTableName } from 'awsless'
+import { defineFeature } from '../../feature.js'
+import { ClickHousePassword, ClickHouseTable } from '../../formation/clickhouse.js'
+import { TypeFile } from '../../type-gen/file.js'
+import { TypeObject } from '../../type-gen/object.js'
+import { shortId } from '../../util/id.js'
+import { clickhouseOnDev } from './dev.js'
+import { hasClickHouseTables } from './util.js'
+
+const typeGenCode = `
+import { AnyObjectSchema, Table } from '@awsless/clickhouse'
+
+type ClickHouseTable = {
+	readonly name: string
+	readonly endpoint: string
+	readonly define: <S extends AnyObjectSchema>(schema: S) => Table<string, S>
+}
+`
+
+// One ClickHouse organisation serves every AWS account an app deploys to,
+// so the service name carries the account.
+export const formatServiceName = (appName: string, accountId: string) => {
+	return `${appName}-${shortId([appName, accountId].join('--'))}`
+}
+
+// The lambdas & the deploy read the generated password from here, kept
+// apart from the config parameters so it never shows up as a config.
+export const formatPasswordParameter = (appName: string) => {
+	return `/.awsless-clickhouse/${appName}/password`
+}
+
+export const clickhouseFeature = defineFeature({
+	name: 'clickhouse',
+	onDev: clickhouseOnDev,
+	async onTypeGen(ctx) {
+		const gen = new TypeFile('awsless')
+		const resources = new TypeObject(1)
+
+		for (const stack of ctx.stackConfigs) {
+			const list = new TypeObject(2)
+
+			for (const id of Object.keys(stack.clickhouse ?? {})) {
+				list.addKey(id, 'ClickHouseTable')
+			}
+
+			resources.addType(stack.name, list)
+		}
+
+		gen.addCode(typeGenCode)
+		gen.addInterface('ClickHouseResources', resources)
+
+		await ctx.write('clickhouse.d.ts', gen, true)
+	},
+	onApp(ctx) {
+		// Every table in the app shares one ClickHouse Cloud service, like
+		// every search index shares one collection. The service only
+		// exists when at least one stack declares a table.
+		if (!hasClickHouseTables(ctx.stackConfigs)) {
+			return
+		}
+
+		const group = new Group(ctx.base, 'clickhouse', 'main')
+		const props = ctx.appConfig.clickhouse
+		const parameter = formatPasswordParameter(ctx.app.name)
+		const retainOnDelete = ctx.appConfig.removal === 'retain'
+
+		const password = new ClickHousePassword(group, 'password', { parameter }, { retainOnDelete })
+
+		const service = new clickhouse.Service(
+			group,
+			'service',
+			{
+				name: formatServiceName(ctx.app.name, ctx.accountId),
+				cloudProvider: 'aws',
+				region: props.region ?? ctx.appConfig.region,
+				idleScaling: props.idle,
+				idleTimeoutMinutes: props.idle ? toMinutes(props.idleTimeout) : undefined,
+				minReplicaMemoryGb: props.memory.min,
+				maxReplicaMemoryGb: props.memory.max,
+				numReplicas: props.replicas,
+				ipAccess: props.ipAccess.map(source => ({ source, description: 'awsless' })),
+				passwordHash: password.hash,
+				releaseChannel: props.releaseChannel,
+			},
+			{ retainOnDelete }
+		)
+
+		const endpoint = service.endpoints.pipe(endpoints => {
+			return `https://${endpoints.https.host}:${endpoints.https.port}`
+		})
+
+		ctx.addEnv('CLICKHOUSE_ENDPOINT', endpoint)
+		ctx.addEnv('CLICKHOUSE_PASSWORD_PARAMETER', parameter)
+
+		// The runtime reads it through GetParameters, the deploy through GetParameter.
+		ctx.addPermission({
+			actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+			resources: [`arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${parameter}`],
+		})
+
+		ctx.shared.set('clickhouse', 'endpoint', endpoint)
+		ctx.shared.set('clickhouse', 'parameter', parameter)
+	},
+	onStack(ctx) {
+		const tables = Object.entries(ctx.stackConfig.clickhouse ?? {})
+
+		if (tables.length === 0) {
+			return
+		}
+
+		const endpoint = ctx.shared.get('clickhouse', 'endpoint')
+		const parameter = ctx.shared.get('clickhouse', 'parameter')
+
+		for (const [id, props] of tables) {
+			const group = new Group(ctx.stack, 'clickhouse', id)
+
+			new ClickHouseTable(
+				group,
+				'table',
+				{
+					endpoint,
+					parameter,
+					name: formatClickHouseTableName(ctx.stackConfig.name, id),
+					definition: JSON.stringify(props),
+				},
+				{
+					retainOnDelete: ctx.appConfig.removal === 'retain',
+					replaceOnChanges: ['endpoint', 'name'],
+				}
+			)
+		}
+	},
+})

@@ -32,6 +32,7 @@
 		"prepublishOnly": "pnpm build"
 	},
 	"dependencies": {
+		"@awsless/clickhouse": "workspace:^",
 		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",

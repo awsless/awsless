@@ -73,6 +73,11 @@ type SharedState = {
 		endpoint: Output<string>
 		accessRole: aws.iam.Role
 	}
+
+	clickhouse: {
+		endpoint: Output<string>
+		parameter: string
+	}
 }
 
 type SharedEntries = {

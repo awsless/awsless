@@ -516,6 +516,7 @@ const GROUPS = [
 	['table', 'Tables'],
 	['cache', 'Caches'],
 	['search', 'Searches'],
+	['clickhouse', 'ClickHouse'],
 	['store', 'Stores'],
 	['config', 'Config'],
 	['auth', 'Auth'],
@@ -531,7 +532,7 @@ const SECTIONS = [
 	['Web', ['site', 'rpc', 'rest', 'route', 'image', 'icon']],
 	['Compute', ['function', 'cron', 'task', 'instance']],
 	['Messaging', ['queue', 'topic', 'subscriber', 'pubsub']],
-	['Storage', ['table', 'cache', 'search', 'store']],
+	['Storage', ['table', 'cache', 'search', 'clickhouse', 'store']],
 	['App', ['config', 'auth', 'alert', 'email', 'worker']],
 ]
 
