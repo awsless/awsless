@@ -1,4 +1,4 @@
-export declare const formatClickHouseTableName: (stackName: string, tableName: string) => string;
+export declare const getClickHouseTableName: (stackName: string, tableName: string) => string;
 export declare const getClickHouseProps: (name: string, stack?: string) => {
     readonly endpoint: string | undefined;
     readonly name: string;

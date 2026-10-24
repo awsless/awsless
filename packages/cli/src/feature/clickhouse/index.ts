@@ -1,7 +1,7 @@
 import { toMinutes } from '@awsless/duration'
 import { clickhouse } from '@terraforge/clickhouse'
 import { Group } from '@terraforge/core'
-import { formatClickHouseTableName } from 'awsless'
+import { getClickHouseTableName } from 'awsless'
 import { defineFeature } from '../../feature.js'
 import { ClickHousePassword, ClickHouseTable } from '../../formation/clickhouse.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -123,7 +123,7 @@ export const clickhouseFeature = defineFeature({
 				{
 					endpoint,
 					parameter,
-					name: formatClickHouseTableName(ctx.stackConfig.name, id),
+					name: getClickHouseTableName(ctx.stackConfig.name, id),
 					definition: JSON.stringify(props),
 				},
 				{

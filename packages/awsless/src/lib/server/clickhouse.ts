@@ -6,12 +6,12 @@ import { getApp, getStack, isTest } from './util.js'
 
 // The physical table name inside the app's ClickHouse service, also used
 // by the CLI.
-export const formatClickHouseTableName = (stackName: string, tableName: string) => {
+export const getClickHouseTableName = (stackName: string, tableName: string) => {
 	return `${kebabCase(stackName)}--${tableName}`
 }
 
 export const getClickHouseProps = (name: string, stack: string = getStack()) => {
-	const table = formatClickHouseTableName(stack, name)
+	const table = getClickHouseTableName(stack, name)
 
 	return {
 		endpoint: process.env.CLICKHOUSE_ENDPOINT,

@@ -1,6 +1,6 @@
 import { clickhouseClient } from '@awsless/clickhouse'
 import { ClickHouseServer } from '@awsless/clickhouse-server'
-import { formatClickHouseTableName } from 'awsless'
+import { getClickHouseTableName } from 'awsless'
 import { localEngine } from '../../dev/engine.js'
 import { DevContext } from '../../feature.js'
 import { applyTable } from './table.js'
@@ -65,7 +65,7 @@ export const clickhouseOnDev = async (ctx: DevContext) => {
 	for (const { stackName, id, props } of tables) {
 		// Local data can go, so a new engine or key recreates the table
 		// instead of failing like a deploy does.
-		await applyTable(client, formatClickHouseTableName(stackName, id), props, { recreate: true })
+		await applyTable(client, getClickHouseTableName(stackName, id), props, { recreate: true })
 
 		ctx.registerResource({
 			kind: 'clickhouse',
