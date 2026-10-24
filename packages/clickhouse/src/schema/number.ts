@@ -20,3 +20,20 @@ export const number = <T extends number = number>(type: NumberType = 'Float64') 
 		value => value as T,
 		type
 	)
+
+// One per ClickHouse number type, so a schema reads like its table.
+const of =
+	(type: NumberType) =>
+	<T extends number = number>() =>
+		number<T>(type)
+
+export const float32 = of('Float32')
+export const float64 = of('Float64')
+export const int8 = of('Int8')
+export const int16 = of('Int16')
+export const int32 = of('Int32')
+export const int64 = of('Int64')
+export const uint8 = of('UInt8')
+export const uint16 = of('UInt16')
+export const uint32 = of('UInt32')
+export const uint64 = of('UInt64')

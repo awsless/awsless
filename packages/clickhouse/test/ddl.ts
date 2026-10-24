@@ -1,4 +1,4 @@
-import { createTableStatement } from '../src'
+import { createTableStatement, float32, int8, number, uint64 } from '../src'
 
 describe('createTableStatement', () => {
 	it('writes every clause in order', () => {
@@ -31,5 +31,12 @@ describe('createTableStatement', () => {
 
 	it('sorts by nothing without a key', () => {
 		expect(createTableStatement('t', { columns: { id: 'String' } })).toContain('ORDER BY tuple()')
+	})
+
+	it('names each number type through its own schema', () => {
+		expect(float32().type).toBe('Float32')
+		expect(int8().type).toBe('Int8')
+		expect(uint64().type).toBe('UInt64')
+		expect(float32().type).toBe(number('Float32').type)
 	})
 })

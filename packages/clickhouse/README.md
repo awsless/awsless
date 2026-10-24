@@ -13,7 +13,7 @@ import {
 	string,
 	date,
 	array,
-	number,
+	float32,
 } from '@awsless/clickhouse'
 
 const events = define(
@@ -22,7 +22,7 @@ const events = define(
 		id: string(),
 		projectId: string({ lowCardinality: true }),
 		flags: array(string({ lowCardinality: true })),
-		score: number(),
+		score: float32(),
 		createdAt: date(),
 	}),
 	() => clickhouseClient({ endpoint: process.env.CLICKHOUSE_ENDPOINT!, password: 'secret' })
