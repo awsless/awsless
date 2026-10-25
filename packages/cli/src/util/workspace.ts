@@ -13,9 +13,9 @@ import {
 	WorkSpace,
 } from '@terraforge/core'
 import { debug } from '../cli/debug.js'
+import { fetchClickHouseKey, loadClickHouseKey, missingClickHouseKey } from '../cli/ui/complex/fetch-clickhouse-key.js'
 import { Region } from '../config/schema/region.js'
 import { StackConfig } from '../config/stack.js'
-import { ExpectedError } from '../error.js'
 import { hasClickHouseTables } from '../feature/clickhouse/util.js'
 import { createClickHouseProvider } from '../formation/clickhouse.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
@@ -57,24 +57,10 @@ export const createDeploymentBackends = (props: BackendProps) => {
 	}
 }
 
-// The ClickHouse Cloud provider reads its api key from the env.
-const CLICKHOUSE_ENV = ['CLICKHOUSE_ORG_ID', 'CLICKHOUSE_CLOUD_API_KEY', 'CLICKHOUSE_CLOUD_API_SECRET']
-
-const assertClickHouseEnv = () => {
-	const missing = CLICKHOUSE_ENV.filter(name => !process.env[name])
-
-	if (missing.length > 0) {
-		throw new ExpectedError(
-			`Working with ClickHouse resources needs a ClickHouse Cloud API key. Set ${missing.join(', ')} in the environment.`
-		)
-	}
-}
-
-// The provider starts on the first ClickHouse resource it touches, which
-// a delete or a state that still holds the service can do without any
-// table in the config - so the check happens there, before the provider
-// fails in its own words.
-const guardClickHouse = (provider: Provider): Provider => {
+// Without a stored key the provider fails in its own words on the first
+// ClickHouse resource it touches, which a delete or a state that still
+// holds the service can do without any table in the config.
+const requireClickHouseKey = (provider: Provider, accountId: string): Provider => {
 	return new Proxy(provider, {
 		get(target, key, receiver) {
 			const value = Reflect.get(target, key, receiver)
@@ -83,9 +69,8 @@ const guardClickHouse = (provider: Provider): Provider => {
 				return value
 			}
 
-			return (...args: unknown[]) => {
-				assertClickHouseEnv()
-				return value.apply(target, args)
+			return () => {
+				throw missingClickHouseKey(accountId)
 			}
 		},
 	})
@@ -105,11 +90,16 @@ export const createWorkSpace = async (
 
 	await aws.install()
 
-	// Most apps never use ClickHouse, so its provider only downloads for a
-	// deploy with ClickHouse tables. A state that still holds them, like
-	// after the tables were removed, starts it on demand.
-	if (props.stackConfigs && hasClickHouseTables(props.stackConfigs)) {
-		assertClickHouseEnv()
+	// Most apps never use ClickHouse, so its provider only downloads & its
+	// key is only asked for on a deploy with ClickHouse tables. A state that
+	// still holds them, like after the tables were removed, starts it on
+	// demand with the stored key.
+	const usesClickHouse = !!props.stackConfigs && hasClickHouseTables(props.stackConfigs)
+	const clickhouseKey = usesClickHouse
+		? await fetchClickHouseKey(props.accountId)
+		: await loadClickHouseKey(props.accountId)
+
+	if (usesClickHouse) {
 		await clickhouse.install()
 	}
 
@@ -151,8 +141,9 @@ export const createWorkSpace = async (
 					id: 'global-aws',
 				}
 			),
-			// Starts lazily, on the first ClickHouse resource it touches.
-			guardClickHouse(clickhouse({})),
+			// Starts lazily, on the first ClickHouse resource it touches, with
+			// the key from the keychain like the aws credentials.
+			clickhouseKey ? clickhouse(clickhouseKey) : requireClickHouseKey(clickhouse({}), props.accountId),
 		],
 		concurrency: 15,
 		backend: {

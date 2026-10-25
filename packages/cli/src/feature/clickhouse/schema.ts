@@ -54,7 +54,7 @@ export const ClickHouseDefaultSchema = z
 	.strict()
 	.prefault({})
 	.describe(
-		'Configure the ClickHouse Cloud service that holds every ClickHouse table in your app. Deploying needs a ClickHouse Cloud API key in CLICKHOUSE_ORG_ID, CLICKHOUSE_CLOUD_API_KEY & CLICKHOUSE_CLOUD_API_SECRET.'
+		'Configure the ClickHouse Cloud service that holds every ClickHouse table in your app. Deploying asks once for a ClickHouse Cloud API key per AWS account & keeps it in the keychain, like the AWS credentials; CLICKHOUSE_ORG_ID, CLICKHOUSE_CLOUD_API_KEY & CLICKHOUSE_CLOUD_API_SECRET override it, for ci.'
 	)
 
 const NameSchema = z
