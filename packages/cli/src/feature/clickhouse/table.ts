@@ -60,8 +60,17 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const keyText = (key: string[] | string | undefined) =>
 	(Array.isArray(key) ? key.join(', ') : (key ?? '')).replace(/\s+/g, '')
 
+// ClickHouse Cloud runs every MergeTree as its Shared variant and reports
+// that name (SharedReplacingMergeTree), a replicated cluster the Replicated
+// one; both are the declared engine.
+const engineName = (engine: string) =>
+	engine
+		.replace(/\(.*$/s, '')
+		.trim()
+		.replace(/^(Shared|Replicated)(?=\w*MergeTree$)/, '')
+
 const structureOf = (table: Normalized) => ({
-	engine: table.engine.replace(/\(.*$/s, '').trim(),
+	engine: engineName(table.engine),
 	orderBy: keyText(table.orderBy),
 	partitionBy: keyText(table.partitionBy),
 	primaryKey: keyText(table.primaryKey ?? table.orderBy),

@@ -131,6 +131,19 @@ describe('tables', () => {
 		expect(alterTableStatements('t', events, events)).toEqual([])
 	})
 
+	it("reads ClickHouse Cloud's Shared and a cluster's Replicated engines as the declared one", () => {
+		const declared = { ...events, engine: 'ReplacingMergeTree' }
+		const altered = { ...declared, columns: { ...declared.columns, extra: 'String' } }
+
+		for (const engine of ['SharedReplacingMergeTree', 'ReplicatedReplacingMergeTree']) {
+			const statements = alterTableStatements('t', { ...declared, engine }, altered)
+			expect(statements.some(statement => statement.includes('ADD COLUMN'))).toBe(true)
+		}
+		expect(() => alterTableStatements('t', { ...declared, engine: 'SharedMergeTree' }, altered)).toThrow(
+			TableChangeError
+		)
+	})
+
 	it('refuses to change the sort key in place', async () => {
 		await applyTable(client, 'stack--events', events)
 
