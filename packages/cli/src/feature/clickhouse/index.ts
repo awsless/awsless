@@ -21,21 +21,19 @@ type ClickHouseTable = {
 `
 
 // One ClickHouse organisation serves every AWS account & stage an app
-// deploys to, so the service name carries both. Without a stage it keeps the
-// name services were created with.
+// deploys to, so the service name carries both; an app without stages
+// leaves the stage out.
 export const formatServiceName = (appName: string, accountId: string, stage?: string) => {
-	if (!stage) {
-		return `${appName}-${shortId([appName, accountId].join('--'))}`
-	}
+	const parts = stage ? [appName, stage] : [appName]
 
-	return `${appName}-${stage}-${shortId([appName, stage, accountId].join('--'))}`
+	return `${parts.join('-')}-${shortId([...parts, accountId].join('--'))}`
 }
 
 // The lambdas & the deploy read the generated password from here, kept
 // apart from the config parameters so it never shows up as a config. Two
 // stages in one account each get their own.
 export const formatPasswordParameter = (appName: string, stage?: string) => {
-	return stage ? `/.awsless-clickhouse/${appName}/${stage}/password` : `/.awsless-clickhouse/${appName}/password`
+	return `/.awsless-clickhouse/${stage ? `${appName}/${stage}` : appName}/password`
 }
 
 export const clickhouseFeature = defineFeature({

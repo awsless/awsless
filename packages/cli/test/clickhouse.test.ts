@@ -24,11 +24,8 @@ describe('clickhouse', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('names the service & password apart per stage, keeping the names without one', () => {
-		const plain = formatServiceName('app', '111111111111')
-
-		expect(plain).toMatch(/^app-[a-z0-9]+$/)
-		expect(formatServiceName('app', '111111111111', undefined)).toBe(plain)
+	it('names the service & password apart per stage, leaving it out without one', () => {
+		expect(formatServiceName('app', '111111111111')).toMatch(/^app-[a-z0-9]+$/)
 		expect(formatServiceName('app', '111111111111', 'staging')).toMatch(/^app-staging-[a-z0-9]+$/)
 		expect(formatServiceName('app', '111111111111', 'staging')).not.toBe(
 			formatServiceName('app', '111111111111', 'prod')
