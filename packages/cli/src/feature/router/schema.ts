@@ -177,6 +177,18 @@ export const RouterDefaultSchema = z
 					.default(false)
 					.describe('Redirect all www subdomain requests to your root domain.'),
 
+				customDomains: z
+					.boolean()
+					.default(false)
+					.describe(
+						[
+							"Let the app's functions serve the router on their customers' own domains.",
+							'Customer domains get a connection group of their own, and every function gets the ids it needs to add a distribution tenant with a CloudFront managed certificate:',
+							'ROUTER_[ID]_DISTRIBUTION_ID, ROUTER_[ID]_CONNECTION_GROUP_ID & ROUTER_[ID]_ROUTING_ENDPOINT (the CNAME target a customer points their domain at),',
+							'plus the permissions to create, read, update & delete distribution tenants.',
+						].join('\n')
+					),
+
 				waf: WafSettingsSchema.optional(),
 
 				geoRestrictions: z

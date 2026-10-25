@@ -6,7 +6,7 @@ import { MAINTENANCE_PAGE } from '../src/feature/router/maintenance'
 import { createPasswordAuth, PasswordAuth } from '../src/feature/router/password-auth'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
 import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
-import { createTestApp } from './_kit'
+import { createTestApp, findStatements, listResources } from './_kit'
 
 type Request = {
 	uri: string
@@ -325,6 +325,23 @@ describe('router routes', () => {
 		expect(result.headers['x-forwarded-host']).toEqual({ value: 'example.com' })
 	})
 
+	it("should serve a customer's own domain like the router's & only block the bare cloudfront host", async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/identify',
+				JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws', forwardHost: true }),
+			],
+		])
+		const { handler } = createRouter(values, { blockDirectAccess: true })
+
+		const custom = (await handler({ request: createRequest('/identify', 'metrics.shop.example.com') })) as Request
+		expect(custom.headers['x-forwarded-host']).toEqual({ value: 'metrics.shop.example.com' })
+
+		const direct = (await handler({ request: createRequest('/identify', 'd111111abcdef8.cloudfront.net') })) as Response
+		expect(direct.statusCode).toBe(403)
+	})
+
 	it('should serve assets through the single dotted-catchall route', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
@@ -463,6 +480,71 @@ describe('router routes', () => {
 			'v1:main:/*.',
 			'v1:main:/*',
 		])
+	})
+})
+
+describe('router custom domains', () => {
+	it('should leave custom domains off by default', () => {
+		const { app, binds, shared } = createRouterApp({ main: {} })
+
+		expect(listResources(app, 'aws_cloudfront_connection_group')).toHaveLength(0)
+		expect(binds.map(bind => bind.name)).not.toContain('ROUTER_MAIN_DISTRIBUTION_ID')
+		expect(findStatements(shared, 'cloudfront:CreateDistributionTenant')).toHaveLength(0)
+	})
+
+	it('should give customer domains their own connection group & bind what a tenant needs', () => {
+		const { app, binds } = createRouterApp({ public: { customDomains: true } })
+
+		const groups = listResources(app, 'aws_cloudfront_connection_group')
+		expect(groups.map(group => group.input.name)).toEqual(['test-app--router--public--custom-domains'])
+		expect(groups[0]!.input.ipv6Enabled).toBe(true)
+
+		const bound = Object.fromEntries(binds.map(bind => [bind.name, bind.value]))
+		expect(Object.keys(bound)).toEqual(
+			expect.arrayContaining([
+				'ROUTER_PUBLIC_DISTRIBUTION_ID',
+				'ROUTER_PUBLIC_CONNECTION_GROUP_ID',
+				'ROUTER_PUBLIC_ROUTING_ENDPOINT',
+			])
+		)
+		expect(findInputDeps(bound.ROUTER_PUBLIC_DISTRIBUTION_ID).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_multitenant_distribution',
+		])
+		expect(findInputDeps(bound.ROUTER_PUBLIC_ROUTING_ENDPOINT).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_connection_group',
+		])
+	})
+
+	it("should keep the router domain's connection group apart from the customers' one", () => {
+		const { app } = createTestApp({
+			defaults: {
+				domains: { main: { domain: 'example.com' } },
+				router: { public: { domain: 'main', subDomain: 'api', customDomains: true } },
+			},
+		})
+
+		expect(listResources(app, 'aws_cloudfront_connection_group').map(group => group.input.name)).toEqual([
+			'test-app--router--public',
+			'test-app--router--public--custom-domains',
+		])
+	})
+
+	it('should grant the tenant calls, scoped to tenants where IAM allows it', () => {
+		const { shared } = createRouterApp({ public: { customDomains: true } })
+
+		const [create] = findStatements(shared, 'cloudfront:CreateDistributionTenant')
+		expect(create!.resources).toEqual(['*'])
+		expect(create!.actions).toContain('acm:RequestCertificate')
+
+		const [manage] = findStatements(shared, 'cloudfront:DeleteDistributionTenant')
+		expect(manage!.actions).toEqual(
+			expect.arrayContaining([
+				'cloudfront:GetDistributionTenant',
+				'cloudfront:UpdateDistributionTenant',
+				'cloudfront:GetManagedCertificateDetails',
+			])
+		)
+		expect(manage!.resources).toEqual(['arn:aws:cloudfront::123456789012:distribution-tenant/*'])
 	})
 })
 

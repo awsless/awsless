@@ -562,6 +562,49 @@ export const routerFeature = defineFeature({
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
+
+			// ------------------------------------------------------------
+			// Customer Domains
+
+			// The app adds a tenant per customer domain at runtime, outside of
+			// the deployment, so its functions get the distribution & a
+			// connection group of its own, which keeps the customers' CNAME
+			// target apart from the router's own domain.
+			if (props.customDomains) {
+				const customGroup = new aws.cloudfront.ConnectionGroup(group, 'custom-domains', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: id,
+						postfix: 'custom-domains',
+					}),
+					ipv6Enabled: true,
+				})
+
+				const prefix = `ROUTER_${constantCase(id)}`
+
+				ctx.bind(`${prefix}_DISTRIBUTION_ID`, distribution.id)
+				ctx.bind(`${prefix}_CONNECTION_GROUP_ID`, customGroup.id)
+				ctx.bind(`${prefix}_ROUTING_ENDPOINT`, customGroup.routingEndpoint)
+
+				// Creating a tenant has no resource to scope to. A managed
+				// certificate is requested from ACM by the caller.
+				ctx.addPermission({
+					actions: ['cloudfront:CreateDistributionTenant', 'acm:RequestCertificate', 'acm:DescribeCertificate'],
+					resources: ['*'],
+				})
+
+				ctx.addPermission({
+					actions: [
+						'cloudfront:GetDistributionTenant',
+						'cloudfront:UpdateDistributionTenant',
+						'cloudfront:DeleteDistributionTenant',
+						'cloudfront:GetManagedCertificateDetails',
+						'cloudfront:VerifyDnsConfiguration',
+					],
+					resources: [`arn:aws:cloudfront::${ctx.accountId}:distribution-tenant/*`],
+				})
+			}
 		}
 
 		if (routers.length > 0) {
