@@ -20,16 +20,22 @@ type ClickHouseTable = {
 }
 `
 
-// One ClickHouse organisation serves every AWS account an app deploys to,
-// so the service name carries the account.
-export const formatServiceName = (appName: string, accountId: string) => {
-	return `${appName}-${shortId([appName, accountId].join('--'))}`
+// One ClickHouse organisation serves every AWS account & stage an app
+// deploys to, so the service name carries both. Without a stage it keeps the
+// name services were created with.
+export const formatServiceName = (appName: string, accountId: string, stage?: string) => {
+	if (!stage) {
+		return `${appName}-${shortId([appName, accountId].join('--'))}`
+	}
+
+	return `${appName}-${stage}-${shortId([appName, stage, accountId].join('--'))}`
 }
 
 // The lambdas & the deploy read the generated password from here, kept
-// apart from the config parameters so it never shows up as a config.
-export const formatPasswordParameter = (appName: string) => {
-	return `/.awsless-clickhouse/${appName}/password`
+// apart from the config parameters so it never shows up as a config. Two
+// stages in one account each get their own.
+export const formatPasswordParameter = (appName: string, stage?: string) => {
+	return stage ? `/.awsless-clickhouse/${appName}/${stage}/password` : `/.awsless-clickhouse/${appName}/password`
 }
 
 export const clickhouseFeature = defineFeature({
@@ -64,7 +70,7 @@ export const clickhouseFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'clickhouse', 'main')
 		const props = ctx.appConfig.clickhouse
-		const parameter = formatPasswordParameter(ctx.app.name)
+		const parameter = formatPasswordParameter(ctx.app.name, ctx.appConfig.stage)
 		const retainOnDelete = ctx.appConfig.removal === 'retain'
 
 		const password = new ClickHousePassword(group, 'password', { parameter }, { retainOnDelete })
@@ -73,7 +79,7 @@ export const clickhouseFeature = defineFeature({
 			group,
 			'service',
 			{
-				name: formatServiceName(ctx.app.name, ctx.accountId),
+				name: formatServiceName(ctx.app.name, ctx.accountId, ctx.appConfig.stage),
 				cloudProvider: 'aws',
 				region: props.region ?? ctx.appConfig.region,
 				idleScaling: props.idle,

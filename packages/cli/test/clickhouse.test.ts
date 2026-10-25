@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { DeleteParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
 import { resolveColumnType } from '../src/feature/clickhouse/schema'
 import { hasClickHouseTables } from '../src/feature/clickhouse/util'
 import { createClickHouseProvider } from '../src/formation/clickhouse'
@@ -21,6 +22,19 @@ const code = { file: { nocheck: './handler.ts' } }
 describe('clickhouse', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
+	})
+
+	it('names the service & password apart per stage, keeping the names without one', () => {
+		const plain = formatServiceName('app', '111111111111')
+
+		expect(plain).toMatch(/^app-[a-z0-9]+$/)
+		expect(formatServiceName('app', '111111111111', undefined)).toBe(plain)
+		expect(formatServiceName('app', '111111111111', 'staging')).toMatch(/^app-staging-[a-z0-9]+$/)
+		expect(formatServiceName('app', '111111111111', 'staging')).not.toBe(
+			formatServiceName('app', '111111111111', 'prod')
+		)
+		expect(formatPasswordParameter('app')).toBe('/.awsless-clickhouse/app/password')
+		expect(formatPasswordParameter('app', 'prod')).toBe('/.awsless-clickhouse/app/prod/password')
 	})
 
 	it('creates no service without tables', () => {
