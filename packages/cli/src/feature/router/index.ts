@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { days, seconds, toSeconds, years } from '@awsless/duration'
+import { days, minutes, seconds, toSeconds, years } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { constantCase, kebabCase } from 'change-case'
@@ -586,6 +586,56 @@ export const routerFeature = defineFeature({
 				ctx.bind(`${prefix}_DISTRIBUTION_ID`, distribution.id)
 				ctx.bind(`${prefix}_CONNECTION_GROUP_ID`, customGroup.id)
 				ctx.bind(`${prefix}_ROUTING_ENDPOINT`, customGroup.routingEndpoint)
+
+				// Customers CNAME to a name on the router's own domain, which
+				// points at the connection group, so the edge behind it can
+				// change without their DNS changing. An alias hides the chain's
+				// end from CloudFront, so the _cf-challenge record links the
+				// name to the routing endpoint, which the managed certificate's
+				// domain check needs.
+				if (props.domain) {
+					const target = formatFullDomainName(ctx.appConfig, props.domain, props.customDomains.subDomain)
+					const zoneId = ctx.shared.entry('domain', 'zone-id', props.domain)
+
+					for (const type of ['A', 'AAAA'] as const) {
+						new aws.route53.Record(
+							group,
+							type === 'A' ? 'custom-domains-record' : 'custom-domains-record-ipv6',
+							{
+								zoneId,
+								type,
+								name: target,
+								alias: {
+									name: customGroup.routingEndpoint,
+									zoneId: 'Z2FDTNDATAQYW2',
+									evaluateTargetHealth: false,
+								},
+							},
+							{
+								replaceOnChanges: ['name', 'type', 'zoneId', 'alias'],
+							}
+						)
+					}
+
+					new aws.route53.Record(
+						group,
+						'custom-domains-challenge',
+						{
+							zoneId,
+							type: 'TXT',
+							name: `_cf-challenge.${target}`,
+							ttl: toSeconds(minutes(5)),
+							records: [customGroup.routingEndpoint],
+						},
+						{
+							replaceOnChanges: ['name', 'type', 'zoneId'],
+						}
+					)
+
+					ctx.bind(`${prefix}_CUSTOM_DOMAIN_TARGET`, target)
+				} else {
+					ctx.bind(`${prefix}_CUSTOM_DOMAIN_TARGET`, customGroup.routingEndpoint)
+				}
 
 				// Creating a tenant has no resource to scope to. A managed
 				// certificate is requested from ACM by the caller.

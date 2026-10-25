@@ -178,14 +178,25 @@ export const RouterDefaultSchema = z
 					.describe('Redirect all www subdomain requests to your root domain.'),
 
 				customDomains: z
-					.boolean()
-					.default(false)
+					.union([
+						z.boolean().transform(enabled => (enabled ? { subDomain: 'domains' } : undefined)),
+						z
+							.object({
+								subDomain: z
+									.string()
+									.default('domains')
+									.describe('The name on the router domain that customers point their CNAME at.'),
+							})
+							.strict(),
+					])
+					.optional()
 					.describe(
 						[
 							"Let the app's functions serve the router on their customers' own domains.",
-							'Customer domains get a connection group of their own, and every function gets the ids it needs to add a distribution tenant with a CloudFront managed certificate:',
-							'ROUTER_[ID]_DISTRIBUTION_ID, ROUTER_[ID]_CONNECTION_GROUP_ID & ROUTER_[ID]_ROUTING_ENDPOINT (the CNAME target a customer points their domain at),',
+							'Customer domains get a connection group of their own, and every function gets what it needs to add a distribution tenant with a CloudFront managed certificate:',
+							'ROUTER_[ID]_DISTRIBUTION_ID, ROUTER_[ID]_CONNECTION_GROUP_ID, ROUTER_[ID]_ROUTING_ENDPOINT (the connection group) & ROUTER_[ID]_CUSTOM_DOMAIN_TARGET,',
 							'plus the permissions to create, read, update & delete distribution tenants.',
+							'With a router domain, the target is a name on it ("domains" unless set) that points at the connection group, so customers CNAME to a name of your own that can move to another edge without their DNS changing; without one it is the routing endpoint itself.',
 						].join('\n')
 					),
 
@@ -305,6 +316,14 @@ export const RouterDefaultSchema = z
 						code: z.ZodIssueCode.custom,
 						path: ['redirectWww'],
 						message: `The redirectWww option can't be combined with a subDomain, because the domain certificate only covers single level subdomains.`,
+					})
+				}
+
+				if (props.domain && props.customDomains && props.customDomains.subDomain === (props.subDomain ?? '')) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						path: ['customDomains', 'subDomain'],
+						message: `The custom domain target needs a name of its own, apart from the router's.`,
 					})
 				}
 			})

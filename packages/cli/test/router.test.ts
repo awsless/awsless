@@ -529,6 +529,53 @@ describe('router custom domains', () => {
 		])
 	})
 
+	it("should point a name on the router's domain at the customers' connection group", () => {
+		const { app, binds } = createTestApp({
+			defaults: {
+				domains: { api: { domain: 'example.net' } },
+				router: { public: { domain: 'api', subDomain: 'api', customDomains: { subDomain: 'edge' } } },
+			},
+		})
+
+		const records = listResources(app, 'aws_route53_record').filter(record =>
+			String(record.input.name).includes('edge.example.net')
+		)
+		expect(records.map(record => [record.input.type, record.input.name])).toEqual(
+			expect.arrayContaining([
+				['A', 'edge.example.net'],
+				['AAAA', 'edge.example.net'],
+				['TXT', '_cf-challenge.edge.example.net'],
+			])
+		)
+
+		const alias = records.find(record => record.input.type === 'A')!
+		expect(findInputDeps(alias.input.alias).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_connection_group',
+		])
+
+		expect(binds.find(bind => bind.name === 'ROUTER_PUBLIC_CUSTOM_DOMAIN_TARGET')?.value).toBe('edge.example.net')
+	})
+
+	it('should fall back to the routing endpoint as the target without a router domain', () => {
+		const { binds } = createRouterApp({ public: { customDomains: true } })
+		const target = binds.find(bind => bind.name === 'ROUTER_PUBLIC_CUSTOM_DOMAIN_TARGET')!
+
+		expect(findInputDeps(target.value).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_connection_group',
+		])
+	})
+
+	it("should refuse a target that is the router's own name", () => {
+		expect(() =>
+			createTestApp({
+				defaults: {
+					domains: { main: { domain: 'example.com' } },
+					router: { public: { domain: 'main', subDomain: 'api', customDomains: { subDomain: 'api' } } },
+				},
+			})
+		).toThrow()
+	})
+
 	it('should grant the tenant calls, scoped to tenants where IAM allows it', () => {
 		const { shared } = createRouterApp({ public: { customDomains: true } })
 
