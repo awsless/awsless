@@ -177,6 +177,17 @@ export const RouterDefaultSchema = z
 					.default(false)
 					.describe('Redirect all www subdomain requests to your root domain.'),
 
+				cloudfrontHeaders: z
+					.array(z.string())
+					.max(10)
+					.optional()
+					.describe(
+						[
+							'CloudFront headers to send to the origin on top of every viewer header (but host), like CloudFront-Viewer-JA4-Fingerprint, which only arrives when it is named.',
+							'Naming any replaces the location headers the router otherwise passes on (CloudFront-Viewer-Address, -Country & co, which the rpc viewer reads), so name the ones you need too; at most 10, an aws quota.',
+						].join('\n')
+					),
+
 				customDomains: z
 					.union([
 						z.boolean().transform(enabled => (enabled ? { subDomain: 'domains' } : undefined)),
