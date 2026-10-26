@@ -11,6 +11,7 @@ import {
 	setBundleRoutes,
 	withBundleRouteContext,
 } from 'awsless'
+import { fromAlbEvent, isAlbEvent, toAlbResult } from './source/index.js'
 import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
@@ -130,6 +131,19 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			}
 
 			return response
+		}
+
+		// A router path behind the load balancer runs its handler on the
+		// function url event, & answers in the load balancer's shape.
+		if (isAlbEvent(event)) {
+			const request = fromAlbEvent(event)
+			const match = matchRoute(request as BundleEvent)
+
+			if (Array.isArray(match)) {
+				throw new Error('Unknown bundle route: ' + request.headers[ROUTE_HEADER])
+			}
+
+			return toAlbResult(await handleRoute(match), typeof event.multiValueHeaders === 'object')
 		}
 
 		const match = matchRoute(event)

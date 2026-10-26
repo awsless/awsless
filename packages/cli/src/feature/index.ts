@@ -16,6 +16,7 @@ import { imageFeature } from './image/index.js'
 import { instanceFeature } from './instance/index.js'
 import { jobFeature } from './job/index.js'
 import { layerFeature } from './layer/index.js'
+import { loadBalancerFeature } from './load-balancer/index.js'
 import { metricFeature } from './metric/index.js'
 import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
@@ -36,6 +37,8 @@ import { vpcFeature } from './vpc/index.js'
 export const features = [
 	// 1. The base infra that everything below builds on.
 	vpcFeature,
+	// The app's one load balancer, before the router & pubsub that use it.
+	loadBalancerFeature,
 	domainFeature,
 	assetFeature,
 	routerFeature,

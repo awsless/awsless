@@ -11,6 +11,16 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
+import {
+	collectHeaderRoutes,
+	createCloudFrontHeadersPolicies,
+	createLoadBalancerOrigin,
+	createLoadBalancerTarget,
+	formatRulePaths,
+	formatHeaderListKey,
+	getOriginSecret,
+	LOAD_BALANCER_ORIGIN,
+} from './load-balancer.js'
 import { createMaintenanceEntries, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { createPasswordAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './password-auth.js'
 import { compileRoutePattern } from './pattern.js'
@@ -36,6 +46,11 @@ export const routerFeature = defineFeature({
 		const routeDependencies: Record<string, Set<Resource | DataSource>> = {}
 		const routeStores: Record<string, aws.cloudfront.KeyValueStore> = {}
 		const routerGroups: Record<string, Group> = {}
+
+		// Routes that ask for CloudFront headers reach the bundle through the
+		// app's load balancer.
+		const headerRoutes = collectHeaderRoutes(ctx)
+		const originSecret = getOriginSecret(ctx.appId)
 		const distributionIds: Output<string>[] = []
 
 		for (const [id, props] of routers) {
@@ -144,6 +159,13 @@ export const routerFeature = defineFeature({
 					})
 				: undefined
 
+			const functionOptions = {
+				router: id,
+				blockDirectAccess: !!props.domain,
+				redirectWww: !!props.domain && props.redirectWww,
+				passwordAuth,
+			}
+
 			// the function names are capped at 64 characters
 			const cfFunction = new aws.cloudfront.Function(
 				group,
@@ -151,12 +173,7 @@ export const routerFeature = defineFeature({
 				{
 					name,
 					runtime: 'cloudfront-js-2.0',
-					code: getViewerRequestFunctionCode({
-						router: id,
-						blockDirectAccess: !!props.domain,
-						redirectWww: !!props.domain && props.redirectWww,
-						passwordAuth,
-					}),
+					code: getViewerRequestFunctionCode(functionOptions),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],
 				},
@@ -285,6 +302,73 @@ export const routerFeature = defineFeature({
 					},
 				},
 			})
+
+			// ------------------------------------------------------------
+			// CloudFront Header Paths
+
+			const functionAssociation = [
+				{
+					eventType: 'viewer-request' as const,
+					functionArn: cfFunction.arn,
+				},
+				...(responseFunction
+					? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
+					: []),
+			]
+
+			const allowedMethods = [
+				{
+					items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+					cachedMethods: ['GET', 'HEAD'],
+				},
+			]
+
+			// Each route that asks for CloudFront headers is a behavior of its own
+			// whose origin is the load balancer, so the path & its origin change
+			// together. Its function still looks the route up for the handler,
+			// params & login, but leaves the origin alone.
+			const routerHeaderRoutes = headerRoutes[id] ?? []
+			const loadBalancerOrigins: ReturnType<typeof createLoadBalancerOrigin>[] = []
+			let cacheBehavior: aws.cloudfront.MultitenantDistributionInput['cacheBehavior']
+
+			if (routerHeaderRoutes.length > 0) {
+				const policies = createCloudFrontHeadersPolicies(group, ctx, id, routerHeaderRoutes)
+				const loadBalancer = ctx.shared.get('load-balancer', 'main')
+
+				const keepRequestOriginFunction = new aws.cloudfront.Function(group, 'keep-request-origin-function', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: id,
+						postfix: 'keep-request-origin',
+					}),
+					runtime: 'cloudfront-js-2.0',
+					code: getViewerRequestFunctionCode({ ...functionOptions, keepRequestOrigin: true }),
+					publish: true,
+					keyValueStoreAssociations: [routeStore.arn],
+				})
+
+				loadBalancerOrigins.push(createLoadBalancerOrigin(loadBalancer.dnsName, originSecret))
+
+				// The path with & without a trailing slash, like its listener rule,
+				// so no request for it reaches the handler without the headers.
+				cacheBehavior = routerHeaderRoutes
+					.flatMap(route => formatRulePaths(route.path).map(path => ({ route, path })))
+					.map(({ route, path }) => ({
+						pathPattern: path,
+						compress: true,
+						targetOriginId: LOAD_BALANCER_ORIGIN,
+						functionAssociation: [
+							{ eventType: 'viewer-request' as const, functionArn: keepRequestOriginFunction.arn },
+							...functionAssociation.slice(1),
+						],
+						originRequestPolicyId: policies.get(formatHeaderListKey(route.headers))!.id,
+						cachePolicyId: cache.id,
+						responseHeadersPolicyId: responseHeaders.id,
+						viewerProtocolPolicy: 'redirect-to-https',
+						allowedMethods,
+					}))
+			}
 
 			const wafSettingsConfig = props.waf
 
@@ -432,6 +516,7 @@ export const routerFeature = defineFeature({
 							},
 						],
 					},
+					...loadBalancerOrigins,
 				],
 				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
 					if (typeof item === 'string') {
@@ -464,27 +549,15 @@ export const routerFeature = defineFeature({
 					{
 						compress: true,
 						targetOriginId: 'default',
-						functionAssociation: [
-							{
-								eventType: 'viewer-request',
-								functionArn: cfFunction.arn,
-							},
-							...(responseFunction
-								? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
-								: []),
-						],
+						functionAssociation,
 						originRequestPolicyId: originRequest.id,
 						cachePolicyId: cache.id,
 						responseHeadersPolicyId: responseHeaders.id,
 						viewerProtocolPolicy: 'redirect-to-https',
-						allowedMethods: [
-							{
-								items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-								cachedMethods: ['GET', 'HEAD'],
-							},
-						],
+						allowedMethods,
 					},
 				],
+				cacheBehavior,
 				webAclId: waf?.arn,
 			})
 
@@ -640,7 +713,11 @@ export const routerFeature = defineFeature({
 				// Creating a tenant has no resource to scope to. A managed
 				// certificate is requested from ACM by the caller.
 				ctx.addPermission({
-					actions: ['cloudfront:CreateDistributionTenant', 'acm:RequestCertificate', 'acm:DescribeCertificate'],
+					actions: [
+						'cloudfront:CreateDistributionTenant',
+						'acm:RequestCertificate',
+						'acm:DescribeCertificate',
+					],
 					resources: ['*'],
 				})
 
@@ -661,6 +738,20 @@ export const routerFeature = defineFeature({
 			ctx.onReadyLast(() => {
 				const bundle = ctx.shared.get('bundle', 'main')
 				const bundleDependencies: (Resource | DataSource)[] = []
+
+				// The distribution can't wait for the rules: they hang off the
+				// bundle alias, and the bundle's environment carries the
+				// distribution. Until a new path's rule exists, the listener's
+				// default answer (403) serves it.
+				if (Object.keys(headerRoutes).length > 0) {
+					createLoadBalancerTarget({
+						ctx,
+						routers: headerRoutes,
+						routerGroups,
+						secret: originSecret,
+					})
+				}
+
 				let lambdaUrlHost: Input<string> | undefined
 
 				if (routers.some(([id]) => hasBundleRoutes(routes[id]!))) {

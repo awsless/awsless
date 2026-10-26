@@ -11,9 +11,14 @@ export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
+	// Don't send the request to the route's usual origin. Routes that go
+	// through the load balancer already have it as their origin, so the
+	// function only has to tell the bundle which handler to run.
+	keepRequestOrigin?: boolean
 }): string => {
 	return compact(
 		CODE({
+			keepRequestOrigin: !!props.keepRequestOrigin,
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
@@ -252,7 +257,13 @@ try {
 
 const prefix = table + ':' + router + ':';`
 
-const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean }) => `
+const CODE = (props: {
+	before: string[]
+	prefix: string
+	after: string[]
+	withCrypto: boolean
+	keepRequestOrigin: boolean
+}) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -527,7 +538,7 @@ async function handler(event) {
 		}
 	}
 
-	setRouteOrigin(route);
+	${props.keepRequestOrigin ? '' : 'setRouteOrigin(route);'}
 
 	if(route.forwardHost && headers.host && headers.host.value) {
 		headers['x-forwarded-host'] = { value: headers.host.value };

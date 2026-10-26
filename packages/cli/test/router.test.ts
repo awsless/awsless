@@ -325,6 +325,29 @@ describe('router routes', () => {
 		expect(result.headers['x-forwarded-host']).toEqual({ value: 'example.com' })
 	})
 
+	it("should keep the request's origin on a load balancer behavior & still pick the handler", async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/identify',
+				JSON.stringify({
+					type: 'lambda',
+					domainName: 'bundle.lambda-url.us-east-1.on.aws',
+					requestHeaders: { 'x-awsless-route': 'api:route:identify' },
+				}),
+			],
+		])
+		const { handler, updateRequestOrigin } = createRouter(values, { keepRequestOrigin: true })
+		const result = (await handler({ request: createRequest('/identify', 'example.com') })) as Request
+
+		expect(updateRequestOrigin).not.toHaveBeenCalled()
+		expect(result.headers['x-awsless-route']).toEqual({ value: 'api:route:identify' })
+
+		const missing = (await handler({ request: createRequest('/other', 'example.com') })) as Response
+
+		expect(missing.statusCode).toBe(404)
+	})
+
 	it("should serve a customer's own domain like the router's & only block the bare cloudfront host", async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
