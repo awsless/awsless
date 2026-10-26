@@ -513,15 +513,6 @@ async function handler(event) {
 		}
 	}
 
-	// CloudFront's TLS fingerprint isn't a viewer header, so the origin
-	// policy (every viewer header but host) leaves it out: pass it on under
-	// a name of our own, never one a client sent.
-	delete headers['x-viewer-ja4'];
-
-	if(headers['cloudfront-viewer-ja4-fingerprint']) {
-		headers['x-viewer-ja4'] = headers['cloudfront-viewer-ja4-fingerprint'];
-	}
-
 	if(route.requestHeaders) {
 		for(const name in route.requestHeaders) {
 			headers[name] = { value: route.requestHeaders[name] };
