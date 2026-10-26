@@ -227,26 +227,14 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Origin Request Policy
 
-			// Every viewer header but host (a lambda url origin needs its own),
-			// which brings CloudFront's location headers along. CloudFront headers
-			// like the TLS fingerprints only arrive when named, & naming them sends
-			// the viewer's host too: the router's function sets each origin's
-			// domain, which is the host the origin gets.
 			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
 				name,
-				headersConfig: props.cloudfrontHeaders
-					? {
-							headerBehavior: 'allViewerAndWhitelistCloudFront',
-							headers: {
-								items: props.cloudfrontHeaders,
-							},
-						}
-					: {
-							headerBehavior: 'allExcept',
-							headers: {
-								items: ['host'],
-							},
-						},
+				headersConfig: {
+					headerBehavior: 'allExcept',
+					headers: {
+						items: ['host'],
+					},
+				},
 				cookiesConfig: {
 					cookieBehavior: 'all',
 				},
