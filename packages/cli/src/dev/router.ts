@@ -286,7 +286,7 @@ export const startDevRouter = async (props: {
 			const route = match(url.pathname, request.method)
 
 			if (!route) {
-				return new Response(`No route matched: ${url.pathname}`, { status: 404 })
+				return new Response(null, { status: 404 })
 			}
 
 			// Proxy routes stream straight to their local target server,
@@ -346,7 +346,7 @@ export const startDevRouter = async (props: {
 			}
 
 			if (!route.routeKey) {
-				return new Response(`No route matched: ${url.pathname}`, { status: 404 })
+				return new Response(null, { status: 404 })
 			}
 
 			const body = Buffer.from(await request.arrayBuffer())
