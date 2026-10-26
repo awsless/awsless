@@ -129,13 +129,6 @@ export const authOnDev = async (ctx: DevContext) => {
 		ctx.addEnv(`AUTH_${constantCase(id)}_CLIENT_ID`, pool.clientId)
 	}
 
-	// The pools are the real ones, so the functions' Cognito calls (managing
-	// users, reading groups) go to the real Cognito instead of the blocked
-	// endpoint, with the profile's credentials.
-	if (Object.keys(pools).length > 0) {
-		ctx.addEnv('AWS_ENDPOINT_URL_COGNITO_IDENTITY_PROVIDER', `https://cognito-idp.${ctx.appConfig.region}.amazonaws.com`)
-	}
-
 	// Every configured pool lists on the dashboard - an unresolved one
 	// shows its not-deployed state on the panel instead of hiding.
 	for (const id of ids) {
