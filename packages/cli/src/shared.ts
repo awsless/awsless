@@ -107,6 +107,10 @@ type SharedEntries = {
 
 	pubsub: {
 		'events-topic-arn': Output<string>
+		'load-balancer': {
+			dnsName: Output<string>
+			listenerArn: Output<string>
+		}
 	}
 
 	image: {

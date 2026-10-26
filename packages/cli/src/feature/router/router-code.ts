@@ -11,9 +11,12 @@ export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
+	// The cache behavior brings its own origin, so the route only picks the handler.
+	fixedOrigin?: boolean
 }): string => {
 	return compact(
 		CODE({
+			fixedOrigin: !!props.fixedOrigin,
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
@@ -252,7 +255,13 @@ try {
 
 const prefix = table + ':' + router + ':';`
 
-const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean }) => `
+const CODE = (props: {
+	before: string[]
+	prefix: string
+	after: string[]
+	withCrypto: boolean
+	fixedOrigin: boolean
+}) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -527,7 +536,7 @@ async function handler(event) {
 		}
 	}
 
-	setRouteOrigin(route);
+	${props.fixedOrigin ? '' : 'setRouteOrigin(route);'}
 
 	if(route.forwardHost && headers.host && headers.host.value) {
 		headers['x-forwarded-host'] = { value: headers.host.value };

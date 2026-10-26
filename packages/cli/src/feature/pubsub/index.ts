@@ -295,7 +295,7 @@ export const pubsubFeature = defineFeature({
 				},
 			})
 
-			new aws.lb.Listener(group, 'listener', {
+			const listener = new aws.lb.Listener(group, 'listener', {
 				loadBalancerArn: lb.arn,
 				port: 80,
 				protocol: 'HTTP',
@@ -305,6 +305,13 @@ export const pubsubFeature = defineFeature({
 						targetGroupArn: targetGroup.arn,
 					},
 				],
+			})
+
+			// The router's CloudFront header paths share this load balancer
+			// instead of paying for one of their own.
+			ctx.shared.add('pubsub', 'load-balancer', id, {
+				dnsName: lb.dnsName,
+				listenerArn: listener.arn,
 			})
 
 			// ------------------------------------------------------------

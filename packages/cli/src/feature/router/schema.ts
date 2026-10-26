@@ -1,8 +1,9 @@
 import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
+import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { BundledFunctionSchema } from '../function/schema.js'
+import { BundledFnSchema } from '../function/schema.js'
 import { compileRoutePattern } from './pattern.js'
 
 const ErrorResponsePathSchema = z
@@ -53,20 +54,70 @@ export const RouteSchema = z
 	.regex(/^\//, 'Route must start with a slash (/)')
 	.regex(/^\/([^/*.]+)?$/, 'Router paths mount a single segment without dots, like "/api".')
 
+// An origin request policy names at most 10 headers.
+export const CloudFrontHeadersSchema = z
+	.array(z.string().regex(/^cloudfront-/i, 'Only CloudFront headers, like "CloudFront-Viewer-JA4-Fingerprint".'))
+	.min(1)
+	.max(10)
+	.refine(
+		headers => new Set(headers.map(header => header.toLowerCase())).size === headers.length,
+		'Every header may only be listed once.'
+	)
+	.describe(
+		"CloudFront's own headers to send this route, like CloudFront-Viewer-JA4-Fingerprint; 1 to 10, an aws quota."
+	)
+
+const LoadBalancerSchema = z
+	.object({
+		cloudfrontHeaders: CloudFrontHeadersSchema,
+	})
+	.strict()
+	.describe(
+		[
+			"Serve this route through an Application Load Balancer instead of the function url, so it can get CloudFront's own headers.",
+			"CloudFront only adds them through an origin request policy that names them, which also forwards the viewer's Host, and a Lambda function url refuses a foreign Host.",
+			'So the path gets a cache behavior of its own with such a policy, whose origin is an Application Load Balancer that invokes the live bundle alias instead of the function url.',
+			"The load balancer is the app's pubsub one when there is one, else one of its own in the app vpc's public subnets, and it only takes requests that carry the router's origin secret.",
+			'Only fixed paths are supported, without wildcards or params, and the load balancer caps request and response bodies at 1 MB.',
+			'The handler gets the same event as through the function url. The local dev router serves the route the normal way, without the headers.',
+		].join('\n')
+	)
+
+const RouteFnSchema = BundledFnSchema.extend({
+	loadBalancer: LoadBalancerSchema.optional(),
+})
+
+export const RouteFunctionSchema = z.union([
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof RouteFnSchema>).pipe(RouteFnSchema),
+	RouteFnSchema,
+])
+
 export const RoutesSchema = z
 	.record(
 		ResourceIdSchema.describe('The router id to add your routes to.'),
 		z
-			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), BundledFunctionSchema)
+			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), RouteFunctionSchema)
 			.superRefine((routes, ctx) => {
-				for (const pattern of Object.keys(routes)) {
+				for (const [pattern, props] of Object.entries(routes)) {
+					let compiled: ReturnType<typeof compileRoutePattern>
+
 					try {
-						compileRoutePattern(pattern)
+						compiled = compileRoutePattern(pattern)
 					} catch (error) {
 						ctx.addIssue({
 							code: z.ZodIssueCode.custom,
 							path: [pattern],
 							message: error instanceof Error ? error.message : `Invalid route pattern: ${pattern}`,
+						})
+
+						continue
+					}
+
+					if (props.loadBalancer && (compiled.match || pattern.includes('*'))) {
+						ctx.addIssue({
+							code: z.ZodIssueCode.custom,
+							path: [pattern, 'loadBalancer'],
+							message: `Only a fixed path can go through the load balancer, without wildcards or params.`,
 						})
 					}
 				}
@@ -76,6 +127,7 @@ export const RoutesSchema = z
 					'Define the routes and the lambda function that should handle them.',
 					'Routes can be an exact path like "/sitemap.xml", a wildcard like "/sitemap/*", or contain params like "/sitemap/{locale}/{page}.xml".',
 					'Param values are passed to the function as "x-param-[NAME]" request headers.',
+					'A fixed path can go through a load balancer to get CloudFront headers: { "code": "./identify.ts", "loadBalancer": { "cloudfrontHeaders": ["CloudFront-Viewer-JA4-Fingerprint"] } }.',
 				].join('\n')
 			)
 	)

@@ -395,6 +395,33 @@ describe('bundle handler', () => {
 		expect(result.headers['x-awsless-authorization']).toBeUndefined()
 	})
 
+	it('should run a router route for a load balancer event & answer in its shape', async () => {
+		const result = (await handler(
+			{
+				requestContext: { elb: { targetGroupArn: 'arn' } },
+				httpMethod: 'GET',
+				path: '/identify',
+				multiValueHeaders: {
+					'x-awsless-route': ['stack-1:route:page'],
+					host: ['example.com'],
+				},
+				multiValueQueryStringParameters: {},
+				body: '',
+				isBase64Encoded: false,
+			},
+			context
+		)) as { statusCode: number; multiValueHeaders: Record<string, string[]>; body: string }
+
+		expect(result.statusCode).toBe(200)
+		expect(result.multiValueHeaders['content-type']).toEqual(['application/json'])
+
+		const event = JSON.parse(result.body)
+
+		expect(event.rawPath).toBe('/identify')
+		expect(event.headers.host).toBe('example.com')
+		expect(event.requestContext.http.method).toBe('GET')
+	})
+
 	it.each([
 		'stack-1:function:echo',
 		'stack-1:cron:tick',
