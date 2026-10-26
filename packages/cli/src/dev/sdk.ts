@@ -1,4 +1,4 @@
-import { readdir, readFile, mkdir, rm, stat, symlink } from 'fs/promises'
+import { readdir, readFile, mkdir, realpath, rm, stat, symlink } from 'fs/promises'
 import { createRequire } from 'module'
 import { dirname, join } from 'path'
 import { Workspace } from '@awsless/ts-file-cache'
@@ -58,6 +58,13 @@ export const linkSdkPackages = async (workspace: Workspace, buildDir: string, on
 			try {
 				await stat(join(path, 'package.json'))
 				return path
+			} catch {}
+
+			// An isolated install (bun's, pnpm's) keeps a library's own
+			// dependencies next to its real path in the store, not under it.
+			try {
+				const real = await realpath(root)
+				return dirname(createRequire(join(real, 'package.json')).resolve(`${name}/package.json`))
 			} catch {}
 		}
 

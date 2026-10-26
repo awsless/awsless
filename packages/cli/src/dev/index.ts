@@ -425,8 +425,10 @@ export const startDev = async (props: {
 				AWSLESS_ENV: 'local',
 				AWS_REGION: appConfig.region,
 				AWS_ACCOUNT_ID: LOCAL_ACCOUNT_ID,
-				AWS_ACCESS_KEY_ID: 'local',
-				AWS_SECRET_ACCESS_KEY: 'local',
+				// The app's own profile, not made up keys: the emulators take any
+				// signature, & the services that stay real (Cognito) need the
+				// real credentials.
+				AWS_PROFILE: appConfig.profile,
 				AWS_LAMBDA_FUNCTION_NAME: bundleName,
 				AWS_LAMBDA_FUNCTION_VERSION: 'local',
 				AWS_ENDPOINT_URL: `http://127.0.0.1:${blockedPort}`,
