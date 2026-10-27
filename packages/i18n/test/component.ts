@@ -211,7 +211,7 @@ describe('<T> component', () => {
 // Compiles the transformed page for the server, together with the T
 // component and a stand-in lang module, and renders it per locale.
 const ssr = async (page: string) => {
-	const dir = resolve(__dirname, '_tmp', String(Date.now()))
+	const dir = resolve(__dirname, '.tmp', String(Date.now()))
 	await mkdir(dir, { recursive: true })
 
 	const T = await import('fs/promises').then(fs =>
@@ -248,7 +248,7 @@ lang.t.get = (og, all) => all[lang.locale] ?? og`,
 	return async (locale: string) => {
 		lang.locale = locale
 		const { body } = render(Page, { props: { user: { name: 'Ivan' }, count: 3 } })
-		await rm(resolve(__dirname, '_tmp'), { recursive: true, force: true })
+		await rm(resolve(__dirname, '.tmp'), { recursive: true, force: true })
 		return body.replace(/<!--.*?-->/g, '')
 	}
 }
