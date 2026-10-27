@@ -138,9 +138,9 @@ const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: 
 	// The client can never hijack the routing.
 	headers[ROUTE_HEADER] = route.routeKey!
 
-	// CloudFront fronts every deployed router & the runtime reads its
-	// viewer headers, so the local router synthesizes the essentials.
-	headers['cloudfront-viewer-address'] ??= `${sourceIp}:0`
+	// CloudFront writes its own viewer address over a client's, so the
+	// local router does too.
+	headers['cloudfront-viewer-address'] = `${sourceIp}:0`
 	headers['cloudfront-viewer-country'] ??= 'US'
 
 	// Param values are passed to the function as request headers.
