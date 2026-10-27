@@ -1,4 +1,4 @@
-import { days, minutes } from '@awsless/duration'
+import { days, hours, minutes } from '@awsless/duration'
 import { z } from 'zod'
 import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
 
@@ -6,6 +6,30 @@ const MemorySchema = z
 	.number()
 	.int()
 	.refine(value => value >= 8 && value % 4 === 0, 'Memory must be a multiple of 4 GiB, from 8 GiB.')
+
+// The backup intervals ClickHouse Cloud offers.
+export const BACKUP_PERIODS = [6, 8, 12, 16, 20, 24, 36, 48]
+
+const isWholeDays = (duration: { value: bigint }) => duration.value % days(1).value === 0n
+
+const BackupSchema = z
+	.object({
+		retention: DurationSchema.refine(isWholeDays, 'The backup retention must be whole days.')
+			.refine(durationMin(days(1)), 'The backup retention can not be under a day.')
+			.prefault('7 days')
+			.describe(
+				"How long a backup stays in your bucket before S3 expires it. ClickHouse Cloud doesn't remove the backups it writes there."
+			),
+		every: DurationSchema.refine(
+			duration => BACKUP_PERIODS.some(period => hours(period).value === duration.value),
+			`The backup interval must be one of ${BACKUP_PERIODS.join(', ')} hours.`
+		)
+			.optional()
+			.describe(
+				'How often the service backs up, like "12 hours". Leave it out for the daily default. A custom interval needs the Scale or Enterprise tier.'
+			),
+	})
+	.strict()
 
 // The one ClickHouse Cloud service of the app, created as soon as any
 // stack declares a ClickHouse table.
@@ -50,6 +74,9 @@ export const ClickHouseDefaultSchema = z
 			.enum(['default', 'fast', 'slow'])
 			.optional()
 			.describe('How soon the service gets new ClickHouse versions.'),
+		backup: BackupSchema.optional().describe(
+			"Also write the service's backups to your own AWS account, under clickhouse/ in the app's bucket. ClickHouse Cloud keeps its own daily backups as well."
+		),
 	})
 	.strict()
 	.prefault({})

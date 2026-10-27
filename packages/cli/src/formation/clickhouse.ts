@@ -1,8 +1,11 @@
 import { createHash, randomInt } from 'crypto'
+import { lookup } from 'dns/promises'
 import { DeleteParameterCommand, GetParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
 import { clickhouseClient, ClickHouseError, dropTableByName } from '@awsless/clickhouse'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import { z } from 'zod'
+import type { ClickHouseKey } from '../cli/ui/complex/fetch-clickhouse-key.js'
+import { ExpectedError } from '../error.js'
 import { alterTableStatements, applyTable } from '../feature/clickhouse/table.js'
 import { isError, ProviderProps } from '../util/aws.js'
 
@@ -43,7 +46,38 @@ type TableOutput = {
 // settings to the stack file.
 export const ClickHouseTable = createCustomResourceClass<TableInput, TableOutput>('clickhouse-data', 'table')
 
+type BackupBucketInput = {
+	serviceId: Input<string>
+	// Like https://bucket.s3.amazonaws.com/clickhouse, where each backup
+	// gets a folder of its own.
+	bucketPath: Input<string>
+	roleArn: Input<string>
+	externalId: Input<string>
+}
+
+type BackupBucketOutput = {
+	serviceId: Output<string>
+	bucketPath: Output<string>
+	roleArn: Output<string>
+	externalId: Output<string>
+}
+
+// The service's backups written to a bucket of the app's own account as
+// well, through a role the service assumes. The ClickHouse terraform
+// provider can't do this yet, so it goes through the ClickHouse Cloud api.
+export const ClickHouseBackupBucket = createCustomResourceClass<BackupBucketInput, BackupBucketOutput>(
+	'clickhouse-data',
+	'backup-bucket'
+)
+
 const passwordSchema = z.object({ parameter: z.string() })
+
+const backupBucketSchema = z.object({
+	serviceId: z.string(),
+	bucketPath: z.string(),
+	roleArn: z.string(),
+	externalId: z.string(),
+})
 
 const tableSchema = z.object({
 	endpoint: z.string(),
@@ -92,6 +126,30 @@ const isTransient = (error: unknown) => {
 	return /socket hang up|fetch failed|\b50[234]\b|Timeout error/i.test(String(error))
 }
 
+// A deleted service's hostname stops resolving, so a table on it is gone
+// too. A few tries keep a dns hiccup from passing for a deleted service.
+export const serviceGone = async (endpoint: string, tries = 3, delay = 5000) => {
+	const { hostname } = new URL(endpoint)
+
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await lookup(hostname)
+
+			return false
+		} catch (error) {
+			if ((error as { code?: string }).code !== 'ENOTFOUND') {
+				return false
+			}
+
+			if (attempt >= tries) {
+				return true
+			}
+		}
+
+		await new Promise(resolve => setTimeout(resolve, delay))
+	}
+}
+
 const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
 	const deadline = Date.now() + 5 * 60_000
 	let attempt = 0
@@ -110,8 +168,132 @@ const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
 	}
 }
 
-export const createClickHouseProvider = ({ credentials, region }: ProviderProps) => {
+export class ClickHouseApiError extends Error {
+	constructor(
+		readonly status: number,
+		message: string
+	) {
+		super(message)
+	}
+}
+
+const CLOUD_API = 'https://api.clickhouse.cloud/v1'
+
+// The ClickHouse Cloud api, scoped to the key's organization.
+export const createCloudApi = (key: ClickHouseKey) => {
+	const authorization = `Basic ${Buffer.from(`${key.tokenKey}:${key.tokenSecret}`).toString('base64')}`
+
+	return async <T = unknown>(method: string, path: string, body?: object): Promise<T | undefined> => {
+		const response = await fetch(`${CLOUD_API}/organizations/${key.organizationId}${path}`, {
+			method,
+			headers: { authorization, 'content-type': 'application/json' },
+			body: body ? JSON.stringify(body) : undefined,
+		})
+
+		const text = await response.text()
+
+		if (!response.ok) {
+			let reason = text
+
+			try {
+				reason = (JSON.parse(text) as { error?: string }).error ?? text
+			} catch {}
+
+			throw new ClickHouseApiError(
+				response.status,
+				`ClickHouse Cloud answered ${response.status} to ${method} ${path}: ${reason}`
+			)
+		}
+
+		return text ? ((JSON.parse(text) as { result?: T }).result ?? undefined) : undefined
+	}
+}
+
+// A new role takes a moment before anyone can assume it, and a service
+// that's busy scaling or waking refuses changes for a while, so anything
+// but a refused key or a missing service is retried for a few minutes.
+const withApiRetry = async <T>(run: () => Promise<T>, deadline = Date.now() + 3 * 60_000): Promise<T> => {
+	let attempt = 0
+
+	while (true) {
+		try {
+			return await run()
+		} catch (error) {
+			const status = error instanceof ClickHouseApiError ? error.status : 0
+			const final = status === 401 || status === 403 || status === 404
+
+			if (final || Date.now() > deadline) {
+				throw error
+			}
+		}
+
+		attempt++
+		await new Promise(resolve => setTimeout(resolve, Math.min(15_000, 2000 * attempt)))
+	}
+}
+
+export type ClickHouseProviderProps = ProviderProps & {
+	// Off while the whole app is deleted: deleting its service removes every
+	// table with it, so there's no need to wake the service to drop them.
+	dropTables?: boolean
+	// The ClickHouse Cloud api key, for what the terraform provider can't do.
+	cloudKey?: ClickHouseKey
+	// Only for the tests, to skip the waits between retries.
+	retryDeadline?: () => number
+}
+
+// Long enough for an idle service to wake up on the first request.
+const REQUEST_TIMEOUT = 2 * 60_000
+
+export const createClickHouseProvider = ({
+	credentials,
+	region,
+	dropTables = true,
+	cloudKey,
+	retryDeadline,
+}: ClickHouseProviderProps) => {
 	const ssm = new SSMClient({ credentials, region })
+
+	const cloudApi = () => {
+		if (!cloudKey) {
+			throw new ExpectedError(
+				'ClickHouse backups to your own bucket need a ClickHouse Cloud API key. Run "awsless deploy" without --skip-prompt to store one.'
+			)
+		}
+
+		return createCloudApi(cloudKey)
+	}
+
+	const backupBucketBody = (props: z.infer<typeof backupBucketSchema>) => ({
+		bucketProvider: 'AWS',
+		bucketPath: props.bucketPath,
+		iamRoleArn: props.roleArn,
+		iamRoleSessionName: 'awsless-clickhouse-backup',
+		iamRoleExternalId: props.externalId,
+	})
+
+	// One backup bucket per service: a new one is posted, a known one patched.
+	const applyBackupBucket = async (state: unknown) => {
+		const props = backupBucketSchema.parse(state)
+		const api = cloudApi()
+		const path = `/services/${props.serviceId}/backupBucket`
+
+		await withApiRetry(async () => {
+			let existing: unknown
+
+			try {
+				existing = await api('GET', path)
+			} catch (error) {
+				if (!(error instanceof ClickHouseApiError && error.status === 404)) {
+					throw error
+				}
+			}
+
+			await api(existing ? 'PATCH' : 'POST', path, backupBucketBody(props))
+		}, retryDeadline?.())
+
+		return props
+	}
 
 	const getPassword = async (parameter: string) => {
 		const result = await ssm.send(new GetParameterCommand({ Name: parameter, WithDecryption: true }))
@@ -123,6 +305,9 @@ export const createClickHouseProvider = ({ credentials, region }: ProviderProps)
 		return clickhouseClient({
 			endpoint: props.endpoint,
 			password: () => getPassword(props.parameter),
+			requestTimeout: REQUEST_TIMEOUT,
+			// The retries below decide what's an error.
+			silent: true,
 		})
 	}
 
@@ -157,6 +342,37 @@ export const createClickHouseProvider = ({ credentials, region }: ProviderProps)
 	}
 
 	return createCustomProvider('clickhouse-data', {
+		'backup-bucket': {
+			async createResource(props) {
+				return applyBackupBucket(props.state)
+			},
+			async updateResource(props) {
+				return applyBackupBucket(props.proposedState)
+			},
+			// A new service starts without a backup bucket.
+			async planResourceChange(props) {
+				const prior = props.priorState as { serviceId?: string } | null
+				const proposed = props.proposedState as { serviceId?: string } | null
+
+				return {
+					state: props.proposedState,
+					requiresReplacement: !!prior && prior.serviceId !== proposed?.serviceId,
+				}
+			},
+			// The backups already written stay in the bucket. A service that's
+			// gone took its backup bucket setting with it.
+			async deleteResource(props) {
+				const { serviceId } = backupBucketSchema.parse(props.state)
+
+				try {
+					await cloudApi()('DELETE', `/services/${serviceId}/backupBucket`)
+				} catch (error) {
+					if (!(error instanceof ClickHouseApiError && error.status === 404)) {
+						throw error
+					}
+				}
+			},
+		},
 		password: {
 			async createResource(props) {
 				return createPassword(props.state)
@@ -217,6 +433,11 @@ export const createClickHouseProvider = ({ credentials, region }: ProviderProps)
 			// Removing the resource drops the table & its data.
 			async deleteResource(props) {
 				const state = tableSchema.parse(props.state)
+
+				if (!dropTables || (await serviceGone(state.endpoint))) {
+					return
+				}
+
 				const client = getClient(state)
 
 				try {

@@ -1,10 +1,14 @@
 import { createHash } from 'crypto'
+import { lookup } from 'dns/promises'
 import { DeleteParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
+import { clickhouseClient } from '@awsless/clickhouse'
+import { ClickHouseServer } from '@awsless/clickhouse-server'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { ExpectedError } from '../src/error'
+import { backupPolicy, formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
 import { resolveColumnType } from '../src/feature/clickhouse/schema'
 import { hasClickHouseTables } from '../src/feature/clickhouse/util'
-import { createClickHouseProvider } from '../src/formation/clickhouse'
+import { createClickHouseProvider, serviceGone } from '../src/formation/clickhouse'
 import { TypeObject } from '../src/type-gen/object'
 import { createTestApp, credentials, findStatements, listResources, notFound, sent } from './_kit'
 
@@ -18,6 +22,17 @@ const events = {
 }
 
 const code = { file: { nocheck: './handler.ts' } }
+
+// Real lookups unless a test says otherwise.
+vi.mock('dns/promises', async original => {
+	const actual = await original<typeof import('dns/promises')>()
+
+	return { ...actual, lookup: vi.fn(actual.lookup) }
+})
+
+const notResolving = () => {
+	return Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' })
+}
 
 describe('clickhouse', () => {
 	afterEach(() => {
@@ -152,6 +167,74 @@ describe('clickhouse', () => {
 		}
 	})
 
+	it('keeps backups in ClickHouse Cloud only, unless asked', () => {
+		const { app } = createTestApp({ stacks: [{ name: 'stack-1', clickhouse: { events } }] })
+
+		expect(listResources(app, 'backup-bucket')).toEqual([])
+		expect(listResources(app, 'aws_iam_role').map(meta => meta.input.name)).not.toContain(
+			'test-app--clickhouse--backup'
+		)
+		expect(listResources(app, 'clickhouse_service')[0]!.input.backupConfiguration).toBeUndefined()
+	})
+
+	it('writes backups to the app bucket through a role of its own', () => {
+		const { app } = createTestApp({
+			defaults: { clickhouse: { backup: { every: '12 hours' } } },
+			stacks: [{ name: 'stack-1', clickhouse: { events } }],
+		})
+
+		const roles = listResources(app, 'aws_iam_role').filter(
+			meta => meta.input.name === 'test-app--clickhouse--backup'
+		)
+
+		expect(roles).toHaveLength(1)
+		expect(listResources(app, 'backup-bucket')).toHaveLength(1)
+		expect(listResources(app, 'clickhouse_service')[0]!.input.backupConfiguration).toEqual({
+			backupPeriodInHours: 12,
+		})
+	})
+
+	it('only takes the backup intervals & retention ClickHouse Cloud offers', () => {
+		const withBackup = (backup: object) => () =>
+			createTestApp({
+				defaults: { clickhouse: { backup } },
+				stacks: [{ name: 'stack-1', clickhouse: { events } }],
+			})
+
+		expect(withBackup({ every: '10 hours' })).toThrow()
+		expect(withBackup({ retention: '36 hours' })).toThrow()
+		expect(withBackup({ retention: '12 hours' })).toThrow()
+		expect(withBackup({ every: '2 days', retention: '30 days' })).not.toThrow()
+	})
+
+	it('keeps the backup role to the backup folder', () => {
+		const policy = backupPolicy('arn:aws:s3:::bucket')
+		const resources = policy.Statement.flatMap(statement => statement.Resource)
+
+		expect(resources.filter(resource => resource !== 'arn:aws:s3:::bucket')).toEqual([
+			'arn:aws:s3:::bucket/clickhouse/*',
+			'arn:aws:s3:::bucket/clickhouse/*/.lock',
+		])
+		expect(policy.Statement.find(statement => statement.Action.includes('s3:ListBucket'))!.Condition).toEqual({
+			StringLike: { 's3:prefix': ['clickhouse', 'clickhouse/*'] },
+		})
+		expect(policy.Statement.find(statement => statement.Action.includes('s3:DeleteObject'))!.Resource).toEqual([
+			'arn:aws:s3:::bucket/clickhouse/*/.lock',
+		])
+	})
+
+	it('retains the backup setting when the app retains its data', () => {
+		const { app } = createTestApp({
+			app: { removal: 'retain' },
+			defaults: { clickhouse: { backup: {} } },
+			stacks: [{ name: 'stack-1', clickhouse: { events } }],
+		})
+
+		expect((listResources(app, 'backup-bucket')[0]!.config as { retainOnDelete?: boolean }).retainOnDelete).toBe(
+			true
+		)
+	})
+
 	it('rejects invalid table & column names', () => {
 		expect(() => createTestApp({ stacks: [{ name: 'stack-1', clickhouse: { Events: events } }] })).toThrow()
 		expect(() =>
@@ -216,6 +299,7 @@ describe('clickhouse column types', () => {
 describe('clickhouse resources', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
+		vi.mocked(lookup).mockReset()
 	})
 
 	const provider = createClickHouseProvider({ credentials, region: 'us-east-1' })
@@ -296,5 +380,175 @@ describe('clickhouse resources', () => {
 		} as never)
 
 		expect(plan.requiresReplacement).toBe(true)
+	})
+
+	it('leaves the tables to the service when the whole app is deleted', async () => {
+		const send = vi.spyOn(SSMClient.prototype, 'send')
+		const deleting = createClickHouseProvider({ credentials, region: 'us-east-1', dropTables: false })
+
+		await deleting.deleteResource({ type: 'table', state: table(events) } as never)
+
+		expect(send).not.toHaveBeenCalled()
+		expect(lookup).not.toHaveBeenCalled()
+	})
+
+	it('counts a table on a deleted service as dropped', async () => {
+		vi.useFakeTimers()
+		vi.mocked(lookup).mockRejectedValue(notResolving())
+		const send = vi.spyOn(SSMClient.prototype, 'send')
+
+		try {
+			const pending = provider.deleteResource({ type: 'table', state: table(events) } as never)
+
+			await vi.runAllTimersAsync()
+			await pending
+		} finally {
+			vi.useRealTimers()
+		}
+
+		expect(lookup).toHaveBeenCalledTimes(3)
+		expect(send).not.toHaveBeenCalled()
+	})
+
+	it('tells a deleted service from a dns hiccup', async () => {
+		vi.mocked(lookup).mockRejectedValueOnce(notResolving()).mockResolvedValueOnce({ address: '1.1.1.1', family: 4 })
+
+		expect(await serviceGone('https://abc.clickhouse.cloud:8443', 3, 0)).toBe(false)
+
+		vi.mocked(lookup).mockRejectedValueOnce(Object.assign(new Error('try again'), { code: 'EAI_AGAIN' }))
+
+		expect(await serviceGone('https://abc.clickhouse.cloud:8443', 3, 0)).toBe(false)
+	})
+
+	describe('on a live service', () => {
+		const server = new ClickHouseServer()
+
+		beforeAll(async () => {
+			await server.listen()
+		}, 120_000)
+
+		afterAll(async () => {
+			await server.close()
+		})
+
+		it('drops the table', async () => {
+			const client = clickhouseClient({ endpoint: server.endpoint })
+			const tables = () =>
+				client.query<{ name: string }>("SELECT name FROM system.tables WHERE name = 'stack-1--events'")
+
+			vi.spyOn(SSMClient.prototype, 'send').mockImplementation(async () => ({}) as never)
+
+			try {
+				await provider.createResource({
+					type: 'table',
+					state: table(events, { endpoint: server.endpoint }),
+				} as never)
+				expect(await tables()).toHaveLength(1)
+
+				await provider.deleteResource({
+					type: 'table',
+					state: table(events, { endpoint: server.endpoint }),
+				} as never)
+				expect(await tables()).toHaveLength(0)
+			} finally {
+				await client.close()
+			}
+		})
+	})
+
+	describe('backup bucket', () => {
+		const key = { organizationId: 'org-1', tokenKey: 'key', tokenSecret: 'secret' }
+		const cloud = createClickHouseProvider({
+			credentials,
+			region: 'us-east-1',
+			cloudKey: key,
+			retryDeadline: () => 0,
+		})
+
+		const state = {
+			serviceId: 'service-1',
+			bucketPath: 'https://bucket.s3.amazonaws.com/clickhouse',
+			roleArn: 'arn:aws:iam::123456789012:role/test-app--clickhouse--backup',
+			externalId: 'service-1',
+		}
+
+		const answer = (status: number, body: object = {}) => new Response(JSON.stringify(body), { status })
+
+		const calls = (fetch: ReturnType<typeof vi.spyOn>) => {
+			return fetch.mock.calls.map(([url, init]) => {
+				const { method, body } = init as RequestInit
+				return [method, String(url), body ? JSON.parse(body as string) : undefined]
+			})
+		}
+
+		it('posts a new backup bucket', async () => {
+			const fetch = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValueOnce(answer(404, { error: 'NOT_FOUND' }))
+				.mockResolvedValueOnce(answer(200, { result: { id: 'b-1' } }))
+
+			await cloud.createResource({ type: 'backup-bucket', state } as never)
+
+			const path = 'https://api.clickhouse.cloud/v1/organizations/org-1/services/service-1/backupBucket'
+
+			expect(calls(fetch)).toEqual([
+				['GET', path, undefined],
+				[
+					'POST',
+					path,
+					{
+						bucketProvider: 'AWS',
+						bucketPath: state.bucketPath,
+						iamRoleArn: state.roleArn,
+						iamRoleSessionName: 'awsless-clickhouse-backup',
+						iamRoleExternalId: 'service-1',
+					},
+				],
+			])
+			expect((fetch.mock.calls[0]![1] as RequestInit).headers).toMatchObject({
+				authorization: `Basic ${Buffer.from('key:secret').toString('base64')}`,
+			})
+		})
+
+		it('patches a backup bucket the service already has', async () => {
+			const fetch = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValueOnce(answer(200, { result: { id: 'b-1' } }))
+				.mockResolvedValueOnce(answer(200, { result: { id: 'b-1' } }))
+
+			await cloud.updateResource({ type: 'backup-bucket', proposedState: state } as never)
+
+			expect(calls(fetch).map(([method]) => method)).toEqual(['GET', 'PATCH'])
+		})
+
+		it('fails on a refused key', async () => {
+			vi.spyOn(globalThis, 'fetch').mockResolvedValue(answer(403, { error: 'FORBIDDEN' }))
+
+			await expect(cloud.createResource({ type: 'backup-bucket', state } as never)).rejects.toThrow(/403/)
+		})
+
+		it('removes the setting, or finds it gone with its service', async () => {
+			const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(answer(404, { error: 'NOT_FOUND' }))
+
+			await cloud.deleteResource({ type: 'backup-bucket', state } as never)
+
+			expect(calls(fetch).map(([method]) => method)).toEqual(['DELETE'])
+		})
+
+		it('replaces the setting for a new service', async () => {
+			const plan = await cloud.planResourceChange!({
+				type: 'backup-bucket',
+				priorState: state,
+				proposedState: { ...state, serviceId: 'service-2' },
+			} as never)
+
+			expect(plan.requiresReplacement).toBe(true)
+		})
+
+		it('asks for the api key it needs', async () => {
+			await expect(provider.createResource({ type: 'backup-bucket', state } as never)).rejects.toThrow(
+				ExpectedError
+			)
+		})
 	})
 })

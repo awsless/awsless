@@ -1,12 +1,14 @@
-import { toMinutes } from '@awsless/duration'
+import { toDays, toHours, toMinutes } from '@awsless/duration'
+import { aws } from '@terraforge/aws'
 import { clickhouse } from '@terraforge/clickhouse'
 import { Group } from '@terraforge/core'
 import { getClickHouseTableName } from 'awsless'
 import { defineFeature } from '../../feature.js'
-import { ClickHousePassword, ClickHouseTable } from '../../formation/clickhouse.js'
+import { ClickHouseBackupBucket, ClickHousePassword, ClickHouseTable } from '../../formation/clickhouse.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
+import { formatGlobalResourceName } from '../../util/name.js'
 import { clickhouseOnDev } from './dev.js'
 import { hasClickHouseTables } from './util.js'
 
@@ -29,12 +31,44 @@ export const formatServiceName = (appName: string, accountId: string, stage?: st
 	return `${parts.join('-')}-${shortId([...parts, accountId].join('--'))}`
 }
 
+// The folder of the app's bucket that holds the service's backups.
+export const BACKUP_FOLDER = 'clickhouse'
+
 // The lambdas & the deploy read the generated password from here, kept
 // apart from the config parameters so it never shows up as a config. Two
 // stages in one account each get their own.
 export const formatPasswordParameter = (appName: string, stage?: string) => {
 	return `/.awsless-clickhouse/${stage ? `${appName}/${stage}` : appName}/password`
 }
+
+// What a backup needs, as the ClickHouse Cloud docs list it, kept to the
+// backup folder: it only ever deletes its own lock files.
+export const backupPolicy = (bucketArn: string) => ({
+	Version: '2012-10-17',
+	Statement: [
+		{
+			Effect: 'Allow',
+			Action: ['s3:GetBucketLocation'],
+			Resource: [bucketArn],
+		},
+		{
+			Effect: 'Allow',
+			Action: ['s3:ListBucket'],
+			Resource: [bucketArn],
+			Condition: { StringLike: { 's3:prefix': [BACKUP_FOLDER, `${BACKUP_FOLDER}/*`] } },
+		},
+		{
+			Effect: 'Allow',
+			Action: ['s3:Get*', 's3:List*', 's3:PutObject'],
+			Resource: [`${bucketArn}/${BACKUP_FOLDER}/*`],
+		},
+		{
+			Effect: 'Allow',
+			Action: ['s3:DeleteObject'],
+			Resource: [`${bucketArn}/${BACKUP_FOLDER}/*/.lock`],
+		},
+	],
+})
 
 export const clickhouseFeature = defineFeature({
 	name: 'clickhouse',
@@ -88,9 +122,68 @@ export const clickhouseFeature = defineFeature({
 				ipAccess: props.ipAccess.map(source => ({ source, description: 'awsless' })),
 				passwordHash: password.hash,
 				releaseChannel: props.releaseChannel,
+				backupConfiguration: props.backup?.every
+					? { backupPeriodInHours: toHours(props.backup.every) }
+					: undefined,
 			},
 			{ retainOnDelete }
 		)
+
+		if (props.backup) {
+			const bucket = ctx.shared.get('asset', 'bucket')
+
+			// ClickHouse Cloud assumes this role from the service's own role,
+			// with the service's id as the external id, so no other service
+			// that shares that role can write here.
+			const role = new aws.iam.Role(group, 'backup-role', {
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'clickhouse',
+					resourceName: 'backup',
+				}),
+				description: `${ctx.app.name} ClickHouse backups`,
+				assumeRolePolicy: $combine(service.iamRole, service.id).pipe(([principal, serviceId]) =>
+					JSON.stringify({
+						Version: '2012-10-17',
+						Statement: [
+							{
+								Effect: 'Allow',
+								Action: 'sts:AssumeRole',
+								Principal: { AWS: principal },
+								Condition: { StringEquals: { 'sts:ExternalId': serviceId } },
+							},
+						],
+					})
+				),
+				inlinePolicy: [
+					{
+						name: 'Backups',
+						policy: bucket.arn.pipe(arn => JSON.stringify(backupPolicy(arn))),
+					},
+				],
+			})
+
+			new ClickHouseBackupBucket(
+				group,
+				'backup-bucket',
+				{
+					serviceId: service.id,
+					bucketPath: bucket.name.pipe(name => `https://${name}.s3.amazonaws.com/${BACKUP_FOLDER}`),
+					roleArn: role.arn,
+					externalId: service.id,
+				},
+				{ retainOnDelete }
+			)
+
+			// ClickHouse Cloud never removes what it wrote, so S3 does.
+			bucket.addLifecycleRule({
+				id: 'expire-clickhouse-backups',
+				enabled: true,
+				prefix: `${BACKUP_FOLDER}/`,
+				expiration: { days: toDays(props.backup.retention) },
+				noncurrentVersionExpiration: { days: 1 },
+			})
+		}
 
 		const endpoint = service.endpoints.pipe(endpoints => {
 			return `https://${endpoints.https.host}:${endpoints.https.port}`

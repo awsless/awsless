@@ -66,6 +66,7 @@ export const del = (program: Command) => {
 					credentials,
 					accountId,
 					region,
+					deletingApp: true,
 				})
 
 				await log.task({
@@ -77,7 +78,12 @@ export const del = (program: Command) => {
 						const release = await releaseLock.lock(getAppReleaseLockUrn(appId))
 
 						try {
-							await workspace.delete(app, { filters: [] })
+							// Running it again after a finished delete finds no state
+							// and only clears the deployment history.
+							if (await state.get(app.urn)) {
+								await workspace.delete(app, { filters: [] })
+							}
+
 							await pullRemoteState(app, state)
 
 							// A deleted app must not list stale deployment history.

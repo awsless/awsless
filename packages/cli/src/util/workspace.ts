@@ -81,6 +81,8 @@ export const createWorkSpace = async (
 		// The stacks about to deploy, so providers only they need install
 		// up front.
 		stackConfigs?: StackConfig[]
+		// The whole app is being deleted, its ClickHouse service included.
+		deletingApp?: boolean
 	}
 ) => {
 	const { lock, state } = createDeploymentBackends(props)
@@ -112,7 +114,11 @@ export const createWorkSpace = async (
 			createS3Provider(props),
 			createNameServersProvider(props),
 			createOpenSearchProvider(props),
-			createClickHouseProvider(props),
+			createClickHouseProvider({
+				...props,
+				dropTables: !props.deletingApp,
+				cloudKey: clickhouseKey,
+			}),
 			// Backwards compatibility for old states, can be removed later.
 			createCustomProvider('cloudfront', {
 				invalidation: {},

@@ -1,4 +1,4 @@
-import { BaseQueryParams, ClickHouseSettings, createClient } from '@clickhouse/client'
+import { BaseQueryParams, ClickHouseLogLevel, ClickHouseSettings, createClient } from '@clickhouse/client'
 import { quoteIdentifier } from './param'
 
 export { ClickHouseError } from '@clickhouse/client'
@@ -15,6 +15,9 @@ export type ClickHouseClientProps = {
 	database?: string
 	settings?: Settings
 	requestTimeout?: number
+	// Leaves failed requests to the caller instead of the client's own
+	// error log, for callers that retry them.
+	silent?: boolean
 }
 
 export type InsertOptions = {
@@ -53,6 +56,7 @@ export const clickhouseClient = (props: ClickHouseClientProps) => {
 				database: props.database,
 				clickhouse_settings: props.settings,
 				request_timeout: props.requestTimeout,
+				log: props.silent ? { level: ClickHouseLogLevel.OFF } : undefined,
 			})
 		})().catch(error => {
 			client = undefined
