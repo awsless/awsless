@@ -4,7 +4,7 @@ import { resolve } from 'path'
 import { openai } from '@ai-sdk/openai'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { build } from 'vite'
-import { i18n, ai } from '../src'
+import { i18n, ai, type I18nPluginProps } from '../src'
 import { Cache, loadCache, mergeCaches, saveCache } from '../src/cache'
 import { findNewTranslations, removeUnusedTranslations } from '../src/diff'
 import { mock } from '../src/translate/mock'
@@ -127,7 +127,14 @@ describe('i18n', () => {
 		process.chdir(cwd)
 
 		try {
-			let plugin = i18n({ locales: ['fr'], translate: mock('TRANSLATED') })
+			const serve = (props: Omit<I18nPluginProps, 'locales' | 'translateInDev'>) => {
+				const plugin = i18n({ locales: ['fr'], translateInDev: true, ...props })
+				// @ts-expect-error only the hook body is exercised
+				plugin.configResolved({ command: 'serve' })
+				return plugin
+			}
+
+			let plugin = serve({ translate: mock('TRANSLATED') })
 			const context = { info() {}, environment: { logger: { info() {} } } }
 
 			// @ts-expect-error only the hook body is exercised
@@ -139,7 +146,7 @@ describe('i18n', () => {
 
 			// Bursts of saves must not translate the same text twice.
 			const translate = vi.fn(mock('TRANSLATED'))
-			plugin = i18n({ locales: ['fr'], translate })
+			plugin = serve({ translate })
 			// @ts-expect-error only the hook body is exercised
 			await plugin.buildStart.call(context)
 			await Promise.all([
@@ -175,7 +182,7 @@ describe('i18n', () => {
 			const warn = vi.fn()
 			const context = { info() {}, warn }
 
-			const plugin = i18n({ locales: ['fr'], translate })
+			const plugin = i18n({ locales: ['fr'], translate, translateInDev: true })
 			// @ts-expect-error only the hook body is exercised
 			plugin.configResolved({ command: 'serve' })
 			// @ts-expect-error only the hook body is exercised
@@ -193,6 +200,45 @@ describe('i18n', () => {
 			build.configResolved({ command: 'build' })
 			// @ts-expect-error only the hook body is exercised
 			await expect(build.buildStart.call(context)).rejects.toThrow('Your credit balance is too low')
+		} finally {
+			process.chdir(previous)
+		}
+	})
+
+	it('leaves translating to builds by default in dev', async () => {
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
+		const file = resolve(cwd, 'page.svelte')
+		await writeFile(file, '<p>{lang.t`Hello`}</p>')
+		await writeFile(resolve(cwd, 'i18n.generated.json'), JSON.stringify({ '': { Removed: { fr: 'Supprimé' } } }))
+
+		const previous = process.cwd()
+		process.chdir(cwd)
+
+		try {
+			const translate = vi.fn(mock('TRANSLATED'))
+			const context = { info() {}, warn() {}, environment: { logger: { info() {}, warn() {} } } }
+
+			const plugin = i18n({ locales: ['fr'], translate })
+			// @ts-expect-error only the hook body is exercised
+			plugin.configResolved({ command: 'serve' })
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+			// @ts-expect-error only the hook body is exercised
+			await plugin.hotUpdate.call(context, { file, read: async () => '<p>{lang.t`Goodbye`}</p>' })
+
+			expect(translate).not.toHaveBeenCalled()
+
+			// The cached text that's no longer used is kept.
+			expect((await loadCache(cwd)).get({ source: 'Removed' }, 'fr')).toBe('Supprimé')
+
+			// The CLI goes through the same api and does translate.
+			await plugin.api!.translate(cwd, context)
+
+			expect(translate).toHaveBeenCalledTimes(1)
+
+			const cache = await loadCache(cwd)
+			expect(cache.get({ source: 'Hello' }, 'fr')).toBe('TRANSLATED')
+			expect(cache.has({ source: 'Removed' }, 'fr')).toBe(false)
 		} finally {
 			process.chdir(previous)
 		}
