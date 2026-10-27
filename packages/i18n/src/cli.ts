@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from 'node:util'
-import { resolveConfig, type Plugin } from 'vite'
-import { PLUGIN_NAME, type I18nPluginApi } from './vite'
+import { translateProject } from './command'
 
 const usage = `Usage: translate [--config <vite config file>]
 
@@ -30,25 +29,15 @@ if (values.help) {
 	process.exit(0)
 }
 
-function fail(message: unknown): never {
-	console.error(message instanceof Error ? message.message : message)
-	process.exit(1)
-}
-
 try {
-	// The plugin options live in the Vite config, reading them from there keeps
-	// one place to set the locales and translator.
-	const config = await resolveConfig({ configFile: values.config }, 'build', 'production')
-	const plugin = config.plugins.find(plugin => plugin.name === PLUGIN_NAME) as Plugin<I18nPluginApi> | undefined
-
-	if (!plugin?.api) {
-		fail(`The ${PLUGIN_NAME} plugin wasn't found in your Vite config.`)
-	}
-
-	await plugin.api.translate(process.cwd(), {
-		info: message => console.log(message),
-		warn: message => console.warn(message),
-	})
+	await translateProject(
+		{ configFile: values.config },
+		{
+			info: message => console.log(message),
+			warn: message => console.warn(message),
+		}
+	)
 } catch (error) {
-	fail(error)
+	console.error(error instanceof Error ? error.message : error)
+	process.exit(1)
 }

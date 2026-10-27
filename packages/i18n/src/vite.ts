@@ -1,6 +1,16 @@
 import MagicString from 'magic-string'
 import { Plugin } from 'vite'
-import { Cache, loadCache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
+import { join } from 'path'
+import {
+	Cache,
+	GENERATED_CACHE_FILE,
+	loadCache,
+	loadGeneratedCache,
+	loadOverrideCache,
+	mergeCaches,
+	OVERRIDE_CACHE_FILE,
+	saveCache,
+} from './cache'
 import { rewriteComponent } from './component'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
 import {
@@ -153,6 +163,20 @@ export const i18n = (props: I18nPluginProps): Plugin<I18nPluginApi> => {
 
 	const translating = () => !dev || props.translateInDev === true
 
+	// Returns whether the translations on disk differ from the ones in use,
+	// our own saves match and don't count as a change.
+	const reloadCache = async (cwd: string) => {
+		generatedCache = await loadGeneratedCache(cwd)
+		overrideCache = await loadOverrideCache(cwd)
+
+		const next = mergeCaches(generatedCache, overrideCache)
+		const changed = JSON.stringify(next.toJSON()) !== JSON.stringify(cache.toJSON())
+
+		cache = next
+
+		return changed
+	}
+
 	const templateReplacement = (source: string) => {
 		const translations = props.locales
 			.map(locale => {
@@ -196,6 +220,38 @@ export const i18n = (props: I18nPluginProps): Plugin<I18nPluginApi> => {
 		},
 		configResolved(config) {
 			dev = config.command === 'serve'
+		},
+		// Picks up translations from the translate CLI or an edited i18n.json
+		// without restarting. The translations are inlined while transforming,
+		// so every module is transformed again.
+		configureServer(server) {
+			const cwd = process.cwd()
+			const files = [GENERATED_CACHE_FILE, OVERRIDE_CACHE_FILE].map(file => join(cwd, file))
+
+			const onChange = (file: string) => {
+				if (!cache || !files.includes(file)) {
+					return
+				}
+
+				queue = queue
+					.catch(() => {})
+					.then(async () => {
+						if (await reloadCache(cwd)) {
+							for (const environment of Object.values(server.environments)) {
+								environment.moduleGraph.invalidateAll()
+							}
+
+							server.ws.send({ type: 'full-reload' })
+						}
+					})
+					.catch(error => {
+						server.config.logger.warn(`Reloading the translations failed: ${error}`)
+					})
+			}
+
+			server.watcher.on('add', onChange)
+			server.watcher.on('change', onChange)
+			server.watcher.on('unlink', onChange)
 		},
 		async buildStart() {
 			const cwd = process.cwd()

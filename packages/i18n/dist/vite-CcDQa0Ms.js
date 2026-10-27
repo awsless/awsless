@@ -1,6 +1,6 @@
 import MagicString from "magic-string";
-import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
+import { readFile, stat, writeFile } from "fs/promises";
 import { glob } from "glob";
 import { walk } from "estree-walker";
 import { parse } from "svelte/compiler";
@@ -573,6 +573,14 @@ const i18n = (props) => {
 		log.info(`Translating done.`);
 	};
 	const translating = () => !dev || props.translateInDev === true;
+	const reloadCache = async (cwd) => {
+		generatedCache = await loadGeneratedCache(cwd);
+		overrideCache = await loadOverrideCache(cwd);
+		const next = mergeCaches(generatedCache, overrideCache);
+		const changed = JSON.stringify(next.toJSON()) !== JSON.stringify(cache.toJSON());
+		cache = next;
+		return changed;
+	};
 	const templateReplacement = (source) => {
 		return `lang.t.get(\`${source}\`, {${props.locales.map((locale) => {
 			const translation = cache.get({ source }, locale);
@@ -594,6 +602,24 @@ const i18n = (props) => {
 		api: { translate: translateAll },
 		configResolved(config) {
 			dev = config.command === "serve";
+		},
+		configureServer(server) {
+			const cwd = process.cwd();
+			const files = [GENERATED_CACHE_FILE, OVERRIDE_CACHE_FILE].map((file) => join(cwd, file));
+			const onChange = (file) => {
+				if (!cache || !files.includes(file)) return;
+				queue = queue.catch(() => {}).then(async () => {
+					if (await reloadCache(cwd)) {
+						for (const environment of Object.values(server.environments)) environment.moduleGraph.invalidateAll();
+						server.ws.send({ type: "full-reload" });
+					}
+				}).catch((error) => {
+					server.config.logger.warn(`Reloading the translations failed: ${error}`);
+				});
+			};
+			server.watcher.on("add", onChange);
+			server.watcher.on("change", onChange);
+			server.watcher.on("unlink", onChange);
 		},
 		async buildStart() {
 			const cwd = process.cwd();
