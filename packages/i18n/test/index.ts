@@ -163,6 +163,41 @@ describe('i18n', () => {
 		}
 	})
 
+	it('keeps the dev server running when translating fails', async () => {
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
+		await writeFile(resolve(cwd, 'page.svelte'), '<p>{lang.t`Hello`}</p>')
+
+		const previous = process.cwd()
+		process.chdir(cwd)
+
+		try {
+			const translate = () => Promise.reject(new Error('Your credit balance is too low'))
+			const warn = vi.fn()
+			const context = { info() {}, warn }
+
+			const plugin = i18n({ locales: ['fr'], translate })
+			// @ts-expect-error only the hook body is exercised
+			plugin.configResolved({ command: 'serve' })
+			// @ts-expect-error only the hook body is exercised
+			await plugin.buildStart.call(context)
+
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining('Your credit balance is too low'))
+
+			// The text is left alone and shows in the default language.
+			// @ts-expect-error only the hook body is exercised
+			expect(plugin.transform.call(context, 'lang.t`Hello`').code).toBe('lang.t`Hello`')
+
+			// A build still fails, it would ship without translations.
+			const build = i18n({ locales: ['fr'], translate })
+			// @ts-expect-error only the hook body is exercised
+			build.configResolved({ command: 'build' })
+			// @ts-expect-error only the hook body is exercised
+			await expect(build.buildStart.call(context)).rejects.toThrow('Your credit balance is too low')
+		} finally {
+			process.chdir(previous)
+		}
+	})
+
 	it('prefers translations from i18n.json over i18n.generated.json', async () => {
 		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
 

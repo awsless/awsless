@@ -529,6 +529,7 @@ const i18n = (props) => {
 	let cache;
 	let generatedCache;
 	let overrideCache;
+	let dev = false;
 	let queue = Promise.resolve();
 	const translateMissing = (cwd, sourceTexts, log) => {
 		queue = queue.catch(() => {}).then(() => translateNow(cwd, sourceTexts, log));
@@ -538,7 +539,15 @@ const i18n = (props) => {
 		const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales);
 		if (newSourceTexts.length > 0) {
 			log.info(`Translating ${newSourceTexts.length} new texts.`);
-			const translations = await props.translate(props.default ?? "en", newSourceTexts);
+			let translations;
+			try {
+				translations = await props.translate(props.default ?? "en", newSourceTexts);
+			} catch (error) {
+				if (!dev) throw error;
+				const reason = error instanceof Error ? error.message : String(error);
+				log.warn(`Translating failed, the new texts show untranslated for now: ${reason}`);
+				return;
+			}
 			log.info(`Translated ${translations.length} texts.`);
 			for (const item of translations) {
 				const error = validateTranslation(item.source, item.translation);
@@ -570,6 +579,9 @@ const i18n = (props) => {
 	return {
 		name: "awsless/i18n",
 		enforce: "pre",
+		configResolved(config) {
+			dev = config.command === "serve";
+		},
 		async buildStart() {
 			const cwd = process.cwd();
 			this.info("Finding all translatable text...");

@@ -65,6 +65,10 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	let generatedCache: Cache
 	let overrideCache: Cache
 
+	// A failed translation only fails a build. The dev server keeps running
+	// with the source text and asks again on the next save or restart.
+	let dev = false
+
 	// Saves land in bursts, so the runs queue up: the next one sees what the
 	// previous one translated instead of asking for the same texts again.
 	let queue: Promise<void> = Promise.resolve()
@@ -80,7 +84,19 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 		if (newSourceTexts.length > 0) {
 			log.info(`Translating ${newSourceTexts.length} new texts.`)
 
-			const translations = await props.translate(props.default ?? 'en', newSourceTexts)
+			let translations: TranslationResponse[]
+
+			try {
+				translations = await props.translate(props.default ?? 'en', newSourceTexts)
+			} catch (error) {
+				if (!dev) {
+					throw error
+				}
+
+				const reason = error instanceof Error ? error.message : String(error)
+				log.warn(`Translating failed, the new texts show untranslated for now: ${reason}`)
+				return
+			}
 
 			log.info(`Translated ${translations.length} texts.`)
 
@@ -141,6 +157,9 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	return {
 		name: 'awsless/i18n',
 		enforce: 'pre',
+		configResolved(config) {
+			dev = config.command === 'serve'
+		},
 		async buildStart() {
 			const cwd = process.cwd()
 
