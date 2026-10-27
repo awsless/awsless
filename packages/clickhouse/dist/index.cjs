@@ -27,7 +27,8 @@ const clickhouseClient = (props) => {
 				password: typeof props.password === "function" ? await props.password() : props.password ?? "",
 				database: props.database,
 				clickhouse_settings: props.settings,
-				request_timeout: props.requestTimeout
+				request_timeout: props.requestTimeout,
+				log: props.silent ? { level: _clickhouse_client.ClickHouseLogLevel.OFF } : void 0
 			});
 		})().catch((error) => {
 			client = void 0;
@@ -143,7 +144,7 @@ const query = async (table, sql, params = {}, settings) => {
 };
 //#endregion
 //#region src/ops/select.ts
-const select = async (table, { where, params, orderBy, limit, offset, final } = {}) => {
+const select = async (table, { where, params, orderBy, limit, offset, final, settings } = {}) => {
 	const sql = [
 		`SELECT ${Object.keys(table.schema.columns).map(quoteIdentifier).join(", ")} FROM ${quoteIdentifier(table.name)}${final ? " FINAL" : ""}`,
 		where ? `WHERE ${where}` : "",
@@ -151,12 +152,12 @@ const select = async (table, { where, params, orderBy, limit, offset, final } = 
 		typeof limit === "number" ? `LIMIT ${Math.floor(limit)}` : "",
 		typeof offset === "number" ? `OFFSET ${Math.floor(offset)}` : ""
 	].filter(Boolean).join(" ");
-	return (await table.client().query(sql, params)).map((row) => table.schema.decode(row));
+	return (await table.client().query(sql, params, settings)).map((row) => table.schema.decode(row));
 };
 //#endregion
 //#region src/ops/count.ts
-const count = async (table, { where, params, final } = {}) => {
-	const [row] = await table.client().query(`SELECT count() AS count FROM ${quoteIdentifier(table.name)}${final ? " FINAL" : ""}${where ? ` WHERE ${where}` : ""}`, params);
+const count = async (table, { where, params, final, settings } = {}) => {
+	const [row] = await table.client().query(`SELECT count() AS count FROM ${quoteIdentifier(table.name)}${final ? " FINAL" : ""}${where ? ` WHERE ${where}` : ""}`, params, settings);
 	return row?.count ?? 0;
 };
 //#endregion
@@ -227,6 +228,17 @@ const optional = (schema) => new OptionalSchema(schema);
 //#endregion
 //#region src/schema/number.ts
 const number = (type = "Float64") => new Schema((value) => value, (value) => value, type);
+const of = (type) => () => number(type);
+const float32 = of("Float32");
+const float64 = of("Float64");
+const int8 = of("Int8");
+const int16 = of("Int16");
+const int32 = of("Int32");
+const int64 = of("Int64");
+const uint8 = of("UInt8");
+const uint16 = of("UInt16");
+const uint32 = of("UInt32");
+const uint64 = of("UInt64");
 //#endregion
 //#region src/schema/object.ts
 var ObjectSchema = class extends Schema {
@@ -280,10 +292,16 @@ exports.deleteRows = deleteRows;
 exports.dropTable = dropTable;
 exports.dropTableByName = dropTable$1;
 exports.enums = enums;
+exports.float32 = float32;
+exports.float64 = float64;
 exports.formatColumn = formatColumn;
 exports.formatIndex = formatIndex;
 exports.formatSetting = formatSetting;
 exports.insert = insert;
+exports.int16 = int16;
+exports.int32 = int32;
+exports.int64 = int64;
+exports.int8 = int8;
 exports.json = json;
 exports.map = map;
 exports.nullable = nullable;
@@ -295,4 +313,8 @@ exports.quoteIdentifier = quoteIdentifier;
 exports.quoteString = quoteString;
 exports.select = select;
 exports.string = string;
+exports.uint16 = uint16;
+exports.uint32 = uint32;
+exports.uint64 = uint64;
+exports.uint8 = uint8;
 exports.uuid = uuid;

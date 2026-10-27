@@ -37,6 +37,7 @@ type ClickHouseClientProps = {
   database?: string;
   settings?: Settings;
   requestTimeout?: number;
+  silent?: boolean;
 };
 type InsertOptions = {
   async?: boolean;
@@ -109,16 +110,18 @@ type Options$2 = {
   limit?: number;
   offset?: number;
   final?: boolean;
+  settings?: Settings;
 };
-declare const select: <T extends AnyTable>(table: T, { where, params, orderBy, limit, offset, final }?: Options$2) => Promise<T['schema']['OUTPUT'][]>;
+declare const select: <T extends AnyTable>(table: T, { where, params, orderBy, limit, offset, final, settings }?: Options$2) => Promise<T['schema']['OUTPUT'][]>;
 //#endregion
 //#region src/ops/count.d.ts
 type Options$1 = {
   where?: string;
   params?: QueryParams;
   final?: boolean;
+  settings?: Settings;
 };
-declare const count: (table: AnyTable, { where, params, final }?: Options$1) => Promise<number>;
+declare const count: (table: AnyTable, { where, params, final, settings }?: Options$1) => Promise<number>;
 //#endregion
 //#region src/ops/delete-rows.d.ts
 type Options = {
@@ -169,6 +172,16 @@ declare const optional: <S extends AnySchema>(schema: S) => OptionalSchema<S>;
 //#region src/schema/number.d.ts
 type NumberType = 'Float64' | 'Float32' | 'Int8' | 'Int16' | 'Int32' | 'Int64' | 'UInt8' | 'UInt16' | 'UInt32' | 'UInt64';
 declare const number: <T extends number = number>(type?: NumberType) => Schema<number, T, T>;
+declare const float32: <T extends number = number>() => Schema<number, T, T>;
+declare const float64: <T extends number = number>() => Schema<number, T, T>;
+declare const int8: <T extends number = number>() => Schema<number, T, T>;
+declare const int16: <T extends number = number>() => Schema<number, T, T>;
+declare const int32: <T extends number = number>() => Schema<number, T, T>;
+declare const int64: <T extends number = number>() => Schema<number, T, T>;
+declare const uint8: <T extends number = number>() => Schema<number, T, T>;
+declare const uint16: <T extends number = number>() => Schema<number, T, T>;
+declare const uint32: <T extends number = number>() => Schema<number, T, T>;
+declare const uint64: <T extends number = number>() => Schema<number, T, T>;
 //#endregion
 //#region src/schema/string.d.ts
 type StringProps = {
@@ -179,4 +192,4 @@ declare const string: <T extends string = string>(props?: StringProps) => Schema
 //#region src/schema/uuid.d.ts
 declare const uuid: () => Schema<string, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 //#endregion
-export { type AnyObjectSchema, type AnySchema, type AnyTable, type ClickHouseClient, type ClickHouseClientProps, ClickHouseError, type Column, type ColumnDefinition, type IndexDefinition, type InsertOptions, type ObjectSchema, type QueryParams, type Schema, type Settings, type Table, type TableDefinition, array, boolean, clickhouseClient, columnOf, count, createTable, createTableStatement, date, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, formatColumn, formatIndex, formatSetting, insert, json, map, nullable, number, object, optional, query, quoteIdentifier, quoteString, select, string, uuid };
+export { type AnyObjectSchema, type AnySchema, type AnyTable, type ClickHouseClient, type ClickHouseClientProps, ClickHouseError, type Column, type ColumnDefinition, type IndexDefinition, type InsertOptions, type ObjectSchema, type QueryParams, type Schema, type Settings, type Table, type TableDefinition, array, boolean, clickhouseClient, columnOf, count, createTable, createTableStatement, date, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, json, map, nullable, number, object, optional, query, quoteIdentifier, quoteString, select, string, uint16, uint32, uint64, uint8, uuid };

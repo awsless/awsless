@@ -1,4 +1,4 @@
-import { ClickHouseError, createClient } from "@clickhouse/client";
+import { ClickHouseError, ClickHouseLogLevel, createClient } from "@clickhouse/client";
 //#region src/param.ts
 const escape = (value) => {
 	return value.replaceAll("\\", "\\\\").replaceAll("'", "\\'").replaceAll("	", "\\t").replaceAll("\n", "\\n").replaceAll("\r", "\\r");
@@ -26,7 +26,8 @@ const clickhouseClient = (props) => {
 				password: typeof props.password === "function" ? await props.password() : props.password ?? "",
 				database: props.database,
 				clickhouse_settings: props.settings,
-				request_timeout: props.requestTimeout
+				request_timeout: props.requestTimeout,
+				log: props.silent ? { level: ClickHouseLogLevel.OFF } : void 0
 			});
 		})().catch((error) => {
 			client = void 0;
@@ -142,7 +143,7 @@ const query = async (table, sql, params = {}, settings) => {
 };
 //#endregion
 //#region src/ops/select.ts
-const select = async (table, { where, params, orderBy, limit, offset, final } = {}) => {
+const select = async (table, { where, params, orderBy, limit, offset, final, settings } = {}) => {
 	const sql = [
 		`SELECT ${Object.keys(table.schema.columns).map(quoteIdentifier).join(", ")} FROM ${quoteIdentifier(table.name)}${final ? " FINAL" : ""}`,
 		where ? `WHERE ${where}` : "",
@@ -150,12 +151,12 @@ const select = async (table, { where, params, orderBy, limit, offset, final } = 
 		typeof limit === "number" ? `LIMIT ${Math.floor(limit)}` : "",
 		typeof offset === "number" ? `OFFSET ${Math.floor(offset)}` : ""
 	].filter(Boolean).join(" ");
-	return (await table.client().query(sql, params)).map((row) => table.schema.decode(row));
+	return (await table.client().query(sql, params, settings)).map((row) => table.schema.decode(row));
 };
 //#endregion
 //#region src/ops/count.ts
-const count = async (table, { where, params, final } = {}) => {
-	const [row] = await table.client().query(`SELECT count() AS count FROM ${quoteIdentifier(table.name)}${final ? " FINAL" : ""}${where ? ` WHERE ${where}` : ""}`, params);
+const count = async (table, { where, params, final, settings } = {}) => {
+	const [row] = await table.client().query(`SELECT count() AS count FROM ${quoteIdentifier(table.name)}${final ? " FINAL" : ""}${where ? ` WHERE ${where}` : ""}`, params, settings);
 	return row?.count ?? 0;
 };
 //#endregion
@@ -226,6 +227,17 @@ const optional = (schema) => new OptionalSchema(schema);
 //#endregion
 //#region src/schema/number.ts
 const number = (type = "Float64") => new Schema((value) => value, (value) => value, type);
+const of = (type) => () => number(type);
+const float32 = of("Float32");
+const float64 = of("Float64");
+const int8 = of("Int8");
+const int16 = of("Int16");
+const int32 = of("Int32");
+const int64 = of("Int64");
+const uint8 = of("UInt8");
+const uint16 = of("UInt16");
+const uint32 = of("UInt32");
+const uint64 = of("UInt64");
 //#endregion
 //#region src/schema/object.ts
 var ObjectSchema = class extends Schema {
@@ -260,4 +272,4 @@ const string = (props = {}) => new Schema((value) => value, (value) => value, pr
 //#region src/schema/uuid.ts
 const uuid = () => new Schema((value) => value, (value) => value, "UUID");
 //#endregion
-export { ClickHouseError, array, boolean, clickhouseClient, columnOf, count, createTable, createTableStatement, date, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, formatColumn, formatIndex, formatSetting, insert, json, map, nullable, number, object, optional, query, quoteIdentifier, quoteString, select, string, uuid };
+export { ClickHouseError, array, boolean, clickhouseClient, columnOf, count, createTable, createTableStatement, date, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, json, map, nullable, number, object, optional, query, quoteIdentifier, quoteString, select, string, uint16, uint32, uint64, uint8, uuid };
