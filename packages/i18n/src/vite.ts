@@ -1,6 +1,16 @@
 import MagicString from 'magic-string'
 import { Plugin } from 'vite'
-import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
+import { join } from 'path'
+import {
+	Cache,
+	GENERATED_CACHE_FILE,
+	loadCache,
+	loadGeneratedCache,
+	loadOverrideCache,
+	mergeCaches,
+	OVERRIDE_CACHE_FILE,
+	saveCache,
+} from './cache'
 import { rewriteComponent } from './component'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
 import {
@@ -44,6 +54,19 @@ export type I18nPluginProps = {
 
 	/** Function that performs the translation of a given text. */
 	translate: Translator
+
+	/** Translate new texts while the dev server runs. When off, dev only uses
+	 * the translations already cached and builds still translate everything.
+	 * Run `translate` to translate without building.
+	 * @default false
+	 */
+	translateInDev?: boolean
+}
+
+export type I18nPluginApi = {
+	/** Finds every translatable text under `cwd`, translates the missing ones
+	 * and drops the unused ones from the generated cache. */
+	translate(cwd: string, log: Logger): Promise<void>
 }
 
 const SOURCE_FILE = /\.(svelte|ts|js)$/
@@ -58,9 +81,11 @@ const parseComponents = (code: string) => {
 	}
 }
 
-type Logger = { info: (message: string) => void; warn: (message: string) => void }
+export type Logger = { info: (message: string) => void; warn: (message: string) => void }
 
-export const i18n = (props: I18nPluginProps): Plugin => {
+export const PLUGIN_NAME = 'awsless/i18n'
+
+export const i18n = (props: I18nPluginProps): Plugin<I18nPluginApi> => {
 	let cache: Cache
 	let generatedCache: Cache
 	let overrideCache: Cache
@@ -119,6 +144,39 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 		await saveCache(cwd, generatedCache)
 	}
 
+	const translateAll = async (cwd: string, log: Logger) => {
+		log.info('Finding all translatable text...')
+		const sourceTexts = await findTranslatable(cwd)
+
+		generatedCache = await loadGeneratedCache(cwd)
+		overrideCache = await loadOverrideCache(cwd)
+
+		// Clean up the unused transations from the cache
+		removeUnusedTranslations(generatedCache, sourceTexts, props.locales)
+
+		cache = mergeCaches(generatedCache, overrideCache)
+
+		await translateMissing(cwd, sourceTexts, log)
+
+		log.info(`Translating done.`)
+	}
+
+	const translating = () => !dev || props.translateInDev === true
+
+	// Returns whether the translations on disk differ from the ones in use,
+	// our own saves match and don't count as a change.
+	const reloadCache = async (cwd: string) => {
+		generatedCache = await loadGeneratedCache(cwd)
+		overrideCache = await loadOverrideCache(cwd)
+
+		const next = mergeCaches(generatedCache, overrideCache)
+		const changed = JSON.stringify(next.toJSON()) !== JSON.stringify(cache.toJSON())
+
+		cache = next
+
+		return changed
+	}
+
 	const templateReplacement = (source: string) => {
 		const translations = props.locales
 			.map(locale => {
@@ -155,36 +213,65 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 	}
 
 	return {
-		name: 'awsless/i18n',
+		name: PLUGIN_NAME,
 		enforce: 'pre',
+		api: {
+			translate: translateAll,
+		},
 		configResolved(config) {
 			dev = config.command === 'serve'
+		},
+		// Picks up translations from the translate CLI or an edited i18n.json
+		// without restarting. The translations are inlined while transforming,
+		// so every module is transformed again.
+		configureServer(server) {
+			const cwd = process.cwd()
+			const files = [GENERATED_CACHE_FILE, OVERRIDE_CACHE_FILE].map(file => join(cwd, file))
+
+			const onChange = (file: string) => {
+				if (!cache || !files.includes(file)) {
+					return
+				}
+
+				queue = queue
+					.catch(() => {})
+					.then(async () => {
+						if (await reloadCache(cwd)) {
+							for (const environment of Object.values(server.environments)) {
+								environment.moduleGraph.invalidateAll()
+							}
+
+							server.ws.send({ type: 'full-reload' })
+						}
+					})
+					.catch(error => {
+						server.config.logger.warn(`Reloading the translations failed: ${error}`)
+					})
+			}
+
+			server.watcher.on('add', onChange)
+			server.watcher.on('change', onChange)
+			server.watcher.on('unlink', onChange)
 		},
 		async buildStart() {
 			const cwd = process.cwd()
 
-			this.info('Finding all translatable text...')
-			const sourceTexts = await findTranslatable(cwd)
+			// Unused texts aren't pruned either, they may be mid-edit and
+			// nothing would translate them again until the next build.
+			if (!translating()) {
+				cache = await loadCache(cwd)
+				return
+			}
 
-			generatedCache = await loadGeneratedCache(cwd)
-			overrideCache = await loadOverrideCache(cwd)
-
-			// Clean up the unused transations from the cache
-			removeUnusedTranslations(generatedCache, sourceTexts, props.locales)
-
-			cache = mergeCaches(generatedCache, overrideCache)
-
-			await translateMissing(cwd, sourceTexts, {
+			await translateAll(cwd, {
 				info: message => this.info(message),
 				warn: message => this.warn(message),
 			})
-
-			this.info(`Translating done.`)
 		},
 		// A file saved during dev gets its new texts translated before the
 		// module is transformed, so no restart is needed to see them.
 		async hotUpdate({ file, read }) {
-			if (!cache || !SOURCE_FILE.test(file) || isIgnoredPath(file)) {
+			if (!cache || !translating() || !SOURCE_FILE.test(file) || isIgnoredPath(file)) {
 				return
 			}
 

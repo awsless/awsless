@@ -38,6 +38,36 @@ export defineConfig({
 })
 ```
 
+## Translating during development
+
+By default the dev server makes no translation calls. It uses the
+translations already in the cache and shows new text in the default
+language, while `vite build` still translates everything. Turn on
+`translateInDev` to translate new text every time you save a file.
+
+```ts
+i18n({
+	locales: ['es', 'jp'],
+	translateInDev: true,
+	translate: ai({ ... }),
+})
+```
+
+To translate without building, run the `translate` CLI from your project
+root. It reads the plugin options from your Vite config, pass `--config` to
+pick a different one.
+
+```json
+{
+	"scripts": {
+		"translate": "translate"
+	}
+}
+```
+
+Prefer a script over `npx translate`: if `@awsless/i18n` isn't installed,
+npx fetches the unrelated `translate` package from npm instead.
+
 ## Svelte example
 
 ```ts
