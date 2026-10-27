@@ -31,44 +31,12 @@ export const formatServiceName = (appName: string, accountId: string, stage?: st
 	return `${parts.join('-')}-${shortId([...parts, accountId].join('--'))}`
 }
 
-// The folder of the app's bucket that holds the service's backups.
-export const BACKUP_FOLDER = 'clickhouse'
-
 // The lambdas & the deploy read the generated password from here, kept
 // apart from the config parameters so it never shows up as a config. Two
 // stages in one account each get their own.
 export const formatPasswordParameter = (appName: string, stage?: string) => {
 	return `/.awsless-clickhouse/${stage ? `${appName}/${stage}` : appName}/password`
 }
-
-// What a backup needs, as the ClickHouse Cloud docs list it, kept to the
-// backup folder: it only ever deletes its own lock files.
-export const backupPolicy = (bucketArn: string) => ({
-	Version: '2012-10-17',
-	Statement: [
-		{
-			Effect: 'Allow',
-			Action: ['s3:GetBucketLocation'],
-			Resource: [bucketArn],
-		},
-		{
-			Effect: 'Allow',
-			Action: ['s3:ListBucket'],
-			Resource: [bucketArn],
-			Condition: { StringLike: { 's3:prefix': [BACKUP_FOLDER, `${BACKUP_FOLDER}/*`] } },
-		},
-		{
-			Effect: 'Allow',
-			Action: ['s3:Get*', 's3:List*', 's3:PutObject'],
-			Resource: [`${bucketArn}/${BACKUP_FOLDER}/*`],
-		},
-		{
-			Effect: 'Allow',
-			Action: ['s3:DeleteObject'],
-			Resource: [`${bucketArn}/${BACKUP_FOLDER}/*/.lock`],
-		},
-	],
-})
 
 export const clickhouseFeature = defineFeature({
 	name: 'clickhouse',
@@ -158,7 +126,25 @@ export const clickhouseFeature = defineFeature({
 				inlinePolicy: [
 					{
 						name: 'Backups',
-						policy: bucket.arn.pipe(arn => JSON.stringify(backupPolicy(arn))),
+						// What a backup needs, as the ClickHouse Cloud docs list it, kept
+						// to the bucket's clickhouse folder: it only ever deletes its own
+						// lock files.
+						policy: bucket.arn.pipe(arn =>
+							JSON.stringify({
+								Version: '2012-10-17',
+								Statement: [
+									{ Effect: 'Allow', Action: ['s3:GetBucketLocation'], Resource: [arn] },
+									{
+										Effect: 'Allow',
+										Action: ['s3:ListBucket'],
+										Resource: [arn],
+										Condition: { StringLike: { 's3:prefix': ['clickhouse', 'clickhouse/*'] } },
+									},
+									{ Effect: 'Allow', Action: ['s3:Get*', 's3:List*', 's3:PutObject'], Resource: [`${arn}/clickhouse/*`] },
+									{ Effect: 'Allow', Action: ['s3:DeleteObject'], Resource: [`${arn}/clickhouse/*/.lock`] },
+								],
+							})
+						),
 					},
 				],
 			})
@@ -168,7 +154,7 @@ export const clickhouseFeature = defineFeature({
 				'backup-bucket',
 				{
 					serviceId: service.id,
-					bucketPath: bucket.name.pipe(name => `https://${name}.s3.amazonaws.com/${BACKUP_FOLDER}`),
+					bucketPath: bucket.name.pipe(name => `https://${name}.s3.amazonaws.com/clickhouse`),
 					roleArn: role.arn,
 					externalId: service.id,
 				},
@@ -179,7 +165,7 @@ export const clickhouseFeature = defineFeature({
 			bucket.addLifecycleRule({
 				id: 'expire-clickhouse-backups',
 				enabled: true,
-				prefix: `${BACKUP_FOLDER}/`,
+				prefix: 'clickhouse/',
 				expiration: { days: toDays(props.backup.retention) },
 				noncurrentVersionExpiration: { days: 1 },
 			})

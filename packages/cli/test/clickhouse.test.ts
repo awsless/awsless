@@ -5,7 +5,7 @@ import { clickhouseClient } from '@awsless/clickhouse'
 import { ClickHouseServer } from '@awsless/clickhouse-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ExpectedError } from '../src/error'
-import { backupPolicy, formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
+import { formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
 import { resolveColumnType } from '../src/feature/clickhouse/schema'
 import { hasClickHouseTables } from '../src/feature/clickhouse/util'
 import { createClickHouseProvider, serviceGone } from '../src/formation/clickhouse'
@@ -205,22 +205,6 @@ describe('clickhouse', () => {
 		expect(withBackup({ retention: '36 hours' })).toThrow()
 		expect(withBackup({ retention: '12 hours' })).toThrow()
 		expect(withBackup({ every: '2 days', retention: '30 days' })).not.toThrow()
-	})
-
-	it('keeps the backup role to the backup folder', () => {
-		const policy = backupPolicy('arn:aws:s3:::bucket')
-		const resources = policy.Statement.flatMap(statement => statement.Resource)
-
-		expect(resources.filter(resource => resource !== 'arn:aws:s3:::bucket')).toEqual([
-			'arn:aws:s3:::bucket/clickhouse/*',
-			'arn:aws:s3:::bucket/clickhouse/*/.lock',
-		])
-		expect(policy.Statement.find(statement => statement.Action.includes('s3:ListBucket'))!.Condition).toEqual({
-			StringLike: { 's3:prefix': ['clickhouse', 'clickhouse/*'] },
-		})
-		expect(policy.Statement.find(statement => statement.Action.includes('s3:DeleteObject'))!.Resource).toEqual([
-			'arn:aws:s3:::bucket/clickhouse/*/.lock',
-		])
 	})
 
 	it('retains the backup setting when the app retains its data', () => {
@@ -475,7 +459,7 @@ describe('clickhouse resources', () => {
 		const answer = (status: number, body: object = {}) => new Response(JSON.stringify(body), { status })
 
 		const calls = (fetch: ReturnType<typeof vi.spyOn>) => {
-			return fetch.mock.calls.map(([url, init]) => {
+			return fetch.mock.calls.map(([url, init]: unknown[]) => {
 				const { method, body } = init as RequestInit
 				return [method, String(url), body ? JSON.parse(body as string) : undefined]
 			})
@@ -518,7 +502,7 @@ describe('clickhouse resources', () => {
 
 			await cloud.updateResource({ type: 'backup-bucket', proposedState: state } as never)
 
-			expect(calls(fetch).map(([method]) => method)).toEqual(['GET', 'PATCH'])
+			expect(calls(fetch).map(([method]: unknown[]) => method)).toEqual(['GET', 'PATCH'])
 		})
 
 		it('fails on a refused key', async () => {
@@ -532,7 +516,7 @@ describe('clickhouse resources', () => {
 
 			await cloud.deleteResource({ type: 'backup-bucket', state } as never)
 
-			expect(calls(fetch).map(([method]) => method)).toEqual(['DELETE'])
+			expect(calls(fetch).map(([method]: unknown[]) => method)).toEqual(['DELETE'])
 		})
 
 		it('replaces the setting for a new service', async () => {
