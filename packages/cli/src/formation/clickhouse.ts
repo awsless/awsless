@@ -52,14 +52,15 @@ type BackupBucketInput = {
 	// gets a folder of its own.
 	bucketPath: Input<string>
 	roleArn: Input<string>
-	externalId: Input<string>
+	// The secret session name the role's trust requires.
+	sessionName: Input<string>
 }
 
 type BackupBucketOutput = {
 	serviceId: Output<string>
 	bucketPath: Output<string>
 	roleArn: Output<string>
-	externalId: Output<string>
+	sessionName: Output<string>
 }
 
 // The service's backups written to a bucket of the app's own account as
@@ -76,7 +77,7 @@ const backupBucketSchema = z.object({
 	serviceId: z.string(),
 	bucketPath: z.string(),
 	roleArn: z.string(),
-	externalId: z.string(),
+	sessionName: z.string(),
 })
 
 const tableSchema = z.object({
@@ -268,8 +269,7 @@ export const createClickHouseProvider = ({
 		bucketProvider: 'AWS',
 		bucketPath: props.bucketPath,
 		iamRoleArn: props.roleArn,
-		iamRoleSessionName: 'awsless-clickhouse-backup',
-		iamRoleExternalId: props.externalId,
+		iamRoleSessionName: props.sessionName,
 	})
 
 	// One backup bucket per service: a new one is posted, a known one patched.

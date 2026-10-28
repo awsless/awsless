@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { toDays, toHours, toMinutes } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { clickhouse } from '@terraforge/clickhouse'
@@ -90,19 +91,30 @@ export const clickhouseFeature = defineFeature({
 				ipAccess: props.ipAccess.map(source => ({ source, description: 'awsless' })),
 				passwordHash: password.hash,
 				releaseChannel: props.releaseChannel,
-				backupConfiguration: props.backup?.every
-					? { backupPeriodInHours: toHours(props.backup.every) }
-					: undefined,
+				backupConfiguration:
+					props.backup?.every || props.backup?.retention
+						? {
+								backupPeriodInHours: props.backup.every ? toHours(props.backup.every) : undefined,
+								backupRetentionPeriodInHours: props.backup.retention
+									? toHours(props.backup.retention)
+									: undefined,
+							}
+						: undefined,
 			},
 			{ retainOnDelete }
 		)
 
-		if (props.backup) {
+		if (props.backup?.export) {
 			const bucket = ctx.shared.get('asset', 'bucket')
 
 			// ClickHouse Cloud assumes this role from the service's own role,
-			// with the service's id as the external id, so no other service
-			// that shares that role can write here.
+			// under a session name only this service's backup setting knows,
+			// derived from its password hash: ClickHouse Cloud's docs use the
+			// session name as the shared secret, since it refuses an external
+			// id for organizations it hasn't turned that on for.
+			const sessionName = password.hash.pipe(hash =>
+				createHash('sha256').update(`backup:${hash}`).digest('hex').slice(0, 48)
+			)
 			const role = new aws.iam.Role(group, 'backup-role', {
 				name: formatGlobalResourceName({
 					appName: ctx.app.name,
@@ -110,7 +122,7 @@ export const clickhouseFeature = defineFeature({
 					resourceName: 'backup',
 				}),
 				description: `${ctx.app.name} ClickHouse backups`,
-				assumeRolePolicy: $combine(service.iamRole, service.id).pipe(([principal, serviceId]) =>
+				assumeRolePolicy: $combine(service.iamRole, sessionName).pipe(([principal, session]) =>
 					JSON.stringify({
 						Version: '2012-10-17',
 						Statement: [
@@ -118,7 +130,7 @@ export const clickhouseFeature = defineFeature({
 								Effect: 'Allow',
 								Action: 'sts:AssumeRole',
 								Principal: { AWS: principal },
-								Condition: { StringEquals: { 'sts:ExternalId': serviceId } },
+								Condition: { StringEquals: { 'sts:RoleSessionName': session } },
 							},
 						],
 					})
@@ -156,7 +168,7 @@ export const clickhouseFeature = defineFeature({
 					serviceId: service.id,
 					bucketPath: bucket.name.pipe(name => `https://${name}.s3.amazonaws.com/clickhouse`),
 					roleArn: role.arn,
-					externalId: service.id,
+					sessionName,
 				},
 				{ retainOnDelete }
 			)
@@ -166,7 +178,7 @@ export const clickhouseFeature = defineFeature({
 				id: 'expire-clickhouse-backups',
 				enabled: true,
 				prefix: 'clickhouse/',
-				expiration: { days: toDays(props.backup.retention) },
+				expiration: { days: toDays(props.backup.export.retention) },
 				noncurrentVersionExpiration: { days: 1 },
 			})
 		}

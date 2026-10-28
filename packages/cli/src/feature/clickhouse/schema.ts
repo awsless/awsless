@@ -12,13 +12,26 @@ export const BACKUP_PERIODS = [6, 8, 12, 16, 20, 24, 36, 48]
 
 const isWholeDays = (duration: { value: bigint }) => duration.value % days(1).value === 0n
 
+const RetentionSchema = DurationSchema.refine(isWholeDays, 'A backup retention must be whole days.').refine(
+	durationMin(days(1)),
+	'A backup retention can not be under a day.'
+)
+
 const BackupSchema = z
 	.object({
-		retention: DurationSchema.refine(isWholeDays, 'The backup retention must be whole days.')
-			.refine(durationMin(days(1)), 'The backup retention can not be under a day.')
-			.prefault('7 days')
+		retention: RetentionSchema.optional().describe(
+			'How long ClickHouse Cloud keeps each of its own backups, like "7 days". Leave it out for its default.'
+		),
+		export: z
+			.object({
+				retention: RetentionSchema.prefault('7 days').describe(
+					"How long a backup stays in your bucket before S3 expires it. ClickHouse Cloud doesn't remove the backups it writes there."
+				),
+			})
+			.strict()
+			.optional()
 			.describe(
-				"How long a backup stays in your bucket before S3 expires it. ClickHouse Cloud doesn't remove the backups it writes there."
+				"Also write the service's backups to your own AWS account, under clickhouse/ in the app's bucket."
 			),
 		every: DurationSchema.refine(
 			duration => BACKUP_PERIODS.some(period => hours(period).value === duration.value),
@@ -75,7 +88,7 @@ export const ClickHouseDefaultSchema = z
 			.optional()
 			.describe('How soon the service gets new ClickHouse versions.'),
 		backup: BackupSchema.optional().describe(
-			"Also write the service's backups to your own AWS account, under clickhouse/ in the app's bucket. ClickHouse Cloud keeps its own daily backups as well."
+			"The service's backups: how often and how long ClickHouse Cloud keeps them, and optionally a copy in your own AWS account."
 		),
 	})
 	.strict()

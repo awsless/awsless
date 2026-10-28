@@ -179,7 +179,7 @@ describe('clickhouse', () => {
 
 	it('writes backups to the app bucket through a role of its own', () => {
 		const { app } = createTestApp({
-			defaults: { clickhouse: { backup: { every: '12 hours' } } },
+			defaults: { clickhouse: { backup: { every: '12 hours', export: {} } } },
 			stacks: [{ name: 'stack-1', clickhouse: { events } }],
 		})
 
@@ -191,6 +191,7 @@ describe('clickhouse', () => {
 		expect(listResources(app, 'backup-bucket')).toHaveLength(1)
 		expect(listResources(app, 'clickhouse_service')[0]!.input.backupConfiguration).toEqual({
 			backupPeriodInHours: 12,
+			backupRetentionPeriodInHours: undefined,
 		})
 	})
 
@@ -204,13 +205,27 @@ describe('clickhouse', () => {
 		expect(withBackup({ every: '10 hours' })).toThrow()
 		expect(withBackup({ retention: '36 hours' })).toThrow()
 		expect(withBackup({ retention: '12 hours' })).toThrow()
+		expect(withBackup({ export: { retention: '12 hours' } })).toThrow()
 		expect(withBackup({ every: '2 days', retention: '30 days' })).not.toThrow()
+	})
+
+	it("sets ClickHouse Cloud's own backup retention without a copy in the app bucket", () => {
+		const { app } = createTestApp({
+			defaults: { clickhouse: { backup: { retention: '7 days' } } },
+			stacks: [{ name: 'stack-1', clickhouse: { events } }],
+		})
+
+		expect(listResources(app, 'backup-bucket')).toEqual([])
+		expect(listResources(app, 'clickhouse_service')[0]!.input.backupConfiguration).toEqual({
+			backupPeriodInHours: undefined,
+			backupRetentionPeriodInHours: 168,
+		})
 	})
 
 	it('retains the backup setting when the app retains its data', () => {
 		const { app } = createTestApp({
 			app: { removal: 'retain' },
-			defaults: { clickhouse: { backup: {} } },
+			defaults: { clickhouse: { backup: { export: {} } } },
 			stacks: [{ name: 'stack-1', clickhouse: { events } }],
 		})
 
@@ -453,7 +468,7 @@ describe('clickhouse resources', () => {
 			serviceId: 'service-1',
 			bucketPath: 'https://bucket.s3.amazonaws.com/clickhouse',
 			roleArn: 'arn:aws:iam::123456789012:role/test-app--clickhouse--backup',
-			externalId: 'service-1',
+			sessionName: 'secret-session',
 		}
 
 		const answer = (status: number, body: object = {}) => new Response(JSON.stringify(body), { status })
@@ -484,8 +499,7 @@ describe('clickhouse resources', () => {
 						bucketProvider: 'AWS',
 						bucketPath: state.bucketPath,
 						iamRoleArn: state.roleArn,
-						iamRoleSessionName: 'awsless-clickhouse-backup',
-						iamRoleExternalId: 'service-1',
+						iamRoleSessionName: 'secret-session',
 					},
 				],
 			])
