@@ -133,13 +133,14 @@ export const TablesSchema = z
 							),
 
 						projection: z
-							.enum(['all', 'keys-only'])
+							.union([z.enum(['all', 'keys-only']), z.string().array().min(1)])
 							.default('all')
 							.describe(
 								[
 									'The set of attributes that are projected into the index:',
 									'- all - All of the table attributes are projected into the index.',
 									'- keys-only - Only the index and primary keys are projected into the index.',
+									'- a list of attribute names - Only those attributes and the keys are projected into the index (INCLUDE).',
 									'@default "all"',
 								].join('\n')
 							),

@@ -179,7 +179,9 @@ export const tableFeature = defineFeature({
 					},
 					globalSecondaryIndex: Object.entries(props.indexes ?? {}).map(([name, index]) => ({
 						name: name,
-						projectionType: constantCase(index.projection),
+						...(Array.isArray(index.projection)
+							? { projectionType: 'INCLUDE', nonKeyAttributes: index.projection }
+							: { projectionType: constantCase(index.projection) }),
 						keySchema: [
 							...index.hash.map(name => ({
 								keyType: 'HASH',

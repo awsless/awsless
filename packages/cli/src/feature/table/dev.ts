@@ -52,7 +52,9 @@ export const createTableInput = (name: string, props: TableProps) => {
 			props.indexes && Object.keys(props.indexes).length > 0
 				? Object.entries(props.indexes).map(([name, index]) => ({
 						IndexName: name,
-						Projection: { ProjectionType: constantCase(index.projection) as 'ALL' | 'KEYS_ONLY' },
+						Projection: Array.isArray(index.projection)
+							? { ProjectionType: 'INCLUDE', NonKeyAttributes: index.projection }
+							: { ProjectionType: constantCase(index.projection) as 'ALL' | 'KEYS_ONLY' },
 						KeySchema: [
 							...index.hash.map(name => ({ AttributeName: name, KeyType: 'HASH' as const })),
 							...(index.sort ?? []).map(name => ({ AttributeName: name, KeyType: 'RANGE' as const })),
