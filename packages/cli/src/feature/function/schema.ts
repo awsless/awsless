@@ -176,7 +176,7 @@ const CodeSchema = z
 // The lambda config of a bundled function is defined by the shared
 // bundle, so environment, permissions & memorySize live in
 // defaults.function.
-const BundledFnSchema = z
+export const BundledFnSchema = z
 	.object({
 		code: CodeSchema,
 		handler: HandlerSchema.optional(),

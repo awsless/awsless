@@ -13,6 +13,7 @@ type Package = {
   path: string;
   name: string;
   main?: string;
+  exports: Record<string, string>;
   dependencies: Record<string, Dependency>;
 };
 type Workspace = {

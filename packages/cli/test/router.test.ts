@@ -6,7 +6,7 @@ import { MAINTENANCE_PAGE } from '../src/feature/router/maintenance'
 import { createPasswordAuth, PasswordAuth } from '../src/feature/router/password-auth'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
 import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
-import { createTestApp } from './_kit'
+import { createTestApp, findStatements, listResources } from './_kit'
 
 type Request = {
 	uri: string
@@ -170,6 +170,36 @@ describe('router routes', () => {
 		])
 	})
 
+	it('should answer preflights at the edge unless the router turns cors off', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		])
+		const preflight = () => ({ ...createRequest('/api'), method: 'OPTIONS' })
+
+		const withCors = (await createRouter(values).handler({ request: preflight() })) as Response
+		expect(withCors.statusCode).toBe(204)
+		expect(withCors.headers?.['access-control-allow-origin']).toEqual({ value: '*' })
+
+		// Without cors the request goes on to its route like any other.
+		const without = (await createRouter(values, { cors: false }).handler({ request: preflight() })) as Request
+		expect(without.uri).toBe('/api')
+		expect(without.method).toBe('OPTIONS')
+		expect(getViewerRequestFunctionCode({ router: 'main', cors: false })).not.toContain('access-control')
+	})
+
+	it('should leave a router without cors without a cors response policy', () => {
+		const result = createRouterApp({ main: { cors: false }, other: {} })
+		result.ready()
+
+		const policies = listResources(result.app, 'aws_cloudfront_response_headers_policy') as {
+			input: { corsConfig?: unknown }
+		}[]
+
+		expect(policies).toHaveLength(2)
+		expect(policies.filter(policy => policy.input.corsConfig === undefined)).toHaveLength(1)
+	})
+
 	it('should only use syntax the cloudfront js runtime supports', async () => {
 		// The cloudfront-js-2.0 runtime rejects for...of at parse time,
 		// which breaks the whole function with a 503 on every request.
@@ -325,6 +355,46 @@ describe('router routes', () => {
 		expect(result.headers['x-forwarded-host']).toEqual({ value: 'example.com' })
 	})
 
+	it("should keep the request's origin on a load balancer behavior & still pick the handler", async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/identify',
+				JSON.stringify({
+					type: 'lambda',
+					domainName: 'bundle.lambda-url.us-east-1.on.aws',
+					requestHeaders: { 'x-awsless-route': 'api:route:identify' },
+				}),
+			],
+		])
+		const { handler, updateRequestOrigin } = createRouter(values, { keepRequestOrigin: true })
+		const result = (await handler({ request: createRequest('/identify', 'example.com') })) as Request
+
+		expect(updateRequestOrigin).not.toHaveBeenCalled()
+		expect(result.headers['x-awsless-route']).toEqual({ value: 'api:route:identify' })
+
+		const missing = (await handler({ request: createRequest('/other', 'example.com') })) as Response
+
+		expect(missing.statusCode).toBe(404)
+	})
+
+	it("should serve a customer's own domain like the router's & only block the bare cloudfront host", async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			[
+				'v1:main:/identify',
+				JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws', forwardHost: true }),
+			],
+		])
+		const { handler } = createRouter(values, { blockDirectAccess: true })
+
+		const custom = (await handler({ request: createRequest('/identify', 'metrics.shop.example.com') })) as Request
+		expect(custom.headers['x-forwarded-host']).toEqual({ value: 'metrics.shop.example.com' })
+
+		const direct = (await handler({ request: createRequest('/identify', 'd111111abcdef8.cloudfront.net') })) as Response
+		expect(direct.statusCode).toBe(403)
+	})
+
 	it('should serve assets through the single dotted-catchall route', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
@@ -463,6 +533,118 @@ describe('router routes', () => {
 			'v1:main:/*.',
 			'v1:main:/*',
 		])
+	})
+})
+
+describe('router custom domains', () => {
+	it('should leave custom domains off by default', () => {
+		const { app, binds, shared } = createRouterApp({ main: {} })
+
+		expect(listResources(app, 'aws_cloudfront_connection_group')).toHaveLength(0)
+		expect(binds.map(bind => bind.name)).not.toContain('ROUTER_MAIN_DISTRIBUTION_ID')
+		expect(findStatements(shared, 'cloudfront:CreateDistributionTenant')).toHaveLength(0)
+	})
+
+	it('should give customer domains their own connection group & bind what a tenant needs', () => {
+		const { app, binds } = createRouterApp({ public: { customDomains: true } })
+
+		const groups = listResources(app, 'aws_cloudfront_connection_group')
+		expect(groups.map(group => group.input.name)).toEqual(['test-app--router--public--custom-domains'])
+		expect(groups[0]!.input.ipv6Enabled).toBe(true)
+
+		const bound = Object.fromEntries(binds.map(bind => [bind.name, bind.value]))
+		expect(Object.keys(bound)).toEqual(
+			expect.arrayContaining([
+				'ROUTER_PUBLIC_DISTRIBUTION_ID',
+				'ROUTER_PUBLIC_CONNECTION_GROUP_ID',
+				'ROUTER_PUBLIC_ROUTING_ENDPOINT',
+			])
+		)
+		expect(findInputDeps(bound.ROUTER_PUBLIC_DISTRIBUTION_ID).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_multitenant_distribution',
+		])
+		expect(findInputDeps(bound.ROUTER_PUBLIC_ROUTING_ENDPOINT).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_connection_group',
+		])
+	})
+
+	it("should keep the router domain's connection group apart from the customers' one", () => {
+		const { app } = createTestApp({
+			defaults: {
+				domains: { main: { domain: 'example.com' } },
+				router: { public: { domain: 'main', subDomain: 'api', customDomains: true } },
+			},
+		})
+
+		expect(listResources(app, 'aws_cloudfront_connection_group').map(group => group.input.name)).toEqual([
+			'test-app--router--public',
+			'test-app--router--public--custom-domains',
+		])
+	})
+
+	it("should point a name on the router's domain at the customers' connection group", () => {
+		const { app, binds } = createTestApp({
+			defaults: {
+				domains: { api: { domain: 'example.net' } },
+				router: { public: { domain: 'api', subDomain: 'api', customDomains: { subDomain: 'edge' } } },
+			},
+		})
+
+		const records = listResources(app, 'aws_route53_record').filter(record =>
+			String(record.input.name).includes('edge.example.net')
+		)
+		expect(records.map(record => [record.input.type, record.input.name])).toEqual(
+			expect.arrayContaining([
+				['A', 'edge.example.net'],
+				['AAAA', 'edge.example.net'],
+				['TXT', '_cf-challenge.edge.example.net'],
+			])
+		)
+
+		const alias = records.find(record => record.input.type === 'A')!
+		expect(findInputDeps(alias.input.alias).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_connection_group',
+		])
+
+		expect(binds.find(bind => bind.name === 'ROUTER_PUBLIC_CUSTOM_DOMAIN_TARGET')?.value).toBe('edge.example.net')
+	})
+
+	it('should fall back to the routing endpoint as the target without a router domain', () => {
+		const { binds } = createRouterApp({ public: { customDomains: true } })
+		const target = binds.find(bind => bind.name === 'ROUTER_PUBLIC_CUSTOM_DOMAIN_TARGET')!
+
+		expect(findInputDeps(target.value).map(dependency => dependency.type)).toEqual([
+			'aws_cloudfront_connection_group',
+		])
+	})
+
+	it("should refuse a target that is the router's own name", () => {
+		expect(() =>
+			createTestApp({
+				defaults: {
+					domains: { main: { domain: 'example.com' } },
+					router: { public: { domain: 'main', subDomain: 'api', customDomains: { subDomain: 'api' } } },
+				},
+			})
+		).toThrow()
+	})
+
+	it('should grant the tenant calls, scoped to tenants where IAM allows it', () => {
+		const { shared } = createRouterApp({ public: { customDomains: true } })
+
+		const [create] = findStatements(shared, 'cloudfront:CreateDistributionTenant')
+		expect(create!.resources).toEqual(['*'])
+		expect(create!.actions).toContain('acm:RequestCertificate')
+
+		const [manage] = findStatements(shared, 'cloudfront:DeleteDistributionTenant')
+		expect(manage!.actions).toEqual(
+			expect.arrayContaining([
+				'cloudfront:GetDistributionTenant',
+				'cloudfront:UpdateDistributionTenant',
+				'cloudfront:GetManagedCertificateDetails',
+			])
+		)
+		expect(manage!.resources).toEqual(['arn:aws:cloudfront::123456789012:distribution-tenant/*'])
 	})
 })
 

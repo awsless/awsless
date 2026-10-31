@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'path'
 import { aws } from '@terraforge/aws'
-import { findInputDeps, Group, Input, OptionalInput, Output, resolveInputs } from '@terraforge/core'
+import { findInputDeps, Group, Input, OptionalInput, Output, Resource, resolveInputs } from '@terraforge/core'
 import { getBuildPath } from '../../build/index.js'
 import { AppContext, Permission } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
@@ -41,6 +41,8 @@ export const createPubSubService = (
 		targetGroupArn: Input<string>
 		securityGroupId: Input<string>
 		environment: Record<string, Input<string>>
+		// ECS refuses a target group no listener forwards to yet.
+		listenerRule: Resource
 	}
 ) => {
 	const group = new Group(parentGroup, 'service', id)
@@ -347,6 +349,7 @@ exec /usr/app/program`,
 		},
 		{
 			replaceOnChanges: ['cluster'],
+			dependsOn: [inputs.listenerRule],
 		}
 	)
 

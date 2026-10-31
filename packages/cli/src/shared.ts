@@ -73,6 +73,23 @@ type SharedState = {
 		endpoint: Output<string>
 		accessRole: aws.iam.Role
 	}
+
+	clickhouse: {
+		endpoint: Output<string>
+		parameter: string
+	}
+
+	// Only set when a pubsub or a router path needs it.
+	'load-balancer': {
+		main: {
+			lb: aws.Lb
+			listener: aws.lb.Listener
+			securityGroup: aws.security.Group
+			dnsName: Output<string>
+			// The priority of a rule by its key, unique across the listener.
+			priority: (key: string) => number
+		}
+	}
 }
 
 type SharedEntries = {

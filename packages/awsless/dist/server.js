@@ -1,10 +1,12 @@
 import { t as createProxy } from "./proxy-HAezNYiX.js";
 import * as s from "@awsless/open-search";
 import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search";
+import * as c from "@awsless/clickhouse";
+import { clickhouseClient, define as define$1 } from "@awsless/clickhouse";
 import * as t from "@awsless/dynamodb";
-import { define as define$1 } from "@awsless/dynamodb";
+import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
-import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
+import { REDACTED, applyRedaction, array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, redact, redactWith, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
 import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
@@ -339,8 +341,57 @@ const buildRequest = (props, parts) => {
 		body: rawBody
 	});
 };
+const SECRET_NAME = /authorization|cookie|token|secret|password|api-?key|signature|session|totp|(^|[-_])(otp|code)$/i;
+const PERSONAL_HEADER = /address|forwarded-for|real-ip|client-ip|connecting-ip|(^|-)ip$|viewer-(latitude|longitude|city|postal-code|metro-code|country-region)/i;
+const PERSONAL_FIELD = /e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i;
+const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/;
+const isSecretHeader = (name) => SECRET_NAME.test(name) || PERSONAL_HEADER.test(name);
+const isSecretField = (name) => SECRET_NAME.test(name) || PERSONAL_FIELD.test(name) || IP_FIELD.test(name);
+const redactNamed = (value, hidden = false) => {
+	if (hidden && value !== null && typeof value !== "object") return REDACTED;
+	if (Array.isArray(value)) return value.map((item) => redactNamed(item, hidden));
+	if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactNamed(item, hidden || isSecretField(name))]));
+	return value;
+};
+const redactHeaders = (headers) => {
+	return headers && Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value]));
+};
+const redactBody = (props, body, isBase64Encoded) => {
+	if (!body) return body;
+	try {
+		const data = JSON.parse(isBase64Encoded ? Buffer.from(body, "base64").toString("utf8") : body);
+		return JSON.stringify(props.body ? applyRedaction(props.body, data) : redactNamed(data));
+	} catch {
+		return REDACTED;
+	}
+};
+const redactQuery = (rawQueryString) => {
+	if (!rawQueryString) return rawQueryString;
+	const params = new URLSearchParams(rawQueryString);
+	for (const [name] of params) if (isSecretField(name)) params.set(name, REDACTED);
+	return params.toString();
+};
+const redactEvent = (props) => (input) => {
+	if (!input || typeof input !== "object") return input;
+	const event = input;
+	return {
+		...event,
+		rawQueryString: redactQuery(event.rawQueryString),
+		queryStringParameters: event.queryStringParameters && redactNamed(event.queryStringParameters),
+		headers: redactHeaders(event.headers),
+		...event.cookies ? { cookies: event.cookies.map(() => REDACTED) } : {},
+		body: redactBody(props, event.body, event.isBase64Encoded),
+		requestContext: event.requestContext && {
+			...event.requestContext,
+			http: event.requestContext.http && {
+				...event.requestContext.http,
+				sourceIp: REDACTED
+			}
+		}
+	};
+};
 const routeSchema = (props) => {
-	return pipe(envelopeSchema, transform(extractParts), partsSchema(props), transform((parts) => buildRequest(props, parts)));
+	return pipe(envelopeSchema, redactWith(redactEvent(props)), transform(extractParts), partsSchema(props), transform((parts) => buildRequest(props, parts)));
 };
 const isTextual = (contentType) => {
 	return contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("xml") || contentType.includes("javascript") || contentType.includes("x-www-form-urlencoded");
@@ -414,7 +465,7 @@ var pubsub_exports = /* @__PURE__ */ __exportAll({
 	subscribed: () => subscribed,
 	unsubscribed: () => unsubscribed
 });
-const authEventSchema$1 = object({ token: optional(string()) });
+const authEventSchema$1 = object({ token: optional(pipe(string(), redact())) });
 const auth$1 = (handle) => {
 	return consumer(authEventSchema$1, handle);
 };
@@ -464,7 +515,7 @@ function unsubscribed(...args) {
 //#endregion
 //#region src/lib/handle/rpc.ts
 var rpc_exports = /* @__PURE__ */ __exportAll({ auth: () => auth });
-const authEventSchema = object({ token: string() });
+const authEventSchema = object({ token: pipe(string(), redact()) });
 const auth = (handle) => {
 	return consumer(authEventSchema, handle);
 };
@@ -511,6 +562,7 @@ var handle_exports = /* @__PURE__ */ __exportAll({
 	image: () => image,
 	pubsub: () => pubsub_exports,
 	queue: () => queue,
+	redactEvent: () => redactEvent,
 	route: () => route,
 	rpc: () => rpc_exports,
 	site: () => site,
@@ -884,6 +936,53 @@ const Topic = /*@__PURE__*/ createProxy((name) => {
 	};
 });
 //#endregion
+//#region src/lib/server/clickhouse.ts
+const getClickHouseTableName = (stackName, tableName) => {
+	return `${kebabCase(stackName)}--${tableName}`;
+};
+const getClickHouseProps = (name, stack = getStack()) => {
+	const table = getClickHouseTableName(stack, name);
+	return {
+		endpoint: process.env.CLICKHOUSE_ENDPOINT,
+		name: isTest() ? `${kebabCase(getApp())}--${table}` : table
+	};
+};
+let client;
+const getClient = () => {
+	if (!client) {
+		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER;
+		client = clickhouseClient({
+			endpoint: process.env.CLICKHOUSE_ENDPOINT,
+			password: parameter ? async () => (await ssm({ password: parameter })).password : void 0
+		});
+	}
+	return client;
+};
+const assertMatchingColumns = (label, declared, defined) => {
+	for (const column of Object.keys(defined)) if (!declared[column]) throw new Error(`The schema of ClickHouse table "${label}" defines the column "${column}", which the stack file doesn't declare.`);
+	for (const [column, type] of Object.entries(declared)) {
+		const definedType = defined[column];
+		if (!definedType) throw new Error(`The stack file declares the column "${column}" for ClickHouse table "${label}", which the code schema doesn't define.`);
+		if (definedType.replaceAll(" ", "") !== type.replaceAll(" ", "")) throw new Error(`The column "${column}" of ClickHouse table "${label}" is a "${definedType}" in the code schema but a "${type}" in the stack file.`);
+	}
+};
+const ClickHouse = /*@__PURE__*/ createProxy((stack) => {
+	return /* @__PURE__ */ createProxy((name) => {
+		const { endpoint, name: table } = getClickHouseProps(name, stack);
+		return {
+			name: table,
+			endpoint,
+			define(schema) {
+				if (isTest()) {
+					const declared = process.env[`CLICKHOUSE_COLUMNS_${table}`];
+					if (declared) assertMatchingColumns(`${stack}.${name}`, JSON.parse(declared), schema.columns);
+				}
+				return define$1(table, schema, getClient);
+			}
+		};
+	});
+});
+//#endregion
 //#region src/lib/server/search.ts
 const formatSearchIndexName = (stackName, indexName) => {
 	return `${kebabCase(stackName)}--${indexName}`;
@@ -969,7 +1068,7 @@ const Table = /*@__PURE__*/ createProxy((stack) => {
 				const { name: tableName, keys } = getTableProps(name, stack);
 				if (!keys) throw new Error(`No table key config found for "${stack}.${name}". Is the table defined in your stack file?`);
 				if (isTest()) assertKeyAttributes(`${stack}.${name}`, keys, schema);
-				return define$1(tableName, {
+				return define$2(tableName, {
 					hash: keys.hash,
 					sort: keys.sort,
 					indexes: keys.indexes,
@@ -1028,6 +1127,7 @@ const setupTestEnv = async (manifest, options) => {
 	applyTestConfigValues(manifest);
 	materializeTables(manifest, options.importFile, dynamodb);
 	await createSearchIndexes(manifest);
+	await createClickHouseTables(manifest);
 	s3.mockS3();
 	await redirectCacheClients(manifest);
 	const spies = registerResourceSpies(manifest, options.importFile);
@@ -1098,6 +1198,17 @@ const createSearchIndexes = async (manifest) => {
 			})
 		});
 		if (!result.ok) throw new Error(`Failed to create the search index "${name}": ${await result.text()}`);
+	}
+};
+const createClickHouseTables = async (manifest) => {
+	const endpoint = manifest.servers?.clickhouse?.endpoint;
+	if (!endpoint) return;
+	const { clickhouseClient, createTableStatement } = await import("@awsless/clickhouse");
+	const client = clickhouseClient({ endpoint });
+	for (const entry of manifest.clickhouse ?? []) {
+		const { name } = getClickHouseProps(entry.id, entry.stack);
+		process.env[`CLICKHOUSE_COLUMNS_${name}`] = JSON.stringify(entry.columns);
+		await client.command(createTableStatement(name, entry.definition));
 	}
 };
 const redirectCacheClients = async (manifest) => {
@@ -1218,11 +1329,17 @@ const recordEmails = (mockSES) => {
 	testRegistry.emails.send = vi.fn(() => {});
 	mockSES((input) => {
 		const email = input;
+		const simple = email.Content?.Simple;
 		testRegistry.emails.send({
 			from: email.FromEmailAddress,
 			to: email.Destination?.ToAddresses,
-			subject: email.Content?.Simple?.Subject?.Data,
-			html: email.Content?.Simple?.Body?.Html?.Data
+			subject: simple?.Subject?.Data,
+			html: simple?.Body?.Html?.Data,
+			...simple?.Body?.Text ? { text: simple.Body.Text.Data } : {},
+			...simple?.Headers ? { headers: simple.Headers.map(({ Name, Value }) => ({
+				name: Name,
+				value: Value
+			})) } : {}
 		});
 	});
 };
@@ -1458,4 +1575,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };

@@ -3,7 +3,7 @@ import { AppConfig } from '../../config/app.js'
 import { ProgramOptions } from '../program.js'
 import { color } from './style.js'
 
-export const logApp = (app: AppConfig, opt: ProgramOptions) => {
+export const logApp = (app: AppConfig, opt: ProgramOptions, command?: string) => {
 	log.list('App Config', {
 		App: app.name,
 		Region: app.region,
@@ -11,6 +11,12 @@ export const logApp = (app: AppConfig, opt: ProgramOptions) => {
 		...(opt.stage
 			? {
 					Stage: color.warning(opt.stage),
+				}
+			: {}),
+		// When it ran, for finding a deploy back in the terminal's history.
+		...(command === 'deploy'
+			? {
+					Date: new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }),
 				}
 			: {}),
 	})

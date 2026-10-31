@@ -1,0 +1,565 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ClickHouse conformance > aggregation 1`] = `
+"SELECT projectId, count(), uniq(visitorId), sum(score), avg(score), min(createdAt), max(score) FROM events GROUP BY projectId ORDER BY projectId
+{"projectId":"p1","count()":3,"uniq(visitorId)":2,"sum(score)":9.5,"avg(score)":3.1666666666666665,"min(createdAt)":"2026-10-23 23:30:00.000","max(score)":6.5}
+{"projectId":"p2","count()":2,"uniq(visitorId)":1,"sum(score)":3.25,"avg(score)":1.625,"min(createdAt)":"2026-10-24 22:00:00.000","max(score)":2.25}
+
+---
+SELECT countIf(bot = 'bad'), sumIf(score, has(flags, 'vpn')), uniqExact(visitorId), groupArray(id), groupUniqArray(projectId), any(projectId), argMax(id, score), argMin(id, score) FROM events
+{"countIf(equals(bot, 'bad'))":2,"sumIf(score, has(flags, 'vpn'))":10.5,"uniqExact(visitorId)":3,"groupArray(id)":["a","b","c","e","d"],"groupUniqArray(projectId)":["p1","p2"],"any(projectId)":"p1","argMax(id, score)":"c","argMin(id, score)":"b"}
+
+---
+SELECT quantile(0.5)(score), quantiles(0.25, 0.75)(score), median(score), quantileExact(0.5)(score), topK(2)(projectId), count(DISTINCT visitorId), countDistinct(projectId) FROM events
+{"quantile(0.5)(score)":2.25,"quantiles(0.25, 0.75)(score)":[1,3],"median(score)":2.25,"quantileExact(0.5)(score)":2.25,"topK(2)(projectId)":["p1","p2"],"countDistinct(visitorId)":3,"countDistinct(projectId)":2}
+
+---
+SELECT toDate(createdAt, 'Europe/Amsterdam') AS day, count() AS total FROM events GROUP BY day ORDER BY day
+{"day":"2026-10-24","total":3}
+{"day":"2026-10-25","total":2}
+
+---
+SELECT projectId, count() AS c FROM events GROUP BY projectId HAVING c > 2
+{"projectId":"p1","c":3}
+
+---
+SELECT count(), sum(score), avg(score), max(score), min(id), groupArray(id) FROM events WHERE 0
+{"count()":0,"sum(score)":0,"avg(score)":null,"max(score)":0,"min(id)":"","groupArray(id)":[]}
+
+---
+SELECT projectId, visitorId, count() FROM events GROUP BY projectId, visitorId ORDER BY 1, 2
+{"projectId":"p1","visitorId":"v1","count()":2}
+{"projectId":"p1","visitorId":"v2","count()":1}
+{"projectId":"p2","visitorId":"v3","count()":2}
+
+---
+SELECT arrayJoin(flags) AS flag, count() AS c FROM events GROUP BY flag ORDER BY c DESC, flag
+{"flag":"vpn","c":3}
+{"flag":"datacenter","c":1}
+{"flag":"tor","c":1}
+
+---
+SELECT projectId, id FROM events ORDER BY score DESC LIMIT 1 BY projectId
+{"projectId":"p1","id":"c"}
+{"projectId":"p2","id":"e"}
+
+---
+SELECT DISTINCT projectId FROM events ORDER BY projectId
+{"projectId":"p1"}
+{"projectId":"p2"}
+
+---
+SELECT projectId, groupArray(id) FROM (SELECT * FROM events ORDER BY id) GROUP BY projectId ORDER BY projectId
+{"projectId":"p1","groupArray(id)":["a","b","c"]}
+{"projectId":"p2","groupArray(id)":["d","e"]}
+
+---
+SELECT visitorId FROM events GROUP BY visitorId HAVING uniq(externalId) > 1
+{"visitorId":"v1"}
+"
+`;
+
+exports[`ClickHouse conformance > arrays, maps & tuples 1`] = `
+"SELECT has([1, 2, 3], 2), hasAny([1, 2], [3, 2]), hasAll([1, 2, 3], [1, 3]), indexOf([5, 6], 6), length([1, 2]), arrayConcat([1], [2, 3]), arraySlice([1, 2, 3, 4], 2, 2), arrayReverse([1, 2, 3]), arraySort([3, 1, 2]), arrayDistinct([1, 1, 2])
+{"has([1, 2, 3], 2)":1,"hasAny([1, 2], [3, 2])":1,"hasAll([1, 2, 3], [1, 3])":1,"indexOf([5, 6], 6)":2,"length([1, 2])":2,"arrayConcat([1], [2, 3])":[1,2,3],"arraySlice([1, 2, 3, 4], 2, 2)":[2,3],"arrayReverse([1, 2, 3])":[3,2,1],"arraySort([3, 1, 2])":[1,2,3],"arrayDistinct([1, 1, 2])":[1,2]}
+
+---
+SELECT arrayMap(x -> x * 2, [1, 2, 3]), arrayFilter(x -> x % 2 = 1, [1, 2, 3]), arrayExists(x -> x > 2, [1, 3]), arrayCount(x -> x > 1, [1, 2, 3]), arraySum([1, 2, 3]), arrayMax([3, 7, 1]), range(5), range(2, 10, 3), arrayElement([1, 2], 5), [1, 2][-1]
+{"arrayMap(lambda(tuple(x), multiply(x, 2)), [1, 2, 3])":[2,4,6],"arrayFilter(lambda(tuple(x), equals(modulo(x, 2), 1)), [1, 2, 3])":[1,3],"arrayExists(lambda(tuple(x), greater(x, 2)), [1, 3])":1,"arrayCount(lambda(tuple(x), greater(x, 1)), [1, 2, 3])":2,"arraySum([1, 2, 3])":6,"arrayMax([3, 7, 1])":7,"range(5)":[0,1,2,3,4],"range(2, 10, 3)":[2,5,8],"arrayElement([1, 2], 5)":0,"arrayElement([1, 2], -1)":2}
+
+---
+SELECT map('a', 1, 'b', 2) AS m, m['a'], m['zz'], mapKeys(m), mapValues(m), mapContains(m, 'b'), tuple(1, 'x').2, (1, 2, 3).1, arrayZip([1, 2], ['a', 'b']), arrayJoin([1, 2]) AS j
+{"m":{"a":1,"b":2},"arrayElement(m, 'a')":1,"arrayElement(m, 'zz')":0,"mapKeys(m)":["a","b"],"mapValues(m)":[1,2],"mapContains(m, 'b')":1,"tupleElement((1, 'x'), 2)":"x","tupleElement((1, 2, 3), 1)":1,"arrayZip([1, 2], ['a', 'b'])":[[1,"a"],[2,"b"]],"j":1}
+{"m":{"a":1,"b":2},"arrayElement(m, 'a')":1,"arrayElement(m, 'zz')":0,"mapKeys(m)":["a","b"],"mapValues(m)":[1,2],"mapContains(m, 'b')":1,"tupleElement((1, 'x'), 2)":"x","tupleElement((1, 2, 3), 1)":1,"arrayZip([1, 2], ['a', 'b'])":[[1,"a"],[2,"b"]],"j":2}
+
+---
+SELECT emptyArrayString(), arrayEnumerate(['a', 'b']), arrayUniq([1, 1, 2]), arrayPushBack([1], 2), arrayFlatten([[1], [2, 3]]), arrayIntersect([1, 2, 3], [2, 3, 4]), countEqual([1, 2, 1], 1), arrayStringConcat(['x', 'y'])
+{"emptyArrayString()":[],"arrayEnumerate(['a', 'b'])":[1,2],"arrayUniq([1, 1, 2])":2,"arrayPushBack([1], 2)":[1,2],"arrayFlatten([[1], [2, 3]])":[1,2,3],"arrayIntersect([1, 2, 3], [2, 3, 4])":[2,3],"countEqual([1, 2, 1], 1)":2,"arrayStringConcat(['x', 'y'])":"xy"}
+"
+`;
+
+exports[`ClickHouse conformance > column moves 1`] = `
+"ALTER TABLE ordered MODIFY COLUMN c UInt8 FIRST
+
+---
+ALTER TABLE ordered MODIFY COLUMN a String AFTER b
+
+---
+SELECT name FROM system.columns WHERE table = 'ordered' ORDER BY position
+{"name":"c"}
+{"name":"b"}
+{"name":"a"}
+"
+`;
+
+exports[`ClickHouse conformance > dates & time zones 1`] = `
+"SELECT toDateTime('2026-10-24 07:30:00', 'UTC') AS t, toDate(t) AS d, toDate(t, 'Pacific/Auckland') AS nz, toStartOfHour(t, 'Asia/Kolkata') AS h, toStartOfDay(t, 'America/New_York') AS sd, toTypeName(h), toTypeName(sd)
+{"t":"2026-10-24 07:30:00","d":"2026-10-24","nz":"2026-10-24","h":"2026-10-24 13:00:00","sd":"2026-10-24 00:00:00","toTypeName(h)":"DateTime('Asia\\/Kolkata')","toTypeName(sd)":"DateTime('America\\/New_York')"}
+
+---
+SELECT toDateTime64('2026-10-24 07:00:00.123', 3, 'UTC') AS a, toDateTime('2026-10-24T07:00:00Z', 'Europe/Amsterdam') AS b, toUnixTimestamp(a), formatDateTime(a, '%Y-%m-%d %H:%i:%S'), toYYYYMM(a), toYYYYMMDD(a), toHour(a), toDayOfWeek(a), toMonth(a), toYear(a)
+{"a":"2026-10-24 07:00:00.123","b":"2026-10-24 09:00:00","toUnixTimestamp(a)":1792825200,"formatDateTime(a, '%Y-%m-%d %H:%i:%S')":"2026-10-24 07:00:00","toYYYYMM(a)":202610,"toYYYYMMDD(a)":20261024,"toHour(a)":7,"toDayOfWeek(a)":6,"toMonth(a)":10,"toYear(a)":2026}
+
+---
+SELECT toDateTime('2026-10-24 07:30:00', 'UTC') AS t, t + INTERVAL 1 DAY, t - INTERVAL 2 HOUR, t + INTERVAL 1 MONTH, addDays(t, 3), subtractMinutes(t, 5), toDate('2026-01-31') + INTERVAL 1 MONTH, toDate('2026-10-24') + 7
+{"t":"2026-10-24 07:30:00","plus(t, toIntervalDay(1))":"2026-10-25 07:30:00","minus(t, toIntervalHour(2))":"2026-10-24 05:30:00","plus(t, toIntervalMonth(1))":"2026-11-24 07:30:00","addDays(t, 3)":"2026-10-27 07:30:00","subtractMinutes(t, 5)":"2026-10-24 07:25:00","plus(toDate('2026-01-31'), toIntervalMonth(1))":"2026-02-28","plus(toDate('2026-10-24'), 7)":"2026-10-31"}
+
+---
+SELECT toStartOfMonth(toDate('2026-10-24')), toMonday(toDate('2026-10-24')), toStartOfWeek(toDate('2026-10-24')), toStartOfYear(toDate('2026-10-24')), toStartOfQuarter(toDate('2026-10-24')), toStartOfInterval(toDateTime('2026-10-24 07:37:00', 'UTC'), INTERVAL 15 MINUTE)
+{"toStartOfMonth(toDate('2026-10-24'))":"2026-10-01","toMonday(toDate('2026-10-24'))":"2026-10-19","toStartOfWeek(toDate('2026-10-24'))":"2026-10-18","toStartOfYear(toDate('2026-10-24'))":"2026-01-01","toStartOfQuarter(toDate('2026-10-24'))":"2026-10-01","toStartOfInterval(toDateTime('2026-10-24 07:37:00', 'UTC'), toIntervalMinute(15))":"2026-10-24 07:30:00"}
+
+---
+SELECT dateDiff('day', toDate('2026-10-01'), toDate('2026-10-24')), dateDiff('hour', toDateTime('2026-10-24 00:00:00', 'UTC'), toDateTime('2026-10-24 07:30:00', 'UTC')), dateDiff('month', toDate('2026-01-31'), toDate('2026-03-01')), toDate('2026-10-24') - toDate('2026-10-20')
+{"dateDiff('day', toDate('2026-10-01'), toDate('2026-10-24'))":23,"dateDiff('hour', toDateTime('2026-10-24 00:00:00', 'UTC'), toDateTime('2026-10-24 07:30:00', 'UTC'))":7,"dateDiff('month', toDate('2026-01-31'), toDate('2026-03-01'))":2,"minus(toDate('2026-10-24'), toDate('2026-10-20'))":4}
+
+---
+SELECT toDateTime('2026-10-24 07:30:00', 'UTC') AS t, toDateTime64('2026-10-24 07:30:00.5', 3, 'Asia/Tokyo') AS u, toDate('2026-10-24') AS d
+{"t":"2026-10-24T07:30:00Z","u":"2026-10-23T22:30:00.500Z","d":"2026-10-24"}
+
+---
+SELECT toDateTime('2026-03-29 01:30:00', 'UTC') AS t, toStartOfHour(t, 'Europe/Amsterdam'), toDate(t, 'Europe/Amsterdam'), toDateTime('2026-10-25 02:30:00', 'Europe/Amsterdam')
+{"t":"2026-03-29 01:30:00","toStartOfHour(t, 'Europe\\/Amsterdam')":"2026-03-29 03:00:00","toDate(t, 'Europe\\/Amsterdam')":"2026-03-29","toDateTime('2026-10-25 02:30:00', 'Europe\\/Amsterdam')":"2026-10-25 02:30:00"}
+"
+`;
+
+exports[`ClickHouse conformance > ddl, alter & system tables 1`] = `
+"SELECT name, type, position, default_kind, default_expression, comment FROM system.columns WHERE table = 'stack--t' ORDER BY position
+{"name":"id","type":"String","position":1,"default_kind":"","default_expression":"","comment":""}
+{"name":"d","type":"DateTime64(3, 'UTC')","position":2,"default_kind":"","default_expression":"","comment":""}
+{"name":"e","type":"Enum8('a' = 1, 'b' = 2)","position":3,"default_kind":"","default_expression":"","comment":""}
+{"name":"l","type":"LowCardinality(Nullable(String))","position":4,"default_kind":"","default_expression":"","comment":""}
+{"name":"m","type":"Map(String, UInt32)","position":5,"default_kind":"","default_expression":"","comment":""}
+{"name":"n","type":"Int32","position":6,"default_kind":"","default_expression":"","comment":""}
+{"name":"s","type":"String","position":7,"default_kind":"","default_expression":"","comment":""}
+{"name":"b","type":"Bool","position":8,"default_kind":"","default_expression":"","comment":""}
+{"name":"x","type":"Float64","position":9,"default_kind":"DEFAULT","default_expression":"1","comment":"hi"}
+
+---
+SELECT name, engine, comment, create_table_query, sorting_key, partition_key, primary_key FROM system.tables WHERE database = currentDatabase() ORDER BY name
+{"name":"plain","engine":"MergeTree","comment":"","create_table_query":"CREATE TABLE default.plain (\`id\` String) ENGINE = MergeTree ORDER BY id SETTINGS index_granularity = 8192","sorting_key":"id","partition_key":"","primary_key":"id"}
+{"name":"stack--t","engine":"MergeTree","comment":"awsless:{\\"a\\":1}","create_table_query":"CREATE TABLE default.\`stack--t\` (\`id\` String, \`d\` DateTime64(3, 'UTC'), \`e\` Enum8('a' = 1, 'b' = 2), \`l\` LowCardinality(Nullable(String)), \`m\` Map(String, UInt32), \`n\` Int32, \`s\` String, \`b\` Bool, \`x\` Float64 DEFAULT 1 COMMENT 'hi', INDEX ix id TYPE bloom_filter GRANULARITY 4) ENGINE = MergeTree PARTITION BY toYYYYMM(d) ORDER BY (id, d) TTL toDateTime(d) + toIntervalYear(1) SETTINGS index_granularity = 8192 COMMENT 'awsless:{\\"a\\":1}'","sorting_key":"id, d","partition_key":"toYYYYMM(d)","primary_key":"id, d"}
+
+---
+ALTER TABLE plain ADD COLUMN IF NOT EXISTS score Float64 DEFAULT 0 FIRST
+
+---
+ALTER TABLE plain ADD COLUMN extra UInt8 AFTER id, MODIFY COMMENT 'changed'
+
+---
+SELECT create_table_query FROM system.tables WHERE name = 'plain'
+{"create_table_query":"CREATE TABLE default.plain (\`score\` Float64 DEFAULT 0, \`id\` String, \`extra\` UInt8) ENGINE = MergeTree ORDER BY id SETTINGS index_granularity = 8192 COMMENT 'changed'"}
+
+---
+ALTER TABLE plain MODIFY COLUMN score Float32, DROP COLUMN extra, MODIFY TTL now() + INTERVAL 1 DAY, MODIFY SETTING merge_with_ttl_timeout = 3600
+error 62 SYNTAX_ERROR
+---
+ALTER TABLE plain MODIFY COLUMN score Float32, DROP COLUMN extra, MODIFY SETTING merge_with_ttl_timeout = 3600
+
+---
+ALTER TABLE plain MODIFY TTL now() + INTERVAL 1 DAY
+error 36 BAD_ARGUMENTS
+---
+SELECT create_table_query FROM system.tables WHERE name = 'plain'
+{"create_table_query":"CREATE TABLE default.plain (\`score\` Float32 DEFAULT 0, \`id\` String) ENGINE = MergeTree ORDER BY id SETTINGS index_granularity = 8192, merge_with_ttl_timeout = 3600 COMMENT 'changed'"}
+
+---
+ALTER TABLE plain DROP COLUMN id
+error 524 ALTER_OF_COLUMN_IS_FORBIDDEN
+---
+EXISTS TABLE plain
+1
+
+---
+SHOW TABLES
+plain
+stack--t
+
+---
+DESCRIBE TABLE plain
+score	Float32	DEFAULT	0			
+id	String					
+"
+`;
+
+exports[`ClickHouse conformance > errors 1`] = `
+"SELECT * FROM missing
+error 60 UNKNOWN_TABLE
+---
+SELECT nope FROM events
+error 47 UNKNOWN_IDENTIFIER
+---
+SELECT nope(1)
+error 46 UNKNOWN_FUNCTION
+---
+SELECT count(), id FROM events
+error 215 NOT_AN_AGGREGATE
+---
+SELEC 1
+error 62 SYNTAX_ERROR
+---
+SELECT count() FROM events WHERE count() > 1
+error 184 ILLEGAL_AGGREGATION
+---
+CREATE TABLE events (id String) ENGINE = MergeTree ORDER BY id
+error 57 TABLE_ALREADY_EXISTS
+---
+INSERT INTO events (id, nope) VALUES ('x', 1)
+error 16 NO_SUCH_COLUMN_IN_TABLE
+---
+SELECT 1; SELECT 2
+error 62 SYNTAX_ERROR
+---
+SELECT toDateTime('not a date')
+error 41 CANNOT_PARSE_DATETIME
+---
+SELECT intDiv(1, 0)
+error 153 ILLEGAL_DIVISION"
+`;
+
+exports[`ClickHouse conformance > formats 1`] = `
+"SELECT id, flags, score, externalId, createdAt FROM events ORDER BY id FORMAT TabSeparated
+a	['vpn']	3	u1	2026-10-23 23:30:00.000
+b	[]	0	u2	2026-10-24 08:00:00.000
+c	['tor','vpn']	6.5	\\N	2026-10-24 09:15:30.250
+d	['vpn']	1	u1	2026-10-25 03:46:40.000
+e	['datacenter']	2.25	\\N	2026-10-24 22:00:00.000
+
+---
+SELECT id, flags, score, externalId FROM events ORDER BY id FORMAT TabSeparatedWithNames
+id	flags	score	externalId
+a	['vpn']	3	u1
+b	[]	0	u2
+c	['tor','vpn']	6.5	\\N
+d	['vpn']	1	u1
+e	['datacenter']	2.25	\\N
+
+---
+SELECT id, flags, score, externalId FROM events ORDER BY id FORMAT CSVWithNames
+"id","flags","score","externalId"
+"a","['vpn']",3,"u1"
+"b","[]",0,"u2"
+"c","['tor','vpn']",6.5,\\N
+"d","['vpn']",1,"u1"
+"e","['datacenter']",2.25,\\N
+
+---
+SELECT id, score FROM events ORDER BY id FORMAT JSONCompactEachRow
+["a", 3]
+["b", 0]
+["c", 6.5]
+["d", 1]
+["e", 2.25]
+
+---
+SELECT id, score FROM events ORDER BY id LIMIT 2 FORMAT JSONCompactEachRowWithNamesAndTypes
+["id", "score"]
+["String", "Float64"]
+["a", 3]
+["b", 0]
+
+---
+SELECT count() AS c, toUInt64(5) AS u FROM events
+{"c":"5","u":"5"}
+"
+`;
+
+exports[`ClickHouse conformance > funnels & retention 1`] = `
+"SELECT user, windowFunnel(3600)(at, step = 'visit', step = 'signup', step = 'pay') AS level FROM steps GROUP BY user ORDER BY user
+{"user":"a","level":2}
+{"user":"b","level":1}
+{"user":"c","level":3}
+
+---
+SELECT user, retention(step = 'visit', step = 'signup', step = 'pay') AS r FROM steps GROUP BY user ORDER BY user
+{"user":"a","r":[1,1,1]}
+{"user":"b","r":[1,0,1]}
+{"user":"c","r":[1,1,1]}
+"
+`;
+
+exports[`ClickHouse conformance > joins & array join 1`] = `
+"SELECT o.id, u.name FROM orders AS o INNER JOIN users AS u ON o.userId = u.id ORDER BY o.id
+{"id":1,"name":"Ann"}
+{"id":2,"name":"Ann"}
+{"id":3,"name":"Bo"}
+
+---
+SELECT o.id, u.name FROM orders AS o LEFT JOIN users AS u ON o.userId = u.id ORDER BY o.id
+{"id":1,"name":"Ann"}
+{"id":2,"name":"Ann"}
+{"id":3,"name":"Bo"}
+{"id":4,"name":""}
+
+---
+SELECT u.name, count(o.id) FROM users AS u LEFT JOIN orders AS o ON o.userId = u.id GROUP BY u.name ORDER BY u.name
+{"name":"Ann","count(o.id)":2}
+{"name":"Bo","count(o.id)":1}
+{"name":"Cy","count(o.id)":1}
+
+---
+SELECT id, item FROM orders ARRAY JOIN items AS item ORDER BY id, item
+{"id":1,"item":"x"}
+{"id":1,"item":"y"}
+{"id":3,"item":"z"}
+{"id":4,"item":"w"}
+
+---
+SELECT id, items FROM orders LEFT ARRAY JOIN items ORDER BY id, items
+{"id":1,"items":"x"}
+{"id":1,"items":"y"}
+{"id":2,"items":""}
+{"id":3,"items":"z"}
+{"id":4,"items":"w"}
+
+---
+SELECT id, arrayJoin(items) AS item FROM orders ORDER BY item
+{"id":4,"item":"w"}
+{"id":1,"item":"x"}
+{"id":1,"item":"y"}
+{"id":3,"item":"z"}
+"
+`;
+
+exports[`ClickHouse conformance > literals & naming 1`] = `
+"SELECT 1 + 1, 'a', -3, 1.0, 1.50, 1e3, NULL, true, [1, 2], (1, 'x'), 18446744073709551615, -9223372036854775808
+{"plus(1, 1)":2,"'a'":"a","-3":-3,"1.":1,"1.5":1.5,"1000.":1000,"NULL":null,"true":true,"[1, 2]":[1,2],"(1, 'x')":[1,"x"],"18446744073709551615":18446744073709551615,"-9223372036854775808":-9223372036854775808}
+
+---
+SELECT 1 = 1, 2 * 3 > 5 AND 1, NOT 1, 1 BETWEEN 0 AND 2, 1 IN (1, 2), 'a' LIKE 'a%', 1 IS NULL, CAST(1 AS String), 1::String, if(1, 2, 3)
+{"equals(1, 1)":1,"and(greater(multiply(2, 3), 5), 1)":1,"not(1)":0,"and(greaterOrEquals(1, 0), lessOrEquals(1, 2))":1,"in(1, (1, 2))":1,"like('a', 'a%')":1,"isNull(1)":0,"CAST(1, 'String')":"1","CAST('1', 'String')":"1","if(1, 2, 3)":2}
+
+---
+SELECT CASE WHEN 1 THEN 'a' ELSE 'b' END, CASE 1 WHEN 1 THEN 'x' END, INTERVAL 1 DAY, [1, 2][1], 'ab' || 'c', -(1 + 2)
+{"multiIf(1, 'a', 'b')":"a","caseWithExpression(1, 1, 'x', NULL)":"x","toIntervalDay(1)":1,"arrayElement([1, 2], 1)":1,"concat('ab', 'c')":"abc","negate(plus(1, 2))":-3}
+
+---
+SELECT toTypeName(1), toTypeName(300), toTypeName(-1), toTypeName(1.5), toTypeName(70000), toTypeName(5000000000), toTypeName('a'), toTypeName([1, 2]), toTypeName(true)
+{"toTypeName(1)":"UInt8","toTypeName(300)":"UInt16","toTypeName(-1)":"Int8","toTypeName(1.5)":"Float64","toTypeName(70000)":"UInt32","toTypeName(5000000000)":"UInt64","toTypeName('a')":"String","toTypeName([1, 2])":"Array(UInt8)","toTypeName(true)":"Bool"}
+
+---
+SELECT 0.1 + 0.2 AS a, 1 / 0 AS b, 0 / 0 AS c, -1 / 0 AS d, 10 % 3 AS e, intDiv(7, 2) AS f, 7 / 2 AS g, round(2.5) AS h, round(3.14159, 2) AS i, floor(-1.5) AS j
+{"a":0.30000000000000004,"b":null,"c":null,"d":null,"e":1,"f":3,"g":3.5,"h":2,"i":3.14,"j":-2}
+
+---
+SELECT 'it''s' AS a, 'tab\\there' AS b, 'slash/path' AS c, 'quote"d' AS d, 'é' AS e, length('é') AS f, lengthUTF8('é') AS g
+{"a":"it's","b":"tab\\there","c":"slash\\/path","d":"quote\\"d","e":"é","f":2,"g":1}
+"
+`;
+
+exports[`ClickHouse conformance > mutations & final 1`] = `
+"SELECT id, v, name FROM r FINAL ORDER BY id
+{"id":"a","v":2,"name":"new"}
+{"id":"b","v":1,"name":"b"}
+
+---
+ALTER TABLE r UPDATE name = upper(name) WHERE id = 'b'
+
+---
+DELETE FROM r WHERE v = 1 AND id = 'a'
+
+---
+SELECT id, v, name FROM r ORDER BY id, v
+{"id":"a","v":2,"name":"new"}
+{"id":"b","v":1,"name":"B"}
+
+---
+TRUNCATE TABLE r
+
+---
+SELECT count() FROM r
+{"count()":0}
+
+---
+CREATE TABLE m (id String) ENGINE = MergeTree ORDER BY id
+
+---
+SELECT * FROM m FINAL
+error 181 ILLEGAL_FINAL"
+`;
+
+exports[`ClickHouse conformance > parameters 1`] = `
+"SELECT {a:String} AS a, {b:Array(String)} AS b, {d:DateTime64(3)} AS d, {n:Nullable(String)} AS n, {u:UInt8} AS u
+{"a":"x\\ty","b":["a","b'c"],"d":"2026-10-24 07:00:00.123","n":null,"u":7}
+
+---
+SELECT {a:String}, {u:UInt8}
+{"'q'":"q","_CAST(5, 'UInt8')":5}
+
+---
+SELECT number FROM numbers({n:UInt32}) WHERE number IN {set:Array(UInt8)}
+{"number":2}
+{"number":4}
+
+---
+SELECT {value:String} AS value
+{"value":"'); DROP TABLE x; --"}
+
+---
+SELECT {missing:String}
+error 456 UNKNOWN_QUERY_PARAMETER"
+`;
+
+exports[`ClickHouse conformance > review cases 1`] = `
+"SELECT toString(n) AS s, n FROM big ORDER BY n
+{"s":"9007199254740993","n":9007199254740993}
+{"s":"18446744073709551615","n":18446744073709551615}
+
+---
+SELECT count(), a, b FROM pair GROUP BY a, b
+{"count()":1,"a":1,"b":2}
+
+---
+SELECT d, count() FROM dt GROUP BY d ORDER BY d
+{"d":"2026-10-24 07:00:00.123","count()":2}
+
+---
+SELECT o.number, (SELECT i.number FROM numbers(3) AS i WHERE i.number = o.number) AS n FROM numbers(3) AS o ORDER BY o.number
+{"number":0,"n":0}
+{"number":1,"n":1}
+{"number":2,"n":2}
+
+---
+SELECT o.number FROM numbers(4) AS o WHERE o.number IN (SELECT i.number FROM numbers(2) AS i WHERE i.number = o.number) ORDER BY o.number
+error 48 NOT_IMPLEMENTED
+---
+SELECT avgOrDefault(number), sumOrNull(number), countOrNull(number), maxOrDefault(number), avgOrNull(number), countOrNull() FROM numbers(0)
+{"avgOrDefault(number)":0,"sumOrNull(number)":null,"countOrNull(number)":null,"maxOrDefault(number)":0,"avgOrNull(number)":null,"countOrNull()":null}
+
+---
+SELECT sumOrNull(x), countOrNull(x), count(x), avgOrDefault(x), anyOrNull(x) FROM (SELECT CAST(NULL AS Nullable(Int32)) AS x)
+{"sumOrNull(x)":null,"countOrNull(x)":null,"count(x)":0,"avgOrDefault(x)":null,"anyOrNull(x)":null}
+
+---
+SELECT sum(x), avg(x), max(x), any(x), count(x), uniq(x), toTypeName(sum(x)), toTypeName(count(x)), toTypeName(uniq(x)), toTypeName(avgOrDefault(x)) FROM (SELECT CAST(NULL AS Nullable(Int32)) AS x)
+{"sum(x)":null,"avg(x)":null,"max(x)":null,"any(x)":null,"count(x)":0,"uniq(x)":0,"toTypeName(sum(x))":"Nullable(Int64)","toTypeName(count(x))":"UInt64","toTypeName(uniq(x))":"UInt64","toTypeName(avgOrDefault(x))":"Nullable(Float64)"}
+
+---
+SELECT sum(x), avg(x), max(x), count(x), uniq(x), groupArray(x) FROM (SELECT arrayJoin([1, NULL, 3]) AS x)
+{"sum(x)":4,"avg(x)":2,"max(x)":3,"count(x)":2,"uniq(x)":2,"groupArray(x)":[1,3]}
+
+---
+SELECT user, windowFunnel(3600)(at, step = 'visit', step = 'signup', step = 'pay') AS plain, windowFunnel(3600, 'strict_order')(at, step = 'visit', step = 'signup', step = 'pay') AS ordered, windowFunnel(3600, 'strict_deduplication')(at, step = 'visit', step = 'signup', step = 'pay') AS deduplicated, windowFunnel(3600, 'strict_increase')(at, step = 'visit', step = 'signup', step = 'pay') AS increasing, windowFunnel(3600, 'strict_once')(at, step = 'visit', step = 'signup', step = 'visit') AS once FROM steps GROUP BY user ORDER BY user
+{"user":"a","plain":2,"ordered":2,"deduplicated":2,"increasing":2,"once":2}
+{"user":"b","plain":3,"ordered":1,"deduplicated":2,"increasing":2,"once":2}
+{"user":"c","plain":1,"ordered":1,"deduplicated":1,"increasing":1,"once":1}
+
+---
+SELECT k, count() FROM (SELECT ['a,sb'] AS k UNION ALL SELECT ['a', 'b']) GROUP BY k ORDER BY k
+{"k":["a","b"],"count()":1}
+{"k":["a,sb"],"count()":1}
+
+---
+SELECT a, b, count() FROM (SELECT 'x|y' AS a, 'z' AS b UNION ALL SELECT 'x' AS a, 'y|z' AS b) GROUP BY a, b ORDER BY a
+{"a":"x","b":"y|z","count()":1}
+{"a":"x|y","b":"z","count()":1}
+
+---
+SELECT count() FROM (SELECT CAST(NULL AS Nullable(String)) AS k) AS l INNER JOIN (SELECT CAST(NULL AS Nullable(String)) AS k) AS r ON l.k = r.k
+{"count()":0}
+
+---
+SELECT count() FROM (SELECT CAST(NULL AS Nullable(String)) AS k) AS l INNER JOIN (SELECT CAST(NULL AS Nullable(String)) AS k) AS r USING k
+{"count()":0}
+"
+`;
+
+exports[`ClickHouse conformance > strings 1`] = `
+"SELECT lower('AbC'), upper('abc'), concat('a', 'b', 'c'), substring('hello', 2, 3), substring('hello', -3), startsWith('hello', 'he'), endsWith('hello', 'lo'), position('hello', 'l')
+{"lower('AbC')":"abc","upper('abc')":"ABC","concat('a', 'b', 'c')":"abc","substring('hello', 2, 3)":"ell","substring('hello', -3)":"llo","startsWith('hello', 'he')":1,"endsWith('hello', 'lo')":1,"position('hello', 'l')":3}
+
+---
+SELECT replaceAll('a-b-c', '-', '+'), replaceRegexpAll('a1b22c', '\\\\d+', '#'), replaceRegexpOne('abc', '(b)', '[\\\\1]'), extract('id=42&x', 'id=(\\\\d+)'), match('abc', '^a.c$'), splitByChar(',', 'a,b,,c'), arrayStringConcat(['a', 'b'], '-')
+{"replaceAll('a-b-c', '-', '+')":"a+b+c","replaceRegexpAll('a1b22c', '\\\\\\\\d+', '#')":"a#b#c","replaceRegexpOne('abc', '(b)', '[\\\\\\\\1]')":"a[b]c","extract('id=42&x', 'id=(\\\\\\\\d+)')":"42","match('abc', '^a.c$')":1,"splitByChar(',', 'a,b,,c')":["a","b","","c"],"arrayStringConcat(['a', 'b'], '-')":"a-b"}
+
+---
+SELECT trim('  x  '), trimLeft('  x'), trimRight('x  '), reverse('abc'), repeat('ab', 3), leftPad('7', 3, '0'), empty(''), notEmpty('a'), base64Encode('hi'), hex('A'), lower(hex(MD5('a')))
+{"trimBoth('  x  ')":"x","trimLeft('  x')":"x","trimRight('x  ')":"x","reverse('abc')":"cba","repeat('ab', 3)":"ababab","leftPad('7', 3, '0')":"007","empty('')":1,"notEmpty('a')":1,"base64Encode('hi')":"aGk=","hex('A')":"41","lower(hex(MD5('a')))":"0cc175b9c0f1b6a831c399e269772661"}
+
+---
+SELECT 'abc' LIKE '%b%', 'abc' NOT LIKE 'a_', 'ABC' ILIKE 'a%', 'a%b' LIKE 'a\\\\%b', concat('a', NULL), coalesce(NULL, 'x'), ifNull(NULL, 1), nullIf(1, 1), toString(123), toUInt32('42')
+{"like('abc', '%b%')":1,"notLike('abc', 'a_')":1,"ilike('ABC', 'a%')":1,"like('a%b', 'a\\\\\\\\%b')":1,"concat('a', NULL)":null,"coalesce(NULL, 'x')":"x","ifNull(NULL, 1)":1,"nullIf(1, 1)":null,"toString(123)":"123","toUInt32('42')":42}
+
+---
+SELECT JSONExtractString('{"a":{"b":"x"}}', 'a', 'b'), JSONExtractInt('{"n":7}', 'n'), JSONHas('{"n":7}', 'n'), JSONExtractRaw('{"a":[1,2]}', 'a'), JSONExtractKeys('{"a":1,"b":2}')
+{"JSONExtractString('{\\"a\\":{\\"b\\":\\"x\\"}}', 'a', 'b')":"x","JSONExtractInt('{\\"n\\":7}', 'n')":7,"JSONHas('{\\"n\\":7}', 'n')":1,"JSONExtractRaw('{\\"a\\":[1,2]}', 'a')":"[1,2]","JSONExtractKeys('{\\"a\\":1,\\"b\\":2}')":["a","b"]}
+"
+`;
+
+exports[`ClickHouse conformance > tables & inserts 1`] = `
+"SELECT * FROM events ORDER BY id
+{"id":"a","projectId":"p1","visitorId":"v1","externalId":"u1","flags":["vpn"],"score":3,"bot":"not_detected","country":"NL","createdAt":"2026-10-23 23:30:00.000"}
+{"id":"b","projectId":"p1","visitorId":"v1","externalId":"u2","flags":[],"score":0,"bot":"good","country":"DE","createdAt":"2026-10-24 08:00:00.000"}
+{"id":"c","projectId":"p1","visitorId":"v2","externalId":null,"flags":["tor","vpn"],"score":6.5,"bot":"bad","country":"NL","createdAt":"2026-10-24 09:15:30.250"}
+{"id":"d","projectId":"p2","visitorId":"v3","externalId":"u1","flags":["vpn"],"score":1,"bot":"not_detected","country":"US","createdAt":"2026-10-25 03:46:40.000"}
+{"id":"e","projectId":"p2","visitorId":"v3","externalId":null,"flags":["datacenter"],"score":2.25,"bot":"bad","country":"NL","createdAt":"2026-10-24 22:00:00.000"}
+
+---
+SELECT id, country, externalId FROM events WHERE externalId IS NULL ORDER BY id
+{"id":"c","country":"NL","externalId":null}
+{"id":"e","country":"NL","externalId":null}
+
+---
+SELECT id FROM events WHERE has(flags, 'vpn') AND score > 1 ORDER BY id
+{"id":"a"}
+{"id":"c"}
+
+---
+SELECT id FROM events WHERE createdAt >= '2026-10-24 00:00:00' AND createdAt < '2026-10-25' ORDER BY id
+{"id":"b"}
+{"id":"c"}
+{"id":"e"}
+
+---
+SELECT id, bot FROM events WHERE bot IN ('bad', 'good') ORDER BY createdAt DESC LIMIT 2
+{"id":"e","bot":"bad"}
+{"id":"c","bot":"bad"}
+
+---
+SELECT id FROM events ORDER BY score DESC LIMIT 2 OFFSET 1
+{"id":"a"}
+{"id":"e"}
+
+---
+SELECT count() FROM events
+{"count()":5}
+
+---
+SELECT id FROM events WHERE id IN (SELECT id FROM events WHERE country = 'NL') ORDER BY id
+{"id":"a"}
+{"id":"c"}
+{"id":"e"}
+
+---
+SELECT id, (SELECT max(score) FROM events) AS top FROM events WHERE score = top
+{"id":"c","top":6.5}
+"
+`;
+
+exports[`ClickHouse conformance > union, with & subqueries 1`] = `
+"SELECT 1 AS x UNION ALL SELECT 2 ORDER BY x
+error 47 UNKNOWN_IDENTIFIER
+---
+WITH 2 AS two SELECT two * 3
+{"multiply(two, 3)":6}
+
+---
+WITH t AS (SELECT number AS n FROM numbers(5)) SELECT sum(n) FROM t
+{"sum(n)":10}
+
+---
+SELECT number, number * 2 AS double FROM numbers(4) WHERE double > 2
+{"number":2,"double":4}
+{"number":3,"double":6}
+
+---
+SELECT n FROM (SELECT number AS n FROM numbers(10)) WHERE n % 3 = 0 ORDER BY n DESC
+{"n":9}
+{"n":6}
+{"n":3}
+{"n":0}
+
+---
+SELECT count() FROM numbers(100) WHERE number IN (SELECT number * 10 FROM numbers(5))
+{"count()":5}
+"
+`;

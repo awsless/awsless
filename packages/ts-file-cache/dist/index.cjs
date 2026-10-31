@@ -20,8 +20,6 @@ const findImports = async (file, code) => {
 	} });
 	return [...importing].map((importee) => {
 		if (importee.startsWith(".")) return (0, path.resolve)((0, path.dirname)(file), importee);
-		const parts = importee.split("/");
-		if (parts.length > 2) return parts.slice(0, 2).join("/");
 		return importee;
 	});
 };
@@ -90,8 +88,10 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 		else {
 			const localPackage = workspace.packages[dependency.link];
 			if (!localPackage) throw new Error(`Can't find the local workspace package for: ${file}`);
-			if (!localPackage.main) throw new Error(`Workspace package doesn't have a main entry: ${file}`);
-			await generateRecursiveFileHashes(workspace, localPackage.main, localPackage.main, allowedExtensions, hashes);
+			const subpath = `.${file.slice(module.length)}`;
+			const entry = localPackage.exports[subpath] ?? (subpath === "." ? localPackage.main : void 0);
+			if (!entry) throw new Error(`Workspace package doesn't export the import: ${file}`);
+			await generateRecursiveFileHashes(workspace, entry, entry, allowedExtensions, hashes);
 		}
 		return;
 	}
@@ -321,14 +321,43 @@ const buildPackages = async (cwd, importers) => {
 		const packageJson = await (0, fs_promises.readFile)((0, path.join)(cwd, path$1, "package.json"), "utf8");
 		const packageData = JSON.parse(packageJson);
 		const entry = packageData.module ?? packageData.main;
+		const exports = Object.fromEntries(Object.entries(exportFiles(packageData.exports)).map(([subpath, file]) => [subpath, (0, path.join)(cwd, path$1, file)]));
 		packages[(0, path.join)(cwd, path$1)] = {
 			name: packageData.name,
 			path: (0, path.join)(cwd, path$1),
 			main: entry ? (0, path.join)(cwd, path$1, entry) : void 0,
+			exports,
 			dependencies
 		};
 	}));
 	return packages;
+};
+const exportFiles = (exports) => {
+	const target = (value) => {
+		if (typeof value === "string") return value;
+		if (value && typeof value === "object" && !Array.isArray(value)) {
+			const conditions = value;
+			for (const condition of [
+				"bun",
+				"import",
+				"module",
+				"default",
+				"require"
+			]) {
+				const file = target(conditions[condition]);
+				if (file) return file;
+			}
+		}
+	};
+	if (exports && typeof exports === "object" && !Array.isArray(exports)) {
+		const entries = Object.entries(exports);
+		if (entries.every(([key]) => key.startsWith("."))) return Object.fromEntries(entries.flatMap(([subpath, value]) => {
+			const file = subpath.includes("*") ? void 0 : target(value);
+			return file ? [[subpath, file]] : [];
+		}));
+	}
+	const file = target(exports);
+	return file ? { ".": file } : {};
 };
 //#endregion
 //#region src/index.ts

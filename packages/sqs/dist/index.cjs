@@ -31,7 +31,7 @@ let crypto = require("crypto");
 let aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 //#region src/client.ts
 const sqsClient = (0, _awsless_utils.globalClient)(() => {
-	return new _aws_sdk_client_sqs.SQSClient({});
+	return new _aws_sdk_client_sqs.SQSClient({ useQueueUrlAsEndpoint: false });
 });
 //#endregion
 //#region src/commands.ts

@@ -5,9 +5,20 @@ import { UUID } from "crypto";
 import { AnyTable, Infer, PrimaryKey } from "@awsless/dynamodb";
 export * from "valibot";
 //#region src/action/redact.d.ts
-declare const redact: () => MetadataAction<string, {
+declare const REDACTED: any;
+/** Marks a value to be left out of logs: its logged input shows `[REDACTED]`. */
+declare const redact: <TInput>() => MetadataAction<TInput, {
   redact: true;
 }>;
+type Redactor = (input: unknown) => unknown;
+/**
+ * Redacts a value that a schema can't describe field by field, like a json
+ * string or an http request's headers, with a function of its own.
+ */
+declare const redactWith: <TInput>(redactor: Redactor) => MetadataAction<TInput, {
+  redactWith: Redactor;
+}>;
+/** The input with every value its schema marks with `redact()` or `redactWith()` replaced. */
 declare const applyRedaction: <T>(schema: GenericSchema, input: T) => T;
 //#endregion
 //#region src/schema/json.d.ts
@@ -97,4 +108,4 @@ declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) 
 declare function minDuration(min: Duration, message?: ErrorMessage<CheckIssue<Duration>>): import("valibot").CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
 declare function maxDuration(max: Duration, message?: ErrorMessage<CheckIssue<Duration>>): import("valibot").CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
 //#endregion
-export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, s3Event, snsTopic, sqsQueue, unique, uuid };
+export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, REDACTED, type Redactor, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, redactWith, s3Event, snsTopic, sqsQueue, unique, uuid };

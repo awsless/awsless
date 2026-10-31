@@ -7,6 +7,17 @@ export type SendEmailProps = {
     subject: string;
     /** The html body. */
     html: string;
+    /** The plain text alternative, next to the html. */
+    text?: string;
+    /**
+     * Extra headers on the message, like `List-Unsubscribe` (at most 15;
+     * printable ASCII). SES refuses the ones it sets itself (From, To,
+     * Subject, Date, Message-ID, Content-Type, MIME-Version and the like).
+     */
+    headers?: {
+        name: string;
+        value: string;
+    }[];
 };
 export declare const Email: {
     send(props: SendEmailProps): Promise<void>;
