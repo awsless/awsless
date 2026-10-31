@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { mockClient } from "aws-sdk-vitest-mock";
 //#region src/client.ts
 const sqsClient = globalClient(() => {
-	return new SQSClient$1({});
+	return new SQSClient$1({ useQueueUrlAsEndpoint: false });
 });
 //#endregion
 //#region src/commands.ts
