@@ -1378,7 +1378,9 @@ const emailPanel = async (main) => {
 					$('p', { className: 'detail' }, [
 						'from ' + (email.from ?? '?') + ' · to ' + (email.to ?? []).join(', ') + ' · ' + new Date(email.date).toLocaleString(),
 					]),
+					...(email.headers ?? []).map(header => $('p', { className: 'detail' }, [header.name + ': ' + header.value])),
 					frame,
+					...(email.text ? [$('pre', { className: 'detail' }, email.text)] : []),
 				)
 				frame.srcdoc = email.html ?? ''
 			}

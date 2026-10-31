@@ -101,7 +101,14 @@ export interface TestMock {
 	readonly email: {
 		/** Every email sent through Email.send, recorded for assertions & overridable like any mock. */
 		readonly send: TestMockFunction<
-			(email: { from?: string; to?: string[]; subject?: string; html?: string }) => unknown
+			(email: {
+				from?: string
+				to?: string[]
+				subject?: string
+				html?: string
+				text?: string
+				headers?: { name?: string; value?: string }[]
+			}) => unknown
 		>
 	}
 }

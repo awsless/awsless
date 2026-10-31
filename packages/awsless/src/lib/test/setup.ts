@@ -444,14 +444,25 @@ const recordEmails = (mockSES: Awaited<typeof import('@awsless/ses')>['mockSES']
 		const email = input as {
 			FromEmailAddress?: string
 			Destination?: { ToAddresses?: string[] }
-			Content?: { Simple?: { Subject?: { Data?: string }; Body?: { Html?: { Data?: string } } } }
+			Content?: {
+				Simple?: {
+					Subject?: { Data?: string }
+					Body?: { Html?: { Data?: string }; Text?: { Data?: string } }
+					Headers?: { Name?: string; Value?: string }[]
+				}
+			}
 		}
+
+		const simple = email.Content?.Simple
 
 		testRegistry.emails.send!({
 			from: email.FromEmailAddress,
 			to: email.Destination?.ToAddresses,
-			subject: email.Content?.Simple?.Subject?.Data,
-			html: email.Content?.Simple?.Body?.Html?.Data,
+			subject: simple?.Subject?.Data,
+			html: simple?.Body?.Html?.Data,
+			// Left out when not sent, so assertions on the older fields keep matching.
+			...(simple?.Body?.Text ? { text: simple.Body.Text.Data } : {}),
+			...(simple?.Headers ? { headers: simple.Headers.map(({ Name, Value }) => ({ name: Name, value: Value })) } : {}),
 		})
 	})
 }
