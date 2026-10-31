@@ -69,12 +69,13 @@ export const CloudFrontHeadersSchema = z
 
 const LoadBalancerSchema = z
 	.object({
-		cloudfrontHeaders: CloudFrontHeadersSchema,
+		cloudfrontHeaders: CloudFrontHeadersSchema.optional(),
 	})
 	.strict()
 	.describe(
 		[
-			"Serve this route through an Application Load Balancer instead of the function url, so it can get CloudFront's own headers.",
+			"Serve this route through an Application Load Balancer instead of the function url, so it can get CloudFront's own headers,",
+			"or take a request body from a client that can't sign it: CloudFront signs what it sends a function url, so a body there only passes with its x-amz-content-sha256 (a third party's webhook can't send one; `loadBalancer: {}` names no headers).",
 			"CloudFront only adds them through an origin request policy that names them, which also forwards the viewer's Host, and a Lambda function url refuses a foreign Host.",
 			'So the path gets a cache behavior of its own with such a policy, whose origin is an Application Load Balancer that invokes the live bundle alias instead of the function url.',
 			"The app has one load balancer, in its vpc's public subnets & shared with its pubsubs, and it only takes requests that carry the router's origin secret.",
@@ -277,20 +278,28 @@ export const RouterDefaultSchema = z
 					.describe('Customize the error responses for specific HTTP status codes.'),
 
 				cors: z
-					.object({
-						override: z.boolean().default(false),
-						maxAge: DurationSchema.prefault('365 days'),
-						exposeHeaders: z.string().array().default(['*']),
-						credentials: z.boolean().default(false),
-						headers: z.string().array().default(['*']),
-						origins: z.string().array().default(['*']),
-						methods: z
-							.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
-							.array()
-							.default(['ALL']),
-					})
+					.union([
+						z.literal(false),
+						z.object({
+							override: z.boolean().default(false),
+							maxAge: DurationSchema.prefault('365 days'),
+							exposeHeaders: z.string().array().default(['*']),
+							credentials: z.boolean().default(false),
+							headers: z.string().array().default(['*']),
+							origins: z.string().array().default(['*']),
+							methods: z
+								.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
+								.array()
+								.default(['ALL']),
+						}),
+					])
 					.prefault({})
-					.describe('Specify the cors headers.'),
+					.describe(
+						[
+							'Specify the cors headers.',
+							'Use false for a router no browser may call cross origin: no cors headers, and OPTIONS requests reach the routes instead of a preflight answer.',
+						].join('\n')
+					),
 
 				maintenance: z
 					.boolean()

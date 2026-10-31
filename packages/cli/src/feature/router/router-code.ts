@@ -8,6 +8,9 @@ const ORIGIN_CONNECTION_TIMEOUT = toSeconds(seconds(10))
 
 export const getViewerRequestFunctionCode = (props: {
 	router: string
+	// Answer OPTIONS preflights at the edge (the default). A router without
+	// cors lets them through to its routes.
+	cors?: boolean
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
@@ -19,6 +22,7 @@ export const getViewerRequestFunctionCode = (props: {
 	return compact(
 		CODE({
 			keepRequestOrigin: !!props.keepRequestOrigin,
+			cors: props.cors !== false,
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
@@ -257,12 +261,26 @@ try {
 
 const prefix = table + ':' + router + ':';`
 
+const CORS_PREFLIGHT = `
+if (request.method === 'OPTIONS') {
+	return {
+		statusCode: 204,
+		headers: {
+			'access-control-allow-origin': { value: '*' },
+			'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
+			'access-control-allow-headers': { value: '*' },
+			'access-control-max-age': { value: '86400' }
+		}
+	};
+}`
+
 const CODE = (props: {
 	before: string[]
 	prefix: string
 	after: string[]
 	withCrypto: boolean
 	keepRequestOrigin: boolean
+	cors: boolean
 }) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
@@ -476,17 +494,7 @@ async function handler(event) {
 		path = request.uri;
 	}
 
-	if (request.method === 'OPTIONS') {
-		return {
-			statusCode: 204,
-			headers: {
-				'access-control-allow-origin': { value: '*' },
-				'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
-				'access-control-allow-headers': { value: '*' },
-				'access-control-max-age': { value: '86400' }
-			}
-		};
-	}
+	${props.cors ? CORS_PREFLIGHT : ''}
 
 	${props.before.join('\n')}
 

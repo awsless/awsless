@@ -70,7 +70,7 @@ describe('router cloudfront headers', () => {
 		const { app } = createHeadersApp()
 		const distribution = listResources(app, 'aws_cloudfront_multitenant_distribution')[0]!
 
-		expect(distribution.input.cacheBehavior).toBeUndefined()
+		expect(distribution.input.cacheBehavior).toEqual([])
 		expect(distribution.input.origin).toHaveLength(1)
 		expect(listResources(app, 'aws_cloudfront_origin_request_policy')).toHaveLength(1)
 		expect(
@@ -86,6 +86,29 @@ describe('router cloudfront headers', () => {
 		]) {
 			expect(listResources(app, type)).toHaveLength(0)
 		}
+	})
+
+	it('should keep the load balancer an origin of a router without such routes while the app has one', () => {
+		const { app } = createHeadersApp({ pubsub: true })
+		const distribution = listResources(app, 'aws_cloudfront_multitenant_distribution')[0]!
+
+		expect(distribution.input.origin).toHaveLength(2)
+		expect(distribution.input.cacheBehavior).toEqual([])
+	})
+
+	it('should take a load balancer route without CloudFront headers, forwarding the viewer headers only', () => {
+		expect(RoutesSchema.safeParse({ main: { '/webhook': { code, loadBalancer: {} } } }).success).toBe(true)
+
+		const { app } = createHeadersApp({ routes: { '/webhook': { code, loadBalancer: {} }, '/events': { code } } })
+		const distribution = listResources(app, 'aws_cloudfront_multitenant_distribution')[0]!
+		const policy = listResources(app, 'aws_cloudfront_origin_request_policy').find(meta =>
+			meta.urn.includes('cloudfront-headers')
+		)!
+
+		expect(policy.input.headersConfig).toEqual({ headerBehavior: 'allViewer' })
+		expect(distribution.input.cacheBehavior.map((item: { pathPattern: string }) => item.pathPattern)).toContain(
+			'/webhook'
+		)
 	})
 
 	it('should give the path a behavior of its own with the load balancer as origin', () => {

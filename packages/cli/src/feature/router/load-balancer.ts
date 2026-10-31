@@ -32,7 +32,7 @@ export const collectHeaderRoutes = (ctx: { appConfig: AppConfig; stackConfigs: S
 			for (const [path, props] of Object.entries(patterns)) {
 				if (props.loadBalancer) {
 					routers[id] ??= []
-					routers[id].push({ path, headers: props.loadBalancer.cloudfrontHeaders })
+					routers[id].push({ path, headers: props.loadBalancer.cloudfrontHeaders ?? [] })
 				}
 			}
 		}
@@ -72,12 +72,17 @@ export const createCloudFrontHeadersPolicies = (group: Group, ctx: AppContext, i
 					resourceName: id,
 					postfix: `cloudfront-headers-${shortId(key)}`,
 				}),
-				headersConfig: {
-					// Naming CloudFront headers forwards every viewer header, host
-					// included, which only the load balancer origin accepts.
-					headerBehavior: 'allViewerAndWhitelistCloudFront',
-					headers: { items: route.headers },
-				},
+				headersConfig:
+					route.headers.length > 0
+						? {
+								// Naming CloudFront headers forwards every viewer header, host
+								// included, which only the load balancer origin accepts.
+								headerBehavior: 'allViewerAndWhitelistCloudFront',
+								headers: { items: route.headers },
+							}
+						: // A route without CloudFront headers (one that only takes a body
+							// it can't sign) still forwards the viewer's.
+							{ headerBehavior: 'allViewer' },
 				cookiesConfig: { cookieBehavior: 'all' },
 				queryStringsConfig: { queryStringBehavior: 'all' },
 			})

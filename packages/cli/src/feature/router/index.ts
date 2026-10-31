@@ -161,6 +161,7 @@ export const routerFeature = defineFeature({
 
 			const functionOptions = {
 				router: id,
+				cors: props.cors !== false,
 				blockDirectAccess: !!props.domain,
 				redirectWww: !!props.domain && props.redirectWww,
 				passwordAuth,
@@ -265,15 +266,17 @@ export const routerFeature = defineFeature({
 
 			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
-				corsConfig: {
-					originOverride: props.cors.override,
-					accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
-					accessControlAllowHeaders: { items: props.cors.headers },
-					accessControlAllowMethods: { items: props.cors.methods },
-					accessControlAllowOrigins: { items: props.cors.origins },
-					accessControlExposeHeaders: { items: props.cors.exposeHeaders },
-					accessControlAllowCredentials: props.cors.credentials,
-				},
+				corsConfig: props.cors
+					? {
+							originOverride: props.cors.override,
+							accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
+							accessControlAllowHeaders: { items: props.cors.headers },
+							accessControlAllowMethods: { items: props.cors.methods },
+							accessControlAllowOrigins: { items: props.cors.origins },
+							accessControlExposeHeaders: { items: props.cors.exposeHeaders },
+							accessControlAllowCredentials: props.cors.credentials,
+						}
+					: undefined,
 				removeHeadersConfig: {
 					items: [{ header: 'server' }],
 				},
@@ -329,11 +332,22 @@ export const routerFeature = defineFeature({
 			// params & login, but leaves the origin alone.
 			const routerHeaderRoutes = headerRoutes[id] ?? []
 			const loadBalancerOrigins: ReturnType<typeof createLoadBalancerOrigin>[] = []
-			let cacheBehavior: aws.cloudfront.MultitenantDistributionInput['cacheBehavior']
+			// Empty, not left out, without such routes.
+			let cacheBehavior: aws.cloudfront.MultitenantDistributionInput['cacheBehavior'] = []
+
+			// The load balancer stays an origin of every router while the app has
+			// one (pubsubs, any router's header routes), used or not: CloudFront
+			// refuses an update that drops an origin together with the last
+			// behavior pointing at it ("NoSuchOrigin"), so a router's last such
+			// route can only go while its origin stays.
+			if (Object.keys(ctx.appConfig.pubsub ?? {}).length > 0 || Object.keys(headerRoutes).length > 0) {
+				loadBalancerOrigins.push(
+					createLoadBalancerOrigin(ctx.shared.get('load-balancer', 'main').dnsName, originSecret)
+				)
+			}
 
 			if (routerHeaderRoutes.length > 0) {
 				const policies = createCloudFrontHeadersPolicies(group, ctx, id, routerHeaderRoutes)
-				const loadBalancer = ctx.shared.get('load-balancer', 'main')
 
 				const keepRequestOriginFunction = new aws.cloudfront.Function(group, 'keep-request-origin-function', {
 					name: formatGlobalResourceName({
@@ -347,8 +361,6 @@ export const routerFeature = defineFeature({
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],
 				})
-
-				loadBalancerOrigins.push(createLoadBalancerOrigin(loadBalancer.dnsName, originSecret))
 
 				// The path with & without a trailing slash, like its listener rule,
 				// so no request for it reaches the handler without the headers.
