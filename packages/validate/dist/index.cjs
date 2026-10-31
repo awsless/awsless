@@ -5,44 +5,89 @@ let _awsless_big_float = require("@awsless/big-float");
 let _awsless_duration = require("@awsless/duration");
 //#region src/action/redact.ts
 const REDACTED = "[REDACTED]";
+/** Marks a value to be left out of logs: its logged input shows `[REDACTED]`. */
 const redact = () => {
 	return (0, valibot.metadata)({ redact: true });
 };
+/**
+* Redacts a value that a schema can't describe field by field, like a json
+* string or an http request's headers, with a function of its own.
+*/
+const redactWith = (redactor) => {
+	return (0, valibot.metadata)({ redactWith: redactor });
+};
 const isPlainObject = (input) => input?.constructor === Object;
+const WRAPPERS = /* @__PURE__ */ new Set([
+	"optional",
+	"exact_optional",
+	"nullable",
+	"nullish",
+	"undefinedable",
+	"non_optional",
+	"non_nullable",
+	"non_nullish"
+]);
+const OBJECTS = /* @__PURE__ */ new Set([
+	"object",
+	"loose_object",
+	"strict_object",
+	"object_with_rest"
+]);
+const TUPLES = /* @__PURE__ */ new Set([
+	"tuple",
+	"loose_tuple",
+	"strict_tuple",
+	"tuple_with_rest"
+]);
+/** The input with every value its schema marks with `redact()` or `redactWith()` replaced. */
 const applyRedaction = (schema, input) => {
-	if ((0, valibot.getMetadata)(schema).redact === true) return REDACTED;
-	if (schema.type === "union" || schema.type === "variant") {
-		const matchingBranch = schema.options.find((option) => (0, valibot.safeParse)(option, input).success);
+	const meta = (0, valibot.getMetadata)(schema);
+	if (meta.redact === true) return REDACTED;
+	if (typeof meta.redactWith === "function") return meta.redactWith(input);
+	const s = schema;
+	if (WRAPPERS.has(s.type)) return applyRedaction(s.wrapped, input);
+	if (s.type === "lazy") return applyRedaction(s.getter(input), input);
+	if (s.type === "union" || s.type === "variant") {
+		const matchingBranch = s.options.find((option) => (0, valibot.safeParse)(option, input).success);
 		if (matchingBranch) return applyRedaction(matchingBranch, input);
 	}
-	if (schema.type === "array" && Array.isArray(input)) {
-		const s = schema;
-		return input.map((item) => applyRedaction(s.item, item));
+	if (s.type === "array" && Array.isArray(input)) {
+		const array = s;
+		return input.map((item) => applyRedaction(array.item, item));
 	}
-	if (schema.type === "object" && isPlainObject(input)) {
-		const s = schema;
+	if (TUPLES.has(s.type) && Array.isArray(input)) {
+		const tuple = s;
+		return input.map((item, index) => {
+			const itemSchema = tuple.items[index] ?? s.rest;
+			return itemSchema ? applyRedaction(itemSchema, item) : item;
+		});
+	}
+	if (OBJECTS.has(s.type) && isPlainObject(input)) {
+		const object = s;
 		const i = input;
 		const redacted = {};
-		for (const key in s.entries) if (key in i) redacted[key] = applyRedaction(s.entries[key], i[key]);
+		for (const key in i) if (key in object.entries) redacted[key] = applyRedaction(object.entries[key], i[key]);
+		else if (s.type === "object_with_rest") redacted[key] = applyRedaction(s.rest, i[key]);
+		else if (s.type === "loose_object") redacted[key] = i[key];
 		return redacted;
 	}
-	if (schema.type === "record" && isPlainObject(input)) {
-		const s = schema;
+	if (s.type === "record" && isPlainObject(input)) {
+		const record = s;
 		const i = input;
 		const redacted = {};
-		for (const key in i) redacted[applyRedaction(s.key, key)] = applyRedaction(s.value, i[key]);
+		for (const key in i) redacted[applyRedaction(record.key, key)] = applyRedaction(record.value, i[key]);
 		return redacted;
 	}
-	if (schema.type === "set" && input instanceof Set) {
-		const s = schema;
+	if (s.type === "set" && input instanceof Set) {
+		const set = s;
 		const redacted = /* @__PURE__ */ new Set();
-		for (const value of input) redacted.add(applyRedaction(s.value, value));
+		for (const value of input) redacted.add(applyRedaction(set.value, value));
 		return redacted;
 	}
-	if (schema.type === "map" && input instanceof Map) {
-		const s = schema;
+	if (s.type === "map" && input instanceof Map) {
+		const map = s;
 		const redacted = /* @__PURE__ */ new Map();
-		for (const [key, value] of input.entries()) redacted.set(applyRedaction(s.key, key), applyRedaction(s.value, value));
+		for (const [key, value] of input.entries()) redacted.set(applyRedaction(map.key, key), applyRedaction(map.value, value));
 		return redacted;
 	}
 	return input;
@@ -50,7 +95,14 @@ const applyRedaction = (schema, input) => {
 //#endregion
 //#region src/schema/json.ts
 const json = (schema, message = "Invalid JSON") => {
-	return (0, valibot.pipe)((0, valibot.string)(message), (0, valibot.rawTransform)((ctx) => {
+	return (0, valibot.pipe)((0, valibot.string)(message), redactWith((input) => {
+		if (typeof input !== "string") return applyRedaction(schema, input);
+		try {
+			return (0, _awsless_json.stringify)(applyRedaction(schema, (0, _awsless_json.parse)(input)));
+		} catch {
+			return input;
+		}
+	}), (0, valibot.rawTransform)((ctx) => {
 		let result;
 		try {
 			result = (0, _awsless_json.parse)(ctx.dataset.value);
@@ -189,6 +241,7 @@ function maxDuration(max, message = "Invalid duration") {
 	return (0, valibot.check)((input) => input.value <= max.value, message);
 }
 //#endregion
+exports.REDACTED = REDACTED;
 exports.applyRedaction = applyRedaction;
 exports.bigfloat = bigfloat;
 exports.duration = duration;
@@ -199,6 +252,7 @@ exports.minDuration = minDuration;
 exports.positive = positive;
 exports.precision = precision;
 exports.redact = redact;
+exports.redactWith = redactWith;
 exports.s3Event = s3Event;
 exports.snsTopic = snsTopic;
 exports.sqsQueue = sqsQueue;

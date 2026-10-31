@@ -1,5 +1,5 @@
 import { parse, patch, stringify, unpatch } from '@awsless/json'
-import { parse as valiParse } from '@awsless/validate'
+import { applyRedaction, parse as valiParse } from '@awsless/validate'
 import { Context } from 'aws-lambda'
 import { eventContext } from './context/lambda-context.js'
 import { enhanceError } from './errors/enhanced.js'
@@ -52,7 +52,8 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			await Promise.all(
 				list.map(async logger => {
 					await logger?.(error, {
-						input: event,
+						// Without what the schema marks as secret or personal.
+						input: options.schema ? applyRedaction(options.schema, event) : event,
 					})
 				})
 			)

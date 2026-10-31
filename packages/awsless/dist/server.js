@@ -6,7 +6,7 @@ import { clickhouseClient, define as define$1 } from "@awsless/clickhouse";
 import * as t from "@awsless/dynamodb";
 import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
-import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
+import { REDACTED, applyRedaction, array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, redact, redactWith, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
 import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
@@ -341,8 +341,57 @@ const buildRequest = (props, parts) => {
 		body: rawBody
 	});
 };
+const SECRET_NAME = /authorization|cookie|token|secret|password|api-?key|signature|session|totp|(^|[-_])(otp|code)$/i;
+const PERSONAL_HEADER = /address|forwarded-for|real-ip|client-ip|connecting-ip|(^|-)ip$|viewer-(latitude|longitude|city|postal-code|metro-code|country-region)/i;
+const PERSONAL_FIELD = /e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i;
+const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/;
+const isSecretHeader = (name) => SECRET_NAME.test(name) || PERSONAL_HEADER.test(name);
+const isSecretField = (name) => SECRET_NAME.test(name) || PERSONAL_FIELD.test(name) || IP_FIELD.test(name);
+const redactNamed = (value, hidden = false) => {
+	if (hidden && value !== null && typeof value !== "object") return REDACTED;
+	if (Array.isArray(value)) return value.map((item) => redactNamed(item, hidden));
+	if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactNamed(item, hidden || isSecretField(name))]));
+	return value;
+};
+const redactHeaders = (headers) => {
+	return headers && Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value]));
+};
+const redactBody = (props, body, isBase64Encoded) => {
+	if (!body) return body;
+	try {
+		const data = JSON.parse(isBase64Encoded ? Buffer.from(body, "base64").toString("utf8") : body);
+		return JSON.stringify(props.body ? applyRedaction(props.body, data) : redactNamed(data));
+	} catch {
+		return REDACTED;
+	}
+};
+const redactQuery = (rawQueryString) => {
+	if (!rawQueryString) return rawQueryString;
+	const params = new URLSearchParams(rawQueryString);
+	for (const [name] of params) if (isSecretField(name)) params.set(name, REDACTED);
+	return params.toString();
+};
+const redactEvent = (props) => (input) => {
+	if (!input || typeof input !== "object") return input;
+	const event = input;
+	return {
+		...event,
+		rawQueryString: redactQuery(event.rawQueryString),
+		queryStringParameters: event.queryStringParameters && redactNamed(event.queryStringParameters),
+		headers: redactHeaders(event.headers),
+		...event.cookies ? { cookies: event.cookies.map(() => REDACTED) } : {},
+		body: redactBody(props, event.body, event.isBase64Encoded),
+		requestContext: event.requestContext && {
+			...event.requestContext,
+			http: event.requestContext.http && {
+				...event.requestContext.http,
+				sourceIp: REDACTED
+			}
+		}
+	};
+};
 const routeSchema = (props) => {
-	return pipe(envelopeSchema, transform(extractParts), partsSchema(props), transform((parts) => buildRequest(props, parts)));
+	return pipe(envelopeSchema, redactWith(redactEvent(props)), transform(extractParts), partsSchema(props), transform((parts) => buildRequest(props, parts)));
 };
 const isTextual = (contentType) => {
 	return contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("xml") || contentType.includes("javascript") || contentType.includes("x-www-form-urlencoded");
@@ -416,7 +465,7 @@ var pubsub_exports = /* @__PURE__ */ __exportAll({
 	subscribed: () => subscribed,
 	unsubscribed: () => unsubscribed
 });
-const authEventSchema$1 = object({ token: optional(string()) });
+const authEventSchema$1 = object({ token: optional(pipe(string(), redact())) });
 const auth$1 = (handle) => {
 	return consumer(authEventSchema$1, handle);
 };
@@ -466,7 +515,7 @@ function unsubscribed(...args) {
 //#endregion
 //#region src/lib/handle/rpc.ts
 var rpc_exports = /* @__PURE__ */ __exportAll({ auth: () => auth });
-const authEventSchema = object({ token: string() });
+const authEventSchema = object({ token: pipe(string(), redact()) });
 const auth = (handle) => {
 	return consumer(authEventSchema, handle);
 };
@@ -513,6 +562,7 @@ var handle_exports = /* @__PURE__ */ __exportAll({
 	image: () => image,
 	pubsub: () => pubsub_exports,
 	queue: () => queue,
+	redactEvent: () => redactEvent,
 	route: () => route,
 	rpc: () => rpc_exports,
 	site: () => site,
@@ -1279,11 +1329,17 @@ const recordEmails = (mockSES) => {
 	testRegistry.emails.send = vi.fn(() => {});
 	mockSES((input) => {
 		const email = input;
+		const simple = email.Content?.Simple;
 		testRegistry.emails.send({
 			from: email.FromEmailAddress,
 			to: email.Destination?.ToAddresses,
-			subject: email.Content?.Simple?.Subject?.Data,
-			html: email.Content?.Simple?.Body?.Html?.Data
+			subject: simple?.Subject?.Data,
+			html: simple?.Body?.Html?.Data,
+			...simple?.Body?.Text ? { text: simple.Body.Text.Data } : {},
+			...simple?.Headers ? { headers: simple.Headers.map(({ Name, Value }) => ({
+				name: Name,
+				value: Value
+			})) } : {}
 		});
 	});
 };

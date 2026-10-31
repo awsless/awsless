@@ -228,7 +228,7 @@ const lambda = (options) => {
 			const error = normalizeError(maybeError);
 			const list = [options.logger].flat(10);
 			await Promise.all(list.map(async (logger) => {
-				await logger?.(error, { input: event });
+				await logger?.(error, { input: options.schema ? applyRedaction(options.schema, event) : event });
 			}));
 		};
 		const isTest = isTestEnv();

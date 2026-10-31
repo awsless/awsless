@@ -1,6 +1,6 @@
 import { Duration } from '@awsless/duration'
 import { Handler } from '@awsless/lambda'
-import { GenericSchema, InferInput, object, string } from '@awsless/validate'
+import { GenericSchema, InferInput, object, pipe, redact, string } from '@awsless/validate'
 import { consumer } from './util.js'
 
 // The response contract of the rpc authorizer.
@@ -27,7 +27,7 @@ export type RpcAuthResult =
 	  }
 
 const authEventSchema = object({
-	token: string(),
+	token: pipe(string(), redact()),
 })
 
 /** The event the rpc authorizer receives. */

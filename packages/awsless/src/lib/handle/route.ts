@@ -1,5 +1,6 @@
 import { ExpectedError, Handler, isErrorResponse, lambda, LambdaContext, toErrorResponse } from '@awsless/lambda'
 import {
+	applyRedaction,
 	BaseSchema,
 	boolean,
 	custom,
@@ -15,6 +16,8 @@ import {
 	picklist,
 	pipe,
 	record,
+	REDACTED,
+	redactWith,
 	string,
 	transform,
 	unknown,
@@ -239,9 +242,104 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 	})
 }
 
+// What a logged request leaves out. Credentials by their name: an
+// authorization or api key header, cookies, tokens, secrets & signatures
+// (CloudFront's security token, the router password's header). Personal data
+// too: the caller's ip & location headers, and body or query fields like an
+// email, a name, an address or an ip.
+const SECRET_NAME = /authorization|cookie|token|secret|password|api-?key|signature|session|totp|(^|[-_])(otp|code)$/i
+const PERSONAL_HEADER =
+	/address|forwarded-for|real-ip|client-ip|connecting-ip|(^|-)ip$|viewer-(latitude|longitude|city|postal-code|metro-code|country-region)/i
+const PERSONAL_FIELD = /e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i
+// An ip by its name, case sensitive so `membership` isn't one: `ip`, `ips`,
+// `ipAddress`, `visitorIp`, `visitor_ip`.
+const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/
+
+const isSecretHeader = (name: string) => SECRET_NAME.test(name) || PERSONAL_HEADER.test(name)
+const isSecretField = (name: string) => SECRET_NAME.test(name) || PERSONAL_FIELD.test(name) || IP_FIELD.test(name)
+
+const redactNamed = (value: unknown, hidden = false): unknown => {
+	if (hidden && value !== null && typeof value !== 'object') {
+		return REDACTED
+	}
+
+	if (Array.isArray(value)) {
+		return value.map(item => redactNamed(item, hidden))
+	}
+
+	if (value && typeof value === 'object') {
+		return Object.fromEntries(
+			Object.entries(value).map(([name, item]) => [name, redactNamed(item, hidden || isSecretField(name))])
+		)
+	}
+
+	return value
+}
+
+const redactHeaders = (headers: Record<string, string> | undefined) => {
+	return (
+		headers &&
+		Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value]))
+	)
+}
+
+const redactBody = (props: RouteSchemaProps, body: string | undefined, isBase64Encoded: boolean | undefined) => {
+	if (!body) {
+		return body
+	}
+
+	try {
+		const data = JSON.parse(isBase64Encoded ? Buffer.from(body, 'base64').toString('utf8') : body)
+
+		return JSON.stringify(props.body ? applyRedaction(props.body, data) : redactNamed(data))
+	} catch {
+		// A body that isn't json could hold anything.
+		return REDACTED
+	}
+}
+
+const redactQuery = (rawQueryString: string | undefined) => {
+	if (!rawQueryString) {
+		return rawQueryString
+	}
+
+	const params = new URLSearchParams(rawQueryString)
+
+	for (const [name] of params) {
+		if (isSecretField(name)) {
+			params.set(name, REDACTED)
+		}
+	}
+
+	return params.toString()
+}
+
+// The request as an error logs it (exported for its tests).
+export const redactEvent = (props: RouteSchemaProps) => (input: unknown) => {
+	if (!input || typeof input !== 'object') {
+		return input
+	}
+
+	const event = input as EnvelopeInput & { cookies?: string[] }
+
+	return {
+		...event,
+		rawQueryString: redactQuery(event.rawQueryString),
+		queryStringParameters: event.queryStringParameters && redactNamed(event.queryStringParameters),
+		headers: redactHeaders(event.headers),
+		...(event.cookies ? { cookies: event.cookies.map(() => REDACTED) } : {}),
+		body: redactBody(props, event.body, event.isBase64Encoded),
+		requestContext: event.requestContext && {
+			...event.requestContext,
+			http: event.requestContext.http && { ...event.requestContext.http, sourceIp: REDACTED },
+		},
+	}
+}
+
 const routeSchema = <P extends RouteSchemaProps>(props: P): RouteSchema<P> => {
 	return pipe(
 		envelopeSchema,
+		redactWith(redactEvent(props)),
 		transform(extractParts),
 		partsSchema(props),
 		transform((parts: Parts<P>) => buildRequest(props, parts))
