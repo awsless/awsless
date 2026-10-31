@@ -1,4 +1,5 @@
 import { join } from 'path'
+import { generateRecursiveFileHashes } from '../src/hash'
 import { generateFileHash, loadWorkspace } from '../src'
 
 const fixture = join(__dirname, '_fixture/bun')
@@ -29,5 +30,16 @@ describe('Bun', () => {
 		const hash = await generateFileHash(workspace, join(fixture, 'packages/app/_index.ts'))
 
 		expect(hash).toHaveLength(40)
+	})
+
+	it("should hash the file a workspace package's subpath export names", async () => {
+		const workspace = await loadWorkspace(fixture)
+		const file = join(fixture, 'packages/app/_extra.ts')
+		const hashes = new Map<string, Buffer>()
+
+		await generateRecursiveFileHashes(workspace, file, file, ['ts'], hashes)
+
+		expect([...hashes.keys()]).toContain('packages/lib/_extra.ts')
+		expect([...hashes.keys()]).not.toContain('packages/lib/_index.ts')
 	})
 })

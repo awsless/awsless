@@ -20,6 +20,8 @@ export type Package = {
 	path: string
 	name: string
 	main?: string
+	// The package.json exports by subpath (".", "./bundle"), as files.
+	exports: Record<string, string>
 	dependencies: Record<string, Dependency>
 }
 
