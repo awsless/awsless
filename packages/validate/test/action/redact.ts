@@ -17,7 +17,8 @@ import {
 	tuple,
 	union,
 } from 'valibot'
-import { applyRedaction, json, redact, redactWith, sqsQueue } from '../../src'
+import { define, number as dbNumber, object as dbObject, string as dbString } from '@awsless/dynamodb'
+import { applyRedaction, dynamoDbStream, json, redact, redactWith, sqsQueue } from '../../src'
 
 const test = (schema: GenericSchema, input: any, output: any) => {
 	it(`${JSON.stringify(input)} = ${JSON.stringify(output)}`, () => {
@@ -184,6 +185,21 @@ describe('redact', () => {
 			schema,
 			{ Records: [{ body: '{"email":"pat@example.com"}' }] },
 			{ Records: [{ body: '{"email":"[REDACTED]"}' }] }
+		)
+	})
+
+	describe('dynamodb stream', () => {
+		const table = define('users', { hash: 'id', schema: dbObject({ id: dbNumber(), email: dbString() }) })
+		const schema = dynamoDbStream(table)
+		const record = {
+			eventName: 'MODIFY',
+			dynamodb: { Keys: { id: { N: '1' } }, NewImage: { id: { N: '1' }, email: { S: 'pat@example.com' } } },
+		}
+
+		test(
+			schema,
+			{ Records: [record] },
+			{ Records: [{ eventName: 'MODIFY', dynamodb: { Keys: { id: { N: '1' } }, NewImage: '[REDACTED]' } }] }
 		)
 	})
 })

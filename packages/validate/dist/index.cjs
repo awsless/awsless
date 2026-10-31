@@ -151,7 +151,7 @@ const snsTopic = (schema, message = "Invalid SNS Topic payload") => {
 //#region src/schema/aws/dynamodb-stream.ts
 const dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
 	const unmarshallKeys = () => (0, valibot.pipe)((0, valibot.unknown)(), (0, valibot.transform)((v) => table.unmarshall(v, table.keys)));
-	const unmarshall = () => (0, valibot.pipe)((0, valibot.unknown)(), (0, valibot.transform)((v) => table.unmarshall(v)));
+	const unmarshall = () => (0, valibot.pipe)((0, valibot.unknown)(), redactWith(() => REDACTED), (0, valibot.transform)((v) => table.unmarshall(v)));
 	return (0, valibot.pipe)((0, valibot.object)({ Records: (0, valibot.array)((0, valibot.object)({
 		eventName: (0, valibot.picklist)([
 			"MODIFY",
