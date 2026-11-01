@@ -237,6 +237,9 @@ export const tableFeature = defineFeature({
 					},
 					{
 						dependsOn: [bundle.policy],
+						// A new stream (another view type) has a new arn, which a
+						// mapping can't move to in place.
+						replaceOnChanges: ['eventSourceArn'],
 					}
 				)
 			}
