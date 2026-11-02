@@ -89,42 +89,6 @@ describe('table', () => {
 		expect(mapping.input.maximumRecordAgeInSeconds).toBeUndefined()
 	})
 
-	it('warms the table & its indexes', () => {
-		const { app } = createTestApp({
-			stacks: [
-				{
-					name: 'stack-1',
-					tables: {
-						tasks: {
-							hash: 'id',
-							warmThroughput: { write: 30000 },
-							indexes: {
-								byUser: { hash: 'userId', warmThroughput: { read: 20000, write: 8000 } },
-								byTeam: { hash: 'teamId' },
-							},
-						},
-					},
-				},
-			],
-		})
-
-		const table = listResources(app, 'aws_dynamodb_table')[0]!
-		const indexes = table.input.globalSecondaryIndex as Array<Record<string, unknown>>
-
-		expect(table.input.warmThroughput).toEqual({ readUnitsPerSecond: undefined, writeUnitsPerSecond: 30000 })
-		expect(indexes.find(index => index.name === 'byUser')!.warmThroughput).toEqual({
-			readUnitsPerSecond: 20000,
-			writeUnitsPerSecond: 8000,
-		})
-		expect(indexes.find(index => index.name === 'byTeam')!.warmThroughput).toBeUndefined()
-	})
-
-	it('refuses a warm throughput below what a table starts with', () => {
-		expect(() =>
-			StackSchema.parse({ name: 'stack-1', tables: { tasks: { hash: 'id', warmThroughput: { write: 1000 } } } })
-		).toThrow()
-	})
-
 	it('reports stream failures to the on-failure bucket', () => {
 		const { app } = createTestApp({
 			app: { onFailure: { consumer: { code: { file: { nocheck: './on-failure.ts' } } } } },

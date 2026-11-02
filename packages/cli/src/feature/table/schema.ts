@@ -6,22 +6,6 @@ import { BundledFunctionSchema } from '../function/schema.js'
 
 const KeySchema = z.string().min(1).max(255)
 
-// An on-demand table & each of its indexes start out warm for 12,000 reads &
-// 4,000 writes a second, so a lower value can't be asked for.
-const WarmThroughputSchema = z
-	.object({
-		read: z.number().int().min(12000).optional().describe('The read request units a second it takes at once.'),
-		write: z.number().int().min(4000).optional().describe('The write request units a second it takes at once.'),
-	})
-	.strict()
-	.describe(
-		[
-			'The throughput the table (or index) takes right away, without waiting for DynamoDB to split its partitions as traffic grows.',
-			'DynamoDB charges once for raising it & refuses to lower it again; leaving it out keeps what the table has.',
-			"It doesn't help a single hot partition key, which still takes about 1,000 writes a second.",
-		].join('\n')
-	)
-
 export const TablesSchema = z
 	.record(
 		ResourceIdSchema,
@@ -43,8 +27,6 @@ export const TablesSchema = z
 				.enum(['standard', 'standard-infrequent-access'])
 				.default('standard')
 				.describe('The table class of the table.'),
-
-			warmThroughput: WarmThroughputSchema.optional(),
 
 			pointInTimeRecovery: z
 				.boolean()
@@ -190,8 +172,6 @@ export const TablesSchema = z
 							.describe(
 								'Specifies the name of the range / sort key that makes up the primary key for the global secondary index.'
 							),
-
-						warmThroughput: WarmThroughputSchema.optional(),
 
 						projection: z
 							.union([z.enum(['all', 'keys-only']), z.string().array().min(1)])
