@@ -145,6 +145,7 @@ export const queueFeature = defineFeature({
 						functionName: bundle.alias.arn,
 						eventSourceArn: queue.arn,
 						batchSize: props.batchSize,
+						scalingConfig: props.maxConcurrency ? { maximumConcurrency: props.maxConcurrency } : undefined,
 					},
 					{
 						dependsOn: [bundle.policy],

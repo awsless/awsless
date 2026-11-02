@@ -1,3 +1,4 @@
+import type { ResourceConfig } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
 import { StackSchema } from '../src/config/stack'
 import { formatTableKeys } from '../src/feature/table/util'
@@ -41,6 +42,87 @@ describe('table', () => {
 		expect(mapping.input.functionResponseTypes).toEqual(['ReportBatchItemFailures'])
 		expect(mapping.input.startingPosition).toBe('LATEST')
 		expect(mapping.input.destinationConfig).toBeUndefined()
+	})
+
+	it('starts a mapping at the trim horizon, replacing one that started elsewhere', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					tables: {
+						tasks: {
+							hash: 'id',
+							stream: {
+								type: 'new-image',
+								startingPosition: 'trim-horizon',
+								bisectOnError: true,
+								maxRecordAge: '6 hours',
+								consumer: { code },
+							},
+						},
+					},
+				},
+			],
+		})
+
+		const mapping = listResources(app, 'aws_lambda_event_source_mapping')[0]!
+
+		expect(mapping.input.startingPosition).toBe('TRIM_HORIZON')
+		expect(mapping.input.bisectBatchOnFunctionError).toBe(true)
+		expect(mapping.input.maximumRecordAgeInSeconds).toBe(6 * 60 * 60)
+		expect((mapping.config as ResourceConfig).replaceOnChanges).toEqual(['eventSourceArn', 'startingPosition'])
+	})
+
+	it('leaves bisect & the record age unset by default', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					tables: { tasks: { hash: 'id', stream: { type: 'new-image', consumer: { code } } } },
+				},
+			],
+		})
+
+		const mapping = listResources(app, 'aws_lambda_event_source_mapping')[0]!
+
+		expect(mapping.input.bisectBatchOnFunctionError).toBeUndefined()
+		expect(mapping.input.maximumRecordAgeInSeconds).toBeUndefined()
+	})
+
+	it('warms the table & its indexes', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					tables: {
+						tasks: {
+							hash: 'id',
+							warmThroughput: { write: 30000 },
+							indexes: {
+								byUser: { hash: 'userId', warmThroughput: { read: 20000, write: 8000 } },
+								byTeam: { hash: 'teamId' },
+							},
+						},
+					},
+				},
+			],
+		})
+
+		const table = listResources(app, 'aws_dynamodb_table')[0]!
+		const indexes = table.input.globalSecondaryIndex as Array<Record<string, unknown>>
+
+		expect(table.input.warmThroughput).toEqual({ readUnitsPerSecond: undefined, writeUnitsPerSecond: 30000 })
+		expect(indexes.find(index => index.name === 'byUser')!.warmThroughput).toEqual({
+			readUnitsPerSecond: 20000,
+			writeUnitsPerSecond: 8000,
+		})
+		expect(indexes.find(index => index.name === 'byTeam')!.warmThroughput).toBeUndefined()
+	})
+
+	it('refuses a warm throughput below what a table starts with', () => {
+		expect(() =>
+			StackSchema.parse({ name: 'stack-1', tables: { tasks: { hash: 'id', warmThroughput: { write: 1000 } } } })
+		).toThrow()
 	})
 
 	it('reports stream failures to the on-failure bucket', () => {

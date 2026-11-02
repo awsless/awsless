@@ -19,6 +19,15 @@ import { GenericMapSchema, Table as DynamoTable } from '@awsless/dynamodb'
 type TableKey<S extends GenericMapSchema, K> = Extract<keyof S[symbol]['Type'], string> & K
 `
 
+const formatWarmThroughput = (props?: { read?: number; write?: number }) => {
+	return props
+		? {
+				readUnitsPerSecond: props.read,
+				writeUnitsPerSecond: props.write,
+			}
+		: undefined
+}
+
 export const tableFeature = defineFeature({
 	name: 'table',
 	onDev: tableOnDev,
@@ -177,6 +186,7 @@ export const tableFeature = defineFeature({
 					pointInTimeRecovery: {
 						enabled: props.pointInTimeRecovery,
 					},
+					warmThroughput: formatWarmThroughput(props.warmThroughput),
 					globalSecondaryIndex: Object.entries(props.indexes ?? {}).map(([name, index]) => ({
 						name: name,
 						...(Array.isArray(index.projection)
@@ -192,6 +202,7 @@ export const tableFeature = defineFeature({
 								attributeName: name,
 							})),
 						],
+						warmThroughput: formatWarmThroughput(index.warmThroughput),
 					})),
 					deletionProtectionEnabled: ctx.appConfig.removal === 'retain',
 				},
@@ -223,10 +234,16 @@ export const tableFeature = defineFeature({
 							? toSeconds(props.stream.batchWindow)
 							: undefined,
 						maximumRetryAttempts: props.stream.retryAttempts,
+						maximumRecordAgeInSeconds: props.stream.maxRecordAge
+							? toSeconds(props.stream.maxRecordAge)
+							: undefined,
+						// Left out while off, so the mappings from before the option stay as they are.
+						bisectBatchOnFunctionError: props.stream.bisectOnError || undefined,
 						parallelizationFactor: props.stream.concurrencyPerShard,
+						// The handler may name the records that failed, see the stream's consumer.
 						functionResponseTypes: ['ReportBatchItemFailures'],
 
-						startingPosition: 'LATEST',
+						startingPosition: constantCase(props.stream.startingPosition),
 						destinationConfig: onFailure
 							? {
 									onFailure: {
@@ -238,8 +255,9 @@ export const tableFeature = defineFeature({
 					{
 						dependsOn: [bundle.policy],
 						// A new stream (another view type) has a new arn, which a
-						// mapping can't move to in place.
-						replaceOnChanges: ['eventSourceArn'],
+						// mapping can't move to in place, & a mapping keeps the
+						// starting position it was created with.
+						replaceOnChanges: ['eventSourceArn', 'startingPosition'],
 					}
 				)
 			}

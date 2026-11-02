@@ -161,7 +161,8 @@ const dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
 		dynamodb: object({
 			Keys: unmarshallKeys(),
 			OldImage: optional(unmarshall()),
-			NewImage: optional(unmarshall())
+			NewImage: optional(unmarshall()),
+			SequenceNumber: optional(string())
 		})
 	})) }, message), transform((input) => {
 		return input.Records.map((record) => {
@@ -171,6 +172,7 @@ const dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
 			};
 			if ("OldImage" in record.dynamodb) item.old = record.dynamodb.OldImage;
 			if ("NewImage" in record.dynamodb) item.new = record.dynamodb.NewImage;
+			if (record.dynamodb.SequenceNumber !== void 0) item.sequenceNumber = record.dynamodb.SequenceNumber;
 			return item;
 		});
 	}));

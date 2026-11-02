@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AlertsDefaultSchema } from '../feature/alert/schema.js'
+import { AlarmsDefaultSchema, AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
 import { ClickHouseDefaultSchema } from '../feature/clickhouse/schema.js'
 import { ConfigsSchema } from '../feature/config/schema.js'
@@ -60,6 +60,7 @@ export const AppSchema = z
 		rpc: RpcDefaultSchema,
 		pubsub: PubSubDefaultSchema,
 		alerts: AlertsDefaultSchema,
+		alarms: AlarmsDefaultSchema,
 		topics: TopicsDefaultSchema,
 		layers: LayerSchema,
 		router: RouterDefaultSchema,

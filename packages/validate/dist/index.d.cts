@@ -62,6 +62,7 @@ type DynamoDBStreamInputRecord = {
     Keys: unknown;
     OldImage?: unknown;
     NewImage?: unknown;
+    SequenceNumber?: string;
   };
 };
 type DynamoDBStreamOutputRecord<T extends AnyTable> = {
@@ -73,6 +74,13 @@ type DynamoDBStreamOutputRecord<T extends AnyTable> = {
   old?: Infer<T>;
   /** The item after the change, when the stream captures new images. */
   new?: Infer<T>;
+  /**
+   * The record's place in its shard. A handler names the records that failed
+   * by it, returning `{ batchItemFailures: [{ itemIdentifier: sequenceNumber }] }`,
+   * so the stream retries from the first of them instead of the whole batch.
+   * Only set on records that came from a stream.
+   */
+  sequenceNumber?: string;
 };
 type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
   Records: DynamoDBStreamInputRecord[];

@@ -31,6 +31,18 @@ const BatchSizeSchema = z
 	.max(10, 'FIFO queues support a maximum batch size of 10')
 	.describe('The maximum number of records per batch. FIFO queues are capped at 10.')
 
+const MaxConcurrencySchema = z
+	.number()
+	.int()
+	.min(2, 'Minimum max concurrency is 2')
+	.max(1000, 'Maximum max concurrency is 1000')
+	.describe(
+		[
+			'The most consumer invocations the queue runs at once, so a busy queue never takes all of the lambda concurrency the app shares with its routes.',
+			'Messages past it wait in the queue. You can specify a number from 2 to 1000.',
+		].join('\n')
+	)
+
 export const QueueDefaultSchema = z
 	.object({
 		retentionPeriod: RetentionPeriodSchema.prefault('7 days'),
@@ -38,6 +50,7 @@ export const QueueDefaultSchema = z
 		receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 		maxMessageSize: MaxMessageSizeSchema.prefault('256 KB'),
 		batchSize: BatchSizeSchema.default(10),
+		maxConcurrency: MaxConcurrencySchema.optional(),
 	})
 	.prefault({})
 
@@ -47,6 +60,7 @@ const QueueSchema = z.object({
 	receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 	maxMessageSize: MaxMessageSizeSchema.optional(),
 	batchSize: BatchSizeSchema.optional(),
+	maxConcurrency: MaxConcurrencySchema.optional(),
 })
 
 export const QueuesSchema = z
