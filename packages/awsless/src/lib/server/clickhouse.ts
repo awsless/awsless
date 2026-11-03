@@ -23,6 +23,11 @@ export const getClickHouseProps = (name: string, stack: string = getStack()) => 
 
 let client: ClickHouseClient | undefined
 
+// How long one query or insert may wait, in milliseconds: long enough for an
+// idle service to wake (a service of two replicas took over two minutes),
+// short of the lambda's own timeout.
+const CLICKHOUSE_REQUEST_TIMEOUT = 300_000
+
 // One client per lambda. A deployed app reads the generated password from
 // ssm on the first query; locally the default user has none.
 const getClient = () => {
@@ -32,6 +37,12 @@ const getClient = () => {
 		client = clickhouseClient({
 			endpoint: process.env.CLICKHOUSE_ENDPOINT!,
 			password: parameter ? async () => (await ssm({ password: parameter })).password : undefined,
+			// A ClickHouse Cloud service that idled out takes minutes to wake,
+			// past the client's own 30 second default.
+			requestTimeout: CLICKHOUSE_REQUEST_TIMEOUT,
+			// Progress headers every 10 seconds keep a long query's connection
+			// alive past a load balancer's idle timeout.
+			settings: { send_progress_in_http_headers: 1, http_headers_progress_interval_ms: '10000' },
 		})
 	}
 

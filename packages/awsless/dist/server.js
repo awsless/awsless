@@ -7,7 +7,7 @@ import * as t from "@awsless/dynamodb";
 import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
 import { REDACTED, applyRedaction, array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, redact, redactWith, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
+import { ExpectedError, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
 import { stringify } from "@awsless/json";
@@ -948,12 +948,18 @@ const getClickHouseProps = (name, stack = getStack()) => {
 	};
 };
 let client;
+const CLICKHOUSE_REQUEST_TIMEOUT = 3e5;
 const getClient = () => {
 	if (!client) {
 		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER;
 		client = clickhouseClient({
 			endpoint: process.env.CLICKHOUSE_ENDPOINT,
-			password: parameter ? async () => (await ssm({ password: parameter })).password : void 0
+			password: parameter ? async () => (await ssm({ password: parameter })).password : void 0,
+			requestTimeout: CLICKHOUSE_REQUEST_TIMEOUT,
+			settings: {
+				send_progress_in_http_headers: 1,
+				http_headers_progress_interval_ms: "10000"
+			}
 		});
 	}
 	return client;
@@ -1457,7 +1463,6 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 					}
 				});
 				if (isTest()) registerTestCleanup(() => client.destroy());
-				else getContext().onFinally(() => client.destroy());
 				return client;
 			});
 		};
