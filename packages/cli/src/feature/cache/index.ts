@@ -11,7 +11,7 @@ import { cacheOnDev } from './dev.js'
 const typeGenCode = `
 import { RedisClient } from '@awsless/redis'
 
-type RedisClientFactory = (db?: number) => RedisClient
+type RedisClientFactory = (db?: number, options?: { keepConnection?: boolean }) => RedisClient
 `
 
 export const cacheFeature = defineFeature({

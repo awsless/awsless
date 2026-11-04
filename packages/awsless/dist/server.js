@@ -7,7 +7,7 @@ import * as t from "@awsless/dynamodb";
 import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
 import { REDACTED, applyRedaction, array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, redact, redactWith, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
+import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
 import { stringify } from "@awsless/json";
@@ -1449,7 +1449,7 @@ const getCacheProps = (name, stack = getStack()) => {
 };
 const Cache = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
-		return (db = 0) => {
+		return (db = 0, { keepConnection = false } = {}) => {
 			return createLazyClient(() => {
 				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
@@ -1463,6 +1463,7 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 					}
 				});
 				if (isTest()) registerTestCleanup(() => client.destroy());
+				else if (!keepConnection) getContext().onFinally(() => client.destroy());
 				return client;
 			});
 		};

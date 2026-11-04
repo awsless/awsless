@@ -1,3 +1,4 @@
+import { getContext } from '@awsless/lambda'
 import { createIoRedisClient, createLazyClient } from '@awsless/redis'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
@@ -13,11 +14,18 @@ export const getCacheProps = (name: string, stack: string = getStack()) => {
 	} as const
 }
 
+export type CacheClientOptions = {
+	// Keeps the connection open for the container's life instead of closing it
+	// when the invocation that first used it ends: opening one (tls, then the
+	// cluster's slots and nodes) costs far more than a command.
+	keepConnection?: boolean
+}
+
 export interface CacheResources {}
 
 export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
-		return (db: number = 0) => {
+		return (db: number = 0, { keepConnection = false }: CacheClientOptions = {}) => {
 			return createLazyClient(() => {
 				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
@@ -38,13 +46,16 @@ export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 							}),
 				})
 
-				// One connection for the container's life: opening one (tls, then
-				// the cluster's slots and nodes) costs far more than a command, and
-				// an async handler finishes with it open. Closing it after an
-				// invocation made the next one connect again. Tests close it when
-				// the test file finishes.
+				// Tests call handlers without a lambda context, so the client
+				// cleans up when the test file finishes. Otherwise the invocation
+				// that first uses the client owns its cleanup, unless the caller
+				// keeps the connection; a module scope client is shared by every
+				// invocation and every internal call in between, so it must not
+				// be torn down for each of them.
 				if (isTest()) {
 					registerTestCleanup(() => client.destroy())
+				} else if (!keepConnection) {
+					getContext().onFinally(() => client.destroy())
 				}
 
 				return client
