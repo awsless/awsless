@@ -32,10 +32,13 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/awsless:
     dependencies:
+      '@awsless/clickhouse':
+        specifier: workspace:^
+        version: link:../clickhouse
       '@awsless/cloudwatch':
         specifier: workspace:^
         version: link:../cloudwatch
@@ -89,7 +92,7 @@ importers:
         version: 5.4.4
       vitest:
         specifier: '>=4'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/big-float: {}
 
@@ -109,7 +112,7 @@ importers:
         version: 1.2.4
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
     devDependencies:
       '@aws-sdk/client-cloudfront':
         specifier: 3.1113.0
@@ -162,6 +165,12 @@ importers:
       '@awsless/big-float':
         specifier: workspace:^
         version: link:../big-float
+      '@awsless/clickhouse':
+        specifier: workspace:^
+        version: link:../clickhouse
+      '@awsless/clickhouse-server':
+        specifier: workspace:^
+        version: link:../clickhouse-server
       '@awsless/cloudwatch':
         specifier: workspace:^
         version: link:../cloudwatch
@@ -227,10 +236,13 @@ importers:
         version: 0.3.31
       '@opensearch-project/opensearch':
         specifier: 3.6.0
-        version: 3.6.0(supports-color@8.1.1)
+        version: 3.6.0(supports-color@7.2.0)
       '@terraforge/aws':
         specifier: 6.53.0
         version: 6.53.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8)))
+      '@terraforge/clickhouse':
+        specifier: 3.41.0
+        version: 3.41.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8)))
       '@terraforge/core':
         specifier: 0.0.45
         version: 0.0.45(graphology-types@0.24.8)
@@ -290,7 +302,7 @@ importers:
         version: 13.0.6
       ioredis:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)
+        version: 6.0.0(supports-color@7.2.0)
       json5:
         specifier: 2.2.3
         version: 2.2.3
@@ -339,6 +351,18 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
+
+  packages/clickhouse:
+    dependencies:
+      '@clickhouse/client':
+        specifier: 1.24.1
+        version: 1.24.1
+    devDependencies:
+      '@awsless/clickhouse-server':
+        specifier: workspace:^
+        version: link:../clickhouse-server
+
+  packages/clickhouse-server: {}
 
   packages/cloudwatch:
     dependencies:
@@ -428,13 +452,13 @@ importers:
         version: 4.11.2
       aws-sdk-vitest-mock:
         specifier: 1.0.98
-        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
       chunk:
         specifier: 0.0.3
         version: 0.0.3
       vitest:
         specifier: '>=4'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
     devDependencies:
       '@awsless/big-float':
         specifier: workspace:^
@@ -485,11 +509,11 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.98
-        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
     devDependencies:
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/i18n:
     dependencies:
@@ -523,16 +547,16 @@ importers:
         version: 4.0.43(zod@4.4.3)
       '@sveltejs/vite-plugin-svelte':
         specifier: 7.3.0
-        version: 7.3.0(svelte@5.56.9(@typescript-eslint/types@8.58.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 7.3.0(svelte@5.56.9(@typescript-eslint/types@8.58.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
       svelte:
         specifier: 5.56.9
         version: 5.56.9(@typescript-eslint/types@8.58.0)
       svelte-preprocess:
         specifier: 6.0.5
-        version: 6.0.5(@babel/core@7.29.0(supports-color@8.1.1))(coffeescript@2.7.0)(postcss-load-config@6.0.1(postcss@8.5.26)(tsx@4.21.0)(yaml@2.9.0))(postcss@8.5.26)(stylus@0.59.0(supports-color@8.1.1))(svelte@5.56.9(@typescript-eslint/types@8.58.0))(typescript@7.0.2)
+        version: 6.0.5(@babel/core@7.29.0(supports-color@7.2.0))(coffeescript@2.7.0)(postcss-load-config@6.0.1(postcss@8.5.26)(tsx@4.21.0)(yaml@2.9.0))(postcss@8.5.26)(stylus@0.59.0(supports-color@7.2.0))(svelte@5.56.9(@typescript-eslint/types@8.58.0))(typescript@7.0.2)
       vite:
         specifier: 8.2.1
-        version: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
+        version: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/iot:
     dependencies:
@@ -547,10 +571,10 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.98
-        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
       vitest:
         specifier: '>=4'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/json:
     devDependencies:
@@ -580,7 +604,7 @@ importers:
         version: 5.8.0
       vitest:
         specifier: '>=4'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
     devDependencies:
       '@awsless/validate':
         specifier: workspace:^
@@ -602,7 +626,7 @@ importers:
         version: 0.0.1
       '@opensearch-project/opensearch':
         specifier: 3.6.0
-        version: 3.6.0(supports-color@8.1.1)
+        version: 3.6.0(supports-color@7.2.0)
 
   packages/open-search-server:
     dependencies:
@@ -621,7 +645,7 @@ importers:
     devDependencies:
       '@opensearch-project/opensearch':
         specifier: 3.6.0
-        version: 3.6.0(supports-color@8.1.1)
+        version: 3.6.0(supports-color@7.2.0)
 
   packages/redis:
     dependencies:
@@ -645,7 +669,7 @@ importers:
         version: 0.0.3
       ioredis:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)
+        version: 6.0.0(supports-color@7.2.0)
 
   packages/redis-server:
     dependencies:
@@ -655,11 +679,11 @@ importers:
     devDependencies:
       ioredis:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)
+        version: 6.0.0(supports-color@7.2.0)
     optionalDependencies:
       redis-memory-server:
         specifier: 0.17.1
-        version: 0.17.1(supports-color@8.1.1)
+        version: 0.17.1(supports-color@7.2.0)
 
   packages/s3:
     dependencies:
@@ -692,7 +716,7 @@ importers:
         version: 4.1.0
       vitest:
         specifier: ^4
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
     devDependencies:
       '@aws-sdk/types':
         specifier: 3.974.4
@@ -720,7 +744,7 @@ importers:
         version: 4.4.0
       vitest:
         specifier: ^4
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/ses:
     dependencies:
@@ -735,7 +759,7 @@ importers:
         version: 4.1.0
       vitest:
         specifier: ^4
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/size: {}
 
@@ -755,7 +779,7 @@ importers:
         version: 4.1.0
       vitest:
         specifier: ^4
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/sqs:
     dependencies:
@@ -773,13 +797,13 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.98
-        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
       chunk:
         specifier: 0.0.3
         version: 0.0.3
       vitest:
         specifier: '>=4'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
     devDependencies:
       '@types/chunk':
         specifier: 0.0.2
@@ -795,13 +819,13 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.98
-        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)))
       chunk:
         specifier: 0.0.3
         version: 0.0.3
       vitest:
         specifier: ^4
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
     devDependencies:
       '@types/chunk':
         specifier: 0.0.2
@@ -823,7 +847,7 @@ importers:
     dependencies:
       vitest:
         specifier: ^4
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/validate:
     dependencies:
@@ -1157,6 +1181,10 @@ packages:
   '@clack/prompts@1.7.0':
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
     engines: {node: '>= 20.12.0'}
+
+  '@clickhouse/client@1.24.1':
+    resolution: {integrity: sha512-1kjKJ4uuD4J9JlRU4CpwEGfecstvtoGreBorhh7CxgB7r7PL54DCLD6gajKZhLCri84XlyD3CUxEm6rYkKC+dA==}
+    engines: {node: '>=20'}
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -2473,6 +2501,12 @@ packages:
     peerDependencies:
       '@terraforge/core': 0.0.19
       '@terraforge/terraform': 0.0.14
+
+  '@terraforge/clickhouse@3.41.0':
+    resolution: {integrity: sha512-BILyNoWzhx5G1/BgNdzAibjaYPsqwX2h01QYivbR8rZJmB8KIaWD1IGb3CZOdFKKddpFYJO+qsEoj75qoJuM7w==}
+    peerDependencies:
+      '@terraforge/core': 0.0.45
+      '@terraforge/terraform': 0.0.35
 
   '@terraforge/core@0.0.45':
     resolution: {integrity: sha512-Y0TSv9efyHTPIX2JS2pZmhj2eR+Jl3LB0QE60oy8hp84Jh7fqU97rZIKqaD9iLHjp8onFVmmXtRiIVjr1vCOyA==}
@@ -4178,10 +4212,6 @@ packages:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
 
-  supports-color@8.1.1:
-    resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
-    engines: {node: '>=10'}
-
   svelte-preprocess@6.0.5:
     resolution: {integrity: sha512-sgwew5yV/2eMeQobIWgAxCNarKwiTUDIc3siAUbq3sp0G6ONtzk0W+wJihMdqjbYb3iGU3ubpGv0usnnuXT3qg==}
     engines: {node: '>= 18.0.0'}
@@ -5077,20 +5107,20 @@ snapshots:
   '@babel/compat-data@7.29.0':
     optional: true
 
-  '@babel/core@7.29.0(supports-color@8.1.1)':
+  '@babel/core@7.29.0(supports-color@7.2.0)':
     dependencies:
       '@babel/code-frame': 7.29.0
       '@babel/generator': 7.29.1
       '@babel/helper-compilation-targets': 7.28.6
-      '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.0(supports-color@8.1.1))(supports-color@8.1.1)
+      '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.0(supports-color@7.2.0))(supports-color@7.2.0)
       '@babel/helpers': 7.29.2
       '@babel/parser': 7.29.2
       '@babel/template': 7.28.6
-      '@babel/traverse': 7.29.0(supports-color@8.1.1)
+      '@babel/traverse': 7.29.0(supports-color@7.2.0)
       '@babel/types': 7.29.0
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -5119,20 +5149,20 @@ snapshots:
   '@babel/helper-globals@7.28.0':
     optional: true
 
-  '@babel/helper-module-imports@7.28.6(supports-color@8.1.1)':
+  '@babel/helper-module-imports@7.28.6(supports-color@7.2.0)':
     dependencies:
-      '@babel/traverse': 7.29.0(supports-color@8.1.1)
+      '@babel/traverse': 7.29.0(supports-color@7.2.0)
       '@babel/types': 7.29.0
     transitivePeerDependencies:
       - supports-color
     optional: true
 
-  '@babel/helper-module-transforms@7.28.6(@babel/core@7.29.0(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@babel/helper-module-transforms@7.28.6(@babel/core@7.29.0(supports-color@7.2.0))(supports-color@7.2.0)':
     dependencies:
-      '@babel/core': 7.29.0(supports-color@8.1.1)
-      '@babel/helper-module-imports': 7.28.6(supports-color@8.1.1)
+      '@babel/core': 7.29.0(supports-color@7.2.0)
+      '@babel/helper-module-imports': 7.28.6(supports-color@7.2.0)
       '@babel/helper-validator-identifier': 7.28.5
-      '@babel/traverse': 7.29.0(supports-color@8.1.1)
+      '@babel/traverse': 7.29.0(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -5164,7 +5194,7 @@ snapshots:
       '@babel/types': 7.29.0
     optional: true
 
-  '@babel/traverse@7.29.0(supports-color@8.1.1)':
+  '@babel/traverse@7.29.0(supports-color@7.2.0)':
     dependencies:
       '@babel/code-frame': 7.29.0
       '@babel/generator': 7.29.1
@@ -5172,7 +5202,7 @@ snapshots:
       '@babel/parser': 7.29.2
       '@babel/template': 7.28.6
       '@babel/types': 7.29.0
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -5194,6 +5224,8 @@ snapshots:
       fast-string-width: 3.0.2
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
+
+  '@clickhouse/client@1.24.1': {}
 
   '@colors/colors@1.5.0':
     optional: true
@@ -5546,10 +5578,10 @@ snapshots:
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@opensearch-project/opensearch@3.6.0(supports-color@8.1.1)':
+  '@opensearch-project/opensearch@3.6.0(supports-color@7.2.0)':
     dependencies:
       aws4: 1.13.2
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
       hpagent: 1.2.0
       json11: 2.0.2
       ms: 2.1.3
@@ -5982,16 +6014,21 @@ snapshots:
     dependencies:
       acorn: 8.16.0
 
-  '@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.9(@typescript-eslint/types@8.58.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))':
+  '@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.9(@typescript-eslint/types@8.58.0))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
       deepmerge: 4.3.1
       magic-string: 1.2.1
       obug: 2.1.4
       svelte: 5.56.9(@typescript-eslint/types@8.58.0)
-      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
-      vitefu: 1.1.3(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
+      vitefu: 1.1.3(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   '@terraforge/aws@6.53.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8)))':
+    dependencies:
+      '@terraforge/core': 0.0.45(graphology-types@0.24.8)
+      '@terraforge/terraform': 0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8))
+
+  '@terraforge/clickhouse@3.41.0(@terraforge/core@0.0.45(graphology-types@0.24.8))(@terraforge/terraform@0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8)))':
     dependencies:
       '@terraforge/core': 0.0.45(graphology-types@0.24.8)
       '@terraforge/terraform': 0.0.35(@terraforge/core@0.0.45(graphology-types@0.24.8))
@@ -6145,13 +6182,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.11(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
+      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -6299,10 +6336,10 @@ snapshots:
       sinon: 18.0.1
       tslib: 2.8.1
 
-  aws-sdk-vitest-mock@1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))):
+  aws-sdk-vitest-mock@1.0.98(@aws-sdk/core@3.977.8)(vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))):
     dependencies:
       '@aws-sdk/core': 3.977.8
-      vitest: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+      vitest: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
 
   aws4@1.13.2: {}
 
@@ -6516,11 +6553,11 @@ snapshots:
 
   date-fns@4.4.0: {}
 
-  debug@4.4.3(supports-color@8.1.1):
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
     optionalDependencies:
-      supports-color: 8.1.1
+      supports-color: 7.2.0
 
   decompress-tar@4.1.1:
     dependencies:
@@ -6949,10 +6986,10 @@ snapshots:
       domutils: 2.8.0
       entities: 2.2.0
 
-  https-proxy-agent@7.0.6(supports-color@8.1.1):
+  https-proxy-agent@7.0.6(supports-color@7.2.0):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -6971,11 +7008,11 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ioredis@6.0.0(supports-color@8.1.1):
+  ioredis@6.0.0(supports-color@7.2.0):
     dependencies:
       '@ioredis/commands': 2.0.0
       cluster-key-slot: 1.1.1
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
       denque: 2.1.0
       redis-errors: 1.2.0
       standard-as-callback: 2.1.0
@@ -7471,15 +7508,15 @@ snapshots:
 
   redis-errors@1.2.0: {}
 
-  redis-memory-server@0.17.1(supports-color@8.1.1):
+  redis-memory-server@0.17.1(supports-color@7.2.0):
     dependencies:
       camelcase: 6.3.0
       cross-spawn: 7.0.6
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
       find-cache-dir: 3.3.2
       find-package-json: 1.2.0
       get-port: 5.1.1
-      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      https-proxy-agent: 7.0.6(supports-color@7.2.0)
       lockfile: 1.0.4
       rimraf: 5.0.10
       semver: 7.8.5
@@ -7721,10 +7758,10 @@ snapshots:
     dependencies:
       is-natural-number: 4.0.1
 
-  stylus@0.59.0(supports-color@8.1.1):
+  stylus@0.59.0(supports-color@7.2.0):
     dependencies:
       '@adobe/css-tools': 4.4.4
-      debug: 4.4.3(supports-color@8.1.1)
+      debug: 4.4.3(supports-color@7.2.0)
       glob: 7.2.3
       sax: 1.2.4
       source-map: 0.7.6
@@ -7736,20 +7773,15 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
 
-  supports-color@8.1.1:
-    dependencies:
-      has-flag: 4.0.0
-    optional: true
-
-  svelte-preprocess@6.0.5(@babel/core@7.29.0(supports-color@8.1.1))(coffeescript@2.7.0)(postcss-load-config@6.0.1(postcss@8.5.26)(tsx@4.21.0)(yaml@2.9.0))(postcss@8.5.26)(stylus@0.59.0(supports-color@8.1.1))(svelte@5.56.9(@typescript-eslint/types@8.58.0))(typescript@7.0.2):
+  svelte-preprocess@6.0.5(@babel/core@7.29.0(supports-color@7.2.0))(coffeescript@2.7.0)(postcss-load-config@6.0.1(postcss@8.5.26)(tsx@4.21.0)(yaml@2.9.0))(postcss@8.5.26)(stylus@0.59.0(supports-color@7.2.0))(svelte@5.56.9(@typescript-eslint/types@8.58.0))(typescript@7.0.2):
     dependencies:
       svelte: 5.56.9(@typescript-eslint/types@8.58.0)
     optionalDependencies:
-      '@babel/core': 7.29.0(supports-color@8.1.1)
+      '@babel/core': 7.29.0(supports-color@7.2.0)
       coffeescript: 2.7.0
       postcss: 8.5.26
       postcss-load-config: 6.0.1(postcss@8.5.26)(tsx@4.21.0)(yaml@2.9.0)
-      stylus: 0.59.0(supports-color@8.1.1)
+      stylus: 0.59.0(supports-color@7.2.0)
       typescript: 7.0.2
 
   svelte@5.56.9(@typescript-eslint/types@8.58.0):
@@ -7945,7 +7977,7 @@ snapshots:
 
   verkit@0.3.2: {}
 
-  vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0):
+  vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -7956,19 +7988,19 @@ snapshots:
       '@types/node': 26.2.0
       esbuild: 0.28.2
       fsevents: 2.3.3
-      stylus: 0.59.0(supports-color@8.1.1)
+      stylus: 0.59.0(supports-color@7.2.0)
       terser: 5.46.1
       tsx: 4.21.0
       yaml: 2.9.0
 
-  vitefu@1.1.3(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)):
+  vitefu@1.1.3(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)):
     optionalDependencies:
-      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
+      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
 
-  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)):
+  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.2.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.11(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -7985,7 +8017,7 @@ snapshots:
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@8.1.1))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
+      vite: 8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(stylus@0.59.0(supports-color@7.2.0))(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0

@@ -1,6 +1,6 @@
 import { ExpectedError } from '@awsless/lambda'
-import { number, object, string } from '@awsless/validate'
-import { route } from '../src/lib/handle/route'
+import { number, object, pipe, redact, string } from '@awsless/validate'
+import { redactEvent, route } from '../src/lib/handle/route'
 
 const event = (props: Record<string, unknown> = {}, method = 'GET') => ({
 	rawPath: '/items/1',
@@ -159,5 +159,69 @@ describe.each([
 		})
 
 		await expect(handle(event())).rejects.toThrow('boom')
+	})
+})
+
+describe('route redaction', () => {
+	it('leaves credentials and personal data out of a logged request', () => {
+		const redacted = redactEvent({ body: object({ email: pipe(string(), redact()), plan: string() }) })(
+			event(
+				{
+					headers: {
+						accept: '*/*',
+						authorization: 'Bearer abc',
+						'auth-api-key': 'sk_secret',
+						cookie: 'a=b',
+						'cloudfront-viewer-address': '192.0.2.1:443',
+						'x-forwarded-for': '192.0.2.1',
+						'zeno-visitor-ip': '192.0.2.1',
+					},
+					cookies: ['a=b'],
+					rawQueryString: 'token=abc&page=2',
+					queryStringParameters: { token: 'abc', page: '2' },
+					body: '{"email":"pat@example.com","plan":"free"}',
+				},
+				'POST'
+			)
+		) as any
+
+		expect(redacted.headers).toStrictEqual({
+			accept: '*/*',
+			authorization: '[REDACTED]',
+			'auth-api-key': '[REDACTED]',
+			cookie: '[REDACTED]',
+			'cloudfront-viewer-address': '[REDACTED]',
+			'x-forwarded-for': '[REDACTED]',
+			'zeno-visitor-ip': '[REDACTED]',
+		})
+		expect(redacted.cookies).toStrictEqual(['[REDACTED]'])
+		expect(redacted.rawQueryString).toBe('token=%5BREDACTED%5D&page=2')
+		expect(redacted.queryStringParameters).toStrictEqual({ token: '[REDACTED]', page: '2' })
+		expect(JSON.parse(redacted.body)).toStrictEqual({ email: '[REDACTED]', plan: 'free' })
+		expect(redacted.requestContext.http.sourceIp).toBe('[REDACTED]')
+	})
+
+	it('redacts a body without a schema by its field names', () => {
+		const redacted = redactEvent({})(
+			event({
+				body: JSON.stringify({
+					externalId: 'user-1042',
+					envelope: { ip: '192.0.2.1', headers: { cookie: 'a=b' } },
+					user: { firstName: 'Pat', password: 'x', membership: 'owner' },
+					visitorIp: '192.0.2.1',
+				}),
+			})
+		) as any
+
+		expect(JSON.parse(redacted.body)).toStrictEqual({
+			externalId: 'user-1042',
+			envelope: { ip: '[REDACTED]', headers: { cookie: '[REDACTED]' } },
+			user: { firstName: '[REDACTED]', password: '[REDACTED]', membership: 'owner' },
+			visitorIp: '[REDACTED]',
+		})
+	})
+
+	it('redacts a body that isnt json whole', () => {
+		expect((redactEvent({})(event({ body: 'password=x' })) as any).body).toBe('[REDACTED]')
 	})
 })

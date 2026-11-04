@@ -179,7 +179,9 @@ export const tableFeature = defineFeature({
 					},
 					globalSecondaryIndex: Object.entries(props.indexes ?? {}).map(([name, index]) => ({
 						name: name,
-						projectionType: constantCase(index.projection),
+						...(Array.isArray(index.projection)
+							? { projectionType: 'INCLUDE', nonKeyAttributes: index.projection }
+							: { projectionType: constantCase(index.projection) }),
 						keySchema: [
 							...index.hash.map(name => ({
 								keyType: 'HASH',
@@ -221,10 +223,16 @@ export const tableFeature = defineFeature({
 							? toSeconds(props.stream.batchWindow)
 							: undefined,
 						maximumRetryAttempts: props.stream.retryAttempts,
+						maximumRecordAgeInSeconds: props.stream.maxRecordAge
+							? toSeconds(props.stream.maxRecordAge)
+							: undefined,
+						// Left out while off, so the mappings from before the option stay as they are.
+						bisectBatchOnFunctionError: props.stream.bisectOnError || undefined,
 						parallelizationFactor: props.stream.concurrencyPerShard,
+						// The handler may name the records that failed, see the stream's consumer.
 						functionResponseTypes: ['ReportBatchItemFailures'],
 
-						startingPosition: 'LATEST',
+						startingPosition: constantCase(props.stream.startingPosition),
 						destinationConfig: onFailure
 							? {
 									onFailure: {
@@ -235,6 +243,10 @@ export const tableFeature = defineFeature({
 					},
 					{
 						dependsOn: [bundle.policy],
+						// A new stream (another view type) has a new arn, which a
+						// mapping can't move to in place, & a mapping keeps the
+						// starting position it was created with.
+						replaceOnChanges: ['eventSourceArn', 'startingPosition'],
 					}
 				)
 			}

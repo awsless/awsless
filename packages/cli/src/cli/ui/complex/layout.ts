@@ -43,7 +43,7 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 		const options = program.optsWithGlobals() as ProgramOptions
 		const appConfig = await loadAppConfig(options)
 
-		logApp(appConfig, options)
+		logApp(appConfig, options, command)
 
 		const stackConfigs = await loadStackConfigs(options)
 

@@ -36,9 +36,10 @@ if (manifestFile) {
 	// Resources on a shared run-wide server (like the search indexes)
 	// namespace through a unique per-file app prefix - full isolation
 	// without booting those servers per file.
-	process.env.APP = manifest.servers?.search
-		? `${manifest.app}-t${Math.random().toString(36).slice(2, 8)}`
-		: manifest.app
+	process.env.APP =
+		manifest.servers?.search || manifest.servers?.clickhouse
+			? `${manifest.app}-t${Math.random().toString(36).slice(2, 8)}`
+			: manifest.app
 
 	process.env.AWS_REGION = manifest.region
 
@@ -47,6 +48,10 @@ if (manifestFile) {
 
 	if (manifest.servers?.search) {
 		process.env.SEARCH_ENDPOINT = manifest.servers.search.endpoint
+	}
+
+	if (manifest.servers?.clickhouse) {
+		process.env.CLICKHOUSE_ENDPOINT = manifest.servers.clickhouse.endpoint
 	}
 
 	// The table key envs must exist before any test file import, so

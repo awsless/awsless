@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { days, seconds, toSeconds, years } from '@awsless/duration'
+import { days, minutes, seconds, toSeconds, years } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { constantCase, kebabCase } from 'change-case'
@@ -11,6 +11,16 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
+import {
+	collectHeaderRoutes,
+	createCloudFrontHeadersPolicies,
+	createLoadBalancerOrigin,
+	createLoadBalancerTarget,
+	formatRulePaths,
+	formatHeaderListKey,
+	getOriginSecret,
+	LOAD_BALANCER_ORIGIN,
+} from './load-balancer.js'
 import { createMaintenanceEntries, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { createPasswordAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './password-auth.js'
 import { compileRoutePattern } from './pattern.js'
@@ -36,6 +46,11 @@ export const routerFeature = defineFeature({
 		const routeDependencies: Record<string, Set<Resource | DataSource>> = {}
 		const routeStores: Record<string, aws.cloudfront.KeyValueStore> = {}
 		const routerGroups: Record<string, Group> = {}
+
+		// Routes that ask for CloudFront headers reach the bundle through the
+		// app's load balancer.
+		const headerRoutes = collectHeaderRoutes(ctx)
+		const originSecret = getOriginSecret(ctx.appId)
 		const distributionIds: Output<string>[] = []
 
 		for (const [id, props] of routers) {
@@ -144,6 +159,14 @@ export const routerFeature = defineFeature({
 					})
 				: undefined
 
+			const functionOptions = {
+				router: id,
+				cors: props.cors !== false,
+				blockDirectAccess: !!props.domain,
+				redirectWww: !!props.domain && props.redirectWww,
+				passwordAuth,
+			}
+
 			// the function names are capped at 64 characters
 			const cfFunction = new aws.cloudfront.Function(
 				group,
@@ -151,12 +174,7 @@ export const routerFeature = defineFeature({
 				{
 					name,
 					runtime: 'cloudfront-js-2.0',
-					code: getViewerRequestFunctionCode({
-						router: id,
-						blockDirectAccess: !!props.domain,
-						redirectWww: !!props.domain && props.redirectWww,
-						passwordAuth,
-					}),
+					code: getViewerRequestFunctionCode(functionOptions),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],
 				},
@@ -248,15 +266,17 @@ export const routerFeature = defineFeature({
 
 			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
-				corsConfig: {
-					originOverride: props.cors.override,
-					accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
-					accessControlAllowHeaders: { items: props.cors.headers },
-					accessControlAllowMethods: { items: props.cors.methods },
-					accessControlAllowOrigins: { items: props.cors.origins },
-					accessControlExposeHeaders: { items: props.cors.exposeHeaders },
-					accessControlAllowCredentials: props.cors.credentials,
-				},
+				corsConfig: props.cors
+					? {
+							originOverride: props.cors.override,
+							accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
+							accessControlAllowHeaders: { items: props.cors.headers },
+							accessControlAllowMethods: { items: props.cors.methods },
+							accessControlAllowOrigins: { items: props.cors.origins },
+							accessControlExposeHeaders: { items: props.cors.exposeHeaders },
+							accessControlAllowCredentials: props.cors.credentials,
+						}
+					: undefined,
 				removeHeadersConfig: {
 					items: [{ header: 'server' }],
 				},
@@ -285,6 +305,82 @@ export const routerFeature = defineFeature({
 					},
 				},
 			})
+
+			// ------------------------------------------------------------
+			// CloudFront Header Paths
+
+			const functionAssociation = [
+				{
+					eventType: 'viewer-request' as const,
+					functionArn: cfFunction.arn,
+				},
+				...(responseFunction
+					? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
+					: []),
+			]
+
+			const allowedMethods = [
+				{
+					items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+					cachedMethods: ['GET', 'HEAD'],
+				},
+			]
+
+			// Each route that asks for CloudFront headers is a behavior of its own
+			// whose origin is the load balancer, so the path & its origin change
+			// together. Its function still looks the route up for the handler,
+			// params & login, but leaves the origin alone.
+			const routerHeaderRoutes = headerRoutes[id] ?? []
+			const loadBalancerOrigins: ReturnType<typeof createLoadBalancerOrigin>[] = []
+			// Empty, not left out, without such routes.
+			let cacheBehavior: aws.cloudfront.MultitenantDistributionInput['cacheBehavior'] = []
+
+			// The load balancer stays an origin of every router while the app has
+			// one (pubsubs, any router's header routes), used or not: CloudFront
+			// refuses an update that drops an origin together with the last
+			// behavior pointing at it ("NoSuchOrigin"), so a router's last such
+			// route can only go while its origin stays.
+			if (Object.keys(ctx.appConfig.pubsub ?? {}).length > 0 || Object.keys(headerRoutes).length > 0) {
+				loadBalancerOrigins.push(
+					createLoadBalancerOrigin(ctx.shared.get('load-balancer', 'main').dnsName, originSecret)
+				)
+			}
+
+			if (routerHeaderRoutes.length > 0) {
+				const policies = createCloudFrontHeadersPolicies(group, ctx, id, routerHeaderRoutes)
+
+				const keepRequestOriginFunction = new aws.cloudfront.Function(group, 'keep-request-origin-function', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: id,
+						postfix: 'keep-request-origin',
+					}),
+					runtime: 'cloudfront-js-2.0',
+					code: getViewerRequestFunctionCode({ ...functionOptions, keepRequestOrigin: true }),
+					publish: true,
+					keyValueStoreAssociations: [routeStore.arn],
+				})
+
+				// The path with & without a trailing slash, like its listener rule,
+				// so no request for it reaches the handler without the headers.
+				cacheBehavior = routerHeaderRoutes
+					.flatMap(route => formatRulePaths(route.path).map(path => ({ route, path })))
+					.map(({ route, path }) => ({
+						pathPattern: path,
+						compress: true,
+						targetOriginId: LOAD_BALANCER_ORIGIN,
+						functionAssociation: [
+							{ eventType: 'viewer-request' as const, functionArn: keepRequestOriginFunction.arn },
+							...functionAssociation.slice(1),
+						],
+						originRequestPolicyId: policies.get(formatHeaderListKey(route.headers))!.id,
+						cachePolicyId: cache.id,
+						responseHeadersPolicyId: responseHeaders.id,
+						viewerProtocolPolicy: 'redirect-to-https',
+						allowedMethods,
+					}))
+			}
 
 			const wafSettingsConfig = props.waf
 
@@ -432,6 +528,7 @@ export const routerFeature = defineFeature({
 							},
 						],
 					},
+					...loadBalancerOrigins,
 				],
 				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
 					if (typeof item === 'string') {
@@ -464,27 +561,15 @@ export const routerFeature = defineFeature({
 					{
 						compress: true,
 						targetOriginId: 'default',
-						functionAssociation: [
-							{
-								eventType: 'viewer-request',
-								functionArn: cfFunction.arn,
-							},
-							...(responseFunction
-								? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
-								: []),
-						],
+						functionAssociation,
 						originRequestPolicyId: originRequest.id,
 						cachePolicyId: cache.id,
 						responseHeadersPolicyId: responseHeaders.id,
 						viewerProtocolPolicy: 'redirect-to-https',
-						allowedMethods: [
-							{
-								items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-								cachedMethods: ['GET', 'HEAD'],
-							},
-						],
+						allowedMethods,
 					},
 				],
+				cacheBehavior,
 				webAclId: waf?.arn,
 			})
 
@@ -562,12 +647,123 @@ export const routerFeature = defineFeature({
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
+
+			// ------------------------------------------------------------
+			// Customer Domains
+
+			// The app adds a tenant per customer domain at runtime, outside of
+			// the deployment, so its functions get the distribution & a
+			// connection group of its own, which keeps the customers' CNAME
+			// target apart from the router's own domain.
+			if (props.customDomains) {
+				const customGroup = new aws.cloudfront.ConnectionGroup(group, 'custom-domains', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: id,
+						postfix: 'custom-domains',
+					}),
+					ipv6Enabled: true,
+				})
+
+				const prefix = `ROUTER_${constantCase(id)}`
+
+				ctx.bind(`${prefix}_DISTRIBUTION_ID`, distribution.id)
+				ctx.bind(`${prefix}_CONNECTION_GROUP_ID`, customGroup.id)
+				ctx.bind(`${prefix}_ROUTING_ENDPOINT`, customGroup.routingEndpoint)
+
+				// Customers CNAME to a name on the router's own domain, which
+				// points at the connection group, so the edge behind it can
+				// change without their DNS changing. An alias hides the chain's
+				// end from CloudFront, so the _cf-challenge record links the
+				// name to the routing endpoint, which the managed certificate's
+				// domain check needs.
+				if (props.domain) {
+					const target = formatFullDomainName(ctx.appConfig, props.domain, props.customDomains.subDomain)
+					const zoneId = ctx.shared.entry('domain', 'zone-id', props.domain)
+
+					for (const type of ['A', 'AAAA'] as const) {
+						new aws.route53.Record(
+							group,
+							type === 'A' ? 'custom-domains-record' : 'custom-domains-record-ipv6',
+							{
+								zoneId,
+								type,
+								name: target,
+								alias: {
+									name: customGroup.routingEndpoint,
+									zoneId: 'Z2FDTNDATAQYW2',
+									evaluateTargetHealth: false,
+								},
+							},
+							{
+								replaceOnChanges: ['name', 'type', 'zoneId', 'alias'],
+							}
+						)
+					}
+
+					new aws.route53.Record(
+						group,
+						'custom-domains-challenge',
+						{
+							zoneId,
+							type: 'TXT',
+							name: `_cf-challenge.${target}`,
+							ttl: toSeconds(minutes(5)),
+							records: [customGroup.routingEndpoint],
+						},
+						{
+							replaceOnChanges: ['name', 'type', 'zoneId'],
+						}
+					)
+
+					ctx.bind(`${prefix}_CUSTOM_DOMAIN_TARGET`, target)
+				} else {
+					ctx.bind(`${prefix}_CUSTOM_DOMAIN_TARGET`, customGroup.routingEndpoint)
+				}
+
+				// Creating a tenant has no resource to scope to. A managed
+				// certificate is requested from ACM by the caller.
+				ctx.addPermission({
+					actions: [
+						'cloudfront:CreateDistributionTenant',
+						'acm:RequestCertificate',
+						'acm:DescribeCertificate',
+					],
+					resources: ['*'],
+				})
+
+				ctx.addPermission({
+					actions: [
+						'cloudfront:GetDistributionTenant',
+						'cloudfront:UpdateDistributionTenant',
+						'cloudfront:DeleteDistributionTenant',
+						'cloudfront:GetManagedCertificateDetails',
+						'cloudfront:VerifyDnsConfiguration',
+					],
+					resources: [`arn:aws:cloudfront::${ctx.accountId}:distribution-tenant/*`],
+				})
+			}
 		}
 
 		if (routers.length > 0) {
 			ctx.onReadyLast(() => {
 				const bundle = ctx.shared.get('bundle', 'main')
 				const bundleDependencies: (Resource | DataSource)[] = []
+
+				// The distribution can't wait for the rules: they hang off the
+				// bundle alias, and the bundle's environment carries the
+				// distribution. Until a new path's rule exists, the listener's
+				// default answer (403) serves it.
+				if (Object.keys(headerRoutes).length > 0) {
+					createLoadBalancerTarget({
+						ctx,
+						routers: headerRoutes,
+						routerGroups,
+						secret: originSecret,
+					})
+				}
+
 				let lambdaUrlHost: Input<string> | undefined
 
 				if (routers.some(([id]) => hasBundleRoutes(routes[id]!))) {

@@ -48,6 +48,14 @@ export const domainFeature = defineFeature({
 				seen.set(`${router.domain}:${name}:A`, `the "${routerId}" router`)
 				seen.set(`${router.domain}:${name}:AAAA`, `the "${routerId}" router`)
 			}
+
+			if (router.customDomains) {
+				const target = formatFullDomainName(ctx.appConfig, router.domain, router.customDomains.subDomain)
+
+				seen.set(`${router.domain}:${target}:A`, `the "${routerId}" router's custom domains`)
+				seen.set(`${router.domain}:${target}:AAAA`, `the "${routerId}" router's custom domains`)
+				seen.set(`${router.domain}:_cf-challenge.${target}:TXT`, `the "${routerId}" router's custom domains`)
+			}
 		}
 
 		for (const [id, props] of Object.entries(domains)) {

@@ -70,6 +70,31 @@ describe('cache', () => {
 		expect(destroy).toHaveBeenCalledTimes(1)
 	})
 
+	it('keeps the connection across warm invocations with keepConnection', async () => {
+		const { lambda } = await import('@awsless/lambda')
+		const { Cache } = await import('../src/lib/server/cache')
+		const client = (Cache as any).stack.main(3, { keepConnection: true })
+		const before = clients.length
+
+		// Created outside an invocation too, since nothing ties it to one.
+		await client.send('PING', [])
+
+		// One module scope client, used by two warm invocations and by an
+		// inner call within the first: it's never torn down between them.
+		const handle = lambda({
+			handle: async () => {
+				await client.send('PING', [])
+				await lambda({ handle: async () => client.send('PING', []) })({})
+			},
+		})
+
+		await handle({})
+		await handle({})
+
+		expect(clients.length).toBe(before + 1)
+		expect(clients.at(-1)!.destroy).not.toHaveBeenCalled()
+	})
+
 	it('leaves an untouched client alone', async () => {
 		const { lambda } = await import('@awsless/lambda')
 		const { Cache } = await import('../src/lib/server/cache')

@@ -506,4 +506,70 @@ describe('Secondary Indexes', () => {
 			expect(result.Count).toBe(3)
 		})
 	})
+
+	describe('Index projections', () => {
+		beforeEach(async () => {
+			const client = server.getClient()
+			await client.send(
+				new CreateTableCommand({
+					TableName: 'ProjectionTest',
+					KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+					AttributeDefinitions: [
+						{ AttributeName: 'pk', AttributeType: 'S' },
+						{ AttributeName: 'owner', AttributeType: 'S' },
+					],
+					GlobalSecondaryIndexes: [
+						{
+							IndexName: 'KeysOnly',
+							KeySchema: [{ AttributeName: 'owner', KeyType: 'HASH' }],
+							Projection: { ProjectionType: 'KEYS_ONLY' },
+						},
+						{
+							IndexName: 'Include',
+							KeySchema: [{ AttributeName: 'owner', KeyType: 'HASH' }],
+							Projection: { ProjectionType: 'INCLUDE', NonKeyAttributes: ['name'] },
+						},
+						{
+							IndexName: 'All',
+							KeySchema: [{ AttributeName: 'owner', KeyType: 'HASH' }],
+							Projection: { ProjectionType: 'ALL' },
+						},
+					],
+					BillingMode: 'PAY_PER_REQUEST',
+				})
+			)
+			await client.send(
+				new PutItemCommand({
+					TableName: 'ProjectionTest',
+					Item: { pk: { S: '1' }, owner: { S: 'a' }, name: { S: 'one' }, secret: { S: 'big' } },
+				})
+			)
+		})
+
+		const queryIndex = (IndexName: string) =>
+			server.getClient().send(
+				new QueryCommand({
+					TableName: 'ProjectionTest',
+					IndexName,
+					KeyConditionExpression: '#owner = :owner',
+					ExpressionAttributeNames: { '#owner': 'owner' },
+					ExpressionAttributeValues: { ':owner': { S: 'a' } },
+				})
+			)
+
+		it('should return only the keys from a keys-only index', async () => {
+			const { Items } = await queryIndex('KeysOnly')
+			expect(Items).toEqual([{ pk: { S: '1' }, owner: { S: 'a' } }])
+		})
+
+		it('should return the keys and the included attributes from an INCLUDE index', async () => {
+			const { Items } = await queryIndex('Include')
+			expect(Items).toEqual([{ pk: { S: '1' }, owner: { S: 'a' }, name: { S: 'one' } }])
+		})
+
+		it('should return the whole item from an ALL index', async () => {
+			const { Items } = await queryIndex('All')
+			expect(Items).toEqual([{ pk: { S: '1' }, owner: { S: 'a' }, name: { S: 'one' }, secret: { S: 'big' } }])
+		})
+	})
 })

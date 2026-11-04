@@ -1,4 +1,4 @@
-import { minutes, seconds } from '@awsless/duration'
+import { days, minutes, seconds } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
@@ -108,7 +108,48 @@ export const TablesSchema = z
 							].join('\n')
 						),
 
-					consumer: BundledFunctionSchema.describe('The consuming lambda function for the stream'),
+					startingPosition: z
+						.enum(['latest', 'trim-horizon'])
+						.default('latest')
+						.describe(
+							[
+								'Where a new event source mapping starts reading the stream. It only counts when the mapping is created:',
+								'a running mapping keeps its place, so a normal deploy reads nothing twice.',
+								'- latest - Only records written after the mapping exists. A mapping that is replaced misses the records written in between.',
+								'- trim-horizon - The oldest record the stream still holds (24 hours at most), so a replaced mapping or a new stream misses nothing.',
+								'Changing it on an existing mapping replaces the mapping, which then reads from its new starting position once.',
+								'@default "latest"',
+							].join('\n')
+						),
+
+					bisectOnError: z
+						.boolean()
+						.default(false)
+						.describe(
+							[
+								'Split a batch in two & retry each half when the handler throws, until the failing record is on its own.',
+								'Records that fail for good then hold up their shard alone instead of a whole batch.',
+							].join('\n')
+						),
+
+					maxRecordAge: DurationSchema.refine(durationMin(minutes(1)), 'Minimum record age is 1 minute')
+						.refine(durationMax(days(7)), 'Maximum record age is 7 days')
+						.optional()
+						.describe(
+							[
+								'Give up on records older than this, sending their batch to the on-failure destination with its payload.',
+								'Without it a record is retried until it leaves the stream (24 hours) & is lost there, holding up its shard all that time.',
+								'You can specify a duration from 1 minute to 7 days.',
+							].join('\n')
+						),
+
+					consumer: BundledFunctionSchema.describe(
+						[
+							'The consuming lambda function for the stream.',
+							'It may return `{ batchItemFailures: [{ itemIdentifier }] }` with the `sequenceNumber` of the records that failed:',
+							'the stream retries from the first of them, without the records before it.',
+						].join('\n')
+					),
 				})
 				.optional()
 				.describe(
@@ -133,13 +174,14 @@ export const TablesSchema = z
 							),
 
 						projection: z
-							.enum(['all', 'keys-only'])
+							.union([z.enum(['all', 'keys-only']), z.string().array().min(1)])
 							.default('all')
 							.describe(
 								[
 									'The set of attributes that are projected into the index:',
 									'- all - All of the table attributes are projected into the index.',
 									'- keys-only - Only the index and primary keys are projected into the index.',
+									'- a list of attribute names - Only those attributes and the keys are projected into the index (INCLUDE).',
 									'@default "all"',
 								].join('\n')
 							),

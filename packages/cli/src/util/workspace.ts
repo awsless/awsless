@@ -1,17 +1,23 @@
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { aws } from '@terraforge/aws'
+import { clickhouse } from '@terraforge/clickhouse'
 import {
 	App,
 	createCustomProvider,
 	DynamoLockBackend,
 	enableDebug,
+	Provider,
 	S3StateBackend,
 	StateBackend,
 	WorkSpace,
 } from '@terraforge/core'
 import { debug } from '../cli/debug.js'
+import { fetchClickHouseKey, loadClickHouseKey, missingClickHouseKey } from '../cli/ui/complex/fetch-clickhouse-key.js'
 import { Region } from '../config/schema/region.js'
+import { StackConfig } from '../config/stack.js'
+import { hasClickHouseTables } from '../feature/clickhouse/util.js'
+import { createClickHouseProvider } from '../formation/clickhouse.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
@@ -51,13 +57,53 @@ export const createDeploymentBackends = (props: BackendProps) => {
 	}
 }
 
-export const createWorkSpace = async (props: BackendProps) => {
+// Without a stored key the provider fails in its own words on the first
+// ClickHouse resource it touches, which a delete or a state that still
+// holds the service can do without any table in the config.
+const requireClickHouseKey = (provider: Provider, accountId: string): Provider => {
+	return new Proxy(provider, {
+		get(target, key, receiver) {
+			const value = Reflect.get(target, key, receiver)
+
+			if (typeof value !== 'function' || key === 'ownResource' || key === 'destroy') {
+				return value
+			}
+
+			return () => {
+				throw missingClickHouseKey(accountId)
+			}
+		},
+	})
+}
+
+export const createWorkSpace = async (
+	props: BackendProps & {
+		// The stacks about to deploy, so providers only they need install
+		// up front.
+		stackConfigs?: StackConfig[]
+		// The whole app is being deleted, its ClickHouse service included.
+		deletingApp?: boolean
+	}
+) => {
 	const { lock, state } = createDeploymentBackends(props)
 
 	// The engine debug output always streams into the debug log file.
 	enableDebug((group, ...args) => debug(`${group}:`, ...args))
 
 	await aws.install()
+
+	// Most apps never use ClickHouse, so its provider only downloads & its
+	// key is only asked for on a deploy with ClickHouse tables. A state that
+	// still holds them, like after the tables were removed, starts it on
+	// demand with the stored key.
+	const usesClickHouse = !!props.stackConfigs && hasClickHouseTables(props.stackConfigs)
+	const clickhouseKey = usesClickHouse
+		? await fetchClickHouseKey(props.accountId)
+		: await loadClickHouseKey(props.accountId)
+
+	if (usesClickHouse) {
+		await clickhouse.install()
+	}
 
 	const cred = await props.credentials()
 
@@ -68,6 +114,11 @@ export const createWorkSpace = async (props: BackendProps) => {
 			createS3Provider(props),
 			createNameServersProvider(props),
 			createOpenSearchProvider(props),
+			createClickHouseProvider({
+				...props,
+				dropTables: !props.deletingApp,
+				cloudKey: clickhouseKey,
+			}),
 			// Backwards compatibility for old states, can be removed later.
 			createCustomProvider('cloudfront', {
 				invalidation: {},
@@ -96,6 +147,9 @@ export const createWorkSpace = async (props: BackendProps) => {
 					id: 'global-aws',
 				}
 			),
+			// Starts lazily, on the first ClickHouse resource it touches, with
+			// the key from the keychain like the aws credentials.
+			clickhouseKey ? clickhouse(clickhouseKey) : requireClickHouseKey(clickhouse({}), props.accountId),
 		],
 		concurrency: 15,
 		backend: {

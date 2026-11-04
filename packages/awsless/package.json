@@ -1,6 +1,6 @@
 {
 	"name": "awsless",
-	"version": "0.1.17",
+	"version": "0.1.18",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -32,6 +32,7 @@
 		"prepublishOnly": "pnpm build"
 	},
 	"dependencies": {
+		"@awsless/clickhouse": "workspace:^",
 		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",

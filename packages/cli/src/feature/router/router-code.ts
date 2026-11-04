@@ -8,12 +8,21 @@ const ORIGIN_CONNECTION_TIMEOUT = toSeconds(seconds(10))
 
 export const getViewerRequestFunctionCode = (props: {
 	router: string
+	// Answer OPTIONS preflights at the edge (the default). A router without
+	// cors lets them through to its routes.
+	cors?: boolean
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
+	// Don't send the request to the route's usual origin. Routes that go
+	// through the load balancer already have it as their origin, so the
+	// function only has to tell the bundle which handler to run.
+	keepRequestOrigin?: boolean
 }): string => {
 	return compact(
 		CODE({
+			keepRequestOrigin: !!props.keepRequestOrigin,
+			cors: props.cors !== false,
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
@@ -252,7 +261,27 @@ try {
 
 const prefix = table + ':' + router + ':';`
 
-const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean }) => `
+const CORS_PREFLIGHT = `
+if (request.method === 'OPTIONS') {
+	return {
+		statusCode: 204,
+		headers: {
+			'access-control-allow-origin': { value: '*' },
+			'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
+			'access-control-allow-headers': { value: '*' },
+			'access-control-max-age': { value: '86400' }
+		}
+	};
+}`
+
+const CODE = (props: {
+	before: string[]
+	prefix: string
+	after: string[]
+	withCrypto: boolean
+	keepRequestOrigin: boolean
+	cors: boolean
+}) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -465,17 +494,7 @@ async function handler(event) {
 		path = request.uri;
 	}
 
-	if (request.method === 'OPTIONS') {
-		return {
-			statusCode: 204,
-			headers: {
-				'access-control-allow-origin': { value: '*' },
-				'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
-				'access-control-allow-headers': { value: '*' },
-				'access-control-max-age': { value: '86400' }
-			}
-		};
-	}
+	${props.cors ? CORS_PREFLIGHT : ''}
 
 	${props.before.join('\n')}
 
@@ -527,7 +546,7 @@ async function handler(event) {
 		}
 	}
 
-	setRouteOrigin(route);
+	${props.keepRequestOrigin ? '' : 'setRouteOrigin(route);'}
 
 	if(route.forwardHost && headers.host && headers.host.value) {
 		headers['x-forwarded-host'] = { value: headers.host.value };

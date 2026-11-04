@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { AlertsDefaultSchema } from '../feature/alert/schema.js'
+import { AlarmsDefaultSchema, AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
+import { ClickHouseDefaultSchema } from '../feature/clickhouse/schema.js'
 import { ConfigsSchema } from '../feature/config/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 import { FunctionDefaultSchema } from '../feature/function/schema.js'
@@ -43,7 +44,7 @@ export const AppSchema = z
 					'Configure how your resources are handled when they have to be removed.',
 					'',
 					'remove: Removes all underlying resources.',
-					'retain: Retains the following resources: stores, tables, auth, searchs, and caches.',
+					'retain: Retains the following resources: stores, tables, auth, searchs, clickhouse, and caches.',
 				].join('\n')
 			),
 
@@ -59,10 +60,12 @@ export const AppSchema = z
 		rpc: RpcDefaultSchema,
 		pubsub: PubSubDefaultSchema,
 		alerts: AlertsDefaultSchema,
+		alarms: AlarmsDefaultSchema,
 		topics: TopicsDefaultSchema,
 		layers: LayerSchema,
 		router: RouterDefaultSchema,
 		search: SearchDefaultSchema,
+		clickhouse: ClickHouseDefaultSchema,
 		test: TestDefaultSchema,
 	})
 	.strict()

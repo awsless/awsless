@@ -11,6 +11,7 @@ import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { formatPubSubRuleKey, ORIGIN_SECRET_HEADER } from '../load-balancer/util.js'
 import { pubsubOnDev } from './dev.js'
 import { pubsubEventTypes } from './schema.js'
 import { createPubSubService, WS_PORT } from './util.js'
@@ -220,40 +221,14 @@ export const pubsubFeature = defineFeature({
 
 			const channel = `pubsub:${id}`
 
-			// ------------------------------------------------------------
-			// Only allow CloudFront to reach the load balancer.
-
-			const cloudfrontPrefixList = aws.ec2.getManagedPrefixList(group, 'cloudfront-prefix-list', {
-				name: 'com.amazonaws.global.cloudfront.origin-facing',
-			})
-
-			const lbSecurityGroup = new aws.security.Group(group, 'lb-security', {
-				name: `${name}-lb`,
-				vpcId,
-				description: `${name}-lb`,
-			})
-
-			new aws.vpc.SecurityGroupIngressRule(group, 'lb-ingress', {
-				securityGroupId: lbSecurityGroup.id,
-				description: 'Allow http traffic from CloudFront',
-				ipProtocol: 'tcp',
-				prefixListId: cloudfrontPrefixList.id,
-				fromPort: 80,
-				toPort: 80,
-			})
-
-			new aws.vpc.SecurityGroupEgressRule(group, 'lb-egress', {
-				securityGroupId: lbSecurityGroup.id,
-				description: 'Allow all outbound traffic',
-				ipProtocol: '-1',
-				cidrIpv4: '0.0.0.0/0',
-			})
+			// The app's load balancer only lets CloudFront in.
+			const loadBalancer = ctx.shared.get('load-balancer', 'main')
 
 			new aws.vpc.SecurityGroupIngressRule(group, 'task-ingress', {
 				securityGroupId: taskSecurityGroup.id,
 				description: 'Allow websocket traffic from the load balancer',
 				ipProtocol: 'tcp',
-				referencedSecurityGroupId: lbSecurityGroup.id,
+				referencedSecurityGroupId: loadBalancer.securityGroup.id,
 				fromPort: WS_PORT,
 				toPort: WS_PORT,
 			})
@@ -266,19 +241,17 @@ export const pubsubFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Create the load balancer
+			// Forward the pubsub's requests from the app's load balancer.
+			// CloudFront strips the mount path, so its own origin secret is
+			// what tells them apart.
 
-			const lb = new aws.Lb(group, 'lb', {
-				name: shortId(`${name}:lb:${ctx.appId}`),
-				internal: false,
-				loadBalancerType: 'application',
-				subnets: ctx.shared.get('vpc', 'public-subnets'),
-				securityGroups: [lbSecurityGroup.id],
-				idleTimeout: 120,
-			})
+			const secret = createHmac('sha1', ctx.appId).update(name).digest('hex')
 
-			const targetGroup = new aws.lb.TargetGroup(group, 'target', {
-				name: shortId(`${name}:target:${ctx.appId}`),
+			// On the app's shared load balancer. A target group belongs to one
+			// load balancer, so this is a new one beside the target group of
+			// the load balancer every pubsub had of its own.
+			const targetGroup = new aws.lb.TargetGroup(group, 'lb-target', {
+				name: shortId(`${name}:lb-target:${ctx.appId}`),
 				targetType: 'ip',
 				port: WS_PORT,
 				protocol: 'HTTP',
@@ -295,16 +268,11 @@ export const pubsubFeature = defineFeature({
 				},
 			})
 
-			new aws.lb.Listener(group, 'listener', {
-				loadBalancerArn: lb.arn,
-				port: 80,
-				protocol: 'HTTP',
-				defaultAction: [
-					{
-						type: 'forward',
-						targetGroupArn: targetGroup.arn,
-					},
-				],
+			const listenerRule = new aws.lb.ListenerRule(group, 'listener-rule', {
+				listenerArn: loadBalancer.listener.arn,
+				priority: loadBalancer.priority(formatPubSubRuleKey(id)),
+				action: [{ type: 'forward', targetGroupArn: targetGroup.arn }],
+				condition: [{ httpHeader: { httpHeaderName: ORIGIN_SECRET_HEADER, values: [secret] } }],
 			})
 
 			// ------------------------------------------------------------
@@ -313,13 +281,12 @@ export const pubsubFeature = defineFeature({
 			// task env stays stable across deployments & sockets only ever
 			// reconnect on pubsub changes.
 
-			const secret = createHmac('sha1', ctx.appId).update(name).digest('hex')
-
 			const service = createPubSubService(group, ctx, id, props, {
 				clusterName: cluster.name,
 				clusterArn: cluster.arn,
 				targetGroupArn: targetGroup.arn,
 				securityGroupId: taskSecurityGroup.id,
+				listenerRule,
 				environment: {
 					AUTH: bundle.lambda.functionName.pipe(name => `${name}:${LIVE_LAMBDA_ALIAS}`),
 					AUTH_ROUTE: authRouteKey,
@@ -379,10 +346,10 @@ export const pubsubFeature = defineFeature({
 			addRoutes({
 				[`${props.path}/*`]: {
 					type: 'url',
-					domainName: lb.dnsName,
+					domainName: loadBalancer.dnsName,
 					readTimeout: 60,
 					customHeaders: {
-						'x-origin-secret': secret,
+						[ORIGIN_SECRET_HEADER]: secret,
 					},
 					// The bare mount path maps to the websocket route at the
 					// server root, deeper paths keep their sub path.

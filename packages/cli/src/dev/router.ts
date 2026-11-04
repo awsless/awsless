@@ -138,9 +138,9 @@ const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: 
 	// The client can never hijack the routing.
 	headers[ROUTE_HEADER] = route.routeKey!
 
-	// CloudFront fronts every deployed router & the runtime reads its
-	// viewer headers, so the local router synthesizes the essentials.
-	headers['cloudfront-viewer-address'] ??= `${sourceIp}:0`
+	// CloudFront writes its own viewer address over a client's, so the
+	// local router does too.
+	headers['cloudfront-viewer-address'] = `${sourceIp}:0`
 	headers['cloudfront-viewer-country'] ??= 'US'
 
 	// Param values are passed to the function as request headers.
@@ -286,7 +286,7 @@ export const startDevRouter = async (props: {
 			const route = match(url.pathname, request.method)
 
 			if (!route) {
-				return new Response(`No route matched: ${url.pathname}`, { status: 404 })
+				return new Response(null, { status: 404 })
 			}
 
 			// Proxy routes stream straight to their local target server,
@@ -346,7 +346,7 @@ export const startDevRouter = async (props: {
 			}
 
 			if (!route.routeKey) {
-				return new Response(`No route matched: ${url.pathname}`, { status: 404 })
+				return new Response(null, { status: 404 })
 			}
 
 			const body = Buffer.from(await request.arrayBuffer())

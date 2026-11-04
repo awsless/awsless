@@ -21,7 +21,9 @@ export type PubSubAuthResult = {
     authorized: false;
 };
 declare const authEventSchema: import("valibot").ObjectSchema<{
-    readonly token: import("valibot").OptionalSchema<import("valibot").StringSchema<undefined>, undefined>;
+    readonly token: import("valibot").OptionalSchema<import("valibot").SchemaWithPipe<readonly [import("valibot").StringSchema<undefined>, import("valibot").MetadataAction<string, {
+        redact: true;
+    }>]>, undefined>;
 }, undefined>;
 /** The event the pubsub authorizer receives. */
 export type AuthEvent = {

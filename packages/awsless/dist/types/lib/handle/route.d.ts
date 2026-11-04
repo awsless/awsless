@@ -66,6 +66,7 @@ declare const envelopeSchema: ObjectSchema<{
 type EnvelopeInput = InferInput<typeof envelopeSchema>;
 type RouteRequestOf<P extends RouteSchemaProps> = RouteRequest<Op<P['params'], Record<string, string>>, Op<P['query'], Record<string, string>>, Op<P['body'], undefined>>;
 export type RouteSchema<P extends RouteSchemaProps> = BaseSchema<EnvelopeInput, RouteRequestOf<P>, GenericIssue>;
+export declare const redactEvent: (props: RouteSchemaProps) => (input: unknown) => unknown;
 /** The request a route or site handler receives, validated against the route schemas. */
 export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>;
 /** What a route or site handler may return: a web Response or a lambda url result object. */

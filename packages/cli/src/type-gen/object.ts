@@ -22,6 +22,12 @@ export class TypeObject {
 		return this.add(camelCase(name), type)
 	}
 
+	// The name as declared, quoted when it isn't an identifier, so a runtime
+	// proxy sees the exact name back: resources['page-views'].
+	addKey(name: string, type: string | TypeObject) {
+		return this.add(/^[a-zA-Z_$][\w$]*$/.test(name) ? name : `'${name.replaceAll("'", "\\'")}'`, type)
+	}
+
 	addConst(name: string, type: string | TypeObject) {
 		return this.add(constantCase(name), type)
 	}

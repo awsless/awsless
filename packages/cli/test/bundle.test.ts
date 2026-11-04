@@ -7,6 +7,7 @@ import { findInputDeps, getMeta } from '@terraforge/core'
 import { formatRouteEnvName, getRouteEnv, withBundleRouteContext } from 'awsless'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildBundle, formatRouteKey, parseExportName } from '../src/feature/bundle/util'
+import { directories, setRoot } from '../src/util/path'
 import { createTestApp } from './_kit'
 
 const fixture = (...path: string[]) => join(process.cwd(), 'test', '_fixture', ...path)
@@ -113,6 +114,77 @@ describe('bundle', () => {
 
 		expect(codes.some(code => code.includes('SIDE_EFFECT_MARKER'))).toBe(true)
 		expect(codes.some(code => code.includes('aws-sdk-vitest-mock'))).toBe(false)
+	})
+})
+
+describe('bundle runtime resolution', () => {
+	const project = join(process.cwd(), '.awsless', 'temp', 'bundle-root-test')
+	const previousRoot = directories.root
+
+	afterAll(async () => {
+		setRoot(previousRoot)
+		await rm(project, { recursive: true, force: true })
+	})
+
+	// A cli run from another install than the app's own must still bundle
+	// the app's awsless for its runtime, or the handlers' copy never sees
+	// the runtime's bundle context.
+	it('should resolve awsless from the project root', { timeout: 60_000 }, async () => {
+		const stub = join(project, 'node_modules', 'awsless')
+		const real = pathToFileURL(join(process.cwd(), 'node_modules', 'awsless', 'dist', 'server.js')).href
+
+		await rm(project, { recursive: true, force: true })
+		await mkdir(stub, { recursive: true })
+		await writeFile(join(project, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }))
+		await writeFile(
+			join(stub, 'package.json'),
+			JSON.stringify({ name: 'awsless', type: 'module', exports: './index.js' })
+		)
+		await writeFile(
+			join(stub, 'index.js'),
+			[
+				`import * as real from ${JSON.stringify(real)}`,
+				`export * from ${JSON.stringify(real)}`,
+				`export const setBundleRoutes = routes => {`,
+				`\tglobalThis.projectAwslessRuntime = true`,
+				`\treturn real.setBundleRoutes(routes)`,
+				`}`,
+			].join('\n')
+		)
+		await writeFile(
+			join(project, 'handler.ts'),
+			`import { isInsideBundle } from 'awsless'\nexport default () => isInsideBundle()\n`
+		)
+
+		const workspace = await loadWorkspace(process.cwd())
+		const output = join(project, 'output')
+		const builder = buildBundle({
+			name: 'bundle-root-test',
+			runtime: join(process.cwd(), 'dist/handlers/bundle.js'),
+			minify: false,
+			handlers: [{ routeKey: 'stack:function:inside', file: join(project, 'handler.ts'), exportName: 'default' }],
+		})
+
+		setRoot(project)
+
+		await builder(
+			(_fingerprint, callback) =>
+				callback(async (file, data) => {
+					const path = join(output, file)
+
+					await mkdir(dirname(path), { recursive: true })
+					await writeFile(path, data)
+				}),
+			{ workspace }
+		)
+
+		const files = join(output, 'files')
+		await writeFile(join(files, 'awsless-env.mjs'), `export default {}`)
+
+		const handler = (await import(`${pathToFileURL(join(files, 'index.mjs')).href}?${Date.now()}`)).default
+
+		expect((globalThis as { projectAwslessRuntime?: boolean }).projectAwslessRuntime).toBe(true)
+		await expect(handler({ '$awsless-route': 'stack:function:inside', event: {} }, {})).resolves.toBe(true)
 	})
 })
 
@@ -393,6 +465,33 @@ describe('bundle handler', () => {
 
 		expect(result.headers.authorization).toBe('Bearer viewer-token')
 		expect(result.headers['x-awsless-authorization']).toBeUndefined()
+	})
+
+	it('should run a router route for a load balancer event & answer in its shape', async () => {
+		const result = (await handler(
+			{
+				requestContext: { elb: { targetGroupArn: 'arn' } },
+				httpMethod: 'GET',
+				path: '/identify',
+				multiValueHeaders: {
+					'x-awsless-route': ['stack-1:route:page'],
+					host: ['example.com'],
+				},
+				multiValueQueryStringParameters: {},
+				body: '',
+				isBase64Encoded: false,
+			},
+			context
+		)) as { statusCode: number; multiValueHeaders: Record<string, string[]>; body: string }
+
+		expect(result.statusCode).toBe(200)
+		expect(result.multiValueHeaders['content-type']).toEqual(['application/json'])
+
+		const event = JSON.parse(result.body)
+
+		expect(event.rawPath).toBe('/identify')
+		expect(event.headers.host).toBe('example.com')
+		expect(event.requestContext.http.method).toBe('GET')
 	})
 
 	it.each([

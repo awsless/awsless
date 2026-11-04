@@ -117,13 +117,14 @@ ${entries.join('\n')}
 					props.minify,
 					handlers.map(h => [h.external, h.importAsString, h.moduleSideEffects]),
 					props.zip ?? false,
-					2,
+					3,
 				])
 			)
 
 		// The prebuilt runtime imports the awsless package from the
-		// project's node_modules, outside the workspace hashes - its
-		// subtree hash covers everything the runtime can pull in.
+		// project's node_modules (see resolveFromRoot), outside the
+		// workspace hashes - its subtree hash covers everything the runtime
+		// can pull in.
 		hash.update(generateDependencyHash(workspace, 'awsless') ?? '')
 
 		for (const item of hashes) {
@@ -151,6 +152,9 @@ ${entries.join('\n')}
 				],
 				importAsString: importAsString.length > 0 ? importAsString : undefined,
 				moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
+				// The runtime & its sibling handlers must import the app's own
+				// awsless, the one the app's handlers import.
+				resolveFromRoot: [dirname(runtime)],
 			})
 
 			// The new output lands next to the old chunks before the stale
