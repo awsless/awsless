@@ -1345,6 +1345,11 @@ const recordEmails = (mockSES) => {
 			...simple?.Headers ? { headers: simple.Headers.map(({ Name, Value }) => ({
 				name: Name,
 				value: Value
+			})) } : {},
+			...simple?.Attachments ? { attachments: simple.Attachments.map(({ FileName, ContentType, RawContent }) => ({
+				filename: FileName,
+				contentType: ContentType,
+				content: RawContent
 			})) } : {}
 		});
 	});

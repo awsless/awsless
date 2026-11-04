@@ -18,6 +18,12 @@ export type SendEmailProps = {
         name: string;
         value: string;
     }[];
+    /** Files on the message, which SES caps at 40 MB in all after encoding. */
+    attachments?: {
+        filename: string;
+        contentType: string;
+        content: Uint8Array;
+    }[];
 };
 export declare const Email: {
     send(props: SendEmailProps): Promise<void>;

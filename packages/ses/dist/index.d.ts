@@ -15,6 +15,12 @@ type EmailHeader = {
   /** Printable ASCII, at most 995 characters (name and value together at most 996). */
   value: string;
 };
+type EmailAttachment = {
+  filename: string;
+  /** The MIME type, like `application/pdf`. */
+  contentType: string;
+  content: Uint8Array;
+};
 interface SendEmail {
   client?: SESv2Client;
   subject: string;
@@ -29,9 +35,11 @@ interface SendEmail {
    * Message-ID, Content-Type, MIME-Version and the like).
    */
   headers?: EmailHeader[];
+  /** Files on the message, which SES caps at 40 MB in all after encoding. */
+  attachments?: EmailAttachment[];
 }
 //#endregion
 //#region src/commands.d.ts
-declare const sendEmail: ({ client, subject, from, to, html, text, headers }: SendEmail) => Promise<import("@aws-sdk/client-sesv2").SendEmailCommandOutput>;
+declare const sendEmail: ({ client, subject, from, to, html, text, headers, attachments }: SendEmail) => Promise<import("@aws-sdk/client-sesv2").SendEmailCommandOutput>;
 //#endregion
 export { type EmailHeader, type SendEmail, mockSES, sendEmail, sesClient };

@@ -22,6 +22,9 @@ export type SendEmailProps = {
 	 * Subject, Date, Message-ID, Content-Type, MIME-Version and the like).
 	 */
 	headers?: { name: string; value: string }[]
+
+	/** Files on the message, which SES caps at 40 MB in all after encoding. */
+	attachments?: { filename: string; contentType: string; content: Uint8Array }[]
 }
 
 // Local dev captures sends in the dashboard & tests record them on mock.email.send.

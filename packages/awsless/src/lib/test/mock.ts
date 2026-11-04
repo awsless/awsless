@@ -108,6 +108,7 @@ export interface TestMock {
 				html?: string
 				text?: string
 				headers?: { name?: string; value?: string }[]
+				attachments?: { filename?: string; contentType?: string; content?: Uint8Array }[]
 			}) => unknown
 		>
 	}

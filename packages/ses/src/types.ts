@@ -8,6 +8,15 @@ export type EmailHeader = {
 	value: string
 }
 
+export type EmailAttachment = {
+	filename: string
+
+	/** The MIME type, like `application/pdf`. */
+	contentType: string
+
+	content: Uint8Array
+}
+
 export interface SendEmail {
 	client?: SESv2Client
 
@@ -25,4 +34,7 @@ export interface SendEmail {
 	 * Message-ID, Content-Type, MIME-Version and the like).
 	 */
 	headers?: EmailHeader[]
+
+	/** Files on the message, which SES caps at 40 MB in all after encoding. */
+	attachments?: EmailAttachment[]
 }
