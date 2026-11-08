@@ -3,9 +3,10 @@ import { dirname, join } from 'path'
 import { pathToFileURL } from 'url'
 import { mockLambda } from '@awsless/lambda'
 import { loadWorkspace } from '@awsless/ts-file-cache'
+import { mockTraceDaemon, TRACE_PARENT, TRACE_ROOT } from '@awsless/utils'
 import { findInputDeps, getMeta } from '@terraforge/core'
 import { formatRouteEnvName, getRouteEnv, withBundleRouteContext } from 'awsless'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildBundle, formatRouteKey, parseExportName } from '../src/feature/bundle/util'
 import { directories, setRoot } from '../src/util/path'
 import { createTestApp } from './_kit'
@@ -687,5 +688,237 @@ describe('bundle handler', () => {
 		}
 
 		await expect(handler(event, context)).rejects.toThrow('solo subscriber')
+	})
+
+	describe('tracing', () => {
+		const ROOT = TRACE_ROOT
+		const LAMBDA_SEGMENT = TRACE_PARENT
+		let daemon: Awaited<ReturnType<typeof mockTraceDaemon>>
+		const tracedContext = {
+			...context,
+			awsRequestId: 'request-1',
+			memoryLimitInMB: '1024',
+			getRemainingTimeInMillis: () => 60_000,
+		}
+
+		// Every span of one dispatch, by route.
+		const dispatch = async (event: unknown, count = 1) => {
+			daemon.segments.length = 0
+			await handler(event, tracedContext).catch(() => undefined)
+			const segments = await daemon.received(count)
+
+			return Object.fromEntries(segments.map(segment => [segment.annotations.route, segment]))
+		}
+
+		beforeAll(async () => {
+			daemon = await mockTraceDaemon()
+		})
+
+		afterAll(() => {
+			daemon.close()
+			vi.unstubAllEnvs()
+		})
+
+		it('spans an invoke with the invocation facts', async () => {
+			const spans = await dispatch({ '$awsless-route': 'stack-1:function:echo', event: {} })
+
+			expect(spans['stack-1:function:echo']).toMatchObject({
+				trace_id: ROOT,
+				parent_id: LAMBDA_SEGMENT,
+				annotations: { route_type: 'function', trigger: 'invoke', cold_start: false },
+				metadata: {
+					default: { request_id: 'request-1', qualifier: 'live', memory_mb: 1024, remaining_ms: 60_000 },
+				},
+			})
+		})
+
+		it('nests an in-process call under its caller', async () => {
+			const spans = await dispatch({ '$awsless-route': 'stack-2:function:nested', event: {} }, 2)
+			const outer = spans['stack-2:function:nested']!
+			const inner = spans['stack-1:function:echo']!
+
+			expect(inner).toMatchObject({ parent_id: outer.id, annotations: { trigger: 'internal' } })
+			expect(inner.annotations).not.toHaveProperty('cold_start')
+			expect(inner.metadata).toBeUndefined()
+		})
+
+		it.each([
+			{ route: 'stack-1:task:work', trigger: 'async-invoke' },
+			{ route: 'stack-1:cron:tick', trigger: 'schedule' },
+		])('tells a $trigger apart', async ({ route, trigger }) => {
+			const spans = await dispatch({ '$awsless-route': route, event: {} })
+
+			expect(spans[route]).toMatchObject({ annotations: { trigger } })
+		})
+
+		it('marks an expected error an error', async () => {
+			const spans = await dispatch({ '$awsless-route': 'stack-1:function:error', event: {} })
+
+			expect(spans['stack-1:function:error']).toMatchObject({
+				error: true,
+				cause: { exceptions: [{ type: 'test' }] },
+			})
+			expect(spans['stack-1:function:error']).not.toHaveProperty('fault')
+		})
+
+		it('marks a crash a fault', async () => {
+			const spans = await dispatch({
+				Records: [
+					{
+						EventSource: 'aws:sns',
+						Sns: { TopicArn: 'arn:aws:sns:eu-west-1:123456789:test-app--topic--bad', Message: 'x' },
+					},
+				],
+			})
+
+			expect(spans['stack-1:topic:bad']).toMatchObject({
+				fault: true,
+				cause: { exceptions: [{ type: 'Error' }] },
+			})
+		})
+
+		it('describes a queue batch with its retries and age', async () => {
+			const sentAt = Date.now() - 5000
+			const spans = await dispatch({
+				Records: [
+					{
+						eventSource: 'aws:sqs',
+						eventSourceARN: 'arn:aws:sqs:eu-west-1:123456789:test-app--stack-1--queue--jobs.fifo',
+						attributes: { ApproximateReceiveCount: '1', SentTimestamp: String(sentAt + 1000) },
+						body: 'user-1042@example.com',
+					},
+					{
+						eventSource: 'aws:sqs',
+						eventSourceARN: 'arn:aws:sqs:eu-west-1:123456789:test-app--stack-1--queue--jobs.fifo',
+						attributes: { ApproximateReceiveCount: '3', SentTimestamp: String(sentAt) },
+						body: 'user-1043@example.com',
+					},
+				],
+			})
+			const span = spans['stack-1:queue:jobs']!
+
+			expect(span).toMatchObject({
+				annotations: { trigger: 'sqs', retried: true },
+				metadata: {
+					default: { queue: 'test-app--stack-1--queue--jobs.fifo', messages: 2, max_receive_count: 3 },
+				},
+			})
+			expect(span.metadata.default.oldest_message_age_ms).toBeGreaterThanOrEqual(5000)
+			expect(JSON.stringify(span)).not.toContain('example.com')
+		})
+
+		it('describes a table stream batch with its kinds and lag', async () => {
+			const createdAt = Math.floor(Date.now() / 1000) - 10
+			const record = (eventName: string, extra = {}) => ({
+				eventSource: 'aws:dynamodb',
+				eventName,
+				eventSourceARN:
+					'arn:aws:dynamodb:eu-west-1:123456789:table/test-app--stack-1--table--users/stream/2026-01-01T00:00:00.000',
+				dynamodb: { ApproximateCreationDateTime: createdAt, Keys: { id: { S: 'user-1042@example.com' } } },
+				...extra,
+			})
+			const spans = await dispatch({
+				Records: [
+					record('INSERT'),
+					record('MODIFY'),
+					record('REMOVE', { userIdentity: { type: 'Service', principalId: 'dynamodb.amazonaws.com' } }),
+				],
+			})
+			const span = spans['stack-1:table:users']!
+
+			expect(span).toMatchObject({
+				annotations: { trigger: 'dynamodb' },
+				metadata: {
+					default: {
+						table: 'test-app--stack-1--table--users',
+						records: 3,
+						inserts: 1,
+						modifies: 1,
+						removes: 1,
+						ttl_removals: 1,
+					},
+				},
+			})
+			expect(span.metadata.default.oldest_record_age_ms).toBeGreaterThanOrEqual(10_000)
+			expect(JSON.stringify(span)).not.toContain('example.com')
+		})
+
+		it('describes a topic message', async () => {
+			const spans = await dispatch({
+				Records: [
+					{
+						EventSource: 'aws:sns',
+						Sns: {
+							TopicArn: 'arn:aws:sns:eu-west-1:123456789:test-app--topic--constructor',
+							MessageId: 'message-1',
+							Timestamp: new Date(Date.now() - 2000).toISOString(),
+							Message: 'user-1042@example.com',
+						},
+					},
+				],
+			})
+
+			expect(spans['stack-1:topic:constructor']).toMatchObject({
+				annotations: { trigger: 'sns' },
+				metadata: { default: { topic: 'test-app--topic--constructor', messages: 1, message_id: 'message-1' } },
+			})
+			expect(spans['stack-1:topic:constructor']!.metadata.default.oldest_message_age_ms).toBeGreaterThanOrEqual(
+				2000
+			)
+		})
+
+		it('describes a store event without its object keys', async () => {
+			const spans = await dispatch({
+				Records: [
+					{
+						eventSource: 'aws:s3',
+						eventName: 'ObjectCreated:Put',
+						eventTime: new Date().toISOString(),
+						s3: {
+							configurationId: 'stack-1:store:assets-created',
+							bucket: { name: 'test-app--stack-1--store--assets' },
+							object: { key: 'users/user-1042@example.com.png' },
+						},
+					},
+				],
+			})
+
+			expect(spans['stack-1:store:assets-created']).toMatchObject({
+				annotations: { trigger: 's3' },
+				metadata: {
+					default: { bucket: 'test-app--stack-1--store--assets', records: 1, events: 'ObjectCreated:Put' },
+				},
+			})
+			expect(JSON.stringify(spans['stack-1:store:assets-created'])).not.toContain('example.com')
+		})
+
+		it('describes an alarm', async () => {
+			const spans = await dispatch({
+				source: 'aws.cloudwatch',
+				alarmArn: 'arn:aws:cloudwatch:eu-west-1:123456789:alarm:test-app--stack-1--metric--latency-0',
+				alarmData: { alarmName: 'test-app--stack-1--metric--latency-0', state: { value: 'ALARM' } },
+			})
+
+			expect(spans['stack-1:metric:latency-0']).toMatchObject({
+				annotations: { trigger: 'cloudwatch' },
+				metadata: { default: { alarm: 'test-app--stack-1--metric--latency-0', state: 'ALARM' } },
+			})
+		})
+
+		it('describes a web request by its method and status, never its url', async () => {
+			const spans = await dispatch({
+				requestContext: { elb: { targetGroupArn: 'arn' } },
+				httpMethod: 'POST',
+				path: '/users/user-1042@example.com',
+				multiValueHeaders: { 'x-awsless-route': ['stack-1:route:page'], host: ['example.com'] },
+				multiValueQueryStringParameters: { email: ['user-1042@example.com'] },
+				body: '',
+				isBase64Encoded: false,
+			})
+			const span = spans['stack-1:route:page']!
+
+			expect(span).toMatchObject({ annotations: { trigger: 'http' }, http: { request: { method: 'POST' } } })
+			expect(JSON.stringify(span)).not.toContain('user-1042')
+		})
 	})
 })

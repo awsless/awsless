@@ -236,8 +236,9 @@ const lambda = (options) => {
 		const successCallbacks = [];
 		const failureCallbacks = [];
 		const finallyCallbacks = [];
+		const xRayTraceId = context?.xRayTraceId;
 		try {
-			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
+			const result = await (0, _awsless_utils.withTraceHeader)(xRayTraceId, () => createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
 					const raw = typeof event === "undefined" || isTest ? event : (0, _awsless_json.patch)(event);
 					const input = options.schema ? (0, _awsless_validate.parse)(options.schema, raw) : raw;
@@ -260,7 +261,7 @@ const lambda = (options) => {
 						return options.handle(input, extendedContext);
 					});
 				});
-			});
+			}));
 			await Promise.all(successCallbacks.map((cb) => cb(result)));
 			if (isTest) return (0, _awsless_json.parse)((0, _awsless_json.stringify)(result, { preserveUndefinedValues: true }));
 			return (0, _awsless_json.unpatch)(result);
@@ -274,6 +275,7 @@ const lambda = (options) => {
 			throw error;
 		} finally {
 			await Promise.all(finallyCallbacks.map((cb) => cb()));
+			await (0, _awsless_utils.flushTraces)();
 		}
 	});
 };

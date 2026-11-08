@@ -31,5 +31,6 @@ export * from './lib/server/store.js'
 export * from './lib/server/table.js'
 export * from './lib/server/task.js'
 export * from './lib/server/topic.js'
+export * from './lib/server/trace.js'
 
 export { getAccountId, getApp, getAppId, getRegion, getStack } from './lib/server/util.js'

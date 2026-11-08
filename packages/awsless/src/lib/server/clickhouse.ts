@@ -1,5 +1,6 @@
 import { AnyObjectSchema, clickhouseClient, ClickHouseClient, define } from '@awsless/clickhouse'
 import { ssm } from '@awsless/ssm'
+import { trace } from '@awsless/utils'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { getApp, getStack, isTest } from './util.js'
@@ -28,22 +29,46 @@ let client: ClickHouseClient | undefined
 // short of the lambda's own timeout.
 const CLICKHOUSE_REQUEST_TIMEOUT = 300_000
 
+// A span per query, command and insert, named by the operation and table
+// alone: the sql and the rows stay out of the trace.
+const traceClient = (raw: ClickHouseClient): ClickHouseClient => ({
+	...raw,
+	query: <T = Record<string, unknown>>(...args: Parameters<ClickHouseClient['query']>) =>
+		trace('ClickHouse', () => raw.query<T>(...args), {
+			namespace: 'remote',
+			annotations: { clickhouse_operation: 'query' },
+		}),
+	command: (...args) =>
+		trace('ClickHouse', () => raw.command(...args), {
+			namespace: 'remote',
+			annotations: { clickhouse_operation: 'command' },
+		}),
+	insert: (table, rows, options) =>
+		trace('ClickHouse', () => raw.insert(table, rows, options), {
+			namespace: 'remote',
+			annotations: { clickhouse_operation: 'insert' },
+			metadata: { table, rows: rows.length },
+		}),
+})
+
 // One client per lambda. A deployed app reads the generated password from
 // ssm on the first query; locally the default user has none.
 const getClient = () => {
 	if (!client) {
 		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER
 
-		client = clickhouseClient({
-			endpoint: process.env.CLICKHOUSE_ENDPOINT!,
-			password: parameter ? async () => (await ssm({ password: parameter })).password : undefined,
-			// A ClickHouse Cloud service that idled out takes minutes to wake,
-			// past the client's own 30 second default.
-			requestTimeout: CLICKHOUSE_REQUEST_TIMEOUT,
-			// Progress headers every 10 seconds keep a long query's connection
-			// alive past a load balancer's idle timeout.
-			settings: { send_progress_in_http_headers: 1, http_headers_progress_interval_ms: '10000' },
-		})
+		client = traceClient(
+			clickhouseClient({
+				endpoint: process.env.CLICKHOUSE_ENDPOINT!,
+				password: parameter ? async () => (await ssm({ password: parameter })).password : undefined,
+				// A ClickHouse Cloud service that idled out takes minutes to wake,
+				// past the client's own 30 second default.
+				requestTimeout: CLICKHOUSE_REQUEST_TIMEOUT,
+				// Progress headers every 10 seconds keep a long query's connection
+				// alive past a load balancer's idle timeout.
+				settings: { send_progress_in_http_headers: 1, http_headers_progress_interval_ms: '10000' },
+			})
+		)
 	}
 
 	return client

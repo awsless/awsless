@@ -1,3 +1,5 @@
+import { mockTraceDaemon } from '@awsless/utils'
+
 const { clients } = vi.hoisted(() => ({
 	clients: [] as { destroy: ReturnType<typeof vi.fn> }[],
 }))
@@ -36,7 +38,7 @@ describe('cache', () => {
 
 		// The cleanup is tied to the invocation context, so the client can
 		// only be created while one is active.
-		expect(() => client.send('PING', [])).toThrow('Lambda context is not available')
+		await expect(client.send('PING', [])).rejects.toThrow('Lambda context is not available')
 
 		await lambda({ handle: async () => client.send('PING', []) })({})
 
@@ -105,5 +107,37 @@ describe('cache', () => {
 
 		expect(clients.length).toBe(before)
 		void client
+	})
+
+	it('spans each command by its name and cache alone', async () => {
+		const daemon = await mockTraceDaemon()
+		const { lambda } = await import('@awsless/lambda')
+		const { Cache } = await import('../src/lib/server/cache')
+		const client = (Cache as any).stack.main(4)
+
+		await lambda({
+			handle: async () => {
+				await client.send('GET', ['session:user-1042@example.com'])
+				await client.batch([
+					{ name: 'INCRBY', args: ['count:user-1042@example.com', 1] },
+					{ name: 'GET', args: ['count:user-1042@example.com'] },
+				])
+			},
+		})({})
+
+		const [send, batch] = await daemon.received(2)
+		daemon.close()
+
+		expect(send).toMatchObject({
+			name: 'Redis',
+			namespace: 'remote',
+			annotations: { redis_command: 'get' },
+			metadata: { default: { cache: 'stack.main' } },
+		})
+		expect(batch).toMatchObject({
+			annotations: { redis_command: 'batch' },
+			metadata: { default: { cache: 'stack.main', commands: 2, command_names: 'incrby,get' } },
+		})
+		expect(JSON.stringify([send, batch])).not.toContain('example.com')
 	})
 })

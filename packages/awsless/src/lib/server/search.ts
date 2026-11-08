@@ -1,4 +1,5 @@
 import { AnySchema, define, isServerlessEndpoint, searchClient } from '@awsless/open-search'
+import { runTraceStep, trace } from '@awsless/utils'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { getApp, getStack, isTest } from './util.js'
@@ -84,6 +85,60 @@ export const assertMatchingMappings = (
 	}
 }
 
+type Transport = {
+	request(params: { method?: string; path?: string }, options?: unknown, callback?: unknown): unknown
+}
+
+// The request's endpoint, like "_search" or "_doc", from its path: never the
+// document id or the query.
+const getSearchOperation = (path = '') => {
+	return (
+		path
+			.split('/')
+			.find(part => part.startsWith('_'))
+			?.split('?')[0] ?? 'index'
+	)
+}
+
+// A span per request, named by the index, method and endpoint alone: the
+// documents and queries stay out of the trace.
+const traceTransport = (index: string, transport: Transport) => {
+	const request = transport.request.bind(transport)
+
+	transport.request = (params, options, callback) => {
+		// A callback caller gets no span: every op of ours awaits the promise.
+		if (typeof callback === 'function' || typeof options === 'function') {
+			return request(params, options, callback)
+		}
+
+		return trace('OpenSearch', () => request(params, options), {
+			namespace: 'remote',
+			annotations: { search_operation: getSearchOperation(params.path) },
+			metadata: { index },
+			http: { method: params.method },
+			endWith: (response: unknown) => {
+				const status = (response as { statusCode?: unknown } | undefined)?.statusCode
+				return typeof status === 'number' ? { http: { status } } : {}
+			},
+			// A refused request (a missing document, a bad query) is an error, a 429 a throttle, the rest a fault.
+			endWithError: (error: unknown) => {
+				const status = (error as { meta?: { statusCode?: unknown } } | undefined)?.meta?.statusCode
+				const errorType = error instanceof Error ? error.name : 'Error'
+
+				if (typeof status !== 'number') {
+					return { fault: true, errorType }
+				}
+
+				return {
+					http: { status },
+					errorType,
+					...(status === 429 ? { throttle: true } : status >= 500 ? { fault: true } : { error: true }),
+				}
+			},
+		})
+	}
+}
+
 export interface SearchResources {}
 
 export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
@@ -107,6 +162,7 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 					if (!client) {
 						// Serverless collection endpoints need aoss signing.
 						client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? 'aoss' : 'es')
+						runTraceStep(undefined, () => traceTransport(index, client.transport))
 					}
 					return client
 				})

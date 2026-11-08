@@ -81,6 +81,9 @@ importers:
       '@awsless/ssm':
         specifier: workspace:^
         version: link:../ssm
+      '@awsless/utils':
+        specifier: workspace:^
+        version: link:../utils
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
@@ -222,6 +225,9 @@ importers:
       '@awsless/ts-file-cache':
         specifier: workspace:^
         version: link:../ts-file-cache
+      '@awsless/utils':
+        specifier: workspace:^
+        version: link:../utils
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
@@ -4114,7 +4120,7 @@ packages:
     resolution: {integrity: sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
-      '@types/node': '*'
+      '@types/node': 26.2.0
     peerDependenciesMeta:
       '@types/node':
         optional: true

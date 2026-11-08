@@ -2,16 +2,20 @@ import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext, RoutedLambdaContext } from '@awsless/lambda'
 import {
 	captureInvokedQualifier,
+	flushTraces,
 	formatRoutePayload,
 	getInvokedQualifier,
 	getStandaloneFunctionName,
+	isTracing,
 	LIVE_BUNDLE_ALIAS,
 	ROUTE_HEADER,
 	ROUTE_PROPERTY,
+	runTraceStep,
 	setBundleRoutes,
+	trace,
 	withBundleRouteContext,
+	withTraceHeader,
 } from 'awsless'
-import { fromAlbEvent, isAlbEvent, toAlbResult } from './source/index.js'
 import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
@@ -31,6 +35,8 @@ import { taskHandler } from './resource/task.js'
 import { topicHandler } from './resource/topic.js'
 import type { BundleEvent, RouteMatch, RouteMatcher } from './resource/types.js'
 import { routeType } from './resource/util.js'
+import { fromAlbEvent, isAlbEvent, toAlbResult } from './source/index.js'
+import { describeRoute } from './trace.js'
 
 type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unknown>
 
@@ -76,10 +82,15 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		throw new Error(`Unknown bundle route: ${event?.[ROUTE_PROPERTY] ?? event?.headers?.[ROUTE_HEADER]} `)
 	}
 
-	return async (event: BundleEvent, context: LambdaContext) => {
+	let isFirstInvocation = true
+
+	const handleEvent = async (event: BundleEvent, context: LambdaContext) => {
 		captureInvokedQualifier(context)
 
-		const handleRoute = (match: RouteMatch) => {
+		const isColdStart = isFirstInvocation
+		isFirstInvocation = false
+
+		const handleRoute = (match: RouteMatch, isInternal = false) => {
 			const load = handlers[match.key]
 
 			if (!load) {
@@ -101,14 +112,24 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			return withBundleRouteContext(
 				match.key,
 				internalInvoke,
-				async () => {
-					const handle = await load()
+				() => {
+					// A span per route, so a function called in-process shows under its caller.
+					return trace(
+						match.key,
+						async () => {
+							const handle = await load()
 
-					// Error logs carry the route, so log consumers attribute an error
-					// to a logical resource instead of the shared bundle.
-					const routedContext: RoutedLambdaContext = { ...context, route: match.key }
+							// Error logs carry the route, so log consumers attribute an error
+							// to a logical resource instead of the shared bundle.
+							const routedContext: RoutedLambdaContext = { ...context, route: match.key }
 
-					return handle(match.payload ?? {}, routedContext)
+							return handle(match.payload ?? {}, routedContext)
+						},
+						// Described only when traced; a describer that throws leaves the span bare.
+						isTracing()
+							? runTraceStep({}, () => describeRoute(match, { isInternal, isColdStart, context }))
+							: undefined
+					)
 				},
 				{ throwExpectedErrors: match.throwExpectedErrors }
 			)
@@ -121,7 +142,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + key)
 			}
 
-			const result = await handleRoute(match)
+			const result = await handleRoute(match, true)
 			const response = result === undefined ? undefined : patch(result)
 
 			if (isErrorResponse(response)) {
@@ -167,5 +188,17 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		}
 
 		return handleRoute(match)
+	}
+
+	return async (event: BundleEvent, context: LambdaContext) => {
+		// Lambda Managed Instances give the trace header on the context only, without _X_AMZN_TRACE_ID.
+		const { xRayTraceId } = context as LambdaContext & { xRayTraceId?: string }
+
+		try {
+			return await withTraceHeader(xRayTraceId, () => handleEvent(event, context))
+		} finally {
+			// The spans still on their way go out before Lambda freezes the process.
+			await flushTraces()
+		}
 	}
 }

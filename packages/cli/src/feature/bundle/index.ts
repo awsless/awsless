@@ -13,7 +13,12 @@ import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { formatPolicyDocument } from '../../util/policy.js'
-import { deployFunctionSourcemaps, formatLoggingConfig } from '../function/util.js'
+import {
+	deployFunctionSourcemaps,
+	formatLoggingConfig,
+	formatTracingConfig,
+	TRACING_PERMISSION,
+} from '../function/util.js'
 import { createLogGroup } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipWithEnvFile } from './build/zip.js'
@@ -211,6 +216,15 @@ export const bundleFeature = defineFeature({
 			}),
 		})
 
+		// Lambda refuses active tracing to a role that can't send segments, so the right comes before the function.
+		const tracingPolicy = defaults.tracing
+			? new aws.iam.RolePolicy(group, 'tracing-policy', {
+					role: role.name,
+					name: 'lambda-tracing-policy',
+					policy: formatPolicyDocument([TRACING_PERMISSION]),
+				})
+			: undefined
+
 		const lambdaProps: aws.lambda.FunctionInput = {
 			functionName: name,
 			description: `${ctx.app.name} bundle`,
@@ -256,6 +270,9 @@ export const bundleFeature = defineFeature({
 					// The bundle always lives inside a vpc, so use the
 					// dualstack aws endpoints.
 					AWS_USE_DUALSTACK_ENDPOINT: 'true',
+
+					// The runtime's spans only go out where the app turned tracing on.
+					...(defaults.tracing ? { AWSLESS_TRACING: 'true' } : {}),
 				},
 			},
 
@@ -267,10 +284,11 @@ export const bundleFeature = defineFeature({
 			},
 
 			loggingConfig: formatLoggingConfig(name, defaults.log),
+			tracingConfig: formatTracingConfig(ctx),
 		}
 
 		const lambda = new aws.lambda.Function(group, 'function', lambdaProps, {
-			dependsOn: [vpcPolicy],
+			dependsOn: tracingPolicy ? [vpcPolicy, tracingPolicy] : [vpcPolicy],
 			import: ctx.import ? name : undefined,
 		})
 

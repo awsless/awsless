@@ -19,6 +19,7 @@ import { randomUUID } from "crypto";
 import { runTask } from "@awsless/ecs";
 import { deleteObject, getObject, headObject, putObject } from "@awsless/s3";
 import { schedule } from "@awsless/scheduler";
+import { flushTraces, isTracing, runTraceStep, runTraceStep as runTraceStep$1, startSpan, trace, trace as trace$1, withTraceHeader } from "@awsless/utils";
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { sendEmail } from "@awsless/ses";
 import { batchPutData, createDurationMetric, createMetric, createSizeMetric, putData } from "@awsless/cloudwatch";
@@ -949,10 +950,29 @@ const getClickHouseProps = (name, stack = getStack()) => {
 };
 let client;
 const CLICKHOUSE_REQUEST_TIMEOUT = 3e5;
+const traceClient$1 = (raw) => ({
+	...raw,
+	query: (...args) => trace$1("ClickHouse", () => raw.query(...args), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "query" }
+	}),
+	command: (...args) => trace$1("ClickHouse", () => raw.command(...args), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "command" }
+	}),
+	insert: (table, rows, options) => trace$1("ClickHouse", () => raw.insert(table, rows, options), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "insert" },
+		metadata: {
+			table,
+			rows: rows.length
+		}
+	})
+});
 const getClient = () => {
 	if (!client) {
 		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER;
-		client = clickhouseClient({
+		client = traceClient$1(clickhouseClient({
 			endpoint: process.env.CLICKHOUSE_ENDPOINT,
 			password: parameter ? async () => (await ssm({ password: parameter })).password : void 0,
 			requestTimeout: CLICKHOUSE_REQUEST_TIMEOUT,
@@ -960,7 +980,7 @@ const getClient = () => {
 				send_progress_in_http_headers: 1,
 				http_headers_progress_interval_ms: "10000"
 			}
-		});
+		}));
 	}
 	return client;
 };
@@ -1028,6 +1048,38 @@ const assertMatchingMappings = (label, declared, defined, path = "") => {
 		if (declaredField.type && definedField.type && !compatibleTypes(declaredField.type, definedField.type)) throw new Error(`The field "${path}${field}" of search index "${label}" is a "${definedField.type}" in the code schema but a "${declaredField.type}" in the stack file.`);
 	}
 };
+const getSearchOperation = (path = "") => {
+	return path.split("/").find((part) => part.startsWith("_"))?.split("?")[0] ?? "index";
+};
+const traceTransport = (index, transport) => {
+	const request = transport.request.bind(transport);
+	transport.request = (params, options, callback) => {
+		if (typeof callback === "function" || typeof options === "function") return request(params, options, callback);
+		return trace$1("OpenSearch", () => request(params, options), {
+			namespace: "remote",
+			annotations: { search_operation: getSearchOperation(params.path) },
+			metadata: { index },
+			http: { method: params.method },
+			endWith: (response) => {
+				const status = response?.statusCode;
+				return typeof status === "number" ? { http: { status } } : {};
+			},
+			endWithError: (error) => {
+				const status = error?.meta?.statusCode;
+				const errorType = error instanceof Error ? error.name : "Error";
+				if (typeof status !== "number") return {
+					fault: true,
+					errorType
+				};
+				return {
+					http: { status },
+					errorType,
+					...status === 429 ? { throttle: true } : status >= 500 ? { fault: true } : { error: true }
+				};
+			}
+		});
+	};
+};
 const Search = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		const { endpoint, name: index } = getSearchProps(name, stack);
@@ -1041,7 +1093,10 @@ const Search = /*@__PURE__*/ createProxy((stack) => {
 					if (declared) assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
 				}
 				return define(index, schema, () => {
-					if (!client) client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? "aoss" : "es");
+					if (!client) {
+						client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? "aoss" : "es");
+						runTraceStep$1(void 0, () => traceTransport(index, client.transport));
+					}
 					return client;
 				});
 			}
@@ -1452,10 +1507,39 @@ const getCacheProps = (name, stack = getStack()) => {
 		port: parseInt(process.env[`${prefix}_PORT`], 10)
 	};
 };
+const formatCommandNames = (commands) => {
+	return [...new Set(commands.map((command) => command.name.toLowerCase()))].join(",");
+};
+const traceClient = (cache, raw) => ({
+	send: (name, args, options) => trace$1("Redis", () => raw.send(name, args, options), {
+		namespace: "remote",
+		annotations: { redis_command: name.toLowerCase() },
+		metadata: { cache }
+	}),
+	batch: (commands) => trace$1("Redis", () => raw.batch(commands), {
+		namespace: "remote",
+		annotations: { redis_command: "batch" },
+		metadata: {
+			cache,
+			commands: commands.length,
+			command_names: formatCommandNames(commands)
+		}
+	}),
+	transact: (commands) => trace$1("Redis", () => raw.transact(commands), {
+		namespace: "remote",
+		annotations: { redis_command: "transaction" },
+		metadata: {
+			cache,
+			commands: commands.length,
+			command_names: formatCommandNames(commands)
+		}
+	}),
+	destroy: () => raw.destroy()
+});
 const Cache = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		return (db = 0, { keepConnection = false } = {}) => {
-			return createLazyClient(() => {
+			return traceClient(`${stack}.${name}`, createLazyClient(() => {
 				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
 					db,
@@ -1470,7 +1554,7 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 				if (isTest()) registerTestCleanup(() => client.destroy());
 				else if (!keepConnection) getContext().onFinally(() => client.destroy());
 				return client;
-			});
+			}));
 		};
 	});
 });
@@ -1586,4 +1670,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, ClickHouse, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, startSpan, t, trace, v, withBundleRouteContext, withTraceHeader };

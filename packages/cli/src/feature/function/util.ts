@@ -393,6 +393,17 @@ const logFormats = {
 	json: 'JSON',
 }
 
+// The lambda's X-Ray tracing mode: active when the app turned tracing on.
+export const formatTracingConfig = (ctx: StackContext | AppContext) => ({
+	mode: ctx.appConfig.function.tracing ? 'Active' : 'PassThrough',
+})
+
+// The role's right to send segments, which active tracing needs.
+export const TRACING_PERMISSION: Permission & PolicyStatement = {
+	actions: ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
+	resources: ['*'],
+}
+
 // The log levels only apply to structured json logs.
 export const formatLoggingConfig = (name: string, log: LambdaLogProps | undefined) => {
 	const format = log?.format ?? 'json'
@@ -570,6 +581,7 @@ export const createLambda = (
 				: undefined,
 
 			loggingConfig: formatLoggingConfig(name, props.log),
+			tracingConfig: formatTracingConfig(ctx),
 		},
 		{
 			dependsOn,
@@ -647,6 +659,12 @@ export const createLambda = (
 
 	if ('stackConfig' in ctx) {
 		variables.STACK = ctx.stackConfig.name
+	}
+
+	if (ctx.appConfig.function.tracing) {
+		// The runtime's spans only go out where the app turned tracing on.
+		variables.AWSLESS_TRACING = 'true'
+		addPermission(TRACING_PERMISSION)
 	}
 
 	if (props.vpc) {

@@ -1,4 +1,5 @@
 import { parse, patch, stringify, unpatch } from '@awsless/json'
+import { flushTraces, withTraceHeader } from '@awsless/utils'
 import { applyRedaction, parse as valiParse } from '@awsless/validate'
 import { Context } from 'aws-lambda'
 import { eventContext } from './context/lambda-context.js'
@@ -65,32 +66,38 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 		const failureCallbacks: Array<(err: unknown) => unknown> = []
 		const finallyCallbacks: Array<() => unknown> = []
 
-		try {
-			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
-				return transformValidationErrors(() => {
-					const raw = typeof event === 'undefined' || isTest ? event : patch(event)
-					const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw
-					const extendedContext: ExtendedContext = {
-						event: input,
-						context,
-						raw,
-						log,
-						onSuccess(cb) {
-							successCallbacks.push(cb)
-						},
-						onFailure(cb) {
-							failureCallbacks.push(cb)
-						},
-						onFinally(cb) {
-							finallyCallbacks.push(cb)
-						},
-					}
+		// The invocation's trace header (Lambda Managed Instances give it on the
+		// context only, without _X_AMZN_TRACE_ID); a handler inside another keeps its caller's.
+		const xRayTraceId = (context as (Context & { xRayTraceId?: string }) | undefined)?.xRayTraceId
 
-					return eventContext.run(extendedContext, () => {
-						return options.handle(input, extendedContext)
+		try {
+			const result = await withTraceHeader(xRayTraceId, () =>
+				createTimeoutWrap(options.schema, event, context, log, () => {
+					return transformValidationErrors(() => {
+						const raw = typeof event === 'undefined' || isTest ? event : patch(event)
+						const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw
+						const extendedContext: ExtendedContext = {
+							event: input,
+							context,
+							raw,
+							log,
+							onSuccess(cb) {
+								successCallbacks.push(cb)
+							},
+							onFailure(cb) {
+								failureCallbacks.push(cb)
+							},
+							onFinally(cb) {
+								finallyCallbacks.push(cb)
+							},
+						}
+
+						return eventContext.run(extendedContext, () => {
+							return options.handle(input, extendedContext)
+						})
 					})
 				})
-			})
+			)
 
 			await Promise.all(successCallbacks.map(cb => cb(result)))
 
@@ -127,6 +134,8 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			throw error
 		} finally {
 			await Promise.all(finallyCallbacks.map(cb => cb()))
+			// The spans still on their way go out before Lambda freezes the process.
+			await flushTraces()
 		}
 	}) as LambdaFunction<H, S>
 }

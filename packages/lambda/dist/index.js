@@ -1,6 +1,6 @@
 import { InvokeCommand, LambdaClient, LambdaClient as LambdaClient$1, ListFunctionsCommand } from "@aws-sdk/client-lambda";
 import { parse, patch, stringify, unpatch } from "@awsless/json";
-import { getVitest, globalClient, mockObjectValues, nextTick } from "@awsless/utils";
+import { flushTraces, getVitest, globalClient, mockObjectValues, nextTick, withTraceHeader } from "@awsless/utils";
 import { ValiError, applyRedaction, parse as parse$1 } from "@awsless/validate";
 import { AsyncLocalStorage } from "node:async_hooks";
 //#region src/errors/expected.ts
@@ -235,8 +235,9 @@ const lambda = (options) => {
 		const successCallbacks = [];
 		const failureCallbacks = [];
 		const finallyCallbacks = [];
+		const xRayTraceId = context?.xRayTraceId;
 		try {
-			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
+			const result = await withTraceHeader(xRayTraceId, () => createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
 					const raw = typeof event === "undefined" || isTest ? event : patch(event);
 					const input = options.schema ? parse$1(options.schema, raw) : raw;
@@ -259,7 +260,7 @@ const lambda = (options) => {
 						return options.handle(input, extendedContext);
 					});
 				});
-			});
+			}));
 			await Promise.all(successCallbacks.map((cb) => cb(result)));
 			if (isTest) return parse(stringify(result, { preserveUndefinedValues: true }));
 			return unpatch(result);
@@ -273,6 +274,7 @@ const lambda = (options) => {
 			throw error;
 		} finally {
 			await Promise.all(finallyCallbacks.map((cb) => cb()));
+			await flushTraces();
 		}
 	});
 };
