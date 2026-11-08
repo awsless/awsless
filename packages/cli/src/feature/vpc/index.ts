@@ -72,7 +72,34 @@ export const vpcFeature = defineFeature({
 			$resolve([vpc.id, attachment.internetGatewayId], vpcId => vpcId)
 		)
 
-		ctx.shared.set('vpc', 'security-group-id', vpc.defaultSecurityGroupId)
+		// The functions' own security group, all outbound, rather than the
+		// VPC's default one. Lambda shares a network interface per subnet and
+		// security group, so this also gave every function a fresh interface
+		// once the subnets assigned IPv6 addresses (2026-11-08).
+		const functionSecurityGroup = new aws.security.Group(group, 'function-security', {
+			name: `${ctx.app.name}--function`,
+			vpcId: vpc.id,
+			description: `${ctx.app.name} functions`,
+			tags: {
+				Name: `${ctx.app.name}--function`,
+			},
+		})
+
+		new aws.vpc.SecurityGroupEgressRule(group, 'function-egress-ipv4', {
+			securityGroupId: functionSecurityGroup.id,
+			description: 'Allow all outbound traffic',
+			ipProtocol: '-1',
+			cidrIpv4: '0.0.0.0/0',
+		})
+
+		new aws.vpc.SecurityGroupEgressRule(group, 'function-egress-ipv6', {
+			securityGroupId: functionSecurityGroup.id,
+			description: 'Allow all outbound traffic',
+			ipProtocol: '-1',
+			cidrIpv6: '::/0',
+		})
+
+		ctx.shared.set('vpc', 'security-group-id', functionSecurityGroup.id)
 
 		let block = 0n
 		const zones = ['a', 'b', 'c']
@@ -101,6 +128,11 @@ export const vpcFeature = defineFeature({
 					vpcId: vpc.id,
 					cidrBlock: `10.0.${block}.0/20`,
 					mapPublicIpOnLaunch: type === 'public',
+					// A network interface made here gets an IPv6 address: a Lambda in a
+					// dual-stack subnet sends IPv6 over its interface's address, and
+					// without one every IPv6 connect hangs (250 ms of happy eyeballs
+					// per new connection to a dual-stack host).
+					assignIpv6AddressOnCreation: true,
 					availabilityZone: ctx.appConfig.region + zone,
 					ipv6CidrBlock: vpc.ipv6CidrBlock.pipe((value: string) => {
 						const cidrParts = value.split('::')
@@ -153,6 +185,21 @@ export const vpcFeature = defineFeature({
 			routeTableId: privateRouteTable.id,
 			destinationCidrBlock: '0.0.0.0/0',
 			natGatewayId: natGateway.id,
+		})
+
+		// DynamoDB through a gateway endpoint: free, and its traffic off the NAT
+		// gateway (@awsless/dynamodb calls DynamoDB's IPv4 endpoint for now,
+		// since the dual-stack one hung over IPv6 from the VPC, through this
+		// endpoint too, measured 2026-11-08 in eu-west-1).
+		new aws.vpc.Endpoint(group, 'dynamodb', {
+			vpcId: vpc.id,
+			serviceName: `com.amazonaws.${ctx.appConfig.region}.dynamodb`,
+			vpcEndpointType: 'Gateway',
+			ipAddressType: 'dualstack',
+			routeTableIds: [privateRouteTable.id],
+			tags: {
+				Name: `${ctx.app.name}--dynamodb`,
+			},
 		})
 	},
 })

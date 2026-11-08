@@ -463,6 +463,7 @@ const migrate = (client, tables) => {
 const dynamoDBClient = /* @__PURE__ */ globalClient(() => {
 	return new DynamoDBClient$1({
 		maxAttempts: 2,
+		useDualstackEndpoint: false,
 		requestHandler: new NodeHttpHandler({
 			connectionTimeout: 3e3,
 			requestTimeout: 3e3
