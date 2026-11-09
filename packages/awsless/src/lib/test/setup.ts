@@ -463,7 +463,9 @@ const recordEmails = (mockSES: Awaited<typeof import('@awsless/ses')>['mockSES']
 			html: simple?.Body?.Html?.Data,
 			// Left out when not sent, so assertions on the older fields keep matching.
 			...(simple?.Body?.Text ? { text: simple.Body.Text.Data } : {}),
-			...(simple?.Headers ? { headers: simple.Headers.map(({ Name, Value }) => ({ name: Name, value: Value })) } : {}),
+			...(simple?.Headers
+				? { headers: simple.Headers.map(({ Name, Value }) => ({ name: Name, value: Value })) }
+				: {}),
 			...(simple?.Attachments
 				? {
 						attachments: simple.Attachments.map(({ FileName, ContentType, RawContent }) => ({

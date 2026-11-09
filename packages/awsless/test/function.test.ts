@@ -71,7 +71,7 @@ describe('function inside the bundle', () => {
 
 		expect(dispatch).not.toHaveBeenCalled()
 		expect(invoke).toHaveBeenCalledWith(
-			expect.objectContaining({ name: 'app--function--bundle', qualifier: 'main-1' })
+			expect.objectContaining({ name: 'app--bundle--event', qualifier: 'main-1' })
 		)
 	})
 

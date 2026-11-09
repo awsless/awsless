@@ -114,6 +114,7 @@ export const tableFeature = defineFeature({
 	},
 	onStack(ctx) {
 		const bundle = ctx.shared.get('bundle', 'main')
+		const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
 			const group = new Group(ctx.stack, 'table', id)
@@ -216,7 +217,7 @@ export const tableFeature = defineFeature({
 					group,
 					id,
 					{
-						functionName: bundle.alias.arn,
+						functionName: eventFunction.alias.arn,
 						eventSourceArn: table.streamArn,
 						batchSize: props.stream.batchSize,
 						maximumBatchingWindowInSeconds: props.stream.batchWindow

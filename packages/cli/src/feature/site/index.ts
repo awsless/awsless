@@ -168,7 +168,7 @@ export const siteFeature = defineFeature({
 
 				addRoutes({
 					[routeKey]: {
-						type: 'lambda',
+						type: 'web-function',
 						forwardHost: true,
 						urlEncodedQueryString: true,
 

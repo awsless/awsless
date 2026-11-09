@@ -2,7 +2,7 @@ import { Duration } from '@awsless/duration'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { schedule } from '@awsless/scheduler'
 import { createProxy } from '../proxy.js'
-import { formatRouteKey, formatRoutePayload, getBundleName, invokeBundle, LIVE_BUNDLE_ALIAS } from './bundle.js'
+import { formatRouteKey, formatRoutePayload, getEventFunctionName, invokeBundle, LIVE_BUNDLE_ALIAS } from './bundle.js'
 import { getOnFailureQueueArn } from './on-failure.js'
 import { bindGlobalResourceName, bindLocalResourceName, getAccountId, isTest } from './util.js'
 
@@ -39,7 +39,7 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 
 					// A schedule can outlive its deployment, so live is the only safe target.
 					await schedule({
-						name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
+						name: `${getEventFunctionName()}:${LIVE_BUNDLE_ALIAS}`,
 						payload: formatRoutePayload(routeKey, payload),
 						schedule: scheduleAt,
 						group: resourceTaskName('group'),

@@ -18,7 +18,7 @@ const findLambdas = (app: ReturnType<typeof createApp>['app']) => {
 
 	return {
 		metas,
-		bundle: metas.find(meta => meta.type === 'aws_lambda_function' && meta.urn.includes(':function:{bundle}:'))!,
+		bundle: metas.find(meta => meta.type === 'aws_lambda_function' && meta.urn.includes(':bundle:{event}:'))!,
 		standalone: lambdaOf('test-app--stack-1--function--echo'),
 	}
 }

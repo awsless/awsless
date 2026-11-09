@@ -28,5 +28,3 @@ export const assignRulePriorities = (keys: string[]) => {
 }
 
 export const formatPubSubRuleKey = (id: string) => `pubsub:${id}`
-
-export const formatRouteRuleKey = (router: string, path: string) => `${router}:${path}`

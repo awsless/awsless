@@ -19,7 +19,7 @@ import { createSymbolicator } from '../src/feature/on-error-log/server/sourcemap
 // Calling it really throws "n is not a function" with the frames below.
 const map = readFileSync(join(__dirname, '_fixture/sourcemap/index.mjs.map'), 'utf8')
 
-const PREFIX = 'sourcemaps/test-app--function--bundle/abc123/'
+const PREFIX = 'sourcemaps/test-app--bundle--event/abc123/'
 
 const STACK = [
 	'TypeError: n is not a function',
@@ -42,7 +42,7 @@ const create = (overrides?: { prefix?: string | undefined; map?: string | undefi
 }
 
 const error = {
-	functionName: 'test-app--function--bundle',
+	functionName: 'test-app--bundle--event',
 	version: '42',
 	message: 'n is not a function',
 	stackTrace: STACK,

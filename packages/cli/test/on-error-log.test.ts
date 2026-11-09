@@ -41,7 +41,7 @@ describe('on error log handler', () => {
 
 	const logsEvent = (logEvents: { message: unknown; timestamp?: number }[]) => {
 		const payload = {
-			logGroup: '/aws/lambda/test-app--function--bundle',
+			logGroup: '/aws/lambda/test-app--bundle--event',
 			logEvents: logEvents.map((entry, index) => ({
 				id: `event-${index}`,
 				message: typeof entry.message === 'string' ? entry.message : JSON.stringify(entry.message),
@@ -81,7 +81,7 @@ describe('on error log handler', () => {
 			{
 				hash: expect.any(String),
 				requestId,
-				origin: 'test-app--function--bundle',
+				origin: 'test-app--bundle--event',
 				level: 'error',
 				type: 'TypeError',
 				message: 'boom',
@@ -227,7 +227,7 @@ describe('on error log sourcemap integration', () => {
 	// The stream name carries the version whose env names the maps.
 	const logsEvent = (message: unknown, logStream?: string) => {
 		const payload = {
-			logGroup: '/aws/lambda/test-app--function--bundle',
+			logGroup: '/aws/lambda/test-app--bundle--event',
 			logStream: logStream ?? '2026/08/21/[42]abcdef1234567890',
 			logEvents: [{ id: 'event-0', message: JSON.stringify(message), timestamp: 1767225600000 }],
 		}
@@ -262,12 +262,12 @@ describe('on error log sourcemap integration', () => {
 			},
 			{
 				async loadPrefix(functionName, version) {
-					return functionName === 'test-app--function--bundle' && version === '42'
-						? 'sourcemaps/test-app--function--bundle/abc123/'
+					return functionName === 'test-app--bundle--event' && version === '42'
+						? 'sourcemaps/test-app--bundle--event/abc123/'
 						: undefined
 				},
 				async loadMap(key) {
-					return key === 'sourcemaps/test-app--function--bundle/abc123/index.mjs.map' ? map : undefined
+					return key === 'sourcemaps/test-app--bundle--event/abc123/index.mjs.map' ? map : undefined
 				},
 			}
 		)

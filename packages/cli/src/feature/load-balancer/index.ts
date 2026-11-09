@@ -3,27 +3,18 @@ import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { collectHeaderRoutes } from '../router/load-balancer.js'
-import { assignRulePriorities, formatPubSubRuleKey, formatRouteRuleKey } from './util.js'
+import { assignRulePriorities, formatPubSubRuleKey } from './util.js'
 
-// Websockets stay open through the load balancer while idle for up to 2
-// minutes; an http request is cut off sooner by CloudFront's read timeout.
+// Websockets stay open through the load balancer while idle for up to 2 minutes.
 const IDLE_TIMEOUT = 120
 
 // One Application Load Balancer per app, behind CloudFront only, for the
-// pubsub servers & the router paths that need CloudFront's own headers.
+// pubsub servers.
 export const loadBalancerFeature = defineFeature({
 	name: 'load-balancer',
 	onApp(ctx) {
 		const pubsubIds = Object.keys(ctx.appConfig.pubsub ?? {})
-		const headerRoutes = collectHeaderRoutes(ctx)
-
-		const ruleKeys = [
-			...pubsubIds.map(formatPubSubRuleKey),
-			...Object.entries(headerRoutes).flatMap(([id, routes]) =>
-				routes.map(route => formatRouteRuleKey(id, route.path))
-			),
-		]
+		const ruleKeys = pubsubIds.map(formatPubSubRuleKey)
 
 		if (ruleKeys.length === 0) {
 			return

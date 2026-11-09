@@ -25,6 +25,9 @@ export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'
 	minify?: boolean
 	external?: string[]
+
+	/** Bundles the AWS SDK instead of leaving it to the runtime. */
+	bundleAwsSdk?: boolean
 	moduleSideEffects?: string[]
 	handler?: string
 	file: string
@@ -117,12 +120,11 @@ const findBuildWorker = () => {
 	return workerPath
 }
 
-const isExternal = (importee: string, external?: string[]) => {
-	return (
-		importee.startsWith('@aws-sdk') || //
-		importee.startsWith('aws-sdk') ||
-		external?.includes(importee) === true
-	)
+// The Lambda runtime of an event function ships the AWS SDK; a web function's doesn't.
+const isAwsSdk = (importee: string) => importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk')
+
+const isExternal = (importee: string, props: Pick<BundleTypeScriptProps, 'external' | 'bundleAwsSdk'>) => {
+	return (!props.bundleAwsSdk && isAwsSdk(importee)) || props.external?.includes(importee) === true
 }
 
 export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) => {
@@ -139,7 +141,7 @@ export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) =>
 				'process.env.NODE_ENV': JSON.stringify('production'),
 			},
 		},
-		external: importee => isExternal(importee, props.external),
+		external: importee => isExternal(importee, props),
 		treeshake: {
 			// Dependencies are treated as side-effect free, so unused imports
 			// like the local test servers never reach the production bundle.
@@ -159,7 +161,7 @@ export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) =>
 		},
 		plugins: [
 			routeModulePlugin(),
-			props.resolveFromRoot?.length ? rootResolvePlugin(props.resolveFromRoot, props.external) : undefined,
+			props.resolveFromRoot?.length ? rootResolvePlugin(props.resolveFromRoot, props) : undefined,
 			props.importAsString
 				? importAsString({
 						include: props.importAsString,
@@ -270,7 +272,10 @@ const isBareImport = (source: string) => {
 // AsyncLocalStorage, so every Fn call leaves the bundle as a real invoke.
 // The runtime's other peers follow the app's awsless, falling back to the
 // cli's own copies when the app has none.
-const rootResolvePlugin = (folders: string[], external?: string[]): Plugin => {
+const rootResolvePlugin = (
+	folders: string[],
+	props: Pick<BundleTypeScriptProps, 'external' | 'bundleAwsSdk'>
+): Plugin => {
 	const dirs = folders.map(folder => {
 		try {
 			return realpathSync(folder)
@@ -290,7 +295,7 @@ const rootResolvePlugin = (folders: string[], external?: string[]): Plugin => {
 	return {
 		name: 'root-resolve',
 		async resolveId(source, importer, options) {
-			if (!importer || !isBareImport(source) || isExternal(source, external) || !isRuntimeModule(importer)) {
+			if (!importer || !isBareImport(source) || isExternal(source, props) || !isRuntimeModule(importer)) {
 				return
 			}
 

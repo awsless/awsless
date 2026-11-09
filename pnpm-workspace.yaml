@@ -12,7 +12,7 @@ overrides:
     '@types/node': 26.2.0
     # @terraforge/core pins an ancient client-dynamodb whose smithy v1
     # chain wins the hoist fallback - lift it until terraforge bumps.
-    '@aws-sdk/client-dynamodb@3.363.0': 3.1113.0
+    '@aws-sdk/client-dynamodb@3.363.0': 3.1164.0
 
 strictPeerDependencies: false
 gitChecks: false

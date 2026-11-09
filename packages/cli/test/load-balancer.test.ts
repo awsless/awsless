@@ -4,9 +4,7 @@ import { createTestApp, listResources } from './_kit'
 
 const code = { file: { nocheck: './handler.ts' } }
 
-const HEADERS = ['CloudFront-Viewer-JA4-Fingerprint']
-
-const createLoadBalancerApp = (props: { pubsub?: string[]; headers?: boolean }) => {
+const createLoadBalancerApp = (props: { pubsub?: string[] }) => {
 	const result = createTestApp({
 		app: {
 			domains: { main: { domain: 'example.com' } },
@@ -20,7 +18,7 @@ const createLoadBalancerApp = (props: { pubsub?: string[]; headers?: boolean }) 
 				name: 'api',
 				routes: {
 					main: {
-						'/identify': props.headers ? { code, loadBalancer: { cloudfrontHeaders: HEADERS } } : { code },
+						'/identify': { code },
 					},
 				},
 			},
@@ -41,7 +39,7 @@ const lbTypes = [
 ] as const
 
 describe('load balancer', () => {
-	it('should make none without a pubsub or a load balancer route', () => {
+	it('should make none without a pubsub', () => {
 		const { app, shared } = createLoadBalancerApp({})
 
 		for (const type of lbTypes) {
@@ -52,7 +50,7 @@ describe('load balancer', () => {
 	})
 
 	it('should make one behind CloudFront that refuses what no rule takes', () => {
-		const { app, shared } = createLoadBalancerApp({ headers: true })
+		const { app, shared } = createLoadBalancerApp({ pubsub: ['socket'] })
 		const [lb] = listResources(app, 'aws_lb')
 		const [listener] = listResources(app, 'aws_lb_listener')
 		const ingress = listResources(app, 'aws_vpc_security_group_ingress_rule').find(meta =>
@@ -88,7 +86,7 @@ describe('load balancer', () => {
 	})
 
 	it('should forward each pubsub by its own origin secret to its own target group', () => {
-		const { app } = createLoadBalancerApp({ pubsub: ['alpha', 'beta'], headers: true })
+		const { app } = createLoadBalancerApp({ pubsub: ['alpha', 'beta'] })
 		const [lb] = listResources(app, 'aws_lb')
 		const [listener] = listResources(app, 'aws_lb_listener')
 		const rules = listResources(app, 'aws_lb_listener_rule')
@@ -98,8 +96,8 @@ describe('load balancer', () => {
 		expect(listResources(app, 'aws_lb')).toHaveLength(1)
 		expect(listResources(app, 'aws_lb_listener')).toHaveLength(1)
 		expect(lb!.urn).toContain(':load-balancer:{main}:')
-		expect(rules).toHaveLength(3)
-		expect(new Set(rules.map(rule => rule.input.priority)).size).toBe(3)
+		expect(rules).toHaveLength(2)
+		expect(new Set(rules.map(rule => rule.input.priority)).size).toBe(2)
 		expect(pubsubRules).toHaveLength(2)
 
 		const secrets = pubsubRules.map(rule => {
@@ -136,7 +134,7 @@ describe('load balancer', () => {
 			expect(findInputDeps(rule.input.referencedSecurityGroupId)).toEqual([security])
 		}
 
-		// Both pubsub routes & the header path reach the one load balancer.
+		// Both pubsub routes reach the one load balancer.
 		expect(findInputDeps(deployment.input.routes)).toContain(lb)
 	})
 })

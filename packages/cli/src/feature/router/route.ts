@@ -32,10 +32,15 @@ type RouteProps = {
 }
 
 export type Route =
+	// A stand-alone lambda's own function url.
 	| (RouteProps & {
 			type: 'lambda'
-			// A stand-alone lambda route brings its own function url host,
-			// without one the route targets the shared bundle url.
+			domainName: Input<string>
+	  })
+	// A bundle route on the event function, for one that needs the layers (the
+	// image & icon servers' sharp); its url filled in for the route store.
+	| (RouteProps & {
+			type: 'event-function'
 			domainName?: Input<string>
 	  })
 	| (RouteProps & {
@@ -46,23 +51,40 @@ export type Route =
 			type: 'url'
 			domainName: Input<string>
 	  })
+	// A bundle route on the web function, its endpoint and deployment filled
+	// in for the route store.
+	| (RouteProps & {
+			type: 'web-function'
+			domainName?: Input<string>
+			deploymentId?: string
+	  })
 
-// Routes without a destination target the shared bundle url.
-export const hasBundleRoutes = (routes: Record<string, Route | Route[]>) => {
-	return Object.values(routes)
-		.flat()
-		.some(route => route.type === 'lambda' && !route.domainName)
+export const isWebFunctionRoute = (route: Route): route is Extract<Route, { type: 'web-function' }> => {
+	return route.type === 'web-function'
+}
+
+export const isEventFunctionRoute = (route: Route): route is Extract<Route, { type: 'event-function' }> => {
+	return route.type === 'event-function'
+}
+
+export const hasRoute = (routes: Record<string, Route | Route[]>, isMatch: (route: Route) => boolean) => {
+	return Object.values(routes).flat().some(isMatch)
 }
 
 // The route store caps a value at 1KB.
 const MAX_VALUE_SIZE = 1000
 
-// Serialized lambda routes gain a function url host, which tops out under 64 chars.
+// A bundle route gains its origin's host when stored, which tops out under 64
+// chars, and a web route its deployment id too.
 const ORIGIN_PLACEHOLDER = 'x'.repeat(64)
 
 export const assertRouteValueSize = (key: string, route: Route | Route[]) => {
 	const withOrigin = (entry: Route) => {
-		return entry.type === 'lambda' && !entry.domainName ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
+		if (isWebFunctionRoute(entry)) {
+			return { ...entry, domainName: ORIGIN_PLACEHOLDER, deploymentId: ORIGIN_PLACEHOLDER }
+		}
+
+		return isEventFunctionRoute(entry) ? { ...entry, domainName: ORIGIN_PLACEHOLDER } : entry
 	}
 
 	// Route lists shard over multiple entries, so only a single route can outgrow one.

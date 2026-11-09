@@ -1,5 +1,4 @@
-import { randomUUID } from 'crypto'
-import { ServerResponse } from 'http'
+import { toFunctionUrlEvent, toWebResponse } from 'awsless'
 import { DevDispatch, DevRoute } from '../feature.js'
 import { ROUTE_HEADER } from '../feature/bundle/util.js'
 import { compileRoutePattern } from '../feature/router/pattern.js'
@@ -109,151 +108,38 @@ export const compileRoutes = (routes: DevRoute[]) => {
 	}
 }
 
-// Lambda function urls pass textual bodies through as plain text and
-// only base64 encode binary payloads.
-const isTextualBody = (contentType: string) => {
-	return (
-		contentType.startsWith('text/') ||
-		contentType.includes('json') ||
-		contentType.includes('xml') ||
-		contentType.includes('javascript') ||
-		contentType.includes('x-www-form-urlencoded')
-	)
-}
-
 // Apply the route's origin path rewrite, like the deployed router.
 const rewrittenPath = (route: RouteMatch, path: string) => {
 	return route.rewrite ? path.replace(new RegExp(route.rewrite.regex), route.rewrite.to) : path
 }
 
-const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: URL, sourceIp: string) => {
-	const path = rewrittenPath(route, url.pathname)
-
-	const headers: Record<string, string> = {}
-
-	for (const [name, value] of request.headers) {
-		headers[name] = value
-	}
+// The request as the deployed router hands it to its origin: the route's
+// rewritten path and handler, its params as headers, and CloudFront's viewer
+// headers, which CloudFront writes over a client's (exported for its tests).
+export const createRoutedRequest = (request: Request, route: RouteMatch, url: URL, sourceIp: string) => {
+	const headers = new Headers(request.headers)
 
 	// The client can never hijack the routing.
-	headers[ROUTE_HEADER] = route.routeKey!
+	headers.set(ROUTE_HEADER, route.routeKey!)
+	headers.set('cloudfront-viewer-address', `${sourceIp}:0`)
 
-	// CloudFront writes its own viewer address over a client's, so the
-	// local router does too.
-	headers['cloudfront-viewer-address'] = `${sourceIp}:0`
-	headers['cloudfront-viewer-country'] ??= 'US'
+	if (!headers.has('cloudfront-viewer-country')) {
+		headers.set('cloudfront-viewer-country', 'US')
+	}
 
-	// Param values are passed to the function as request headers.
 	for (const [name, value] of Object.entries(route.params)) {
-		headers[`x-param-${name.toLowerCase()}`] = value
+		headers.set(`x-param-${name.toLowerCase()}`, value)
 	}
 
-	const queryStringParameters: Record<string, string> = {}
-	for (const [name, value] of url.searchParams) {
-		queryStringParameters[name] = value
-	}
+	const routedUrl = new URL(url)
+	routedUrl.pathname = rewrittenPath(route, url.pathname)
 
-	const cookie = request.headers.get('cookie')
-
-	// Only a present textual content type marks the body as text - and only
-	// when the bytes survive a utf-8 round trip: some clients post binary
-	// payloads under a textual content type & those must pass as base64
-	// instead of corrupting through the decode.
-	const contentType = request.headers.get('content-type')
-	const textual =
-		typeof contentType === 'string' && isTextualBody(contentType) && Buffer.from(body.toString()).equals(body)
-	const now = new Date()
-
-	return {
-		version: '2.0',
-		routeKey: '$default',
-		rawPath: path,
-		rawQueryString: url.search.slice(1),
-		cookies: cookie ? cookie.split(';').map(v => v.trim()) : undefined,
+	return new Request(routedUrl, {
+		method: request.method,
 		headers,
-		queryStringParameters,
-		requestContext: {
-			accountId: 'anonymous',
-			apiId: 'local',
-			domainName: url.hostname,
-			domainPrefix: url.hostname.split('.')[0],
-			http: {
-				method: request.method,
-				path,
-				protocol: 'HTTP/1.1',
-				sourceIp,
-				userAgent: headers['user-agent'] ?? '',
-			},
-			requestId: randomUUID(),
-			routeKey: '$default',
-			stage: '$default',
-			time: now.toISOString(),
-			timeEpoch: now.getTime(),
-		},
-		body: body.length > 0 ? (textual ? body.toString() : body.toString('base64')) : undefined,
-		isBase64Encoded: body.length > 0 && !textual,
-	}
-}
-
-type StructuredResult = {
-	statusCode: number
-	headers?: Record<string, string>
-	cookies?: string[]
-	body?: string
-	isBase64Encoded?: boolean
-}
-
-const isStructured = (result: unknown): result is StructuredResult => {
-	return typeof result === 'object' && result !== null && typeof (result as StructuredResult).statusCode === 'number'
-}
-
-// Mirror the lambda function url response semantics: a structured
-// response is written as-is & everything else becomes a 200 json
-// response.
-const toResponse = (result: unknown) => {
-	if (isStructured(result)) {
-		const headers = new Headers(result.headers ?? {})
-
-		for (const cookie of result.cookies ?? []) {
-			headers.append('set-cookie', cookie)
-		}
-
-		const body =
-			typeof result.body === 'string'
-				? result.isBase64Encoded
-					? Buffer.from(result.body, 'base64')
-					: result.body
-				: null
-
-		return new Response(body, { status: result.statusCode, headers })
-	}
-
-	return Response.json(result ?? null)
-}
-
-// The node http server still uses this shape for the rest emulator.
-export const writeWebResponse = (res: ServerResponse, result: unknown) => {
-	if (isStructured(result)) {
-		const headers: Record<string, string | string[]> = { ...result.headers }
-
-		if (result.cookies && result.cookies.length > 0) {
-			headers['set-cookie'] = result.cookies
-		}
-
-		res.writeHead(result.statusCode, headers)
-		res.end(
-			typeof result.body === 'string'
-				? result.isBase64Encoded
-					? Buffer.from(result.body, 'base64')
-					: result.body
-				: undefined
-		)
-
-		return
-	}
-
-	res.writeHead(200, { 'content-type': 'application/json' })
-	res.end(JSON.stringify(result ?? null))
+		body: request.body,
+		duplex: 'half',
+	} as RequestInit)
 }
 
 type SocketData = {
@@ -349,7 +235,6 @@ export const startDevRouter = async (props: {
 				return new Response(null, { status: 404 })
 			}
 
-			const body = Buffer.from(await request.arrayBuffer())
 			const sourceIp = server.requestIP(request)?.address ?? '127.0.0.1'
 
 			let result: unknown
@@ -359,7 +244,7 @@ export const startDevRouter = async (props: {
 				// fetching its own router (like an ssr page calling an rpc)
 				// carries the trace header & stays inside its caller's trace.
 				result = await props.dispatch(
-					formatWebEvent(request, route, body, url, sourceIp),
+					await toFunctionUrlEvent(createRoutedRequest(request, route, url, sourceIp), { sourceIp }),
 					parseTraceHeader(request.headers.get(TRACE_HEADER))
 				)
 			} catch (error) {
@@ -375,7 +260,7 @@ export const startDevRouter = async (props: {
 				})
 			}
 
-			return toResponse(result)
+			return toWebResponse(result)
 		},
 		websocket: {
 			open(ws) {

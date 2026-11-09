@@ -8,10 +8,10 @@ export default h.route(
 			name: v.string(),
 		}),
 	},
-	async request => {
+	async ({ data }) => {
 		await Queue.todo.reminders(
-			{ id: request.data.id, name: request.data.name },
-			{ groupId: request.data.id, deduplicationId: randomUUID() }
+			{ id: data.id, name: data.name },
+			{ groupId: data.id, deduplicationId: randomUUID() }
 		)
 
 		return Response.json({ queued: true })

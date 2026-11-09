@@ -5,6 +5,7 @@ import {
 	flushTraces,
 	formatRoutePayload,
 	getInvokedQualifier,
+	type h,
 	getStandaloneFunctionName,
 	isTracing,
 	LIVE_BUNDLE_ALIAS,
@@ -12,6 +13,8 @@ import {
 	ROUTE_PROPERTY,
 	runTraceStep,
 	setBundleRoutes,
+	toFunctionUrlEvent,
+	toWebResponse,
 	trace,
 	withBundleRouteContext,
 	withTraceHeader,
@@ -35,13 +38,15 @@ import { taskHandler } from './resource/task.js'
 import { topicHandler } from './resource/topic.js'
 import type { BundleEvent, RouteMatch, RouteMatcher } from './resource/types.js'
 import { routeType } from './resource/util.js'
-import { fromAlbEvent, isAlbEvent, toAlbResult } from './source/index.js'
 import { describeRoute } from './trace.js'
 
 type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unknown>
 
 // The local dev worker reads the active route to tag console output.
 export { getCurrentRoute } from 'awsless'
+
+// The bundle's web function serves its router paths over HTTP.
+export { startWebFunctionServer } from './web-function.js'
 
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
@@ -84,13 +89,14 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 
 	let isFirstInvocation = true
 
-	const handleEvent = async (event: BundleEvent, context: LambdaContext) => {
-		captureInvokedQualifier(context)
-
+	// Runs the routes of one invocation (or web function request), and the
+	// routes they call in-process.
+	const createBundleRouteRunner = (context: LambdaContext) => {
 		const isColdStart = isFirstInvocation
 		isFirstInvocation = false
 
-		const handleRoute = (match: RouteMatch, isInternal = false) => {
+		const runBundleRoute = (match: RouteMatch, options: BundleRouteOptions = {}) => {
+			const { isInternal = false, runHandler } = options
 			const load = handlers[match.key]
 
 			if (!load) {
@@ -123,7 +129,9 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 							// to a logical resource instead of the shared bundle.
 							const routedContext: RoutedLambdaContext = { ...context, route: match.key }
 
-							return handle(match.payload ?? {}, routedContext)
+							return runHandler
+								? runHandler(handle, routedContext)
+								: handle(match.payload ?? {}, routedContext)
 						},
 						// Described only when traced; a describer that throws leaves the span bare.
 						isTracing()
@@ -142,7 +150,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + key)
 			}
 
-			const result = await handleRoute(match, true)
+			const result = await runBundleRoute(match, { isInternal: true })
 			const response = result === undefined ? undefined : patch(result)
 
 			if (isErrorResponse(response)) {
@@ -154,19 +162,13 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			return response
 		}
 
-		// A router path behind the load balancer runs its handler on the
-		// function url event, & answers in the load balancer's shape.
-		if (isAlbEvent(event)) {
-			const request = fromAlbEvent(event)
-			const match = matchRoute(request as BundleEvent)
+		return runBundleRoute
+	}
 
-			if (Array.isArray(match)) {
-				throw new Error('Unknown bundle route: ' + request.headers[ROUTE_HEADER])
-			}
+	const handleEvent = async (event: BundleEvent, context: LambdaContext) => {
+		captureInvokedQualifier(context)
 
-			return toAlbResult(await handleRoute(match), typeof event.multiValueHeaders === 'object')
-		}
-
+		const runBundleRoute = createBundleRouteRunner(context)
 		const match = matchRoute(event)
 
 		// Multiple matches always fan out as separate async invocations.
@@ -187,10 +189,44 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			return
 		}
 
-		return handleRoute(match)
+		return runBundleRoute(match)
 	}
 
-	return async (event: BundleEvent, context: LambdaContext) => {
+	// A request to the web function. A route whose handler takes web
+	// requests (h.route, h.site, the rpc server) streams its request &
+	// response; any other gets the function url event, read whole. The
+	// response is written inside the route's context.
+	const serveRequest = async (
+		request: Request,
+		writeResponse: (response: Response) => Promise<void>,
+		context: LambdaContext
+	) => {
+		const key = request.headers.get(ROUTE_HEADER) ?? ''
+
+		if (!handlers[key]) {
+			throw new Error('Unknown bundle route: ' + key)
+		}
+
+		// Lambda appends the address that connected, CloudFront's edge, as a function url's source ip.
+		const sourceIp = request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim()
+		const runBundleRoute = createBundleRouteRunner(context)
+
+		await runBundleRoute(
+			{ key, payload: undefined },
+			{
+				runHandler: async (handle, routedContext) => {
+					const { fetch } = handle as Partial<h.RouteEntry>
+					const response = fetch
+						? await fetch(request, routedContext)
+						: toWebResponse(await handle(await toFunctionUrlEvent(request, { sourceIp }), routedContext))
+
+					await writeResponse(response)
+				},
+			}
+		)
+	}
+
+	const handler = async (event: BundleEvent, context: LambdaContext) => {
 		// Lambda Managed Instances give the trace header on the context only, without _X_AMZN_TRACE_ID.
 		const { xRayTraceId } = context as LambdaContext & { xRayTraceId?: string }
 
@@ -201,4 +237,15 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			await flushTraces()
 		}
 	}
+
+	return Object.assign(handler, { serveRequest })
 }
+
+type BundleRouteOptions = {
+	// A route called in-process by another, for its trace.
+	isInternal?: boolean
+	// Runs the loaded handler another way than with the match's payload (the web function's request).
+	runHandler?: (handle: Awaited<ReturnType<LoadHandler>>, context: RoutedLambdaContext) => unknown
+}
+
+export type Bundle = ReturnType<typeof createBundle>

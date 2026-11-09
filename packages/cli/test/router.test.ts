@@ -1,12 +1,12 @@
+import crypto from 'crypto'
 import { days } from '@awsless/duration'
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
-import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { MAINTENANCE_PAGE } from '../src/feature/router/maintenance'
 import { createPasswordAuth, PasswordAuth } from '../src/feature/router/password-auth'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from '../src/feature/router/router-code'
 import { RouteSchema, RouterDefaultSchema } from '../src/feature/router/schema'
-import { createTestApp, findStatements, listResources } from './_kit'
+import { createTestApp, listResources } from './_kit'
 
 type Request = {
 	uri: string
@@ -88,25 +88,26 @@ describe('router routes', () => {
 		])
 	})
 
-	it('should prepare an immutable Lambda URL for Lambda routes', () => {
+	it('should send bundle routes to the web function', () => {
 		const result = createRouterApp({ main: {} })
 		const addRoutes = result.shared.entry('router', 'addRoutes', 'main')
 
-		addRoutes({ '/rpc/*': { type: 'lambda' } })
+		addRoutes({ '/rpc/*': { type: 'web-function' } })
 		result.ready()
 
-		const functionDeployment = result.app.resources.find(
-			resource => getMeta(resource).type === 'function-deployment'
-		)!
-		const routeDeployment = result.app.resources.find(resource => getMeta(resource).type === 'route-deployment')!
+		const metas = result.app.resources.map(getMeta)
+		const routeDeployment = metas.find(meta => meta.type === 'route-deployment')!
+		const policy = metas.find(meta => meta.type === 'aws_lambdaweb_resource_policy')!
 
-		expect(findInputDeps(getMeta(routeDeployment).input.routes)).toContain(getMeta(functionDeployment))
-		const sourceArnDependencies = findInputDeps(getMeta(functionDeployment).input.sourceArns)
-		expect(sourceArnDependencies.map(dependency => dependency.type)).toEqual(
-			expect.arrayContaining(['aws_cloudfront_multitenant_distribution'])
+		expect(metas.filter(meta => meta.type === 'function-deployment')).toEqual([])
+		expect(findInputDeps(routeDeployment.input.routes).map(dependency => dependency.type)).toContain(
+			'aws_lambdaweb_function_endpoint'
 		)
-		expect(getMeta(routeDeployment).config?.dependsOn?.map(dependency => getMeta(dependency).type)).toEqual(
-			expect.arrayContaining(['aws_iam_role_policy', 'aws_lambda_alias'])
+		expect(findInputDeps(policy.input.policy).map(dependency => dependency.type)).toEqual(
+			expect.arrayContaining(['aws_cloudfront_multitenant_distribution', 'aws_lambdaweb_function_endpoint'])
+		)
+		expect(routeDeployment.config?.dependsOn?.map(dependency => getMeta(dependency).type)).toEqual(
+			expect.arrayContaining(['aws_iam_role_policy', 'aws_lambdaweb_resource_policy'])
 		)
 	})
 
@@ -136,6 +137,7 @@ describe('router routes', () => {
 
 		expect(origin.domainName).toBe('placeholder.awsless.dev')
 		expect(origin.customOriginConfig[0].originProtocolPolicy).toBe('http-only')
+		expect(production.input.origin).toHaveLength(1)
 	})
 
 	it('should stage every router into its own store', () => {
@@ -355,30 +357,46 @@ describe('router routes', () => {
 		expect(result.headers['x-forwarded-host']).toEqual({ value: 'example.com' })
 	})
 
-	it("should keep the request's origin on a load balancer behavior & still pick the handler", async () => {
+	it("should send a bundle route to the web function's endpoint & key the cache by its deployment", async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
 			[
 				'v1:main:/identify',
 				JSON.stringify({
-					type: 'lambda',
-					domainName: 'bundle.lambda-url.us-east-1.on.aws',
+					type: 'web-function',
+					domainName: 'abc.b7t.lambda-web.us-east-1.on.aws',
+					deploymentId: 'deploy-2',
 					requestHeaders: { 'x-awsless-route': 'api:route:identify' },
 				}),
 			],
 		])
-		const { handler, updateRequestOrigin } = createRouter(values, { keepRequestOrigin: true })
-		const result = (await handler({ request: createRequest('/identify', 'example.com') })) as Request
+		const { handler, updateRequestOrigin } = createRouter(values)
+		const request = createRequest('/identify', 'example.com')
 
-		expect(updateRequestOrigin).not.toHaveBeenCalled()
+		request.headers.authorization = { value: 'Bearer viewer' }
+		// A client can never pick the bundle handler.
+		request.headers['x-awsless-route'] = { value: 'api:route:other' }
+
+		const result = (await handler({ request })) as Request
+
+		expect(updateRequestOrigin).toHaveBeenCalledWith(
+			expect.objectContaining({
+				domainName: 'abc.b7t.lambda-web.us-east-1.on.aws',
+				customOriginConfig: expect.objectContaining({ protocol: 'https' }),
+				originAccessControlConfig: {
+					enabled: true,
+					signingBehavior: 'always-amz-auth',
+					signingProtocol: 'sigv4',
+					originType: 'lambda',
+				},
+			})
+		)
 		expect(result.headers['x-awsless-route']).toEqual({ value: 'api:route:identify' })
-
-		const missing = (await handler({ request: createRequest('/other', 'example.com') })) as Response
-
-		expect(missing.statusCode).toBe(404)
+		expect(result.headers['x-awsless-authorization']).toEqual({ value: 'Bearer viewer' })
+		expect(result.headers['x-origin']).toEqual({ value: 'abc.b7t.lambda-web.us-east-1.on.aws#deploy-2' })
 	})
 
-	it("should serve a customer's own domain like the router's & only block the bare cloudfront host", async () => {
+	it('should only block the bare cloudfront host', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
 			[
@@ -388,10 +406,12 @@ describe('router routes', () => {
 		])
 		const { handler } = createRouter(values, { blockDirectAccess: true })
 
-		const custom = (await handler({ request: createRequest('/identify', 'metrics.shop.example.com') })) as Request
-		expect(custom.headers['x-forwarded-host']).toEqual({ value: 'metrics.shop.example.com' })
+		const other = (await handler({ request: createRequest('/identify', 'metrics.example.com') })) as Request
+		expect(other.headers['x-forwarded-host']).toEqual({ value: 'metrics.example.com' })
 
-		const direct = (await handler({ request: createRequest('/identify', 'd111111abcdef8.cloudfront.net') })) as Response
+		const direct = (await handler({
+			request: createRequest('/identify', 'd111111abcdef8.cloudfront.net'),
+		})) as Response
 		expect(direct.statusCode).toBe(403)
 	})
 
@@ -536,118 +556,6 @@ describe('router routes', () => {
 	})
 })
 
-describe('router custom domains', () => {
-	it('should leave custom domains off by default', () => {
-		const { app, binds, shared } = createRouterApp({ main: {} })
-
-		expect(listResources(app, 'aws_cloudfront_connection_group')).toHaveLength(0)
-		expect(binds.map(bind => bind.name)).not.toContain('ROUTER_MAIN_DISTRIBUTION_ID')
-		expect(findStatements(shared, 'cloudfront:CreateDistributionTenant')).toHaveLength(0)
-	})
-
-	it('should give customer domains their own connection group & bind what a tenant needs', () => {
-		const { app, binds } = createRouterApp({ public: { customDomains: true } })
-
-		const groups = listResources(app, 'aws_cloudfront_connection_group')
-		expect(groups.map(group => group.input.name)).toEqual(['test-app--router--public--custom-domains'])
-		expect(groups[0]!.input.ipv6Enabled).toBe(true)
-
-		const bound = Object.fromEntries(binds.map(bind => [bind.name, bind.value]))
-		expect(Object.keys(bound)).toEqual(
-			expect.arrayContaining([
-				'ROUTER_PUBLIC_DISTRIBUTION_ID',
-				'ROUTER_PUBLIC_CONNECTION_GROUP_ID',
-				'ROUTER_PUBLIC_ROUTING_ENDPOINT',
-			])
-		)
-		expect(findInputDeps(bound.ROUTER_PUBLIC_DISTRIBUTION_ID).map(dependency => dependency.type)).toEqual([
-			'aws_cloudfront_multitenant_distribution',
-		])
-		expect(findInputDeps(bound.ROUTER_PUBLIC_ROUTING_ENDPOINT).map(dependency => dependency.type)).toEqual([
-			'aws_cloudfront_connection_group',
-		])
-	})
-
-	it("should keep the router domain's connection group apart from the customers' one", () => {
-		const { app } = createTestApp({
-			defaults: {
-				domains: { main: { domain: 'example.com' } },
-				router: { public: { domain: 'main', subDomain: 'api', customDomains: true } },
-			},
-		})
-
-		expect(listResources(app, 'aws_cloudfront_connection_group').map(group => group.input.name)).toEqual([
-			'test-app--router--public',
-			'test-app--router--public--custom-domains',
-		])
-	})
-
-	it("should point a name on the router's domain at the customers' connection group", () => {
-		const { app, binds } = createTestApp({
-			defaults: {
-				domains: { api: { domain: 'example.net' } },
-				router: { public: { domain: 'api', subDomain: 'api', customDomains: { subDomain: 'edge' } } },
-			},
-		})
-
-		const records = listResources(app, 'aws_route53_record').filter(record =>
-			String(record.input.name).includes('edge.example.net')
-		)
-		expect(records.map(record => [record.input.type, record.input.name])).toEqual(
-			expect.arrayContaining([
-				['A', 'edge.example.net'],
-				['AAAA', 'edge.example.net'],
-				['TXT', '_cf-challenge.edge.example.net'],
-			])
-		)
-
-		const alias = records.find(record => record.input.type === 'A')!
-		expect(findInputDeps(alias.input.alias).map(dependency => dependency.type)).toEqual([
-			'aws_cloudfront_connection_group',
-		])
-
-		expect(binds.find(bind => bind.name === 'ROUTER_PUBLIC_CUSTOM_DOMAIN_TARGET')?.value).toBe('edge.example.net')
-	})
-
-	it('should fall back to the routing endpoint as the target without a router domain', () => {
-		const { binds } = createRouterApp({ public: { customDomains: true } })
-		const target = binds.find(bind => bind.name === 'ROUTER_PUBLIC_CUSTOM_DOMAIN_TARGET')!
-
-		expect(findInputDeps(target.value).map(dependency => dependency.type)).toEqual([
-			'aws_cloudfront_connection_group',
-		])
-	})
-
-	it("should refuse a target that is the router's own name", () => {
-		expect(() =>
-			createTestApp({
-				defaults: {
-					domains: { main: { domain: 'example.com' } },
-					router: { public: { domain: 'main', subDomain: 'api', customDomains: { subDomain: 'api' } } },
-				},
-			})
-		).toThrow()
-	})
-
-	it('should grant the tenant calls, scoped to tenants where IAM allows it', () => {
-		const { shared } = createRouterApp({ public: { customDomains: true } })
-
-		const [create] = findStatements(shared, 'cloudfront:CreateDistributionTenant')
-		expect(create!.resources).toEqual(['*'])
-		expect(create!.actions).toContain('acm:RequestCertificate')
-
-		const [manage] = findStatements(shared, 'cloudfront:DeleteDistributionTenant')
-		expect(manage!.actions).toEqual(
-			expect.arrayContaining([
-				'cloudfront:GetDistributionTenant',
-				'cloudfront:UpdateDistributionTenant',
-				'cloudfront:GetManagedCertificateDetails',
-			])
-		)
-		expect(manage!.resources).toEqual(['arn:aws:cloudfront::123456789012:distribution-tenant/*'])
-	})
-})
-
 describe('router route patterns', () => {
 	it('should compile patterns into route keys, matchers & params', async () => {
 		const { compileRoutePattern } = await import('../src/feature/router/pattern')
@@ -778,7 +686,7 @@ describe('router route patterns', () => {
 		const deployment = result.app.resources.map(getMeta).find(meta => meta.type === 'route-deployment')!
 		const dependencies = findInputDeps(deployment.input.routes).map(dependency => dependency.type)
 
-		expect(dependencies).toContain('function-deployment')
+		expect(dependencies).toContain('aws_lambdaweb_function_endpoint')
 	})
 
 	it('should reject stack routes for an unknown router', () => {
@@ -912,7 +820,11 @@ describe('router password auth', () => {
 	})
 
 	it('should issue a browser session cookie for a temporary session', async () => {
-		const temporary = createPasswordAuth({ password: 'secret', sessionDuration: 'temporary', domain: 'example.com' })
+		const temporary = createPasswordAuth({
+			password: 'secret',
+			sessionDuration: 'temporary',
+			domain: 'example.com',
+		})
 		const { handler } = createRouter(values, { passwordAuth: temporary })
 		const request = createRequest('/__awsless/login', 'app.example.com')
 
@@ -930,7 +842,9 @@ describe('router password auth', () => {
 
 		expect(expires).toBeGreaterThanOrEqual(now + 24 * 60 * 60)
 		expect(expires).toBeLessThanOrEqual(now + 24 * 60 * 60 + 5)
-		expect(RouterDefaultSchema.parse({ main: { passwordAuth: { password: 'x', sessionDuration: 'temporary' } } })).toMatchObject({
+		expect(
+			RouterDefaultSchema.parse({ main: { passwordAuth: { password: 'x', sessionDuration: 'temporary' } } })
+		).toMatchObject({
 			main: { passwordAuth: { sessionDuration: 'temporary' } },
 		})
 	})
@@ -1211,10 +1125,11 @@ describe('router password auth', () => {
 		const distribution = resources.find(resource => resource.type === 'aws_cloudfront_multitenant_distribution')!
 
 		expect(functions).toHaveLength(2)
-		expect(distribution.input.defaultCacheBehavior[0].functionAssociation.map((a: { eventType: string }) => a.eventType)).toEqual([
-			'viewer-request',
-			'viewer-response',
-		])
+		expect(
+			distribution.input.defaultCacheBehavior[0].functionAssociation.map(
+				(a: { eventType: string }) => a.eventType
+			)
+		).toEqual(['viewer-request', 'viewer-response'])
 
 		// CloudFront may only read the bucket prefixes the policy lists, so the page has to live in one.
 		const bucket = result.app.resources.find(resource => getMeta(resource).type === 'aws_s3_bucket')!

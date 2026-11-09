@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { ExpectedError } from '@awsless/lambda'
-import { APIGatewayProxyEventV2 } from 'aws-lambda'
-import { internalInvoke } from 'awsless'
+import { internalInvoke, toFunctionUrlResult, toWebRequest } from 'awsless'
 import { authenticate } from './auth.js'
 import { getFunctionDetails } from './details.js'
 import {
@@ -19,11 +18,12 @@ import {
 } from './error.js'
 import { invokeInternalFunction } from './internal/index.js'
 import { lock, unlock } from './lock.js'
-import { FunctionResult, Response, response } from './response.js'
+import { FunctionResult, response } from './response.js'
 import { parseRequest } from './validate.js'
 import { buildViewerPayload } from './viewer.js'
 
-export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
+// The rpc server: a batch of calls in one POST, answered in one json list.
+const handleRequest = async (request: Request): Promise<Response> => {
 	try {
 		// ----------------------------------------
 		// Generate a request ID
@@ -33,16 +33,20 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Validate request
 
-		const request = parseRequest(event)
+		const parsedRequest = parseRequest({
+			method: request.method,
+			headers: Object.fromEntries(request.headers),
+			body: await request.text(),
+		})
 
-		if (!request.success) {
-			return response(400, INVALID_REQUEST(request.issues))
+		if (!parsedRequest.success) {
+			return response(400, INVALID_REQUEST(parsedRequest.issues))
 		}
 
 		// ----------------------------------------
 		// Authenticate request
 
-		const auth = await authenticate(request.output.headers.authentication)
+		const auth = await authenticate(parsedRequest.output.headers.authentication)
 
 		if (!auth.authorized) {
 			return response(401, UNAUTHORIZED(auth.reason))
@@ -51,7 +55,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Get function details
 
-		const calls = request.output.body.map(fn => {
+		const calls = parsedRequest.output.body.map(fn => {
 			return {
 				...fn,
 				details: fn.name.startsWith('$') ? undefined : getFunctionDetails(fn.name),
@@ -120,7 +124,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 					data = await internalInvoke(fn.details.name, {
 						...fn.payload,
 						...auth.context,
-						viewer: buildViewerPayload(request.output),
+						viewer: buildViewerPayload(parsedRequest.output),
 					})
 				} catch (error) {
 					if (error instanceof ExpectedError) {
@@ -166,3 +170,9 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		return response(500, INTERNAL_SERVER_ERROR)
 	}
 }
+
+// A function url event's call, answered read whole, and the web function's request.
+export default Object.assign(
+	async (event: unknown) => toFunctionUrlResult(await handleRequest(toWebRequest(event).request)),
+	{ fetch: handleRequest }
+)

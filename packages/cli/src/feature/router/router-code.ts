@@ -1,4 +1,5 @@
 import { minutes, seconds, toSeconds } from '@awsless/duration'
+import { DEPLOYMENT_ID_HEADER, ROUTE_HEADER } from '../bundle/util.js'
 import { MAINTENANCE_KEY, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { LOGIN_PAGE_HEADER, LOGIN_PATH, PasswordAuth } from './password-auth.js'
 
@@ -14,14 +15,9 @@ export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
-	// Don't send the request to the route's usual origin. Routes that go
-	// through the load balancer already have it as their origin, so the
-	// function only has to tell the bundle which handler to run.
-	keepRequestOrigin?: boolean
 }): string => {
 	return compact(
 		CODE({
-			keepRequestOrigin: !!props.keepRequestOrigin,
 			cors: props.cors !== false,
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
@@ -158,7 +154,13 @@ if (headers.host && headers.host.value.startsWith('www.')) {
 // which doubles as the per request auth for scripts without a cookie jar.
 const PASSWORD_AUTH_CHECK = (auth: PasswordAuth) => {
 	const name = JSON.stringify(auth.name)
-	const attributes = ['Path=/', 'Secure', 'HttpOnly', 'SameSite=Lax', ...(auth.domain ? [`Domain=${auth.domain}`] : [])]
+	const attributes = [
+		'Path=/',
+		'Secure',
+		'HttpOnly',
+		'SameSite=Lax',
+		...(auth.domain ? [`Domain=${auth.domain}`] : []),
+	]
 	const cookie = `{ ${name}: { value: expires + '.' + sign(expires), attributes: ${JSON.stringify([...attributes, ...(auth.maxAge ? [`Max-Age=${auth.maxAge}`] : [])].join('; '))} } }`
 
 	// A session is its expiry plus an hmac over it, so a leaked cookie
@@ -274,14 +276,7 @@ if (request.method === 'OPTIONS') {
 	};
 }`
 
-const CODE = (props: {
-	before: string[]
-	prefix: string
-	after: string[]
-	withCrypto: boolean
-	keepRequestOrigin: boolean
-	cors: boolean
-}) => `
+const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean; cors: boolean }) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -394,8 +389,11 @@ async function findRoute(path, method, prefix) {
 function setRouteOrigin(route) {
 	if(route.type === 's3') {
 		setS3Origin(route);
-	} else if(route.type === 'lambda') {
-		setLambdaOrigin(route);
+	} else if(route.type === 'lambda' || route.type === 'event-function') {
+		setLambdaOrigin(route, 'always');
+	} else if(route.type === 'web-function') {
+		// A Lambda Web Function takes only this signing, which keeps a body unsigned.
+		setLambdaOrigin(route, 'always-amz-auth');
 	} else if(route.type === 'url') {
 		setUrlOrigin(route);
 	} else {
@@ -453,7 +451,7 @@ function setS3Origin(route) {
 	}));
 }
 
-function setLambdaOrigin(route) {
+function setLambdaOrigin(route, signingBehavior) {
 	const config = getRequestOriginConfig(route);
 
 	if(typeof config.timeouts.readTimeout !== 'number') {
@@ -472,7 +470,7 @@ function setLambdaOrigin(route) {
 		},
 		originAccessControlConfig: {
 			enabled: true,
-			signingBehavior: 'always',
+			signingBehavior: signingBehavior,
 			signingProtocol: 'sigv4',
 			originType: 'lambda',
 		}
@@ -532,13 +530,21 @@ async function handler(event) {
 		}
 	}
 
+	// Only the route names the bundle handler & its deployment, never the client.
+	delete headers['${ROUTE_HEADER}'];
+	delete headers['${DEPLOYMENT_ID_HEADER}'];
+
+	if(route.type === 'web-function') {
+		headers['${DEPLOYMENT_ID_HEADER}'] = { value: route.deploymentId };
+	}
+
 	if(route.requestHeaders) {
 		for(const name in route.requestHeaders) {
 			headers[name] = { value: route.requestHeaders[name] };
 		}
 	}
 
-	if(route.type === 'lambda') {
+	if(route.type === 'lambda' || route.type === 'event-function' || route.type === 'web-function') {
 		if(headers.authorization) {
 			headers['x-awsless-authorization'] = headers.authorization;
 		} else {
@@ -546,7 +552,7 @@ async function handler(event) {
 		}
 	}
 
-	${props.keepRequestOrigin ? '' : 'setRouteOrigin(route);'}
+	setRouteOrigin(route);
 
 	if(route.forwardHost && headers.host && headers.host.value) {
 		headers['x-forwarded-host'] = { value: headers.host.value };
@@ -554,7 +560,8 @@ async function handler(event) {
 		delete headers['x-forwarded-host'];
 	}
 
-	headers['x-origin'] = { value: route.domainName };
+	// The cache key: a bundle route's endpoint stays the same, so its deployment id busts the cache.
+	headers['x-origin'] = { value: route.type === 'web-function' ? route.domainName + '#' + route.deploymentId : route.domainName };
 
 	if(route.urlEncodedQueryString) {
 		for (var key in request.querystring) {

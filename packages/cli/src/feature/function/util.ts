@@ -764,7 +764,7 @@ const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: Lambd
 		return
 	}
 
-	const bundle = ctx.shared.get('bundle', 'main')
+	const eventFunction = ctx.shared.get('bundle', 'event-function')
 	const distDir = dirname(fileURLToPath(import.meta.url))
 
 	// The proxy has its own namespace, so it can never collide with a
@@ -798,7 +798,7 @@ const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: Lambd
 
 	proxy.addPermission({
 		actions: ['lambda:InvokeFunction'],
-		resources: [bundle.lambda.arn.pipe(arn => `${arn}:*`)],
+		resources: [eventFunction.lambda.arn.pipe(arn => `${arn}:*`)],
 	})
 
 	fn.setEnvironment('SANDBOX_PROXY', proxy.name)

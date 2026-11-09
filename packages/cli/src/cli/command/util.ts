@@ -1,5 +1,6 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { LambdaClient } from '@aws-sdk/client-lambda'
+import { LambdaWebClient } from '@aws-sdk/client-lambda-web'
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { log, prompt } from '@awsless/clui'
 import { DynamoDBClient } from '@awsless/dynamodb'
@@ -11,7 +12,7 @@ import { Cancelled, ExpectedError } from '../../error.js'
 import { createInvalidationForDistributionTenants } from '../../formation/cloudfront.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { createKvsClient } from '../../util/kvs.js'
-import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
+import { generateGlobalAppId, getEventFunctionName } from '../../util/name.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 
@@ -26,9 +27,10 @@ export const createClients = async (appConfig: AppConfig) => {
 		credentials,
 		accountId,
 		appId: generateGlobalAppId({ accountId, region, appName: appConfig.name }),
-		functionName: getBundleFunctionName(appConfig.name),
+		functionName: getEventFunctionName(appConfig.name),
 		dynamo: new DynamoDBClient({ credentials, region }),
 		lambda: new LambdaClient({ credentials, region }),
+		lambdaWeb: new LambdaWebClient({ credentials, region }),
 		kvs: createKvsClient({ credentials, region }),
 		// CloudFront is a global service that only answers in us-east-1.
 		cloudfront: new CloudFrontClient({ credentials, region: 'us-east-1' }),

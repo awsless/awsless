@@ -4,7 +4,7 @@ import {
 	formatLocalResourceName,
 	generateGlobalAppId,
 	getAppNamePrefix,
-	getBundleFunctionName,
+	getEventFunctionName,
 } from '../src/util/name'
 
 describe('resource names', () => {
@@ -44,10 +44,10 @@ describe('resource names', () => {
 		).toBe('app--shop--queue--order-mail')
 	})
 
-	it('should derive the app prefix & bundle name the same way', () => {
+	it('should derive the app prefix & event function name the same way', () => {
 		expect(getAppNamePrefix('MyApp')).toBe('my-app--')
-		expect(getBundleFunctionName('MyApp')).toBe('my-app--function--bundle')
-		expect(getBundleFunctionName('MyApp').startsWith(getAppNamePrefix('MyApp'))).toBe(true)
+		expect(getEventFunctionName('MyApp')).toBe('my-app--bundle--event')
+		expect(getEventFunctionName('MyApp').startsWith(getAppNamePrefix('MyApp'))).toBe(true)
 	})
 
 	it('should generate a stable short app id per account, region & name', () => {

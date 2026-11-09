@@ -117,24 +117,34 @@ export const topicFeature = defineFeature({
 			const subscribed = ctx.stackConfigs.some(stack => stack.subscribers?.[id])
 
 			if (subscribed) {
-				const bundle = ctx.shared.get('bundle', 'main')
+				const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 				// Accepted staging window: a NEW subscription on an already
 				// active topic delivers to the old live bundle until promote,
 				// which retries those events as unknown routes.
-				new aws.sns.TopicSubscription(group, 'subscription', {
-					topicArn: topic.arn,
-					protocol: 'lambda',
-					endpoint: bundle.alias.arn,
-				})
+				new aws.sns.TopicSubscription(
+					group,
+					'subscription',
+					{
+						topicArn: topic.arn,
+						protocol: 'lambda',
+						endpoint: eventFunction.alias.arn,
+					},
+					{ replaceOnChanges: ['endpoint'] }
+				)
 
-				new aws.lambda.Permission(group, 'permission', {
-					action: 'lambda:InvokeFunction',
-					principal: 'sns.amazonaws.com',
-					functionName: bundle.lambda.functionName,
-					qualifier: bundle.alias.name,
-					sourceArn: topic.arn,
-				})
+				new aws.lambda.Permission(
+					group,
+					'permission',
+					{
+						action: 'lambda:InvokeFunction',
+						principal: 'sns.amazonaws.com',
+						functionName: eventFunction.lambda.functionName,
+						qualifier: eventFunction.alias.name,
+						sourceArn: topic.arn,
+					},
+					{ replaceOnChanges: ['functionName'] }
+				)
 			}
 		}
 

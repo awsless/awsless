@@ -38,20 +38,20 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-dynamodb": "3.1113.0",
-		"@aws-sdk/lib-dynamodb": "3.1113.0",
+		"@aws-sdk/client-dynamodb": "3.1164.0",
+		"@aws-sdk/lib-dynamodb": "3.1164.0",
 		"@aws-sdk/util-dynamodb": "3.996.9",
 		"@awsless/dynamodb-server": "workspace:^",
 		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"@heat/request-port": "0.0.1",
-		"@smithy/node-http-handler": "4.11.2",
+		"@smithy/node-http-handler": "4.14.2",
 		"aws-sdk-vitest-mock": "1.0.98",
 		"chunk": "0.0.3"
 	},
 	"devDependencies": {
 		"@awsless/big-float": "workspace:^",
-		"@smithy/types": "4.17.2",
+		"@smithy/types": "4.20.0",
 		"@types/chunk": "0.0.2"
 	},
 	"peerDependencies": {

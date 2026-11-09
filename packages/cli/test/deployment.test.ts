@@ -18,6 +18,7 @@ import {
 	ListVersionsByFunctionCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
+import { LambdaWebClient } from '@aws-sdk/client-lambda-web'
 import { STSClient } from '@aws-sdk/client-sts'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { subHours } from 'date-fns'
@@ -38,6 +39,7 @@ import {
 	selectPrunableVersions,
 	slugifyBranch,
 } from '../src/util/deployment'
+import { pruneWebFunctionRevision } from '../src/util/web-function'
 import { notFound } from './_kit'
 
 const mocks = vi.hoisted(() => ({
@@ -51,7 +53,7 @@ vi.mock('../src/util/git', async importOriginal => {
 })
 
 const appId = 'app-id'
-const functionName = 'app--function--bundle'
+const functionName = 'app--bundle--event'
 
 type Attr = { S?: string; N?: string; BOOL?: boolean }
 
@@ -414,9 +416,43 @@ const seedManifest = () => [
 	seedRow({ branch: 'main', seq: 3, createdAt: '2026-07-16T00:03:00.000Z', functionVersion: '3' }),
 ]
 
+// An app with routers: every deployment has a web function revision too.
+const seedRouterManifest = () =>
+	seedManifest().map(row => ({ ...row, webFunctionRevisionId: `rev-${row.functionVersion}` }))
+
+// The web function's endpoint, serving one revision.
+const mockEndpoint = (revisionId: string, { missingRevisionIds = [] as string[] } = {}) => {
+	const endpoint = { revisionId, updates: [] as string[] }
+
+	vi.spyOn(LambdaWebClient.prototype, 'send').mockImplementation(async (command: any) => {
+		const name = command.constructor.name
+
+		if (name === 'GetWebFunctionRevisionCommand') {
+			if (missingRevisionIds.includes(command.input.revisionId)) {
+				throw Object.assign(new Error('Revision not found'), { name: 'ResourceNotFoundException' })
+			}
+
+			return {}
+		}
+
+		if (name === 'UpdateWebFunctionEndpointCommand') {
+			endpoint.revisionId = command.input.revisionWeights[0].revisionId
+			endpoint.updates.push(endpoint.revisionId)
+		}
+
+		return {
+			revisionWeights: [{ revisionId: endpoint.revisionId, weight: 100 }],
+			updateStatus: 'Successful',
+		}
+	})
+
+	return endpoint
+}
+
 const clients = () => ({
 	kvs: new CloudFrontKeyValueStoreClient({ region: 'us-east-1' }),
 	lambda: new LambdaClient({ region: 'us-east-1' }),
+	lambdaWeb: new LambdaWebClient({ region: 'us-east-1' }),
 	dynamo: new DynamoDBClient({ region: 'us-east-1' }),
 	appId,
 	appName: 'app',
@@ -556,7 +592,7 @@ describe('prune selection', () => {
 					nodes: {
 						'urn:bundle': {
 							type: 'aws_lambda_function',
-							output: { functionName: 'app--function--bundle', version: '62', publish: true },
+							output: { functionName: 'app--bundle--event', version: '62', publish: true },
 						},
 						'urn:ssr': {
 							type: 'aws_lambda_function',
@@ -573,7 +609,7 @@ describe('prune selection', () => {
 		}
 
 		expect(readDeployedFunctionVersions(state as never)).toEqual({
-			'app--function--bundle': '62',
+			'app--bundle--event': '62',
 			'app--stack--function--ssr': '4',
 		})
 	})
@@ -691,7 +727,7 @@ describe('deployment activation', () => {
 	})
 
 	it('should refuse to activate a deployment the router store never staged', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		seedStore(aws.stores, 'app--router--main')
 
 		await expect(promoteAppDeployment({ appConfig, id: 'main-3' })).rejects.toThrow(
@@ -700,8 +736,9 @@ describe('deployment activation', () => {
 	})
 
 	it('should switch the router store of every router to the deployment', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		const store = seedStore(aws.stores, 'app--router--main')
+		mockEndpoint('rev-1')
 
 		await expect(promoteAppDeployment({ appConfig, id: 'main-2' })).resolves.toBe('main-2')
 
@@ -716,8 +753,9 @@ describe('deployment promotion', () => {
 	})
 
 	it('should switch the routes before updating the live alias once', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		const store = seedStore(aws.stores)
+		mockEndpoint('rev-1')
 
 		await promoteDeployment({
 			...clients(),
@@ -736,8 +774,9 @@ describe('deployment promotion', () => {
 	})
 
 	it('should leave everything untouched when the route switch fails', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		const store = seedStore(aws.stores)
+		mockEndpoint('rev-1')
 		aws.setFailStore(store.arn)
 
 		await expect(
@@ -754,8 +793,9 @@ describe('deployment promotion', () => {
 	})
 
 	it('should preflight the function version before changing the routes', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		const store = seedStore(aws.stores)
+		mockEndpoint('rev-1')
 		aws.setMissingVersion()
 
 		await expect(
@@ -771,8 +811,9 @@ describe('deployment promotion', () => {
 	})
 
 	it('should restore the routes and the prior alias after an alias failure', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		const store = seedStore(aws.stores)
+		mockEndpoint('rev-1')
 		aws.setFailAlias()
 
 		await expect(
@@ -792,8 +833,9 @@ describe('deployment promotion', () => {
 	})
 
 	it('should restore traffic and leave the target unpromoted when the manifest write fails', async () => {
-		const aws = mockAws(seedManifest())
+		const aws = mockAws(seedRouterManifest())
 		const store = seedStore(aws.stores)
+		mockEndpoint('rev-1')
 		aws.setFailMarkPromoted()
 
 		await expect(
@@ -939,5 +981,111 @@ describe('deployment promotion', () => {
 			FunctionVersion: '2',
 			Description: 'main-2',
 		})
+	})
+})
+
+describe('web function promotion', () => {
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it("should put the deployment's revision live with its routes", async () => {
+		const aws = mockAws(seedRouterManifest())
+		const store = seedStore(aws.stores)
+		const endpoint = mockEndpoint('rev-1')
+
+		await promoteDeployment({
+			...clients(),
+			id: 'main-2',
+			stores: [store],
+		})
+
+		expect(endpoint.updates).toEqual(['rev-2'])
+		expect(aws.alias?.FunctionVersion).toBe('2')
+	})
+
+	it('should leave an endpoint alone that already serves the revision', async () => {
+		const aws = mockAws(seedRouterManifest())
+		const endpoint = mockEndpoint('rev-2')
+
+		await promoteDeployment({
+			...clients(),
+			id: 'main-2',
+			stores: [seedStore(aws.stores)],
+		})
+
+		expect(endpoint.updates).toEqual([])
+	})
+
+	it('should put the live revision back when the promotion fails', async () => {
+		const aws = mockAws(seedRouterManifest())
+		const store = seedStore(aws.stores)
+		const endpoint = mockEndpoint('rev-1')
+
+		aws.setFailStore(store.arn)
+
+		await expect(
+			promoteDeployment({
+				...clients(),
+				id: 'main-2',
+				stores: [store],
+			})
+		).rejects.toThrow()
+
+		expect(endpoint.updates).toEqual(['rev-2', 'rev-1'])
+		expect(endpoint.revisionId).toBe('rev-1')
+	})
+
+	it('should refuse routes without a web function revision', async () => {
+		const aws = mockAws(seedManifest())
+		const store = seedStore(aws.stores)
+
+		await expect(promoteDeployment({ ...clients(), id: 'main-2', stores: [store] })).rejects.toThrow(
+			'has no web function revision'
+		)
+
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:main-1')
+		expect(aws.aliasUpdates).toBe(0)
+	})
+
+	it('should preflight the revision before changing the routes', async () => {
+		const aws = mockAws(seedRouterManifest())
+		const store = seedStore(aws.stores)
+		const endpoint = mockEndpoint('rev-1', { missingRevisionIds: ['rev-2'] })
+
+		await expect(promoteDeployment({ ...clients(), id: 'main-2', stores: [store] })).rejects.toThrow(
+			'The web function revision "rev-2" of this deployment no longer exists.'
+		)
+
+		expect(endpoint.updates).toEqual([])
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:main-1')
+		expect(aws.aliasUpdates).toBe(0)
+	})
+})
+
+describe('web function revision pruning', () => {
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	const mockRevisionDeletionError = (name: string) => {
+		vi.spyOn(LambdaWebClient.prototype, 'send').mockImplementation(async () => {
+			throw notFound(name)
+		})
+	}
+
+	it('should leave a revision that is gone', async () => {
+		mockRevisionDeletionError('ResourceNotFoundException')
+		await expect(
+			pruneWebFunctionRevision(new LambdaWebClient({ region: 'us-east-1' }), 'app--bundle--web', 'rev-1')
+		).resolves.toBeUndefined()
+	})
+
+	it('should fail on a revision that still has traffic, so its deployment record stays', async () => {
+		mockRevisionDeletionError('ConflictException')
+
+		await expect(
+			pruneWebFunctionRevision(new LambdaWebClient({ region: 'us-east-1' }), 'app--bundle--web', 'rev-1')
+		).rejects.toThrow()
 	})
 })

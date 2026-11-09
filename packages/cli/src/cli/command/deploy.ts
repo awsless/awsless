@@ -10,6 +10,7 @@ import {
 	preflightDeployment,
 	promoteAppDeployment,
 	readDeployedFunctionVersions,
+	readDeployedWebFunctionRevisionId,
 } from '../../util/deployment.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { SsmStore } from '../../util/ssm.js'
@@ -176,6 +177,7 @@ export const deploy = (program: Command) => {
 									appId: globalAppId,
 									id: deployment.id,
 									functionVersion,
+									webFunctionRevisionId: readDeployedWebFunctionRevisionId(remoteState),
 								})
 							}
 

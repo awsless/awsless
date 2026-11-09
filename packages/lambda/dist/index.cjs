@@ -1,9 +1,58 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 let _aws_sdk_client_lambda = require("@aws-sdk/client-lambda");
+let _awsless_validate = require("@awsless/validate");
 let _awsless_json = require("@awsless/json");
 let _awsless_utils = require("@awsless/utils");
-let _awsless_validate = require("@awsless/validate");
 let node_async_hooks = require("node:async_hooks");
+//#region src/helpers/error.ts
+const normalizeError = (maybeError) => {
+	if (maybeError instanceof Error) return maybeError;
+	switch (typeof maybeError) {
+		case "string":
+		case "number":
+		case "boolean": return new Error(String(maybeError));
+		case "object": return new Error(JSON.stringify(maybeError));
+	}
+	const error = /* @__PURE__ */ new Error("Received a non-error.");
+	error.name = "InvalidError";
+	return error;
+};
+//#endregion
+//#region src/errors/enhanced.ts
+var EnhandedError = class extends Error {
+	input;
+	route;
+	requestId;
+	functionName;
+	functionVersion;
+	memoryLimit;
+	remainingTime;
+};
+const enhanceError = (maybeError, schema, input, context) => {
+	const cause = normalizeError(maybeError);
+	const error = new EnhandedError(cause.message, { cause });
+	Object.defineProperty(error, "name", {
+		value: cause.name,
+		writable: true,
+		configurable: true
+	});
+	if (cause.stack) Object.defineProperty(error, "stack", {
+		value: cause.stack,
+		writable: true,
+		configurable: true
+	});
+	error.input = schema ? (0, _awsless_validate.applyRedaction)(schema, input) : input;
+	if (context) {
+		if (typeof context.route === "string") error.route = context.route;
+		error.requestId = context.awsRequestId;
+		error.functionName = context.functionName;
+		error.functionVersion = context.functionVersion;
+		error.memoryLimit = context.memoryLimitInMB;
+		error.remainingTime = context.getRemainingTimeInMillis();
+	}
+	return error;
+};
+//#endregion
 //#region src/errors/expected.ts
 var ExpectedError = class extends Error {
 	type;
@@ -70,76 +119,22 @@ const listFunctions = async ({ client = lambdaClient(), ...params }) => {
 	return result;
 };
 //#endregion
-//#region src/helpers/error.ts
-const normalizeError = (maybeError) => {
-	if (maybeError instanceof Error) return maybeError;
-	switch (typeof maybeError) {
-		case "string":
-		case "number":
-		case "boolean": return new Error(String(maybeError));
-		case "object": return new Error(JSON.stringify(maybeError));
-	}
-	const error = /* @__PURE__ */ new Error("Received a non-error.");
-	error.name = "InvalidError";
-	return error;
-};
-//#endregion
-//#region src/errors/enhanced.ts
-var EnhandedError = class extends Error {
-	input;
-	route;
-	requestId;
-	functionName;
-	functionVersion;
-	memoryLimit;
-	remainingTime;
-};
-const enhanceError = (maybeError, schema, input, context) => {
-	const cause = normalizeError(maybeError);
-	const error = new EnhandedError(cause.message, { cause });
-	Object.defineProperty(error, "name", {
-		value: cause.name,
-		writable: true,
-		configurable: true
-	});
-	if (cause.stack) Object.defineProperty(error, "stack", {
-		value: cause.stack,
-		writable: true,
-		configurable: true
-	});
-	error.input = schema ? (0, _awsless_validate.applyRedaction)(schema, input) : input;
-	if (context) {
-		if (typeof context.route === "string") error.route = context.route;
-		error.requestId = context.awsRequestId;
-		error.functionName = context.functionName;
-		error.functionVersion = context.functionVersion;
-		error.memoryLimit = context.memoryLimitInMB;
-		error.remainingTime = context.getRemainingTimeInMillis();
-	}
-	return error;
-};
-//#endregion
 //#region src/errors/timeout.ts
 var TimeoutError = class extends Error {
 	constructor(remainingTime) {
 		super(`Lambda will timeout in ${remainingTime}ms`);
 	}
 };
-const createTimeoutWrap = async (schema, event, context, log, callback) => {
-	if (!context) return callback();
-	const time = context.getRemainingTimeInMillis();
-	const delay = Math.max(time - 1e3, 1e3);
+const startTimeoutWarning = (schema, event, context, log) => {
+	if (!context) return () => {};
+	const delay = Math.max(context.getRemainingTimeInMillis() - 1e3, 1e3);
 	const id = setTimeout(() => {
 		const timeoutError = new TimeoutError(context.getRemainingTimeInMillis());
 		const enhancedError = enhanceError(timeoutError, schema, event, context);
 		log(enhancedError);
 		console.error(enhancedError);
 	}, delay);
-	try {
-		return await callback();
-	} finally {
-		clearTimeout(id);
-	}
+	return () => clearTimeout(id);
 };
 //#endregion
 //#region src/errors/validation.ts
@@ -221,6 +216,74 @@ const mockLambda = (lambdas, options) => {
 	return list;
 };
 //#endregion
+//#region src/invocation.ts
+/**
+* One run of a handler: its input validated, the extended context that
+* getContext() returns, and the timeout warning. A failed run is answered,
+* not thrown, so its caller can log the error before finishing.
+*/
+const runInvocation = async (options) => {
+	const log = options.log ?? (async () => {});
+	const successCallbacks = [];
+	const failureCallbacks = [];
+	const finallyCallbacks = [];
+	let result;
+	let finishPromise;
+	const stopTimeoutWarning = startTimeoutWarning(options.schema, options.input, options.context, log);
+	const runCallbacks = async (failure) => {
+		stopTimeoutWarning();
+		try {
+			if (failure) {
+				await Promise.all(failureCallbacks.map((callback) => callback(failure.error)));
+				return;
+			}
+			try {
+				await Promise.all(successCallbacks.map((callback) => callback(result)));
+			} catch (callbackError) {
+				await Promise.all(failureCallbacks.map((callback) => callback(callbackError)));
+				throw callbackError;
+			}
+		} finally {
+			await Promise.all(finallyCallbacks.map((callback) => callback()));
+			await (0, _awsless_utils.flushTraces)();
+		}
+	};
+	const finishInvocation = (failure) => finishPromise ??= runCallbacks(failure);
+	const xRayTraceId = options.context?.xRayTraceId;
+	try {
+		result = await (0, _awsless_utils.withTraceHeader)(xRayTraceId, () => transformValidationErrors(() => {
+			const event = options.schema ? (0, _awsless_validate.parse)(options.schema, options.input) : options.input;
+			const context = {
+				event,
+				context: options.context,
+				raw: options.raw,
+				log,
+				onSuccess(callback) {
+					successCallbacks.push(callback);
+				},
+				onFailure(callback) {
+					failureCallbacks.push(callback);
+				},
+				onFinally(callback) {
+					finallyCallbacks.push(callback);
+				}
+			};
+			return eventContext.run(context, () => options.handle(event, context));
+		}));
+	} catch (error) {
+		return {
+			isSuccessful: false,
+			error,
+			finishInvocation
+		};
+	}
+	return {
+		isSuccessful: true,
+		result,
+		finishInvocation
+	};
+};
+//#endregion
 //#region src/lambda.ts
 /** Create a lambda handle function. */
 const lambda = (options) => {
@@ -233,50 +296,44 @@ const lambda = (options) => {
 			}));
 		};
 		const isTest = isTestEnv();
-		const successCallbacks = [];
-		const failureCallbacks = [];
-		const finallyCallbacks = [];
-		const xRayTraceId = context?.xRayTraceId;
-		try {
-			const result = await (0, _awsless_utils.withTraceHeader)(xRayTraceId, () => createTimeoutWrap(options.schema, event, context, log, () => {
-				return transformValidationErrors(() => {
-					const raw = typeof event === "undefined" || isTest ? event : (0, _awsless_json.patch)(event);
-					const input = options.schema ? (0, _awsless_validate.parse)(options.schema, raw) : raw;
-					const extendedContext = {
-						event: input,
-						context,
-						raw,
-						log,
-						onSuccess(cb) {
-							successCallbacks.push(cb);
-						},
-						onFailure(cb) {
-							failureCallbacks.push(cb);
-						},
-						onFinally(cb) {
-							finallyCallbacks.push(cb);
-						}
-					};
-					return eventContext.run(extendedContext, () => {
-						return options.handle(input, extendedContext);
-					});
-				});
-			}));
-			await Promise.all(successCallbacks.map((cb) => cb(result)));
-			if (isTest) return (0, _awsless_json.parse)((0, _awsless_json.stringify)(result, { preserveUndefinedValues: true }));
-			return (0, _awsless_json.unpatch)(result);
-		} catch (error) {
-			await Promise.all(failureCallbacks.map((cb) => cb(error)));
-			const isExpectedError = error instanceof ExpectedError;
-			const throwExpectedErrors = typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
-			if (!isExpectedError || throwExpectedErrors) await log(error);
-			if (!isTest && !throwExpectedErrors && isExpectedError) return toErrorResponse(error);
-			if (!isTest) throw enhanceError(normalizeError(error), options.schema, event, context);
-			throw error;
-		} finally {
-			await Promise.all(finallyCallbacks.map((cb) => cb()));
-			await (0, _awsless_utils.flushTraces)();
+		const raw = typeof event === "undefined" || isTest ? event : (0, _awsless_json.patch)(event);
+		const invocation = await runInvocation({
+			schema: options.schema,
+			input: raw,
+			raw,
+			context,
+			log,
+			handle: (input, extendedContext) => options.handle(input, extendedContext)
+		});
+		let shouldThrowExpectedErrors;
+		const isReturnedError = (error) => {
+			shouldThrowExpectedErrors ??= typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
+			return error instanceof ExpectedError && !shouldThrowExpectedErrors;
+		};
+		const logThrownError = async (error) => {
+			if (!isReturnedError(error)) await log(error);
+		};
+		const returnOrThrowError = (error) => {
+			if (isTest) throw error;
+			if (isReturnedError(error)) return toErrorResponse(error);
+			throw enhanceError(normalizeError(error), options.schema, event, context);
+		};
+		if (!invocation.isSuccessful) {
+			try {
+				await logThrownError(invocation.error);
+			} finally {
+				await invocation.finishInvocation({ error: invocation.error });
+			}
+			return returnOrThrowError(invocation.error);
 		}
+		try {
+			await invocation.finishInvocation();
+		} catch (error) {
+			await logThrownError(error);
+			return returnOrThrowError(error);
+		}
+		if (isTest) return (0, _awsless_json.parse)((0, _awsless_json.stringify)(invocation.result, { preserveUndefinedValues: true }));
+		return (0, _awsless_json.unpatch)(invocation.result);
 	});
 };
 //#endregion
@@ -289,6 +346,7 @@ Object.defineProperty(exports, "LambdaClient", {
 });
 exports.TimeoutError = TimeoutError;
 exports.ValidationError = ValidationError;
+exports.enhanceError = enhanceError;
 exports.getContext = getContext;
 exports.invoke = invoke;
 exports.isErrorResponse = isErrorResponse;
@@ -297,4 +355,5 @@ exports.lambda = lambda;
 exports.lambdaClient = lambdaClient;
 exports.listFunctions = listFunctions;
 exports.mockLambda = mockLambda;
+exports.runInvocation = runInvocation;
 exports.toErrorResponse = toErrorResponse;

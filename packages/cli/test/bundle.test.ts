@@ -53,7 +53,7 @@ describe('bundle', () => {
 
 	it('should preserve the Terraform-owned live alias while staging', () => {
 		const { app } = createTestApp({ deploymentId: 'main-42' })
-		const resources = app.resources.map(getMeta).filter(meta => meta.urn.includes(':function:{bundle}:'))
+		const resources = app.resources.map(getMeta).filter(meta => meta.urn.includes(':bundle:{event}:'))
 		const deployment = resources.find(meta => meta.type === 'deployment-alias')!
 		const liveTarget = resources.find(meta => meta.type === 'live-target')!
 		const alias = resources.find(meta => meta.type === 'aws_lambda_alias')!
@@ -77,7 +77,7 @@ describe('bundle', () => {
 		})
 		const lambda = app.resources
 			.map(getMeta)
-			.find(meta => meta.type === 'aws_lambda_function' && meta.urn.includes(':function:{bundle}:'))
+			.find(meta => meta.type === 'aws_lambda_function' && meta.urn.includes(':bundle:{event}:'))
 
 		expect(appConfig.function.minify).toBe(false)
 		expect('bundle' in appConfig.function).toBe(false)
@@ -190,7 +190,7 @@ describe('bundle runtime resolution', () => {
 })
 
 describe('bundle handler', () => {
-	const functionName = 'app--function--bundle'
+	const functionName = 'app--bundle--event'
 	const context = {
 		invokedFunctionArn: `arn:aws:lambda:eu-west-1:123456789:function:${functionName}:live`,
 	}
@@ -452,6 +452,21 @@ describe('bundle handler', () => {
 		expect(result).toStrictEqual(event)
 	})
 
+	it('should drop the headers only a router writes from a rest api call', async () => {
+		const event = {
+			headers: {
+				'x-awsless-route': 'stack-1:rest:api',
+				'CloudFront-Viewer-Address': '203.0.113.7:443',
+				'x-param-id': 'spoofed',
+				host: 'example.com',
+			},
+		}
+
+		const result = (await handler(event, context)) as typeof event
+
+		expect(result.headers).toStrictEqual({ 'x-awsless-route': 'stack-1:rest:api', host: 'example.com' })
+	})
+
 	it('should restore the viewer authorization header for web handlers', async () => {
 		const event = {
 			headers: {
@@ -466,33 +481,6 @@ describe('bundle handler', () => {
 
 		expect(result.headers.authorization).toBe('Bearer viewer-token')
 		expect(result.headers['x-awsless-authorization']).toBeUndefined()
-	})
-
-	it('should run a router route for a load balancer event & answer in its shape', async () => {
-		const result = (await handler(
-			{
-				requestContext: { elb: { targetGroupArn: 'arn' } },
-				httpMethod: 'GET',
-				path: '/identify',
-				multiValueHeaders: {
-					'x-awsless-route': ['stack-1:route:page'],
-					host: ['example.com'],
-				},
-				multiValueQueryStringParameters: {},
-				body: '',
-				isBase64Encoded: false,
-			},
-			context
-		)) as { statusCode: number; multiValueHeaders: Record<string, string[]>; body: string }
-
-		expect(result.statusCode).toBe(200)
-		expect(result.multiValueHeaders['content-type']).toEqual(['application/json'])
-
-		const event = JSON.parse(result.body)
-
-		expect(event.rawPath).toBe('/identify')
-		expect(event.headers.host).toBe('example.com')
-		expect(event.requestContext.http.method).toBe('GET')
 	})
 
 	it.each([
@@ -907,12 +895,11 @@ describe('bundle handler', () => {
 
 		it('describes a web request by its method and status, never its url', async () => {
 			const spans = await dispatch({
-				requestContext: { elb: { targetGroupArn: 'arn' } },
-				httpMethod: 'POST',
-				path: '/users/user-1042@example.com',
-				multiValueHeaders: { 'x-awsless-route': ['stack-1:route:page'], host: ['example.com'] },
-				multiValueQueryStringParameters: { email: ['user-1042@example.com'] },
-				body: '',
+				version: '2.0',
+				rawPath: '/users/user-1042@example.com',
+				rawQueryString: 'email=user-1042@example.com',
+				headers: { 'x-awsless-route': 'stack-1:route:page', host: 'example.com' },
+				requestContext: { http: { method: 'POST', path: '/users/user-1042@example.com' } },
 				isBase64Encoded: false,
 			})
 			const span = spans['stack-1:route:page']!

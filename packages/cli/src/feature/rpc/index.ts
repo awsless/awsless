@@ -152,7 +152,7 @@ export const rpcFeature = defineFeature({
 
 			addRoutes({
 				[props.path]: {
-					type: 'lambda',
+					type: 'web-function',
 					requestHeaders: {
 						[ROUTE_HEADER]: serverRouteKey,
 					},

@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { days, minutes, seconds, toSeconds, years } from '@awsless/duration'
+import { days, seconds, toSeconds, years } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { constantCase, kebabCase } from 'change-case'
@@ -11,20 +11,17 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
-import {
-	collectHeaderRoutes,
-	createCloudFrontHeadersPolicies,
-	createLoadBalancerOrigin,
-	createLoadBalancerTarget,
-	formatRulePaths,
-	formatHeaderListKey,
-	getOriginSecret,
-	LOAD_BALANCER_ORIGIN,
-} from './load-balancer.js'
 import { createMaintenanceEntries, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { createPasswordAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './password-auth.js'
 import { compileRoutePattern } from './pattern.js'
-import { assertRouteValueSize, createRouteStoreEntries, hasBundleRoutes, Route } from './route.js'
+import {
+	assertRouteValueSize,
+	createRouteStoreEntries,
+	hasRoute,
+	isEventFunctionRoute,
+	isWebFunctionRoute,
+	Route,
+} from './route.js'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from './router-code.js'
 
 // The bundle route key of a route pattern, shared by the deployed
@@ -47,10 +44,6 @@ export const routerFeature = defineFeature({
 		const routeStores: Record<string, aws.cloudfront.KeyValueStore> = {}
 		const routerGroups: Record<string, Group> = {}
 
-		// Routes that ask for CloudFront headers reach the bundle through the
-		// app's load balancer.
-		const headerRoutes = collectHeaderRoutes(ctx)
-		const originSecret = getOriginSecret(ctx.appId)
 		const distributionIds: Output<string>[] = []
 
 		for (const [id, props] of routers) {
@@ -159,14 +152,6 @@ export const routerFeature = defineFeature({
 					})
 				: undefined
 
-			const functionOptions = {
-				router: id,
-				cors: props.cors !== false,
-				blockDirectAccess: !!props.domain,
-				redirectWww: !!props.domain && props.redirectWww,
-				passwordAuth,
-			}
-
 			// the function names are capped at 64 characters
 			const cfFunction = new aws.cloudfront.Function(
 				group,
@@ -174,7 +159,13 @@ export const routerFeature = defineFeature({
 				{
 					name,
 					runtime: 'cloudfront-js-2.0',
-					code: getViewerRequestFunctionCode(functionOptions),
+					code: getViewerRequestFunctionCode({
+						router: id,
+						cors: props.cors !== false,
+						blockDirectAccess: !!props.domain,
+						redirectWww: !!props.domain && props.redirectWww,
+						passwordAuth,
+					}),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],
 				},
@@ -306,82 +297,6 @@ export const routerFeature = defineFeature({
 				},
 			})
 
-			// ------------------------------------------------------------
-			// CloudFront Header Paths
-
-			const functionAssociation = [
-				{
-					eventType: 'viewer-request' as const,
-					functionArn: cfFunction.arn,
-				},
-				...(responseFunction
-					? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
-					: []),
-			]
-
-			const allowedMethods = [
-				{
-					items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-					cachedMethods: ['GET', 'HEAD'],
-				},
-			]
-
-			// Each route that asks for CloudFront headers is a behavior of its own
-			// whose origin is the load balancer, so the path & its origin change
-			// together. Its function still looks the route up for the handler,
-			// params & login, but leaves the origin alone.
-			const routerHeaderRoutes = headerRoutes[id] ?? []
-			const loadBalancerOrigins: ReturnType<typeof createLoadBalancerOrigin>[] = []
-			// Empty, not left out, without such routes.
-			let cacheBehavior: aws.cloudfront.MultitenantDistributionInput['cacheBehavior'] = []
-
-			// The load balancer stays an origin of every router while the app has
-			// one (pubsubs, any router's header routes), used or not: CloudFront
-			// refuses an update that drops an origin together with the last
-			// behavior pointing at it ("NoSuchOrigin"), so a router's last such
-			// route can only go while its origin stays.
-			if (Object.keys(ctx.appConfig.pubsub ?? {}).length > 0 || Object.keys(headerRoutes).length > 0) {
-				loadBalancerOrigins.push(
-					createLoadBalancerOrigin(ctx.shared.get('load-balancer', 'main').dnsName, originSecret)
-				)
-			}
-
-			if (routerHeaderRoutes.length > 0) {
-				const policies = createCloudFrontHeadersPolicies(group, ctx, id, routerHeaderRoutes)
-
-				const keepRequestOriginFunction = new aws.cloudfront.Function(group, 'keep-request-origin-function', {
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: id,
-						postfix: 'keep-request-origin',
-					}),
-					runtime: 'cloudfront-js-2.0',
-					code: getViewerRequestFunctionCode({ ...functionOptions, keepRequestOrigin: true }),
-					publish: true,
-					keyValueStoreAssociations: [routeStore.arn],
-				})
-
-				// The path with & without a trailing slash, like its listener rule,
-				// so no request for it reaches the handler without the headers.
-				cacheBehavior = routerHeaderRoutes
-					.flatMap(route => formatRulePaths(route.path).map(path => ({ route, path })))
-					.map(({ route, path }) => ({
-						pathPattern: path,
-						compress: true,
-						targetOriginId: LOAD_BALANCER_ORIGIN,
-						functionAssociation: [
-							{ eventType: 'viewer-request' as const, functionArn: keepRequestOriginFunction.arn },
-							...functionAssociation.slice(1),
-						],
-						originRequestPolicyId: policies.get(formatHeaderListKey(route.headers))!.id,
-						cachePolicyId: cache.id,
-						responseHeadersPolicyId: responseHeaders.id,
-						viewerProtocolPolicy: 'redirect-to-https',
-						allowedMethods,
-					}))
-			}
-
 			const wafSettingsConfig = props.waf
 
 			const wafRules: aws.wafv2.WebAclInput['rule'] = []
@@ -507,6 +422,30 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// CDN Distribution
 
+			const defaultCacheBehavior = {
+				compress: true,
+				targetOriginId: 'default',
+				functionAssociation: [
+					{
+						eventType: 'viewer-request',
+						functionArn: cfFunction.arn,
+					},
+					...(responseFunction
+						? [{ eventType: 'viewer-response' as const, functionArn: responseFunction.arn }]
+						: []),
+				],
+				originRequestPolicyId: originRequest.id,
+				cachePolicyId: cache.id,
+				responseHeadersPolicyId: responseHeaders.id,
+				viewerProtocolPolicy: 'redirect-to-https',
+				allowedMethods: [
+					{
+						items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+						cachedMethods: ['GET', 'HEAD'],
+					},
+				],
+			}
+
 			const distribution = new aws.cloudfront.MultitenantDistribution(group, 'distribution', {
 				tags: {
 					name,
@@ -514,6 +453,9 @@ export const routerFeature = defineFeature({
 				comment: name,
 				enabled: true,
 				viewerCertificate: [{ cloudfrontDefaultCertificate: true }],
+				// A copy of the default behavior, as the provider can't take a distribution's last
+				// behavior away: given none, it keeps the old ones (terraform-provider-aws 6.72.0).
+				cacheBehavior: [{ ...defaultCacheBehavior, pathPattern: '/*' }],
 				origin: [
 					{
 						id: 'default',
@@ -528,7 +470,6 @@ export const routerFeature = defineFeature({
 							},
 						],
 					},
-					...loadBalancerOrigins,
 				],
 				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
 					if (typeof item === 'string') {
@@ -557,19 +498,7 @@ export const routerFeature = defineFeature({
 						],
 					},
 				],
-				defaultCacheBehavior: [
-					{
-						compress: true,
-						targetOriginId: 'default',
-						functionAssociation,
-						originRequestPolicyId: originRequest.id,
-						cachePolicyId: cache.id,
-						responseHeadersPolicyId: responseHeaders.id,
-						viewerProtocolPolicy: 'redirect-to-https',
-						allowedMethods,
-					},
-				],
-				cacheBehavior,
+				defaultCacheBehavior: [defaultCacheBehavior],
 				webAclId: waf?.arn,
 			})
 
@@ -647,155 +576,53 @@ export const routerFeature = defineFeature({
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 				ctx.shared.add('router', 'endpoint', id, domainName)
 			}
-
-			// ------------------------------------------------------------
-			// Customer Domains
-
-			// The app adds a tenant per customer domain at runtime, outside of
-			// the deployment, so its functions get the distribution & a
-			// connection group of its own, which keeps the customers' CNAME
-			// target apart from the router's own domain.
-			if (props.customDomains) {
-				const customGroup = new aws.cloudfront.ConnectionGroup(group, 'custom-domains', {
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: id,
-						postfix: 'custom-domains',
-					}),
-					ipv6Enabled: true,
-				})
-
-				const prefix = `ROUTER_${constantCase(id)}`
-
-				ctx.bind(`${prefix}_DISTRIBUTION_ID`, distribution.id)
-				ctx.bind(`${prefix}_CONNECTION_GROUP_ID`, customGroup.id)
-				ctx.bind(`${prefix}_ROUTING_ENDPOINT`, customGroup.routingEndpoint)
-
-				// Customers CNAME to a name on the router's own domain, which
-				// points at the connection group, so the edge behind it can
-				// change without their DNS changing. An alias hides the chain's
-				// end from CloudFront, so the _cf-challenge record links the
-				// name to the routing endpoint, which the managed certificate's
-				// domain check needs.
-				if (props.domain) {
-					const target = formatFullDomainName(ctx.appConfig, props.domain, props.customDomains.subDomain)
-					const zoneId = ctx.shared.entry('domain', 'zone-id', props.domain)
-
-					for (const type of ['A', 'AAAA'] as const) {
-						new aws.route53.Record(
-							group,
-							type === 'A' ? 'custom-domains-record' : 'custom-domains-record-ipv6',
-							{
-								zoneId,
-								type,
-								name: target,
-								alias: {
-									name: customGroup.routingEndpoint,
-									zoneId: 'Z2FDTNDATAQYW2',
-									evaluateTargetHealth: false,
-								},
-							},
-							{
-								replaceOnChanges: ['name', 'type', 'zoneId', 'alias'],
-							}
-						)
-					}
-
-					new aws.route53.Record(
-						group,
-						'custom-domains-challenge',
-						{
-							zoneId,
-							type: 'TXT',
-							name: `_cf-challenge.${target}`,
-							ttl: toSeconds(minutes(5)),
-							records: [customGroup.routingEndpoint],
-						},
-						{
-							replaceOnChanges: ['name', 'type', 'zoneId'],
-						}
-					)
-
-					ctx.bind(`${prefix}_CUSTOM_DOMAIN_TARGET`, target)
-				} else {
-					ctx.bind(`${prefix}_CUSTOM_DOMAIN_TARGET`, customGroup.routingEndpoint)
-				}
-
-				// Creating a tenant has no resource to scope to. A managed
-				// certificate is requested from ACM by the caller.
-				ctx.addPermission({
-					actions: [
-						'cloudfront:CreateDistributionTenant',
-						'acm:RequestCertificate',
-						'acm:DescribeCertificate',
-					],
-					resources: ['*'],
-				})
-
-				ctx.addPermission({
-					actions: [
-						'cloudfront:GetDistributionTenant',
-						'cloudfront:UpdateDistributionTenant',
-						'cloudfront:DeleteDistributionTenant',
-						'cloudfront:GetManagedCertificateDetails',
-						'cloudfront:VerifyDnsConfiguration',
-					],
-					resources: [`arn:aws:cloudfront::${ctx.accountId}:distribution-tenant/*`],
-				})
-			}
 		}
 
 		if (routers.length > 0) {
 			ctx.onReadyLast(() => {
 				const bundle = ctx.shared.get('bundle', 'main')
-				const bundleDependencies: (Resource | DataSource)[] = []
+				const eventFunction = ctx.shared.get('bundle', 'event-function')
+				const webFunction = ctx.shared.get('bundle', 'web-function')
 
-				// The distribution can't wait for the rules: they hang off the
-				// bundle alias, and the bundle's environment carries the
-				// distribution. Until a new path's rule exists, the listener's
-				// default answer (403) serves it.
-				if (Object.keys(headerRoutes).length > 0) {
-					createLoadBalancerTarget({
-						ctx,
-						routers: headerRoutes,
-						routerGroups,
-						secret: originSecret,
-					})
-				}
+				// The event function's url for the routes that need its layers, one
+				// per deployment for its route table. It sits in a group of the app's
+				// own, so renaming a router can't recreate it.
+				let eventFunctionUrlHost: Input<string> | undefined
+				const eventFunctionDependencies: Resource[] = []
 
-				let lambdaUrlHost: Input<string> | undefined
-
-				if (routers.some(([id]) => hasBundleRoutes(routes[id]!))) {
-					// The bundle url & permissions belong to the whole app, not to
-					// any one router, so they get a neutral place in the state
-					// where renaming a router can't delete & recreate them.
-					const sharedGroup = new Group(ctx.base, 'router', 'shared')
+				if (routers.some(([id]) => hasRoute(routes[id]!, isEventFunctionRoute))) {
 					const deployment = new FunctionDeployment(
-						sharedGroup,
+						new Group(ctx.base, 'router', 'shared'),
 						'function-deployment',
 						{
-							functionName: bundle.lambda.functionName,
+							functionName: eventFunction.lambda.functionName,
 							id: ctx.deploymentId ?? 'local-0',
 							sourceArns: distributionIds.map(distributionId =>
 								distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
 							),
 						},
 						{
-							dependsOn: [bundle.deployment],
+							dependsOn: [eventFunction.deployment],
 						}
 					)
 
-					lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
-					bundleDependencies.push(bundle.policy, bundle.alias, deployment)
+					eventFunctionUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
+					eventFunctionDependencies.push(bundle.policy, eventFunction.alias, deployment)
 				}
 
 				for (const [id, props] of routers) {
 					const dependencies = routeDependencies[id]!
+					const hasWebFunctionRoutes = hasRoute(routes[id]!, isWebFunctionRoute)
 
-					// Only routers that route into the bundle wait for its policy, alias & url.
-					if (hasBundleRoutes(routes[id]!)) {
-						for (const dependency of bundleDependencies) {
+					// Only routers that route into the bundle wait until CloudFront may call it.
+					if (hasWebFunctionRoutes) {
+						dependencies.add(bundle.policy)
+						dependencies.add(webFunction.revision)
+						dependencies.add(webFunction.policy)
+					}
+
+					if (hasRoute(routes[id]!, isEventFunctionRoute)) {
+						for (const dependency of eventFunctionDependencies) {
 							dependencies.add(dependency)
 						}
 					}
@@ -807,27 +634,44 @@ export const routerFeature = defineFeature({
 							// non-deploy commands build the graph but never apply it
 							deploymentId: ctx.deploymentId ?? 'local-0',
 							storeArn: routeStores[id]!.arn,
-							functionVersion: bundle.lambda.version,
+							functionVersion: eventFunction.lambda.version,
 							// Maintenance is a property of the route table, so it starts & ends
 							// when the table is promoted instead of when a function propagates.
 							...(props.maintenance ? { tablePrefix: MAINTENANCE_TABLE_PREFIX } : {}),
-							routes: $resolve([routes[id]!, lambdaUrlHost], (routes, lambdaUrlHost) => {
-								const withOrigin = (route: Route) => {
-									return route.type === 'lambda' && !route.domainName
-										? { ...route, domainName: lambdaUrlHost }
-										: route
-								}
+							routes: $resolve(
+								[
+									routes[id]!,
+									hasWebFunctionRoutes ? webFunction.endpoint.domainName : undefined,
+									eventFunctionUrlHost,
+								],
+								(routes, webFunctionDomainName, eventFunctionUrlHost) => {
+									// A bundle route's origin, with the deployment that wrote it:
+									// the cache key, so a deploy serves fresh responses.
+									const withOrigin = (route: Route): Route => {
+										if (isWebFunctionRoute(route)) {
+											return {
+												...route,
+												domainName: webFunctionDomainName,
+												deploymentId: ctx.deploymentId ?? 'local-0',
+											}
+										}
 
-								return [
-									...Object.entries(routes).flatMap(([key, route]) =>
-										createRouteStoreEntries(
-											key,
-											Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
-										)
-									),
-									...(props.maintenance ? createMaintenanceEntries(id) : []),
-								]
-							}),
+										return isEventFunctionRoute(route)
+											? { ...route, domainName: eventFunctionUrlHost }
+											: route
+									}
+
+									return [
+										...Object.entries(routes).flatMap(([key, route]) =>
+											createRouteStoreEntries(
+												key,
+												Array.isArray(route) ? route.map(withOrigin) : withOrigin(route)
+											)
+										),
+										...(props.maintenance ? createMaintenanceEntries(id) : []),
+									]
+								}
+							),
 						},
 						{
 							dependsOn: Array.from(dependencies),
@@ -854,7 +698,7 @@ export const routerFeature = defineFeature({
 
 				grouped[compiled.key] ??= []
 				grouped[compiled.key]!.push({
-					type: 'lambda',
+					type: 'web-function',
 					forwardHost: true,
 					urlEncodedQueryString: true,
 					match: compiled.match,

@@ -1,30 +1,33 @@
-import { ExpectedError, Handler, isErrorResponse, lambda, LambdaContext, toErrorResponse } from '@awsless/lambda'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import {
+	Context,
+	enhanceError,
+	ExpectedError,
+	Invocation,
+	LambdaContext,
+	runInvocation,
+	toErrorResponse,
+} from '@awsless/lambda'
 import {
 	applyRedaction,
-	BaseSchema,
-	boolean,
 	custom,
-	GenericIssue,
 	GenericSchema,
-	InferInput,
 	InferOutput,
 	json,
 	object,
 	ObjectEntries,
 	ObjectSchema,
 	optional,
-	picklist,
 	pipe,
 	record,
 	REDACTED,
 	redactWith,
 	string,
-	transform,
-	unknown,
 } from '@awsless/validate'
+import { FunctionUrlResult, getQuery, toFunctionUrlResult, toWebRequest, getViewerIp } from '../server/http.js'
 
 export type RouteSchemaProps = {
-	/** The schema the json request body validates against - the parsed result lands on `request.data`. */
+	/** The schema the json request body validates against - the parsed result lands on `data`. */
 	body?: GenericSchema
 
 	/** The schema the query string parameters validate against. */
@@ -36,210 +39,46 @@ export type RouteSchemaProps = {
 
 type Op<T extends GenericSchema | undefined, D> = T extends GenericSchema ? InferOutput<T> : D
 
-type Method = 'GET' | 'POST' | 'HEAD' | 'OPTIONS' | 'PUT' | 'PATCH' | 'DELETE'
+/** What a route or site handler receives. */
+export type RouteEvent<P extends RouteSchemaProps = {}> = {
+	/** The web request: its method, url & headers, and a body streamed as it arrives. */
+	readonly request: Request
 
-// The useful parts of the web Request; the body is already buffered,
-// so reading it is synchronous.
-export class RouteRequest<Params = Record<string, string>, Query = Record<string, string>, Data = unknown> {
-	/** The http method of the request. */
-	readonly method: Method
-
-	/** The full request url. */
+	/** The request's url, parsed. */
 	readonly url: URL
 
-	/** The request headers. */
-	readonly headers: Headers
-
 	/** The validated route path parameters. */
-	readonly params: Params
+	readonly params: Op<P['params'], Record<string, string>>
 
-	/** The validated query string parameters. */
-	readonly query: Query
+	/** The validated query string parameters, a repeated name's values joined with commas. */
+	readonly query: Op<P['query'], Record<string, string>>
 
-	/** The parsed & validated request body, when a body schema is given. */
-	readonly data: Data
+	/** The parsed & validated json body, when a body schema is given; the request's own body stays readable. */
+	readonly data: Op<P['body'], undefined>
 
-	/** The ip address of the caller. */
+	/** The caller's ip address: CloudFront's viewer address behind a router, else the connection's. */
 	readonly ip: string
-
-	/** The user agent header of the caller. */
-	readonly userAgent: string
-
-	/** The raw request body bytes. */
-	readonly body?: Buffer
-
-	constructor(props: {
-		method: Method
-		url: string
-		headers: Headers
-		params: Params
-		query: Query
-		data: Data
-		ip: string
-		userAgent: string
-		body?: Buffer
-	}) {
-		this.method = props.method
-		this.url = new URL(props.url)
-		this.headers = props.headers
-		this.params = props.params
-		this.query = props.query
-		this.data = props.data
-		this.ip = props.ip
-		this.userAgent = props.userAgent
-		this.body = props.body
-	}
-
-	/** The body decoded as text. */
-	text() {
-		return this.body?.toString()
-	}
-
-	/** The body parsed as json. */
-	json<T = unknown>(): T {
-		return JSON.parse(this.text() ?? 'null') as T
-	}
 }
 
-// The whole event validates as one schema, ending in the request object.
+type RouteHandler<P extends RouteSchemaProps> = (event: RouteEvent<P>, context: Context) => Response | Promise<Response>
 
-const envelopeSchema = object({
-	rawPath: optional(string()),
-	rawQueryString: optional(string()),
-	body: optional(string()),
-	isBase64Encoded: optional(boolean()),
-	headers: optional(record(string(), string())),
-	pathParameters: optional(record(string(), string())),
-	queryStringParameters: optional(record(string(), string())),
-	requestContext: object({
-		domainName: string(),
-		http: object({
-			method: picklist(['GET', 'POST', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'DELETE']),
-			path: string(),
-			sourceIp: string(),
-			userAgent: string(),
-		}),
-	}),
-})
+/**
+ * A route entry: called with a function url (or http api) event it answers
+ * the result read whole; its fetch takes a web Request & answers the Response
+ * as the handler streams it, on the web function.
+ */
+export type RouteEntry = {
+	(event: unknown, context?: LambdaContext): Promise<FunctionUrlResult>
+	fetch: (request: Request, context?: LambdaContext) => Promise<Response>
+}
 
-type EnvelopeInput = InferInput<typeof envelopeSchema>
-type EnvelopeEvent = InferOutput<typeof envelopeSchema>
-
-type Extracted = {
-	event: EnvelopeEvent
+// What the route's schema validates: the call, its query, and the body read only for a body schema.
+type RouteInput = {
+	request: Request
 	params: Record<string, string>
 	query: Record<string, string>
-	body: string | undefined
-}
-
-type Parts<P extends RouteSchemaProps> = {
-	event: EnvelopeEvent
-	params: Op<P['params'], Record<string, string>>
-	query: Op<P['query'], Record<string, string>>
-	body: Op<P['body'], string | undefined>
-}
-
-type RouteRequestOf<P extends RouteSchemaProps> = RouteRequest<
-	Op<P['params'], Record<string, string>>,
-	Op<P['query'], Record<string, string>>,
-	Op<P['body'], undefined>
->
-
-export type RouteSchema<P extends RouteSchemaProps> = BaseSchema<EnvelopeInput, RouteRequestOf<P>, GenericIssue>
-
-const extractParts = (event: EnvelopeEvent): Extracted => {
-	// Router routes deliver params as x-param-* headers, rest apis as path parameters.
-	let params: Record<string, string> = event.pathParameters ?? {}
-
-	if (Object.keys(params).length === 0) {
-		for (const [name, value] of Object.entries(event.headers ?? {})) {
-			if (name.startsWith('x-param-')) {
-				// The deployed router encodes the param value into the
-				// header, so it round-trips any character - decode it back.
-				params[name.slice('x-param-'.length)] = decodeURIComponent(value)
-			}
-		}
-	}
-
-	let query: Record<string, string> = event.queryStringParameters ?? {}
-
-	if (Object.keys(query).length === 0 && event.rawQueryString) {
-		query = Object.fromEntries(new URLSearchParams(event.rawQueryString))
-	}
-
-	const body =
-		typeof event.body === 'string'
-			? event.isBase64Encoded
-				? Buffer.from(event.body, 'base64').toString()
-				: event.body
-			: undefined
-
-	return { event, params, query, body }
-}
-
-// Valibot can't express conditionally typed object entries, so the
-// parts schema declares its exact input & output shape itself.
-const partsSchema = <P extends RouteSchemaProps>(props: P) => {
-	return object({
-		event: custom<EnvelopeEvent>(() => true),
-		params: props.params ?? optional(unknown()),
-		query: props.query ?? optional(unknown()),
-		body: props.body ? json(props.body) : optional(unknown()),
-	}) as GenericSchema<Extracted, Parts<P>>
-}
-
-// CloudFront sends "ip:port" for both ipv4 & ipv6, so the port is
-// always the last colon segment.
-const stripPort = (address: string) => {
-	const index = address.lastIndexOf(':')
-
-	return index === -1 ? address : address.slice(0, index)
-}
-
-const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): RouteRequestOf<P> => {
-	const { event, params, query, body } = parts
-	const headers = new Headers()
-
-	for (const [name, value] of Object.entries(event.headers ?? {})) {
-		headers.set(name, value)
-	}
-
-	const method = event.requestContext.http.method
-
-	// Behind the router the lambda sourceIp is the CloudFront edge,
-	// only the viewer address header holds the real caller.
-	const viewerAddress = headers.get('cloudfront-viewer-address')
-	const ip = viewerAddress ? stripPort(viewerAddress) : event.requestContext.http.sourceIp
-
-	// The forwarded host is the domain the caller used; synthetic test
-	// events may carry none, so the url must still parse.
-	const domain = headers.get('x-forwarded-host') || event.requestContext.domainName || 'localhost'
-	const path = event.rawPath || event.requestContext.http.path || '/'
-	const protocol = headers.get('x-forwarded-proto') ?? 'https'
-	const url = `${protocol}://${domain}${path}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`
-
-	const rawBody =
-		typeof event.body === 'undefined'
-			? undefined
-			: event.isBase64Encoded
-				? Buffer.from(event.body, 'base64')
-				: Buffer.from(event.body)
-
-	// Without a body schema the data stays undefined - the conditional
-	// prop type can't narrow on the runtime check.
-	const data = (props.body ? body : undefined) as Op<P['body'], undefined>
-
-	return new RouteRequest({
-		method,
-		url,
-		headers,
-		params,
-		query,
-		data,
-		ip,
-		userAgent: event.requestContext.http.userAgent,
-		body: rawBody,
-	})
+	body?: string
+	ip: string
 }
 
 // What a logged request leaves out. Credentials by their name: an
@@ -250,7 +89,8 @@ const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): Ro
 const SECRET_NAME = /authorization|cookie|token|secret|password|api-?key|signature|session|totp|(^|[-_])(otp|code)$/i
 const PERSONAL_HEADER =
 	/address|forwarded-for|real-ip|client-ip|connecting-ip|(^|-)ip$|viewer-(latitude|longitude|city|postal-code|metro-code|country-region)/i
-const PERSONAL_FIELD = /e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i
+const PERSONAL_FIELD =
+	/e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i
 // An ip by its name, case sensitive so `membership` isn't one: `ip`, `ips`,
 // `ipAddress`, `visitorIp`, `visitor_ip`.
 const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/
@@ -258,211 +98,268 @@ const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/
 const isSecretHeader = (name: string) => SECRET_NAME.test(name) || PERSONAL_HEADER.test(name)
 const isSecretField = (name: string) => SECRET_NAME.test(name) || PERSONAL_FIELD.test(name) || IP_FIELD.test(name)
 
-const redactNamed = (value: unknown, hidden = false): unknown => {
-	if (hidden && value !== null && typeof value !== 'object') {
-		return REDACTED
-	}
-
-	if (Array.isArray(value)) {
-		return value.map(item => redactNamed(item, hidden))
-	}
-
-	if (value && typeof value === 'object') {
-		return Object.fromEntries(
-			Object.entries(value).map(([name, item]) => [name, redactNamed(item, hidden || isSecretField(name))])
-		)
-	}
-
-	return value
-}
-
 const redactHeaders = (headers: Record<string, string> | undefined) => {
 	return (
 		headers &&
-		Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value]))
+		Object.fromEntries(
+			Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value])
+		)
 	)
 }
 
-const redactBody = (props: RouteSchemaProps, body: string | undefined, isBase64Encoded: boolean | undefined) => {
-	if (!body) {
-		return body
+// Only a body schema reads the body, and its fields mark what's secret.
+const redactBody = (bodySchema: GenericSchema | undefined, body: string | undefined) => {
+	if (!bodySchema || !body) {
+		return undefined
 	}
 
 	try {
-		const data = JSON.parse(isBase64Encoded ? Buffer.from(body, 'base64').toString('utf8') : body)
-
-		return JSON.stringify(props.body ? applyRedaction(props.body, data) : redactNamed(data))
+		return JSON.stringify(applyRedaction(bodySchema, JSON.parse(body)))
 	} catch {
 		// A body that isn't json could hold anything.
 		return REDACTED
 	}
 }
 
-const redactQuery = (rawQueryString: string | undefined) => {
-	if (!rawQueryString) {
-		return rawQueryString
-	}
+const redactQuery = (query: URLSearchParams) => {
+	const redacted = new URLSearchParams(query)
 
-	const params = new URLSearchParams(rawQueryString)
-
-	for (const [name] of params) {
+	for (const name of new Set(query.keys())) {
 		if (isSecretField(name)) {
-			params.set(name, REDACTED)
+			redacted.set(name, REDACTED)
 		}
 	}
 
-	return params.toString()
+	return redacted.toString()
 }
 
-// The request as an error logs it (exported for its tests).
-export const redactEvent = (props: RouteSchemaProps) => (input: unknown) => {
-	if (!input || typeof input !== 'object') {
-		return input
-	}
+// A secret path parameter is a segment of the path too, encoded or not.
+const redactPath = (pathname: string, secretValues: string[]) => {
+	const secretSegments = new Set(secretValues.flatMap(value => [value, encodeURIComponent(value)]))
 
-	const event = input as EnvelopeInput & { cookies?: string[] }
+	return pathname
+		.split('/')
+		.map(segment => (secretSegments.has(segment) ? REDACTED : segment))
+		.join('/')
+}
+
+/** The route's input as an error logs it, without credentials or personal data (exported for its tests). */
+export const redactRouteInput = (props: RouteSchemaProps) => (input: unknown) => {
+	const { request, params, body } = input as RouteInput
+	const url = new URL(request.url)
+	const secretParams = Object.entries(params).filter(([name]) => isSecretField(name))
 
 	return {
-		...event,
-		rawQueryString: redactQuery(event.rawQueryString),
-		queryStringParameters: event.queryStringParameters && redactNamed(event.queryStringParameters),
-		headers: redactHeaders(event.headers),
-		...(event.cookies ? { cookies: event.cookies.map(() => REDACTED) } : {}),
-		body: redactBody(props, event.body, event.isBase64Encoded),
-		requestContext: event.requestContext && {
-			...event.requestContext,
-			http: event.requestContext.http && { ...event.requestContext.http, sourceIp: REDACTED },
-		},
+		method: request.method,
+		path: redactPath(
+			url.pathname,
+			secretParams.map(([, value]) => value)
+		),
+		query: redactQuery(url.searchParams),
+		headers: redactHeaders(Object.fromEntries(request.headers)),
+		params: { ...params, ...Object.fromEntries(secretParams.map(([name]) => [name, REDACTED])) },
+		// A body the route never read stays unread.
+		body: redactBody(props.body, body),
+		ip: REDACTED,
 	}
 }
 
-const routeSchema = <P extends RouteSchemaProps>(props: P): RouteSchema<P> => {
+const routeSchema = (props: RouteSchemaProps) => {
 	return pipe(
-		envelopeSchema,
-		redactWith(redactEvent(props)),
-		transform(extractParts),
-		partsSchema(props),
-		transform((parts: Parts<P>) => buildRequest(props, parts))
+		object({
+			request: custom<Request>(value => value instanceof Request),
+			params: props.params ?? record(string(), string()),
+			query: props.query ?? record(string(), string()),
+			body: props.body ? json(props.body) : optional(string()),
+			ip: string(),
+		}),
+		redactWith(redactRouteInput(props))
 	)
 }
 
-const isTextual = (contentType: string) => {
-	return (
-		contentType.startsWith('text/') ||
-		contentType.includes('json') ||
-		contentType.includes('xml') ||
-		contentType.includes('javascript') ||
-		contentType.includes('x-www-form-urlencoded')
-	)
-}
+// Router routes deliver params as x-param-* headers. The deployed router
+// encodes each value, so it round-trips any character.
+const getRouteParams = (headers: Headers) => {
+	const params: Record<string, string> = {}
 
-// Handlers return standard web Responses.
-const toLambdaUrlResult = async (response: Response) => {
-	const headers: Record<string, string> = {}
-	const cookies: string[] = []
-
-	response.headers.forEach((value, name) => {
-		if (name.toLowerCase() === 'set-cookie') {
-			cookies.push(value)
-		} else {
-			headers[name] = value
+	headers.forEach((value, name) => {
+		if (name.startsWith('x-param-')) {
+			params[name.slice('x-param-'.length)] = decodeURIComponent(value)
 		}
 	})
 
-	const buffer = Buffer.from(await response.arrayBuffer())
+	return params
+}
 
-	// A Response over raw bytes has no content type, and decoding
-	// unknown bytes as utf-8 would corrupt them.
-	const contentType = headers['content-type']
-	const textual = typeof contentType === 'string' && isTextual(contentType)
+// Bad input is a 400, any other expected error a 500.
+const createErrorResponse = (error: { type: string; message: string; data?: unknown }) => {
+	return Response.json(
+		{ type: error.type, message: error.message, data: error.data },
+		{ status: error.type === 'validation' ? 400 : 500 }
+	)
+}
 
-	return {
-		statusCode: response.status,
-		headers,
-		cookies: cookies.length > 0 ? cookies : undefined,
-		body: buffer.length > 0 ? (textual ? buffer.toString() : buffer.toString('base64')) : undefined,
-		isBase64Encoded: buffer.length > 0 && !textual,
+type RunInContext = <R>(callback: () => R) => R
+
+// A body stream that finishes the invocation once it's read to the end,
+// fails or the caller goes away. Each read runs in the handler's own async
+// context, so a stream's own work still reaches getContext() & in-process Fn calls.
+const finishInvocationAfterBody = (
+	body: ReadableStream<Uint8Array>,
+	runInContext: RunInContext,
+	finishInvocation: Invocation<unknown>['finishInvocation'],
+	toLoggedError: (error: unknown) => Error
+) => {
+	const reader = body.getReader()
+
+	return new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			let chunk: ReadableStreamReadResult<Uint8Array>
+
+			try {
+				chunk = await runInContext(() => reader.read())
+			} catch (error) {
+				// The caller sees the logged error once the invocation finished, to log once.
+				await finishInvocation({ error })
+				controller.error(toLoggedError(error))
+				return
+			}
+
+			if (!chunk.done) {
+				controller.enqueue(chunk.value)
+				return
+			}
+
+			try {
+				// The caller sees the end once the invocation finished.
+				await finishInvocation()
+				controller.close()
+			} catch (error) {
+				// A success callback failed the run.
+				controller.error(toLoggedError(error))
+			}
+		},
+		async cancel(reason) {
+			try {
+				await runInContext(() => reader.cancel(reason))
+			} finally {
+				await finishInvocation()
+			}
+		},
+	})
+}
+
+// What a route is called with: the request, its caller's ip, a rest api's path
+// parameters, and what the context gives as raw.
+type RouteCall = { request: Request; ip: string; params?: Record<string, string>; raw: unknown }
+
+const createRouteRunner = <P extends RouteSchemaProps>(props: P, handle: RouteHandler<P>) => {
+	const schema = routeSchema(props)
+
+	return async (call: RouteCall, lambdaContext?: LambdaContext): Promise<Response> => {
+		const { request } = call
+		const url = new URL(request.url)
+		const input: RouteInput = {
+			request,
+			params: call.params ?? getRouteParams(request.headers),
+			query: getQuery(url),
+			// A body schema reads a copy of the body, so the handler can still read it.
+			body: props.body ? await request.clone().text() : undefined,
+			ip: call.ip,
+		}
+
+		// Unexpected errors carry the redacted input, so the error log has it.
+		const toLoggedError = (error: unknown) => enhanceError(error, schema, input, lambdaContext)
+
+		// The handler's async context, for reading a streamed body.
+		let runInContext: RunInContext = callback => callback()
+
+		const invocation = await runInvocation({
+			schema,
+			input,
+			raw: call.raw,
+			context: lambdaContext,
+			handle: async (parsed, context) => {
+				const { params, query, body, ip } = parsed as RouteInput
+				const response = await handle(
+					{
+						request,
+						url,
+						params: params as RouteEvent<P>['params'],
+						query: query as RouteEvent<P>['query'],
+						data: body as RouteEvent<P>['data'],
+						ip,
+					},
+					context
+				)
+
+				runInContext = AsyncLocalStorage.snapshot() as RunInContext
+
+				return response
+			},
+		})
+
+		// A finished invocation's error: an expected one returned as json, any other thrown.
+		const returnOrThrowError = (error: unknown) => {
+			if (error instanceof ExpectedError) {
+				return createErrorResponse(toErrorResponse(error).__error__)
+			}
+
+			throw toLoggedError(error)
+		}
+
+		if (!invocation.isSuccessful) {
+			await invocation.finishInvocation({ error: invocation.error })
+
+			return returnOrThrowError(invocation.error)
+		}
+
+		const response = invocation.result
+
+		if (!response.body) {
+			try {
+				await invocation.finishInvocation()
+			} catch (error) {
+				// A success callback failed the run.
+				return returnOrThrowError(error)
+			}
+
+			return response
+		}
+
+		return new Response(
+			finishInvocationAfterBody(response.body, runInContext, invocation.finishInvocation, toLoggedError),
+			{ status: response.status, statusText: response.statusText, headers: response.headers }
+		)
 	}
 }
 
-/** The request a route or site handler receives, validated against the route schemas. */
-export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>
-
-/** What a route or site handler may return: a web Response or a lambda url result object. */
-export type RouteResponse = Response | RouteEntryResult
-
-type RouteResult = RouteResponse | Promise<RouteResponse>
-
-/** The lambda url result a route entry resolves to - a returned web Response converts into this shape. */
-export type RouteEntryResult = {
-	statusCode: number
-	headers?: Record<string, string>
-	cookies?: string[]
-	body?: string
-	isBase64Encoded?: boolean
-	[key: string]: unknown
-}
-
-// The inner handler receives the extended lambda context, while the
-// outer entrypoint receives the raw aws context.
-type HandlerContext = Parameters<Handler>[1]
-
-type RouteHandler<P extends RouteSchemaProps> = (request: RouteRequestOf<P>, context: HandlerContext) => RouteResult
-type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<RouteEntryResult>
-
-export function route<H extends RouteHandler<{}>>(handle: H): RouteEntry
+export function route(handle: RouteHandler<{}>): RouteEntry
 export function route<P extends RouteSchemaProps>(props: P, handle: RouteHandler<P>): RouteEntry
 export function route(
 	arg1: RouteSchemaProps | RouteHandler<RouteSchemaProps>,
 	arg2?: RouteHandler<RouteSchemaProps>
 ): RouteEntry {
 	const props = arg2 ? (arg1 as RouteSchemaProps) : {}
-	const handle = arg2 ?? (arg1 as RouteHandler<RouteSchemaProps>)
+	const runRoute = createRouteRunner(props, arg2 ?? (arg1 as RouteHandler<RouteSchemaProps>))
 
-	const handler = lambda({
-		schema: routeSchema(props),
-		handle: async (request, context) => {
-			const result = await handle(request, context)
+	const entry = async (event: unknown, context?: LambdaContext) => {
+		const { request, sourceIp, pathParameters } = toWebRequest(event)
+		const params = pathParameters && Object.keys(pathParameters).length > 0 ? pathParameters : undefined
+		const ip = getViewerIp(request.headers) ?? sourceIp
 
-			return result instanceof Response ? toLambdaUrlResult(result) : result
+		return toFunctionUrlResult(await runRoute({ request, ip, params, raw: event }, context))
+	}
+
+	return Object.assign(entry, {
+		fetch: async (request: Request, context?: LambdaContext) => {
+			// Only CloudFront calls the web function, and it always names the viewer.
+			return runRoute({ request, ip: getViewerIp(request.headers)!, raw: request }, context)
 		},
 	})
-
-	return async (event, context) => {
-		let result: Awaited<ReturnType<typeof handler>>
-
-		try {
-			result = await handler(event as EnvelopeInput, context)
-		} catch (error) {
-			// Test mode throws expected errors instead of returning them;
-			// the route contract is http, so they still render as a response.
-			if (error instanceof ExpectedError) {
-				return jsonErrorResponse(toErrorResponse(error).__error__)
-			}
-
-			throw error
-		}
-
-		if (isErrorResponse(result)) {
-			return jsonErrorResponse(result.__error__)
-		}
-
-		return result
-	}
 }
 
-// Bad input is a 400, any other expected error a 500. Unexpected errors
-// propagate, so the on-error-log consumer sees them.
-const jsonErrorResponse = (error: { type: string; message: string; data?: unknown }) => {
-	return {
-		statusCode: error.type === 'validation' ? 400 : 500,
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ type: error.type, message: error.message, data: error.data }),
-	}
-}
-
-// A site ssr handler is a schema-less route: an expected error must
-// never serialize as a 200 error payload.
-export const site = <H extends RouteHandler<{}>>(handle: H): RouteEntry => {
+/** A site ssr handler: a route without schemas. */
+export const site = (handle: RouteHandler<{}>): RouteEntry => {
 	return route(handle)
 }

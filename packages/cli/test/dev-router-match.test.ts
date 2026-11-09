@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { compileRoutes } from '../src/dev/router'
+import { compileRoutes, createRoutedRequest } from '../src/dev/router'
 import { DevRoute } from '../src/feature'
 import { compileRoutePattern } from '../src/feature/router/pattern'
 import { getViewerRequestFunctionCode } from '../src/feature/router/router-code'
@@ -174,5 +174,14 @@ describe('dev router route store matcher', () => {
 			params: {},
 			rewrite: { regex: '^/site', to: '' },
 		})
+	})
+})
+
+describe('dev router routed request', () => {
+	it('should keep the host of a path that starts with two slashes', () => {
+		const url = new URL('http://localhost:4610//other/path?x=1')
+		const request = createRoutedRequest(new Request(url), { routeKey: 'api:route:x', params: {} }, url, '127.0.0.1')
+
+		expect(request.url).toBe('http://localhost:4610//other/path?x=1')
 	})
 })

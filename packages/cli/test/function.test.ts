@@ -224,7 +224,7 @@ describe('sandbox', () => {
 
 		const queue = metas.find(meta => meta.type === 'aws_sqs_queue')!
 		const bundle = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--function--bundle'
+			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--bundle--event'
 		)!
 		const sandboxed = findInputDeps(policyOf('test-app--stack-1--function--echo').input.policy)
 		const standalone = findInputDeps(policyOf('test-app--stack-1--function--standalone').input.policy)

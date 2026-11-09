@@ -158,7 +158,7 @@ export const alertFeature = defineFeature({
 		}
 
 		// ------------------------------------------------------
-		// The alarms on the shared bundle lambda.
+		// The alarms on the event function.
 
 		const alarms = ctx.appConfig.alarms
 
@@ -169,7 +169,7 @@ export const alertFeature = defineFeature({
 				throw new ExpectedError(`The alarms' alert "${alarms.alert}" isn't defined in the app's alerts.`)
 			}
 
-			const bundle = ctx.shared.get('bundle', 'main')
+			const eventFunction = ctx.shared.get('bundle', 'event-function')
 			const group = new Group(ctx.base, 'alarm', 'bundle')
 
 			const alarm = (
@@ -185,7 +185,7 @@ export const alertFeature = defineFeature({
 					alarmDescription: props.description,
 					namespace: 'AWS/Lambda',
 					metricName: props.metricName,
-					dimensions: { FunctionName: bundle.lambda.functionName },
+					dimensions: { FunctionName: eventFunction.lambda.functionName },
 					statistic: props.statistic,
 					period: 60,
 					evaluationPeriods: 1,
@@ -213,7 +213,7 @@ export const alertFeature = defineFeature({
 
 			if (alarms.throttles) {
 				alarm('throttles', {
-					description: `The bundle lambda was throttled ${alarms.throttles} times or more in a minute.`,
+					description: `The event function was throttled ${alarms.throttles} times or more in a minute.`,
 					metricName: 'Throttles',
 					statistic: 'Sum',
 					threshold: alarms.throttles,

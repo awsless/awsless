@@ -1,16 +1,13 @@
 import { parse, patch, stringify, unpatch } from '@awsless/json'
-import { flushTraces, withTraceHeader } from '@awsless/utils'
-import { applyRedaction, parse as valiParse } from '@awsless/validate'
+import { applyRedaction } from '@awsless/validate'
 import { Context } from 'aws-lambda'
-import { eventContext } from './context/lambda-context.js'
 import { enhanceError } from './errors/enhanced.js'
 import { ExpectedError } from './errors/expected.js'
 import { toErrorResponse } from './errors/response.js'
-import { createTimeoutWrap } from './errors/timeout.js'
-import { transformValidationErrors } from './errors/validation.js'
 import { isTestEnv } from './helpers/env.js'
 import { normalizeError } from './helpers/error.js'
-import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
+import { runInvocation } from './invocation.js'
+import { Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
 
 interface Options<H extends Handler<S>, S extends Schema = undefined> {
 	/** A validation schema for the input. */
@@ -61,81 +58,76 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 		}
 
 		const isTest = isTestEnv()
+		const raw = typeof event === 'undefined' || isTest ? event : patch(event)
+		const invocation = await runInvocation({
+			schema: options.schema,
+			input: raw,
+			raw,
+			context,
+			log,
+			handle: (input, extendedContext) => options.handle(input as Output<S>, extendedContext),
+		})
 
-		const successCallbacks: Array<(res: unknown) => unknown> = []
-		const failureCallbacks: Array<(err: unknown) => unknown> = []
-		const finallyCallbacks: Array<() => unknown> = []
+		let shouldThrowExpectedErrors: boolean | undefined
 
-		// The invocation's trace header (Lambda Managed Instances give it on the
-		// context only, without _X_AMZN_TRACE_ID); a handler inside another keeps its caller's.
-		const xRayTraceId = (context as (Context & { xRayTraceId?: string }) | undefined)?.xRayTraceId
-
-		try {
-			const result = await withTraceHeader(xRayTraceId, () =>
-				createTimeoutWrap(options.schema, event, context, log, () => {
-					return transformValidationErrors(() => {
-						const raw = typeof event === 'undefined' || isTest ? event : patch(event)
-						const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw
-						const extendedContext: ExtendedContext = {
-							event: input,
-							context,
-							raw,
-							log,
-							onSuccess(cb) {
-								successCallbacks.push(cb)
-							},
-							onFailure(cb) {
-								failureCallbacks.push(cb)
-							},
-							onFinally(cb) {
-								finallyCallbacks.push(cb)
-							},
-						}
-
-						return eventContext.run(extendedContext, () => {
-							return options.handle(input, extendedContext)
-						})
-					})
-				})
-			)
-
-			await Promise.all(successCallbacks.map(cb => cb(result)))
-
-			if (isTest) {
-				return parse(
-					stringify(result, {
-						preserveUndefinedValues: true,
-					})
-				)
-			}
-
-			return unpatch(result)
-		} catch (error) {
-			await Promise.all(failureCallbacks.map(cb => cb(error)))
-
-			const isExpectedError = error instanceof ExpectedError
-			const throwExpectedErrors =
+		// An expected error is returned as an error response, unless its caller wants it thrown.
+		const isReturnedError = (error: unknown): error is ExpectedError => {
+			// Asked once, so the log and the answer agree.
+			shouldThrowExpectedErrors ??=
 				typeof options.throwExpectedErrors === 'function'
 					? options.throwExpectedErrors()
 					: !!options.throwExpectedErrors
 
-			if (!isExpectedError || throwExpectedErrors) {
+			return error instanceof ExpectedError && !shouldThrowExpectedErrors
+		}
+
+		const logThrownError = async (error: unknown) => {
+			if (!isReturnedError(error)) {
 				await log(error)
 			}
+		}
 
-			if (!isTest && !throwExpectedErrors && isExpectedError) {
+		// A finished invocation's error: returned as an error response, or thrown.
+		const returnOrThrowError = (error: unknown) => {
+			if (isTest) {
+				throw error
+			}
+
+			if (isReturnedError(error)) {
 				return toErrorResponse(error)
 			}
 
-			if (!isTest) {
-				throw enhanceError(normalizeError(error), options.schema, event, context)
+			throw enhanceError(normalizeError(error), options.schema, event, context)
+		}
+
+		if (!invocation.isSuccessful) {
+			try {
+				await logThrownError(invocation.error)
+			} finally {
+				// After the log, so its spans go out with the traces.
+				await invocation.finishInvocation({ error: invocation.error })
 			}
 
-			throw error
-		} finally {
-			await Promise.all(finallyCallbacks.map(cb => cb()))
-			// The spans still on their way go out before Lambda freezes the process.
-			await flushTraces()
+			return returnOrThrowError(invocation.error)
 		}
+
+		try {
+			await invocation.finishInvocation()
+		} catch (error) {
+			// A success callback failed the run, which is finished: the log's spans wait for the next flush.
+			await logThrownError(error)
+
+			return returnOrThrowError(error)
+		}
+
+		if (isTest) {
+			return parse(
+				stringify(invocation.result, {
+					preserveUndefinedValues: true,
+				})
+			)
+		}
+
+		return unpatch(invocation.result)
 	}) as LambdaFunction<H, S>
 }

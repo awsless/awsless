@@ -7,6 +7,16 @@ import { Mock } from "vitest";
 type RoutedLambdaContext = LambdaContext & {
   route?: string;
 };
+declare class EnhandedError extends Error {
+  input: unknown;
+  route?: string;
+  requestId?: string;
+  functionName?: string;
+  functionVersion?: string;
+  memoryLimit?: string;
+  remainingTime?: number;
+}
+declare const enhanceError: (maybeError: unknown, schema: GenericSchema | undefined, input: unknown, context?: RoutedLambdaContext) => EnhandedError;
 //#endregion
 //#region src/commands/type.d.ts
 type InvokeOptions = {
@@ -135,4 +145,36 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 //#endregion
-export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+//#region src/invocation.d.ts
+type InvocationFailure = {
+  readonly error: unknown;
+};
+type Invocation<T> = {
+  /**
+   * Stops the timeout warning, runs the success or failure callbacks, then the
+   * finally callbacks, and flushes the traces, once. A lambda calls it when its
+   * handler is done; a route that streams its response, when the stream ends.
+   */
+  readonly finishInvocation: (failure?: InvocationFailure) => Promise<void>;
+} & ({
+  readonly isSuccessful: true;
+  readonly result: T;
+} | {
+  readonly isSuccessful: false;
+  readonly error: unknown;
+});
+/**
+ * One run of a handler: its input validated, the extended context that
+ * getContext() returns, and the timeout warning. A failed run is answered,
+ * not thrown, so its caller can log the error before finishing.
+ */
+declare const runInvocation: <T>(options: {
+  schema?: GenericSchema;
+  input: unknown;
+  raw: unknown;
+  context?: Context$1;
+  log?: (error: unknown) => Promise<void>;
+  handle: (input: unknown, context: Context) => T;
+}) => Promise<Invocation<Awaited<T>>>;
+//#endregion
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invocation, type Invoke, type InvokeOptions, type InvokeResponse, LambdaClient, type LambdaContext, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, type RoutedLambdaContext, TimeoutError, ValidationError, enhanceError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, runInvocation, toErrorResponse };

@@ -68,6 +68,7 @@ export const pubsubFeature = defineFeature({
 		}
 
 		const bundle = ctx.shared.get('bundle', 'main')
+		const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 		// ------------------------------------------------------------
 		// Create the shared ECS cluster
@@ -137,23 +138,33 @@ export const pubsubFeature = defineFeature({
 			})
 
 			if (events.length > 0) {
-				new aws.sns.TopicSubscription(group, 'subscription', {
-					topicArn: topic.arn,
-					protocol: 'lambda',
-					endpoint: bundle.alias.arn,
-					filterPolicyScope: 'MessageAttributes',
-					filterPolicy: JSON.stringify({
-						event: events,
-					}),
-				})
+				new aws.sns.TopicSubscription(
+					group,
+					'subscription',
+					{
+						topicArn: topic.arn,
+						protocol: 'lambda',
+						endpoint: eventFunction.alias.arn,
+						filterPolicyScope: 'MessageAttributes',
+						filterPolicy: JSON.stringify({
+							event: events,
+						}),
+					},
+					{ replaceOnChanges: ['endpoint'] }
+				)
 
-				new aws.lambda.Permission(group, 'permission', {
-					action: 'lambda:InvokeFunction',
-					principal: 'sns.amazonaws.com',
-					functionName: bundle.lambda.functionName,
-					qualifier: bundle.alias.name,
-					sourceArn: topic.arn,
-				})
+				new aws.lambda.Permission(
+					group,
+					'permission',
+					{
+						action: 'lambda:InvokeFunction',
+						principal: 'sns.amazonaws.com',
+						functionName: eventFunction.lambda.functionName,
+						qualifier: eventFunction.alias.name,
+						sourceArn: topic.arn,
+					},
+					{ replaceOnChanges: ['functionName'] }
+				)
 			}
 
 			// ------------------------------------------------------------
@@ -288,7 +299,7 @@ export const pubsubFeature = defineFeature({
 				securityGroupId: taskSecurityGroup.id,
 				listenerRule,
 				environment: {
-					AUTH: bundle.lambda.functionName.pipe(name => `${name}:${LIVE_LAMBDA_ALIAS}`),
+					AUTH: eventFunction.lambda.functionName.pipe(name => `${name}:${LIVE_LAMBDA_ALIAS}`),
 					AUTH_ROUTE: authRouteKey,
 					EVENTS_TOPIC: topicName,
 					PORT: WS_PORT.toString(),
@@ -302,7 +313,7 @@ export const pubsubFeature = defineFeature({
 			service.addPermission(
 				{
 					actions: ['lambda:InvokeFunction'],
-					resources: [bundle.lambda.arn.pipe(arn => `${arn}:${LIVE_LAMBDA_ALIAS}`)],
+					resources: [eventFunction.lambda.arn.pipe(arn => `${arn}:${LIVE_LAMBDA_ALIAS}`)],
 				},
 				{
 					actions: ['sns:Publish'],

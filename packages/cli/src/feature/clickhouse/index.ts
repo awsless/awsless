@@ -152,8 +152,16 @@ export const clickhouseFeature = defineFeature({
 										Resource: [arn],
 										Condition: { StringLike: { 's3:prefix': ['clickhouse', 'clickhouse/*'] } },
 									},
-									{ Effect: 'Allow', Action: ['s3:Get*', 's3:List*', 's3:PutObject'], Resource: [`${arn}/clickhouse/*`] },
-									{ Effect: 'Allow', Action: ['s3:DeleteObject'], Resource: [`${arn}/clickhouse/*/.lock`] },
+									{
+										Effect: 'Allow',
+										Action: ['s3:Get*', 's3:List*', 's3:PutObject'],
+										Resource: [`${arn}/clickhouse/*`],
+									},
+									{
+										Effect: 'Allow',
+										Action: ['s3:DeleteObject'],
+										Resource: [`${arn}/clickhouse/*/.lock`],
+									},
 								],
 							})
 						),

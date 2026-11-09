@@ -12,7 +12,7 @@ import { DevTrace } from '../feature.js'
 import { createAuthAdmin } from '../feature/auth/dev.js'
 import { ROUTE_HEADER } from '../feature/bundle/util.js'
 import { features } from '../feature/index.js'
-import { getBundleFunctionName } from '../util/name.js'
+import { getEventFunctionName } from '../util/name.js'
 import { directories, useDevBuildDir } from '../util/path.js'
 import { reapOrphanedDevChildren } from './children.js'
 import { createDevContext } from './context.js'
@@ -310,8 +310,8 @@ export const startDev = async (props: {
 		})
 	})
 
-	const bundleName = getBundleFunctionName(appConfig.name)
-	const buildDir = getBuildPath('bundle', bundleName, '.')
+	const eventFunctionName = getEventFunctionName(appConfig.name)
+	const buildDir = getBuildPath('bundle', eventFunctionName, '.')
 
 	// The bundle inlines the build output of other features, like the
 	// SSR server code of the sites, so the bundle must build last.
@@ -341,7 +341,7 @@ export const startDev = async (props: {
 
 		// The deploy resolves the bundle env into this file, but locally
 		// the worker env carries everything.
-		await writeFile(getBuildPath('bundle', bundleName, 'files/awsless-env.mjs'), 'export default {}\n')
+		await writeFile(getBuildPath('bundle', eventFunctionName, 'files/awsless-env.mjs'), 'export default {}\n')
 
 		// Play the lambda runtime role for aws sdk packages the project
 		// doesn't depend on directly.
@@ -410,8 +410,8 @@ export const startDev = async (props: {
 			// The lambda emulator carries the bundle's sns fan-out self invokes,
 			// async task invokes & outside callers, by routing Invoke calls back
 			// into the worker.
-			const pooledLambda = await props.pool.keep('lambda', bundleName, async () => {
-				const server = createLambdaServer({ functionName: bundleName })
+			const pooledLambda = await props.pool.keep('lambda', eventFunctionName, async () => {
+				const server = createLambdaServer({ functionName: eventFunctionName })
 				const port = await server.listen()
 
 				return { value: { server, port }, stop: () => server.stop() }
@@ -427,7 +427,7 @@ export const startDev = async (props: {
 				AWS_ACCOUNT_ID: LOCAL_ACCOUNT_ID,
 				AWS_ACCESS_KEY_ID: 'local',
 				AWS_SECRET_ACCESS_KEY: 'local',
-				AWS_LAMBDA_FUNCTION_NAME: bundleName,
+				AWS_LAMBDA_FUNCTION_NAME: eventFunctionName,
 				AWS_LAMBDA_FUNCTION_VERSION: 'local',
 				AWS_ENDPOINT_URL: `http://127.0.0.1:${blockedPort}`,
 				AWS_ENDPOINT_URL_LAMBDA: `http://127.0.0.1:${lambdaPort}`,
@@ -466,7 +466,7 @@ export const startDev = async (props: {
 	const worker = createBundleWorker({
 		buildDir,
 		env,
-		functionName: bundleName,
+		functionName: eventFunctionName,
 		quiet: () => seeding,
 		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
 		onCrash: info => reload.onCrash(info),

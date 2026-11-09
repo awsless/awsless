@@ -38,7 +38,7 @@ export const AlarmsDefaultSchema = z
 			.describe(
 				[
 					"An alarm when the oldest record a table stream hasn't handed to its consumer yet is older than this (the bundle's IteratorAge).",
-					"All table streams share the bundle lambda, so it's one alarm for all of them.",
+					"All table streams share the event function, so it's one alarm for all of them.",
 				].join('\n')
 			),
 		throttles: z
@@ -46,10 +46,10 @@ export const AlarmsDefaultSchema = z
 			.int()
 			.min(1)
 			.optional()
-			.describe('An alarm when the bundle lambda is throttled this many times or more in a minute.'),
+			.describe('An alarm when the event function is throttled this many times or more in a minute.'),
 	})
 	.strict()
 	.optional()
 	.describe(
-		"CloudWatch alarms on the app's shared bundle lambda, sent to one of the app's alerts by email or text message."
+		"CloudWatch alarms on the app's event function, sent to one of the app's alerts by email or text message."
 	)
