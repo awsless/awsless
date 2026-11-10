@@ -1308,3 +1308,16 @@ describe('router maintenance', () => {
 		expect(Buffer.byteLength(code)).toBeLessThan(10 * 1024)
 	})
 })
+
+describe('router waf', () => {
+	it("should create a router's web acl in us-east-1, where cloudfront reads it", () => {
+		const result = createRouterApp({ main: { waf: { ddosProtection: { sensitivity: {} } } }, plain: {} })
+		result.ready()
+
+		const acls = listResources(result.app, 'aws_wafv2_web_acl')
+
+		expect(acls).toHaveLength(1)
+		expect(acls[0]!.input.scope).toBe('CLOUDFRONT')
+		expect(acls[0]!.provider).toBe('terraform:aws:global-aws')
+	})
+})

@@ -393,30 +393,36 @@ export const routerFeature = defineFeature({
 			let waf: aws.wafv2.WebAcl | undefined
 
 			if (wafRules.length && wafSettingsConfig) {
-				waf = new aws.wafv2.WebAcl(group, 'waf', {
-					name: `${name}-wafv2`,
-					scope: 'CLOUDFRONT',
-					defaultAction: {
-						allow: {},
-					},
-					description: 'AWS Managed Rules Rule Set',
-					rule: wafRules,
-					captchaConfig: {
-						immunityTimeProperty: {
-							immunityTime: toSeconds(wafSettingsConfig.captchaImmunityTime),
+				waf = new aws.wafv2.WebAcl(
+					group,
+					'waf',
+					{
+						name: `${name}-wafv2`,
+						scope: 'CLOUDFRONT',
+						defaultAction: {
+							allow: {},
+						},
+						description: 'AWS Managed Rules Rule Set',
+						rule: wafRules,
+						captchaConfig: {
+							immunityTimeProperty: {
+								immunityTime: toSeconds(wafSettingsConfig.captchaImmunityTime),
+							},
+						},
+						challengeConfig: {
+							immunityTimeProperty: {
+								immunityTime: toSeconds(wafSettingsConfig.challengeImmunityTime),
+							},
+						},
+						visibilityConfig: {
+							sampledRequestsEnabled: false,
+							cloudwatchMetricsEnabled: false,
+							metricName: `${name}-wafv2-AWSManagedRulesWebACL`,
 						},
 					},
-					challengeConfig: {
-						immunityTimeProperty: {
-							immunityTime: toSeconds(wafSettingsConfig.challengeImmunityTime),
-						},
-					},
-					visibilityConfig: {
-						sampledRequestsEnabled: false,
-						cloudwatchMetricsEnabled: false,
-						metricName: `${name}-wafv2-AWSManagedRulesWebACL`,
-					},
-				})
+					// A web ACL for CloudFront only exists in us-east-1.
+					{ provider: 'global-aws' }
+				)
 			}
 
 			// ------------------------------------------------------------
