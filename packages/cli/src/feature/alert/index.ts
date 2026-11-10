@@ -1,11 +1,9 @@
 import { randomUUID } from 'crypto'
-import { toMilliSeconds, toSeconds } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
-import { Group, Input } from '@terraforge/core'
+import { Group } from '@terraforge/core'
 import { configRefName, isConfigRef } from '../../config/schema/config-ref.js'
 import { isEmail } from '../../config/schema/email.js'
 import { isPhone } from '../../config/schema/phone.js'
-import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatGlobalResourceName } from '../../util/name.js'
@@ -96,8 +94,6 @@ export const alertFeature = defineFeature({
 		})
 	},
 	onApp(ctx) {
-		const topics = new Map<string, Input<string>>()
-
 		for (const [id, endpoints] of Object.entries(ctx.appConfig.alerts ?? {})) {
 			const group = new Group(ctx.base, 'alert', id)
 			const name = formatGlobalResourceName({
@@ -116,8 +112,6 @@ export const alertFeature = defineFeature({
 					import: ctx.import ? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${name}` : undefined,
 				}
 			)
-
-			topics.set(id, topic.arn)
 
 			for (const endpoint of endpoints) {
 				// Private endpoints reference a remote config value & are
@@ -153,70 +147,6 @@ export const alertFeature = defineFeature({
 					topicArn: topic.arn,
 					protocol: isEmail(endpoint) ? 'email' : 'sms',
 					endpoint,
-				})
-			}
-		}
-
-		// ------------------------------------------------------
-		// The alarms on the event function.
-
-		const alarms = ctx.appConfig.alarms
-
-		if (alarms) {
-			const topic = topics.get(alarms.alert)
-
-			if (!topic) {
-				throw new ExpectedError(`The alarms' alert "${alarms.alert}" isn't defined in the app's alerts.`)
-			}
-
-			const eventFunction = ctx.shared.get('bundle', 'event-function')
-			const group = new Group(ctx.base, 'alarm', 'bundle')
-
-			const alarm = (
-				id: string,
-				props: { description: string; metricName: string; statistic: string; threshold: number }
-			) => {
-				new aws.cloudwatch.MetricAlarm(group, id, {
-					alarmName: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'alarm',
-						resourceName: id,
-					}),
-					alarmDescription: props.description,
-					namespace: 'AWS/Lambda',
-					metricName: props.metricName,
-					dimensions: { FunctionName: eventFunction.lambda.functionName },
-					statistic: props.statistic,
-					period: 60,
-					evaluationPeriods: 1,
-					threshold: props.threshold,
-					comparisonOperator: 'GreaterThanOrEqualToThreshold',
-					// A minute without invocations or without throttles is a good one.
-					treatMissingData: 'notBreaching',
-					alarmActions: [topic],
-					okActions: [topic],
-				})
-			}
-
-			const hasStreams = ctx.stackConfigs.some(stack =>
-				Object.values(stack.tables ?? {}).some(table => !!table.stream)
-			)
-
-			if (alarms.streamAge && hasStreams) {
-				alarm('stream-age', {
-					description: `A table stream's oldest unhandled record is ${toSeconds(alarms.streamAge)} seconds old or more.`,
-					metricName: 'IteratorAge',
-					statistic: 'Maximum',
-					threshold: toMilliSeconds(alarms.streamAge),
-				})
-			}
-
-			if (alarms.throttles) {
-				alarm('throttles', {
-					description: `The event function was throttled ${alarms.throttles} times or more in a minute.`,
-					metricName: 'Throttles',
-					statistic: 'Sum',
-					threshold: alarms.throttles,
 				})
 			}
 		}
