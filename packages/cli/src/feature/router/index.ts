@@ -481,30 +481,36 @@ export const routerFeature = defineFeature({
 					},
 				],
 				// CloudFront keeps an origin's error for 10 seconds by default, under a cache key
-				// without the query or the caller's credentials, so one caller's 404 or 500 would
-				// answer everyone asking for that path. An error is only cached when `errors` asks.
-				customErrorResponse: CACHED_ERROR_CODES.map(errorCode => {
+				// without the query or the caller's credentials. Only the codes `errors` names get
+				// an entry: a list with a caching time for every code was refused by CloudFront for
+				// a multi-tenant distribution ("list of custom error responses ... not valid").
+				customErrorResponse: CACHED_ERROR_CODES.flatMap(errorCode => {
 					const item = props.errors?.[errorCode]
 
 					if (item === undefined) {
-						return { errorCode, errorCachingMinTtl: 0 }
+						return []
 					}
 
 					if (typeof item === 'string') {
-						return {
-							errorCode,
-							responseCode: errorCode.toString(),
-							responsePagePath: item,
-						}
+						return [
+							{
+								errorCode,
+								errorCachingMinTtl: undefined,
+								responseCode: errorCode.toString(),
+								responsePagePath: item,
+							},
+						]
 					}
 
-					return {
-						errorCode,
-						errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
-						// CloudFront takes a response code only with a page to answer.
-						responseCode: item.path ? (item.statusCode?.toString() ?? errorCode.toString()) : undefined,
-						responsePagePath: item.path,
-					}
+					return [
+						{
+							errorCode,
+							errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
+							// CloudFront takes a response code only with a page to answer.
+							responseCode: item.path ? (item.statusCode?.toString() ?? errorCode.toString()) : undefined,
+							responsePagePath: item.path,
+						},
+					]
 				}),
 
 				restrictions: [

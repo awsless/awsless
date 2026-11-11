@@ -190,7 +190,7 @@ describe('router routes', () => {
 		expect(getViewerRequestFunctionCode({ router: 'main', cors: false })).not.toContain('access-control')
 	})
 
-	it('should cache an origin error only as long as the router asks', () => {
+	it('should give the error responses a router asks for, a caching time alone included', () => {
 		const result = createRouterApp({ main: { errors: { 404: { minTTL: '1 minute' }, 500: '/500.html' } } })
 		result.ready()
 
@@ -206,14 +206,8 @@ describe('router routes', () => {
 		}[]
 		const responses = distribution!.input.customErrorResponse!
 
-		// CloudFront caches these for 10 seconds by itself, shared by every caller of the path.
-		expect(responses.map(response => response.errorCode)).toStrictEqual([
-			400, 403, 404, 405, 414, 416, 500, 501, 502, 503, 504,
-		])
-		expect(responses.find(response => response.errorCode === 503)).toStrictEqual({
-			errorCode: 503,
-			errorCachingMinTtl: 0,
-		})
+		// Only the codes the router names: CloudFront refused a full list on a multi-tenant distribution.
+		expect(responses.map(response => response.errorCode)).toStrictEqual([404, 500])
 		expect(responses.find(response => response.errorCode === 404)).toStrictEqual({
 			errorCode: 404,
 			errorCachingMinTtl: 60,
@@ -222,6 +216,7 @@ describe('router routes', () => {
 		})
 		expect(responses.find(response => response.errorCode === 500)).toStrictEqual({
 			errorCode: 500,
+			errorCachingMinTtl: undefined,
 			responseCode: '500',
 			responsePagePath: '/500.html',
 		})
