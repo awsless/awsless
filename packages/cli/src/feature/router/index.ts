@@ -24,6 +24,9 @@ import {
 } from './route.js'
 import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from './router-code.js'
 
+// The error status codes CloudFront caches by itself.
+const CACHED_ERROR_CODES = [400, 403, 404, 405, 414, 416, 500, 501, 502, 503, 504] as const
+
 // The bundle route key of a route pattern, shared by the deployed
 // route store & the local dev router so both dispatch the same keys.
 const formatPatternRouteKey = (stackName: string, pattern: string) => {
@@ -477,19 +480,29 @@ export const routerFeature = defineFeature({
 						],
 					},
 				],
-				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
+				// CloudFront keeps an origin's error for 10 seconds by default, under a cache key
+				// without the query or the caller's credentials, so one caller's 404 or 500 would
+				// answer everyone asking for that path. An error is only cached when `errors` asks.
+				customErrorResponse: CACHED_ERROR_CODES.map(errorCode => {
+					const item = props.errors?.[errorCode]
+
+					if (item === undefined) {
+						return { errorCode, errorCachingMinTtl: 0 }
+					}
+
 					if (typeof item === 'string') {
 						return {
-							errorCode: Number(errorCode),
-							responseCode: errorCode,
+							errorCode,
+							responseCode: errorCode.toString(),
 							responsePagePath: item,
 						}
 					}
 
 					return {
-						errorCode: Number(errorCode),
+						errorCode,
 						errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
-						responseCode: item.statusCode?.toString() ?? errorCode,
+						// CloudFront takes a response code only with a page to answer.
+						responseCode: item.path ? (item.statusCode?.toString() ?? errorCode.toString()) : undefined,
 						responsePagePath: item.path,
 					}
 				}),

@@ -190,6 +190,43 @@ describe('router routes', () => {
 		expect(getViewerRequestFunctionCode({ router: 'main', cors: false })).not.toContain('access-control')
 	})
 
+	it('should cache an origin error only as long as the router asks', () => {
+		const result = createRouterApp({ main: { errors: { 404: { minTTL: '1 minute' }, 500: '/500.html' } } })
+		result.ready()
+
+		const [distribution] = listResources(result.app, 'aws_cloudfront_multitenant_distribution') as {
+			input: {
+				customErrorResponse?: {
+					errorCode: number
+					errorCachingMinTtl?: number
+					responseCode?: string
+					responsePagePath?: string
+				}[]
+			}
+		}[]
+		const responses = distribution!.input.customErrorResponse!
+
+		// CloudFront caches these for 10 seconds by itself, shared by every caller of the path.
+		expect(responses.map(response => response.errorCode)).toStrictEqual([
+			400, 403, 404, 405, 414, 416, 500, 501, 502, 503, 504,
+		])
+		expect(responses.find(response => response.errorCode === 503)).toStrictEqual({
+			errorCode: 503,
+			errorCachingMinTtl: 0,
+		})
+		expect(responses.find(response => response.errorCode === 404)).toStrictEqual({
+			errorCode: 404,
+			errorCachingMinTtl: 60,
+			responseCode: undefined,
+			responsePagePath: undefined,
+		})
+		expect(responses.find(response => response.errorCode === 500)).toStrictEqual({
+			errorCode: 500,
+			responseCode: '500',
+			responsePagePath: '/500.html',
+		})
+	})
+
 	it('should leave a router without cors without a cors response policy', () => {
 		const result = createRouterApp({ main: { cors: false }, other: {} })
 		result.ready()

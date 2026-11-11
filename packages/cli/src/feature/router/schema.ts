@@ -39,7 +39,7 @@ const ErrorResponseSchema = z
 	.union([
 		ErrorResponsePathSchema,
 		z.object({
-			path: ErrorResponsePathSchema,
+			path: ErrorResponsePathSchema.optional(),
 			statusCode: StatusCodeSchema.optional(),
 			minTTL: MinTTLSchema.optional(),
 		}),
