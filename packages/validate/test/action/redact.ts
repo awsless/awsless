@@ -1,14 +1,13 @@
+import { define, number as dbNumber, object as dbObject, string as dbString } from '@awsless/dynamodb'
 import {
 	array,
 	GenericSchema,
-	lazy,
 	looseObject,
 	map,
 	nullable,
 	nullish,
 	number,
 	object,
-	objectWithRest,
 	optional,
 	pipe,
 	record,
@@ -17,8 +16,8 @@ import {
 	tuple,
 	union,
 } from 'valibot'
-import { define, number as dbNumber, object as dbObject, string as dbString } from '@awsless/dynamodb'
-import { applyRedaction, dynamoDbStream, json, redact, redactWith, sqsQueue } from '../../src'
+import { applyRedaction, dynamoDbStream, json, redact, sqsQueue } from '../../src'
+import { redactWith } from '../../src/action/redact'
 
 const test = (schema: GenericSchema, input: any, output: any) => {
 	it(`${JSON.stringify(input)} = ${JSON.stringify(output)}`, () => {
@@ -127,22 +126,10 @@ describe('redact', () => {
 		test(schema, { password: 'pass', extra: 1 }, { password: '[REDACTED]', extra: 1 })
 	})
 
-	describe('object with rest', () => {
-		const schema = objectWithRest({ id: string() }, pipe(string(), redact()))
-
-		test(schema, { id: 'a', other: 'secret' }, { id: 'a', other: '[REDACTED]' })
-	})
-
 	describe('tuple', () => {
 		const schema = tuple([string(), pipe(string(), redact())])
 
 		test(schema, ['a', 'b'], ['a', '[REDACTED]'])
-	})
-
-	describe('lazy', () => {
-		const schema = lazy(() => object({ secret: pipe(string(), redact()) }))
-
-		test(schema, { secret: 'x' }, { secret: '[REDACTED]' })
 	})
 
 	describe('redactWith', () => {
@@ -170,11 +157,7 @@ describe('redact', () => {
 	describe('json', () => {
 		const schema = object({ body: json(object({ id: string(), email: pipe(string(), redact()) })) })
 
-		test(
-			schema,
-			{ body: '{"id":"1","email":"pat@example.com"}' },
-			{ body: '{"id":"1","email":"[REDACTED]"}' }
-		)
+		test(schema, { body: '{"id":"1","email":"pat@example.com"}' }, { body: '{"id":"1","email":"[REDACTED]"}' })
 		test(schema, { body: 'not json' }, { body: 'not json' })
 	})
 

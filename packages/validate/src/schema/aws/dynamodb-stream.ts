@@ -12,7 +12,7 @@ import {
 	string,
 	unknown,
 } from 'valibot'
-import { REDACTED, redactWith } from '../../action/redact.js'
+import { redact } from '../../action/redact.js'
 
 type DynamoDBStreamInputRecord = {
 	eventName: 'INSERT' | 'MODIFY' | 'REMOVE'
@@ -67,7 +67,7 @@ export const dynamoDbStream = <T extends AnyTable>(
 	const unmarshall = () =>
 		pipe(
 			unknown(),
-			redactWith(() => REDACTED),
+			redact(),
 			transform(v => table.unmarshall(v))
 		)
 

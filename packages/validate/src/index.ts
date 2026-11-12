@@ -3,7 +3,7 @@ export * from 'valibot'
 // --------------------------------------------
 // Actions
 
-export { redact, redactWith, applyRedaction, REDACTED, type Redactor } from './action/redact.js'
+export { redact, applyRedaction, REDACTED } from './action/redact.js'
 
 // --------------------------------------------
 // Schemas

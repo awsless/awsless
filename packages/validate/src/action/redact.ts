@@ -22,10 +22,8 @@ export const redact = <TInput>(): MetadataAction<TInput, { redact: true }> => {
 
 export type Redactor = (input: unknown) => unknown
 
-/**
- * Redacts a value that a schema can't describe field by field, like a json
- * string or an http request's headers, with a function of its own.
- */
+// Redacts a value its schema can't describe field by field, with a function
+// of its own: a json string, by what it holds.
 export const redactWith = <TInput>(redactor: Redactor): MetadataAction<TInput, { redactWith: Redactor }> => {
 	return metadata({ redactWith: redactor })
 }
@@ -44,10 +42,10 @@ const WRAPPERS = new Set([
 	'non_nullish',
 ])
 
-const OBJECTS = new Set(['object', 'loose_object', 'strict_object', 'object_with_rest'])
-const TUPLES = new Set(['tuple', 'loose_tuple', 'strict_tuple', 'tuple_with_rest'])
+const OBJECTS = new Set(['object', 'loose_object', 'strict_object'])
+const TUPLES = new Set(['tuple', 'loose_tuple', 'strict_tuple'])
 
-/** The input with every value its schema marks with `redact()` or `redactWith()` replaced. */
+/** The input with every value its schema marks with `redact()` replaced. */
 export const applyRedaction = <T>(schema: GenericSchema, input: T): T => {
 	// 1. The schema, or one in its pipe, is marked.
 	const meta = getMetadata(schema) as { redact?: boolean; redactWith?: Redactor }
@@ -65,10 +63,6 @@ export const applyRedaction = <T>(schema: GenericSchema, input: T): T => {
 	// 2. A wrapper redacts like what it wraps.
 	if (WRAPPERS.has(s.type)) {
 		return applyRedaction(s.wrapped, input)
-	}
-
-	if (s.type === 'lazy') {
-		return applyRedaction(s.getter(input), input)
 	}
 
 	// 3. Unions and variants: the branch the input matches.
@@ -89,13 +83,13 @@ export const applyRedaction = <T>(schema: GenericSchema, input: T): T => {
 	if (TUPLES.has(s.type) && Array.isArray(input)) {
 		const tuple = s as TupleSchema<any, any>
 		return (input as any[]).map((item, index) => {
-			const itemSchema = tuple.items[index] ?? s.rest
+			const itemSchema = tuple.items[index]
 			return itemSchema ? applyRedaction(itemSchema, item) : item
 		}) as T
 	}
 
-	// 4. Objects: their known entries, and the rest by the rest schema. A
-	// plain or strict object drops what it doesn't know, a loose one keeps it.
+	// 4. Objects: their known entries. A plain or strict object drops what it
+	// doesn't know, a loose one keeps it.
 	if (OBJECTS.has(s.type) && isPlainObject(input)) {
 		const object = s as ObjectSchema<any, any>
 		const i = input as Record<string, any>
@@ -104,8 +98,6 @@ export const applyRedaction = <T>(schema: GenericSchema, input: T): T => {
 		for (const key in i) {
 			if (key in object.entries) {
 				redacted[key] = applyRedaction(object.entries[key], i[key])
-			} else if (s.type === 'object_with_rest') {
-				redacted[key] = applyRedaction(s.rest, i[key])
 			} else if (s.type === 'loose_object') {
 				redacted[key] = i[key]
 			}
