@@ -8,7 +8,7 @@ export const onFailureHandler: RouteMatcher = event => {
 	const route = event?.[ROUTE_PROPERTY]
 
 	if (typeof route === 'string' && routeType(route) === 'on-failure') {
-		return asyncRoute(route, event.event)
+		return asyncRoute(route, event.event, () => ({ trigger: 'async-invoke' }))
 	}
 
 	return
