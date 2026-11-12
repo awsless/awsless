@@ -1,6 +1,5 @@
 import { ExpectedError, getContext } from '@awsless/lambda'
-import { number, object, pipe, redact, string } from '@awsless/validate'
-import { redactRouteInput, route } from '../src/lib/handle/route'
+import { route } from '../src/lib/handle/route'
 
 const event = (props: Record<string, unknown> = {}, method = 'GET') => ({
 	rawPath: '/items/1',
@@ -29,21 +28,19 @@ describe('route request', () => {
 	})
 
 	it('falls back to the raw query string', async () => {
-		const handle = route({ query: object({ a: string(), b: string() }) }, ({ query }) => Response.json(query))
+		const handle = route(({ request }) => Response.json(Object.fromEntries(new URL(request.url).searchParams)))
 		const result = await handle(event({ rawQueryString: 'a=1&b=2' }))
 
 		expect(parseBody(result)).toStrictEqual({ a: '1', b: '2' })
 	})
 
 	it('decodes base64 bodies', async () => {
-		const handle = route({ body: object({ n: number() }) }, async ({ data, request }) => {
-			return Response.json({ data, text: await request.text() })
-		})
+		const handle = route(async ({ request }) => Response.json({ text: await request.text() }))
 		const result = await handle(
 			event({ body: Buffer.from('{"n":1}').toString('base64'), isBase64Encoded: true }, 'POST')
 		)
 
-		expect(parseBody(result)).toStrictEqual({ data: { n: 1 }, text: '{"n":1}' })
+		expect(parseBody(result)).toStrictEqual({ text: '{"n":1}' })
 	})
 
 	it('builds the url from the forwarded host', async () => {
@@ -115,7 +112,9 @@ describe('route response', () => {
 
 describe('route errors', () => {
 	it('renders validation errors as a 400', async () => {
-		const handle = route({ body: object({ n: number() }) }, () => new Response('ok'))
+		const handle = route(() => {
+			throw new ExpectedError('validation', 'Invalid body')
+		})
 		const result = await handle(event({ body: '{"n":"x"}' }, 'POST'))
 
 		expect(result.statusCode).toBe(400)
@@ -142,57 +141,23 @@ describe('route errors', () => {
 	})
 })
 
-describe('route redaction', () => {
-	const createRouteInput = (body?: string, headers: Record<string, string> = {}) => ({
-		request: new Request('https://example.com/items/1?token=abc&page=2', { method: 'POST', headers, body }),
-		params: { id: '1' },
-		query: { token: 'abc', page: '2' },
-		body,
-		ip: '192.0.2.1',
-	})
-
-	it('leaves credentials and personal data out of a logged request', () => {
-		const redacted = redactRouteInput({ body: object({ email: pipe(string(), redact()), plan: string() }) })(
-			createRouteInput('{"email":"pat@example.com","plan":"free"}', {
-				accept: '*/*',
-				authorization: 'Bearer abc',
-				'auth-api-key': 'sk_secret',
-				cookie: 'a=b',
-				'cloudfront-viewer-address': '192.0.2.1:443',
-				'x-forwarded-for': '192.0.2.1',
-				'zeno-visitor-ip': '192.0.2.1',
-			})
-		) as any
-
-		expect(redacted.headers).toMatchObject({
-			accept: '*/*',
-			authorization: '[REDACTED]',
-			'auth-api-key': '[REDACTED]',
-			cookie: '[REDACTED]',
-			'cloudfront-viewer-address': '[REDACTED]',
-			'x-forwarded-for': '[REDACTED]',
-			'zeno-visitor-ip': '[REDACTED]',
+describe('route log', () => {
+	it('logs the method & path of a failed request, never its headers, query, body or ip', async () => {
+		const handle = route(() => {
+			throw new Error('boom')
 		})
-		expect(redacted.query).toBe('token=%5BREDACTED%5D&page=2')
-		expect(JSON.parse(redacted.body)).toStrictEqual({ email: '[REDACTED]', plan: 'free' })
-		expect(redacted.ip).toBe('[REDACTED]')
-	})
+		const request = new Request('https://example.com/items/1?token=abc', {
+			method: 'POST',
+			headers: { authorization: 'Bearer abc', 'cloudfront-viewer-address': '192.0.2.1:443' },
+			body: '{"email":"pat@example.com"}',
+		})
 
-	it('leaves a secret path parameter out of the params & the path', () => {
-		const redacted = redactRouteInput({})({
-			request: new Request('https://example.com/unsubscribe/a%20b/weekly'),
-			params: { token: 'a b', list: 'weekly' },
-			query: {},
-			ip: '192.0.2.1',
-		}) as any
-
-		expect(redacted.path).toBe('/unsubscribe/[REDACTED]/weekly')
-		expect(redacted.params).toStrictEqual({ token: '[REDACTED]', list: 'weekly' })
-	})
-
-	it('redacts a body that isnt json whole', () => {
-		expect((redactRouteInput({ body: object({ n: number() }) })(createRouteInput('password=x')) as any).body).toBe(
-			'[REDACTED]'
+		await expect(handle.fetch(request)).rejects.toMatchObject({
+			message: 'boom',
+			input: { method: 'POST', path: '/items/1' },
+		})
+		await expect(handle.fetch(request.clone())).rejects.toSatisfy(
+			(error: { input: object }) => Object.keys(error.input).join() === 'method,path'
 		)
 	})
 })
@@ -205,8 +170,8 @@ describe('route event', () => {
 		expect(parseBody(result)).toStrictEqual({ cookie: 'a=1; b=2' })
 	})
 
-	it('joins a repeated query name like a function url, on both entries', async () => {
-		const handle = route(({ query, url }) => Response.json({ query, path: url.pathname }))
+	it('hands both entries the same path & query', async () => {
+		const handle = route(({ request }) => Response.json(request.url.slice(request.url.indexOf('/items'))))
 		const eventResult = await handle(event({ rawQueryString: 'a=1&a=2&b=3' }))
 		const fetchResponse = await handle.fetch(
 			new Request('https://example.com/items/1?a=1&a=2&b=3', {
@@ -214,7 +179,7 @@ describe('route event', () => {
 			})
 		)
 
-		expect(parseBody(eventResult)).toStrictEqual({ query: { a: '1,2', b: '3' }, path: '/items/1' })
+		expect(parseBody(eventResult)).toBe('/items/1?a=1&a=2&b=3')
 		expect(await fetchResponse.json()).toStrictEqual(parseBody(eventResult))
 	})
 })
@@ -230,14 +195,13 @@ describe('route fetch', () => {
 			...init,
 		})
 
-	it('hands the handler the request with its params, query & ip', async () => {
-		const handle = route(({ request, params, query, ip }) => Response.json({ url: request.url, params, query, ip }))
+	it('hands the handler the request with its params & ip', async () => {
+		const handle = route(({ request, params, ip }) => Response.json({ url: request.url, params, ip }))
 		const response = await handle.fetch(createRequest())
 
 		expect(await response.json()).toStrictEqual({
 			url: 'https://example.com/items/1?a=1',
 			params: { id: '1' },
-			query: { a: '1' },
 			ip: '198.51.100.10',
 		})
 	})
@@ -384,7 +348,7 @@ describe('route fetch', () => {
 
 		await expect(response.text()).rejects.toMatchObject({
 			message: 'success callback',
-			input: { method: 'GET', ip: '[REDACTED]' },
+			input: { method: 'GET', path: '/items/1' },
 		})
 	})
 
@@ -483,14 +447,5 @@ describe('route fetch', () => {
 
 		errors.mockRestore()
 		vi.useRealTimers()
-	})
-
-	it('reads a validated body from a copy, so the handler can read it too', async () => {
-		const handle = route({ body: object({ n: number() }) }, async ({ data, request }) =>
-			Response.json({ data, text: await request.text() })
-		)
-		const response = await handle.fetch(createRequest('{"n":1}'))
-
-		expect(await response.json()).toStrictEqual({ data: { n: 1 }, text: '{"n":1}' })
 	})
 })
