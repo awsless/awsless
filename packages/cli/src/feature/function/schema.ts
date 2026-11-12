@@ -280,14 +280,5 @@ export const FunctionDefaultSchema = z
 		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
-		tracing: z
-			.boolean()
-			.default(false)
-			.describe(
-				[
-					"Turns on AWS X-Ray active tracing for the app's lambdas: a span per route, AWS SDK call, ClickHouse query, Redis command, OpenSearch request and fetch, and the trace carried through invokes and queues (a topic's subscribers start a trace of their own).",
-					'Lambda samples the first request each second and 5% of the rest; X-Ray bills per trace recorded.',
-				].join('\n')
-			),
 	})
 	.prefault({})

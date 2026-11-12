@@ -15,10 +15,13 @@ export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
+	// The share of requests to trace (0 to 1), decided here instead of by Lambda.
+	traceSampleRate?: number
 }): string => {
 	return compact(
 		CODE({
 			cors: props.cors !== false,
+			traceSampling: props.traceSampleRate === undefined ? '' : TRACE_SAMPLING(props.traceSampleRate),
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
@@ -99,6 +102,14 @@ function handler(event) {
 }
 `)
 }
+
+// The router's own sampling decision for a function's trace, with a fresh
+// X-Ray trace id: Lambda follows a decision that comes with the request.
+// Written dense: the function sits close to CloudFront's 10KB cap.
+const TRACE_SAMPLING = (sampleRate: number) => `
+let t='';
+for(let i=0;i<24;i++)t+=(Math.random()*16|0).toString(16);
+headers['x-amzn-trace-id']={value:'Root=1-'+(Date.now()/1000|0).toString(16)+'-'+t+';Sampled='+ +(Math.random()<${sampleRate})};`
 
 // CloudFront caps a function at 10KB, so the indentation & comments stay out of it.
 const compact = (code: string) => {
@@ -276,7 +287,14 @@ if (request.method === 'OPTIONS') {
 	};
 }`
 
-const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean; cors: boolean }) => `
+const CODE = (props: {
+	before: string[]
+	prefix: string
+	after: string[]
+	withCrypto: boolean
+	cors: boolean
+	traceSampling: string
+}) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -538,6 +556,11 @@ async function handler(event) {
 		headers['${DEPLOYMENT_ID_HEADER}'] = { value: route.deploymentId };
 	}
 
+	// Whether a request is traced is never the client's call.
+	delete headers['x-amzn-trace-id'];
+	delete headers.traceparent;
+	delete headers.tracestate;
+
 	if(route.requestHeaders) {
 		for(const name in route.requestHeaders) {
 			headers[name] = { value: route.requestHeaders[name] };
@@ -550,6 +573,8 @@ async function handler(event) {
 		} else {
 			delete headers['x-awsless-authorization'];
 		}
+
+		${props.traceSampling}
 	}
 
 	setRouteOrigin(route);

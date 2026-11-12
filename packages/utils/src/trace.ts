@@ -136,12 +136,15 @@ const parseDaemonAddress = (address: string) => {
 	return { host: host!, port: Number(port) }
 }
 
+// The invocation's trace header as Lambda gave it, sampled or not.
+const getInvocationHeader = () => getState().storage.getStore()?.header ?? process.env._X_AMZN_TRACE_ID
+
 const getTraceHeader = () => {
 	if (process.env.AWSLESS_TRACING !== 'true' || !process.env.AWS_XRAY_DAEMON_ADDRESS) {
 		return
 	}
 
-	const header = parseTraceHeader(getState().storage.getStore()?.header ?? process.env._X_AMZN_TRACE_ID)
+	const header = parseTraceHeader(getInvocationHeader())
 
 	return header?.sampled ? header : undefined
 }
@@ -402,6 +405,15 @@ export const addTraceMiddleware = (client: unknown) => {
 		stack.add(
 			(next: (args: SdkArgs) => Promise<SdkOutput>, context: SdkContext) => async (args: SdkArgs) => {
 				if (!isTracing()) {
+					// An unsampled invocation's decision goes along as it is, so what it calls isn't traced either.
+					runTraceStep(undefined, () => {
+						const header = process.env.AWSLESS_TRACING === 'true' ? getInvocationHeader() : undefined
+
+						if (header && args.request?.headers) {
+							args.request.headers['x-amzn-trace-id'] = header
+						}
+					})
+
 					return next(args)
 				}
 

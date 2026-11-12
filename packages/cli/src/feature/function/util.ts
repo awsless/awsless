@@ -395,7 +395,7 @@ const logFormats = {
 
 // The lambda's X-Ray tracing mode: active when the app turned tracing on.
 export const formatTracingConfig = (ctx: StackContext | AppContext) => ({
-	mode: ctx.appConfig.function.tracing ? 'Active' : 'PassThrough',
+	mode: ctx.appConfig.tracing ? 'Active' : 'PassThrough',
 })
 
 // The role's right to send segments, which active tracing needs.
@@ -661,7 +661,7 @@ export const createLambda = (
 		variables.STACK = ctx.stackConfig.name
 	}
 
-	if (ctx.appConfig.function.tracing) {
+	if (ctx.appConfig.tracing) {
 		// The runtime's spans only go out where the app turned tracing on.
 		variables.AWSLESS_TRACING = 'true'
 		addPermission(TRACING_PERMISSION)

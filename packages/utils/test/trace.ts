@@ -154,6 +154,26 @@ describe('trace', () => {
 		)
 	})
 
+	it('passes an unsampled decision on to the AWS call, without a span', async () => {
+		let middleware:
+			| ((next: () => Promise<unknown>, context: unknown) => (args: unknown) => Promise<unknown>)
+			| undefined
+
+		addTraceMiddleware({ middlewareStack: { add: (added: typeof middleware) => (middleware = added) } })
+
+		const unsampled = `Root=${ROOT};Parent=${LAMBDA_SEGMENT};Sampled=0`
+		const request = { headers: {} as Record<string, string> }
+
+		await withTraceHeader(unsampled, () =>
+			middleware!(async () => ({}), { clientName: 'LambdaClient', commandName: 'InvokeCommand' })({ request })
+		)
+		await flushTraces()
+		await new Promise(resolve => setTimeout(resolve, 50))
+
+		expect(request.headers['x-amzn-trace-id']).toBe(unsampled)
+		expect(daemon.segments).toHaveLength(0)
+	})
+
 	it('marks a failed AWS call by its status', async () => {
 		let middleware:
 			| ((next: () => Promise<unknown>, context: unknown) => (args: unknown) => Promise<unknown>)

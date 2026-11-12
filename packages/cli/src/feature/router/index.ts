@@ -168,6 +168,8 @@ export const routerFeature = defineFeature({
 						blockDirectAccess: !!props.domain,
 						redirectWww: !!props.domain && props.redirectWww,
 						passwordAuth,
+						traceSampleRate:
+							typeof ctx.appConfig.tracing === 'object' ? ctx.appConfig.tracing.sampleRate : undefined,
 					}),
 					publish: true,
 					keyValueStoreAssociations: [routeStore.arn],

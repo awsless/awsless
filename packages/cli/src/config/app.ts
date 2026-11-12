@@ -32,6 +32,27 @@ export const AppSchema = z
 
 		protect: z.boolean().default(false).describe('Protect your app & stacks from being deleted.'),
 
+		tracing: z
+			.union([
+				z.boolean(),
+				z.object({
+					sampleRate: z
+						.number()
+						.min(0)
+						.max(1)
+						.describe(
+							'The share of the requests through a router to trace, like 0.005 for 0.5%. Without it Lambda samples the first request each second and 5% of the rest, which it still does for what no router calls: crons, table streams and scheduled tasks.'
+						),
+				}),
+			])
+			.default(false)
+			.describe(
+				[
+					'Turns on AWS X-Ray tracing for the app: a span per route, AWS SDK call, ClickHouse query, Redis command, OpenSearch request and fetch, and the trace carried through invokes, queues and topics, which record their own segment per delivery.',
+					'`true` leaves the sampling to Lambda; `{ sampleRate }` sets the share of router requests to trace. X-Ray bills per trace recorded.',
+				].join('\n')
+			),
+
 		configs: ConfigsSchema,
 		seed: LocalEntrySchema.optional().describe(
 			'The file that seeds your local dev environment with data. It runs with the full local environment on the first dev boot & through the dashboard reseed button. One app wide file, so the seeding order is explicit.'

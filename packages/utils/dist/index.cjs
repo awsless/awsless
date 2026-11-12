@@ -51,9 +51,10 @@ const parseDaemonAddress = (address) => {
 		port: Number(port)
 	};
 };
+const getInvocationHeader = () => getState().storage.getStore()?.header ?? process.env._X_AMZN_TRACE_ID;
 const getTraceHeader = () => {
 	if (process.env.AWSLESS_TRACING !== "true" || !process.env.AWS_XRAY_DAEMON_ADDRESS) return;
-	const header = parseTraceHeader(getState().storage.getStore()?.header ?? process.env._X_AMZN_TRACE_ID);
+	const header = parseTraceHeader(getInvocationHeader());
 	return header?.sampled ? header : void 0;
 };
 const withTraceHeader = (header, callback) => {
@@ -225,7 +226,13 @@ const addTraceMiddleware = (client) => {
 		const stack = client?.middlewareStack;
 		if (!stack?.add) return;
 		stack.add((next, context) => async (args) => {
-			if (!isTracing()) return next(args);
+			if (!isTracing()) {
+				runTraceStep(void 0, () => {
+					const header = process.env.AWSLESS_TRACING === "true" ? getInvocationHeader() : void 0;
+					if (header && args.request?.headers) args.request.headers["x-amzn-trace-id"] = header;
+				});
+				return next(args);
+			}
 			const span = runTraceStep(NOOP_SPAN, () => startSdkSpan(context, args));
 			let result;
 			try {

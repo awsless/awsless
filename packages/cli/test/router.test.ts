@@ -322,6 +322,49 @@ describe('router routes', () => {
 		expect(result.headers['x-awsless-authorization']).toBeUndefined()
 	})
 
+	it('should discard trace headers a client sends, so it can never force or hide a trace', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+		])
+		const { handler } = createRouter(values)
+		const request = createRequest('/api')
+
+		request.headers['x-amzn-trace-id'] = { value: 'Root=1-5759e988-bd862e3fe1be46a994272793;Sampled=1' }
+		request.headers['traceparent'] = { value: '00-5759e988bd862e3fe1be46a994272793-53995c3f42cd8ad8-01' }
+		request.headers['tracestate'] = { value: 'vendor=value' }
+
+		const result = (await handler({ request })) as Request
+
+		expect(result.headers['x-amzn-trace-id']).toBeUndefined()
+		expect(result.headers['traceparent']).toBeUndefined()
+		expect(result.headers['tracestate']).toBeUndefined()
+	})
+
+	it('should decide which function requests are traced when the app sets a sample rate', async () => {
+		const values = new Map([
+			['$active', 'v1:1'],
+			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+			['v1:main:/file', route('bucket.s3.amazonaws.com')],
+		])
+		const traceHeaderOf = async (traceSampleRate: number, uri = '/api') => {
+			const request = createRequest(uri)
+
+			request.headers['x-amzn-trace-id'] = { value: 'Root=1-5759e988-bd862e3fe1be46a994272793;Sampled=1' }
+
+			const result = (await createRouter(values, { traceSampleRate }).handler({ request })) as Request
+
+			return result.headers['x-amzn-trace-id']?.value
+		}
+
+		// Its own trace id each time, never the client's.
+		expect(await traceHeaderOf(1)).toMatch(/^Root=1-[0-9a-f]{8}-[0-9a-f]{24};Sampled=1$/)
+		expect(await traceHeaderOf(1)).not.toContain('bd862e3fe1be46a994272793')
+		expect(await traceHeaderOf(0)).toMatch(/^Root=1-[0-9a-f]{8}-[0-9a-f]{24};Sampled=0$/)
+		// A bucket has nothing to trace.
+		expect(await traceHeaderOf(1, '/file')).toBeUndefined()
+	})
+
 	it('should match trailing slash urls against their exact route', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
@@ -1098,6 +1141,7 @@ describe('router password auth', () => {
 			blockDirectAccess: true,
 			redirectWww: true,
 			passwordAuth: auth,
+			traceSampleRate: 0.005,
 		})
 
 		expect(Buffer.byteLength(code)).toBeLessThan(10 * 1024)

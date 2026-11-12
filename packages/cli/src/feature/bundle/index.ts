@@ -222,7 +222,7 @@ export const bundleFeature = defineFeature({
 		})
 
 		// Lambda refuses active tracing to a role that can't send segments, so the right comes before the function.
-		const tracingPolicy = defaults.tracing
+		const tracingPolicy = ctx.appConfig.tracing
 			? new aws.iam.RolePolicy(group, 'tracing-policy', {
 					role: role.name,
 					name: 'lambda-tracing-policy',
@@ -281,7 +281,7 @@ export const bundleFeature = defineFeature({
 					...variables,
 
 					// The runtime's spans only go out where the app turned tracing on.
-					...(defaults.tracing ? { AWSLESS_TRACING: 'true' } : {}),
+					...(ctx.appConfig.tracing ? { AWSLESS_TRACING: 'true' } : {}),
 				},
 			},
 
