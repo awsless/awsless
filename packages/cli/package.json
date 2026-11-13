@@ -21,13 +21,15 @@
 		"build": "bun cli/build.ts",
 		"jack": "pnpm build && bun dist/bin.js --config-file=./example/jack/app.jsonc",
 		"kennedy": "pnpm build && bun dist/bin.js --config-file=./example/kennedy/app.jsonc",
+		"postgres": "pnpm build && bun dist/bin.js --config-file=./example/postgres/app.jsonc",
 		"prepublishOnly": "pnpm test && pnpm build",
 		"typecheck": "tsc --noEmit",
-		"types": "bun dist/bin.js types --config-file=./example/jack/app.jsonc && bun dist/bin.js types --config-file=./example/kennedy/app.jsonc"
+		"types": "bun dist/bin.js types --config-file=./example/jack/app.jsonc && bun dist/bin.js types --config-file=./example/kennedy/app.jsonc && bun dist/bin.js types --config-file=./example/postgres/app.jsonc"
 	},
 	"dependencies": {
 		"@aws-sdk/client-lambda-web": "3.1164.0",
 		"@aws-sdk/signature-v4a": "3.1111.0",
+		"embedded-postgres": "17.11.0-beta.19",
 		"rolldown": "1.2.4",
 		"vitest": "4.1.11"
 	},
@@ -39,6 +41,7 @@
 		"@aws-sdk/client-dynamodb": "3.1164.0",
 		"@aws-sdk/client-iam": "3.1164.0",
 		"@aws-sdk/client-lambda": "3.1164.0",
+		"@aws-sdk/client-rds-data": "3.1164.0",
 		"@aws-sdk/client-route-53": "3.1164.0",
 		"@aws-sdk/client-s3": "3.1164.0",
 		"@aws-sdk/client-sns": "3.1164.0",
@@ -61,6 +64,8 @@
 		"@awsless/lambda": "workspace:^",
 		"@awsless/open-search": "workspace:^",
 		"@awsless/open-search-server": "workspace:^",
+		"@awsless/postgres": "workspace:^",
+		"@awsless/postgres-server": "workspace:^",
 		"@awsless/redis": "workspace:^",
 		"@awsless/redis-server": "workspace:^",
 		"@awsless/s3": "workspace:^",

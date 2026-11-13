@@ -40,6 +40,7 @@
 		"@awsless/json": "workspace:^",
 		"@awsless/lambda": "workspace:^",
 		"@awsless/open-search": "workspace:^",
+		"@awsless/postgres": "workspace:^",
 		"@awsless/redis": "workspace:^",
 		"@awsless/s3": "workspace:^",
 		"@awsless/scheduler": "workspace:^",

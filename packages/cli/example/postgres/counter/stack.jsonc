@@ -1,0 +1,42 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "counter",
+	"tests": "./test",
+
+	"postgres": {
+		"tables": {
+			// One row per counter, with what its bumps add up to.
+			"counters": {
+				"columns": {
+					"name": { "type": "text", "collate": "C" },
+					"value": { "type": "bigint", "default": "0" }
+				},
+				"primaryKey": ["name"],
+				"indexes": {
+					"value": ["value"]
+				}
+			},
+			// Every bump of a counter, spread over partitions by its counter.
+			"bumps": {
+				"columns": {
+					"id": { "type": "bigint", "identity": true },
+					"name": { "type": "text", "collate": "C" },
+					"amount": "bigint",
+					"bumped_at": { "type": "timestamptz", "default": "now()" },
+					"note": "text?"
+				},
+				"primaryKey": ["name", "id"],
+				"indexes": {
+					"bumped": ["name", "bumped_at"]
+				},
+				"partitionBy": { "hash": ["name"], "partitions": 4 },
+				"fillfactor": 90
+			}
+		},
+		"functions": ["./src/util/sql/function.sql"]
+	},
+
+	"functions": {
+		"bump": "./src/function/bump.ts"
+	}
+}

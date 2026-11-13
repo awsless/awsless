@@ -11,6 +11,7 @@ import { ImagesSchema } from '../feature/image/schema.js'
 import { InstancesSchema } from '../feature/instance/schema.js'
 import { JobsSchema } from '../feature/job/schema.js'
 import { MetricsSchema } from '../feature/metric/schema.js'
+import { PostgresSchema } from '../feature/postgres/schema.js'
 import { PubSubSchema } from '../feature/pubsub/schema.js'
 import { QueuesSchema } from '../feature/queue/schema.js'
 import { RestSchema } from '../feature/rest/schema.js'
@@ -52,6 +53,7 @@ export const StackSchema = z
 		pubsub: PubSubSchema,
 		searchs: SearchsSchema,
 		clickhouse: ClickHouseSchema,
+		postgres: PostgresSchema,
 		sites: SitesSchema,
 		tests: TestsSchema,
 		evals: EvalsSchema,

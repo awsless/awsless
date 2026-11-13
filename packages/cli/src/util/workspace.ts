@@ -22,6 +22,7 @@ import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
 import { createOpenSearchProvider } from '../formation/open-search.js'
+import { createPostgresProvider } from '../formation/postgres.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
@@ -81,7 +82,8 @@ export const createWorkSpace = async (
 		// The stacks about to deploy, so providers only they need install
 		// up front.
 		stackConfigs?: StackConfig[]
-		// The whole app is being deleted, its ClickHouse service included.
+		// The whole app is being deleted, its ClickHouse service & Postgres
+		// cluster included.
 		deletingApp?: boolean
 	}
 ) => {
@@ -118,6 +120,10 @@ export const createWorkSpace = async (
 				...props,
 				dropTables: !props.deletingApp,
 				cloudKey: clickhouseKey,
+			}),
+			createPostgresProvider({
+				...props,
+				dropSchemas: !props.deletingApp,
 			}),
 			// Backwards compatibility for old states, can be removed later.
 			createCustomProvider('cloudfront', {

@@ -163,6 +163,7 @@ export type DevResource = {
 		| 'task'
 		| 'search'
 		| 'clickhouse'
+		| 'postgres'
 		| 'cache'
 		| 'pubsub'
 		| 'image'

@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { ClickHouseServer } from '@awsless/clickhouse-server'
 import { OpenSearchServer } from '@awsless/open-search-server'
+import { PostgresServer } from '@awsless/postgres-server'
 import { RedisServer } from '@awsless/redis'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
@@ -29,6 +30,7 @@ export const withTestEnvironment = async (
 	let redis: RedisServer | undefined
 	let search: OpenSearchServer | undefined
 	let clickhouse: ClickHouseServer | undefined
+	let postgres: PostgresServer | undefined
 	let booting: Promise<void> | undefined
 
 	// The boots are deferred until a stack actually misses the test
@@ -49,6 +51,15 @@ export const withTestEnvironment = async (
 				await clickhouse.listen()
 
 				manifest.servers.clickhouse = { endpoint: clickhouse.endpoint }
+			}
+
+			if ((manifest.postgres ?? []).length > 0) {
+				// Always the real Postgres, with its data in a temporary
+				// directory that goes when the run ends.
+				postgres = new PostgresServer()
+				await postgres.listen()
+
+				manifest.servers.postgres = { url: postgres.url }
 			}
 
 			if (manifest.caches.length > 0) {
@@ -75,5 +86,6 @@ export const withTestEnvironment = async (
 		await redis?.kill()
 		await search?.close()
 		await clickhouse?.close()
+		await postgres?.close()
 	}
 }

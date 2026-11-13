@@ -10,6 +10,7 @@ import { JobDefaultSchema } from '../feature/job/schema.js'
 import { LayerSchema } from '../feature/layer/schema.js'
 import { OnErrorLogDefaultSchema } from '../feature/on-error-log/schema.js'
 import { OnFailureDefaultSchema } from '../feature/on-failure/schema.js'
+import { PostgresDefaultSchema } from '../feature/postgres/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 import { RestDefaultSchema } from '../feature/rest/schema.js'
@@ -86,6 +87,7 @@ export const AppSchema = z
 		router: RouterDefaultSchema,
 		search: SearchDefaultSchema,
 		clickhouse: ClickHouseDefaultSchema,
+		postgres: PostgresDefaultSchema,
 		test: TestDefaultSchema,
 	})
 	.strict()

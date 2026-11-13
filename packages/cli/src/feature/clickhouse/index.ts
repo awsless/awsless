@@ -83,28 +83,28 @@ export const clickhouseFeature = defineFeature({
 				name: formatServiceName(ctx.app.name, ctx.accountId, ctx.appConfig.stage),
 				cloudProvider: 'aws',
 				region: props.region ?? ctx.appConfig.region,
-				idleScaling: props.idle,
-				idleTimeoutMinutes: props.idle ? toMinutes(props.idleTimeout) : undefined,
+				// The service pauses only when the app says after how long.
+				idleScaling: props.idleTimeout !== undefined,
+				idleTimeoutMinutes: props.idleTimeout ? toMinutes(props.idleTimeout) : undefined,
 				minReplicaMemoryGb: props.memory.min,
 				maxReplicaMemoryGb: props.memory.max,
 				numReplicas: props.replicas,
 				ipAccess: props.ipAccess.map(source => ({ source, description: 'awsless' })),
 				passwordHash: password.hash,
 				releaseChannel: props.releaseChannel,
-				backupConfiguration:
-					props.backup?.every || props.backup?.retention
-						? {
-								backupPeriodInHours: props.backup.every ? toHours(props.backup.every) : undefined,
-								backupRetentionPeriodInHours: props.backup.retention
-									? toHours(props.backup.retention)
-									: undefined,
-							}
-						: undefined,
+				// ClickHouse Cloud's own backups are kept as long as the copies
+				// in the app's bucket.
+				backupConfiguration: props.backup
+					? {
+							backupPeriodInHours: props.backup.every ? toHours(props.backup.every) : undefined,
+							backupRetentionPeriodInHours: toHours(props.backup.retention),
+						}
+					: undefined,
 			},
 			{ retainOnDelete }
 		)
 
-		if (props.backup?.export) {
+		if (props.backup) {
 			const bucket = ctx.shared.get('asset', 'bucket')
 
 			// ClickHouse Cloud assumes this role from the service's own role,
@@ -186,7 +186,7 @@ export const clickhouseFeature = defineFeature({
 				id: 'expire-clickhouse-backups',
 				enabled: true,
 				prefix: 'clickhouse/',
-				expiration: { days: toDays(props.backup.export.retention) },
+				expiration: { days: toDays(props.backup.retention) },
 				noncurrentVersionExpiration: { days: 1 },
 			})
 		}

@@ -1,6 +1,6 @@
 import { days, hours, minutes } from '@awsless/duration'
 import { z } from 'zod'
-import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
+import { DurationSchema, durationMax, durationMin, isWholeDays } from '../../config/schema/duration.js'
 
 const MemorySchema = z
 	.number()
@@ -10,29 +10,18 @@ const MemorySchema = z
 // The backup intervals ClickHouse Cloud offers.
 export const BACKUP_PERIODS = [6, 8, 12, 16, 20, 24, 36, 48]
 
-const isWholeDays = (duration: { value: bigint }) => duration.value % days(1).value === 0n
-
 const RetentionSchema = DurationSchema.refine(isWholeDays, 'A backup retention must be whole days.').refine(
 	durationMin(days(1)),
 	'A backup retention can not be under a day.'
 )
 
+// One retention for a backup, wherever it is kept: the copy in the app's own
+// bucket is the backup the app relies on, and ClickHouse Cloud's own follows it.
 const BackupSchema = z
 	.object({
-		retention: RetentionSchema.optional().describe(
-			'How long ClickHouse Cloud keeps each of its own backups, like "7 days". Leave it out for its default.'
+		retention: RetentionSchema.prefault('7 days').describe(
+			'How long a backup is kept, like "7 days": the copy the service writes to your own AWS account, under clickhouse/ in the app\'s bucket (S3 expires it, since ClickHouse Cloud never removes what it wrote there), and ClickHouse Cloud\'s own.'
 		),
-		export: z
-			.object({
-				retention: RetentionSchema.prefault('7 days').describe(
-					"How long a backup stays in your bucket before S3 expires it. ClickHouse Cloud doesn't remove the backups it writes there."
-				),
-			})
-			.strict()
-			.optional()
-			.describe(
-				"Also write the service's backups to your own AWS account, under clickhouse/ in the app's bucket."
-			),
 		every: DurationSchema.refine(
 			duration => BACKUP_PERIODS.some(period => hours(period).value === duration.value),
 			`The backup interval must be one of ${BACKUP_PERIODS.join(', ')} hours.`
@@ -69,14 +58,10 @@ export const ClickHouseDefaultSchema = z
 			.describe('A fixed number of replicas. Leave it out for the tier default.'),
 		idleTimeout: DurationSchema.refine(durationMin(minutes(5)), 'The idle timeout can not be under 5 minutes.')
 			.refine(durationMax(days(1)), 'The idle timeout can not be over a day.')
-			.prefault('15 minutes')
+			.optional()
 			.describe(
-				'How long the service waits without queries before it scales to zero. The first query after that wakes it up, which takes a little while.'
+				'How long the service stays up without a query before it pauses, like "15 minutes". Leave it out & the service never pauses. The first query after a pause waits for the service to wake up, which takes a little while.'
 			),
-		idle: z
-			.boolean()
-			.default(true)
-			.describe('Scale to zero when idle. Turn it off to keep the service warm & answer every query right away.'),
 		ipAccess: z
 			.array(z.string())
 			.default(['0.0.0.0/0'])
@@ -88,7 +73,7 @@ export const ClickHouseDefaultSchema = z
 			.optional()
 			.describe('How soon the service gets new ClickHouse versions.'),
 		backup: BackupSchema.optional().describe(
-			"The service's backups: how often and how long ClickHouse Cloud keeps them, and optionally a copy in your own AWS account."
+			"Back the service up to your own AWS account: every backup is written to the app's bucket and kept for the retention. Without it ClickHouse Cloud keeps only its own backups, on its default schedule."
 		),
 	})
 	.strict()

@@ -71,8 +71,7 @@ describe('clickhouse', () => {
 		expect(service!.input).toMatchObject({
 			cloudProvider: 'aws',
 			region: 'us-east-1',
-			idleScaling: true,
-			idleTimeoutMinutes: 15,
+			idleScaling: false,
 			minReplicaMemoryGb: 8,
 			maxReplicaMemoryGb: 12,
 			ipAccess: [{ source: '0.0.0.0/0', description: 'awsless' }],
@@ -93,7 +92,7 @@ describe('clickhouse', () => {
 				clickhouse: {
 					region: 'eu-central-1',
 					memory: { min: 16, max: 32 },
-					idle: false,
+					idleTimeout: '10 minutes',
 					ipAccess: ['10.0.0.0/8'],
 					releaseChannel: 'slow',
 				},
@@ -105,12 +104,20 @@ describe('clickhouse', () => {
 
 		expect(service!.input).toMatchObject({
 			region: 'eu-central-1',
-			idleScaling: false,
+			idleScaling: true,
+			idleTimeoutMinutes: 10,
 			minReplicaMemoryGb: 16,
 			maxReplicaMemoryGb: 32,
 			ipAccess: [{ source: '10.0.0.0/8', description: 'awsless' }],
 			releaseChannel: 'slow',
 		})
+	})
+
+	it('never pauses a service without an idle timeout', () => {
+		const { app } = createTestApp({ stacks: [{ name: 'stack-1', clickhouse: { events } }] })
+		const [service] = listResources(app, 'clickhouse_service')
+
+		expect(service!.input.idleScaling).toBe(false)
 		expect(service!.input.idleTimeoutMinutes).toBeUndefined()
 	})
 
@@ -167,7 +174,7 @@ describe('clickhouse', () => {
 		}
 	})
 
-	it('keeps backups in ClickHouse Cloud only, unless asked', () => {
+	it('keeps backups in ClickHouse Cloud only, without a backup setting', () => {
 		const { app } = createTestApp({ stacks: [{ name: 'stack-1', clickhouse: { events } }] })
 
 		expect(listResources(app, 'backup-bucket')).toEqual([])
@@ -179,7 +186,7 @@ describe('clickhouse', () => {
 
 	it('writes backups to the app bucket through a role of its own', () => {
 		const { app } = createTestApp({
-			defaults: { clickhouse: { backup: { every: '12 hours', export: {} } } },
+			defaults: { clickhouse: { backup: { every: '12 hours' } } },
 			stacks: [{ name: 'stack-1', clickhouse: { events } }],
 		})
 
@@ -191,7 +198,7 @@ describe('clickhouse', () => {
 		expect(listResources(app, 'backup-bucket')).toHaveLength(1)
 		expect(listResources(app, 'clickhouse_service')[0]!.input.backupConfiguration).toEqual({
 			backupPeriodInHours: 12,
-			backupRetentionPeriodInHours: undefined,
+			backupRetentionPeriodInHours: 168,
 		})
 	})
 
@@ -205,27 +212,26 @@ describe('clickhouse', () => {
 		expect(withBackup({ every: '10 hours' })).toThrow()
 		expect(withBackup({ retention: '36 hours' })).toThrow()
 		expect(withBackup({ retention: '12 hours' })).toThrow()
-		expect(withBackup({ export: { retention: '12 hours' } })).toThrow()
 		expect(withBackup({ every: '2 days', retention: '30 days' })).not.toThrow()
 	})
 
-	it("sets ClickHouse Cloud's own backup retention without a copy in the app bucket", () => {
+	it("keeps the copies in the app bucket & ClickHouse Cloud's own backups for one retention", () => {
 		const { app } = createTestApp({
-			defaults: { clickhouse: { backup: { retention: '7 days' } } },
+			defaults: { clickhouse: { backup: { retention: '14 days' } } },
 			stacks: [{ name: 'stack-1', clickhouse: { events } }],
 		})
 
-		expect(listResources(app, 'backup-bucket')).toEqual([])
+		expect(listResources(app, 'backup-bucket')).toHaveLength(1)
 		expect(listResources(app, 'clickhouse_service')[0]!.input.backupConfiguration).toEqual({
 			backupPeriodInHours: undefined,
-			backupRetentionPeriodInHours: 168,
+			backupRetentionPeriodInHours: 336,
 		})
 	})
 
 	it('retains the backup setting when the app retains its data', () => {
 		const { app } = createTestApp({
 			app: { removal: 'retain' },
-			defaults: { clickhouse: { backup: { export: {} } } },
+			defaults: { clickhouse: { backup: {} } },
 			stacks: [{ name: 'stack-1', clickhouse: { events } }],
 		})
 

@@ -2,6 +2,7 @@ import { isAbsolute, join } from 'path'
 import type { TestManifest } from 'awsless'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
+import { readFunctionFiles } from '../feature/postgres/util.js'
 import { resolveSearchMappings } from '../feature/search/util.js'
 import { createTableInput } from '../feature/table/dev.js'
 import { formatTableKeys } from '../feature/table/util.js'
@@ -27,6 +28,7 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 		streams: [],
 		searches: [],
 		clickhouse: [],
+		postgres: [],
 		functions: [],
 		tasks: [],
 		crons,
@@ -82,6 +84,17 @@ export const createTestManifest = (appConfig: AppConfig, stackConfigs: StackConf
 						typeof type === 'string' ? type : type.type,
 					])
 				),
+			})
+		}
+
+		// The declared tables & the contents of the function files, so a
+		// change of either changes the manifest & with it the fingerprint the
+		// test results are cached under.
+		if (stack.postgres) {
+			manifest.postgres!.push({
+				stack: stack.name,
+				tables: stack.postgres.tables,
+				functions: readFunctionFiles(stack),
 			})
 		}
 

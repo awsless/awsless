@@ -2,6 +2,7 @@ import { clickhouseClient } from '@awsless/clickhouse'
 import { ClickHouseServer } from '@awsless/clickhouse-server'
 import { getClickHouseTableName } from 'awsless'
 import { localEngine } from '../../dev/engine.js'
+import { connectServerSink, createServerSink } from '../../dev/server-sink.js'
 import { DevContext } from '../../feature.js'
 import { applyTable } from './table.js'
 
@@ -18,28 +19,12 @@ export const clickhouseOnDev = async (ctx: DevContext) => {
 	// real binary with AWSLESS_LOCAL_ENGINE=real. It survives dev restarts
 	// so the data stays put, & the declared tables reapply on every run.
 	const { port, sink } = await ctx.keep('clickhouse', null, async () => {
-		const sink: {
-			health?: (status: 'up' | 'down', detail?: string) => void
-			log?: (line: string) => void
-			tail: string[]
-			crashed?: string
-		} = { tail: [] }
+		const sink = createServerSink()
 
 		const server = new ClickHouseServer({
 			engine: localEngine() === 'real' ? 'clickhouse' : 'memory',
-			onExit(code, signal) {
-				sink.crashed = code !== null ? `exited with code ${code}` : `killed by ${signal}`
-				sink.health?.('down', sink.crashed)
-			},
-			onOutput(line) {
-				sink.tail.push(line)
-
-				while (sink.tail.length > 20) {
-					sink.tail.shift()
-				}
-
-				sink.log?.(line)
-			},
+			onExit: sink.onExit,
+			onOutput: sink.onOutput,
 		})
 
 		await server.listen()
@@ -47,13 +32,7 @@ export const clickhouseOnDev = async (ctx: DevContext) => {
 		return { value: { port: server.port, sink }, stop: () => server.close() }
 	})
 
-	sink.health = (status, detail) => ctx.reportHealth('clickhouse', status, detail)
-	sink.health(sink.crashed ? 'down' : 'up', sink.crashed)
-	sink.log = line => ctx.emitEvent('clickhouse', { date: Date.now(), line })
-
-	for (const line of sink.tail) {
-		ctx.emitEvent('clickhouse', { date: Date.now(), line })
-	}
+	connectServerSink(ctx, 'clickhouse', sink)
 
 	const endpoint = `http://127.0.0.1:${port}`
 

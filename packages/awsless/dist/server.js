@@ -21,6 +21,7 @@ import { runTask } from "@awsless/ecs";
 import { deleteObject, getObject, headObject, putObject } from "@awsless/s3";
 import { schedule } from "@awsless/scheduler";
 import { flushTraces, isTracing, runTraceStep, runTraceStep as runTraceStep$1, startSpan, trace, trace as trace$1, withTraceHeader } from "@awsless/utils";
+import { PostgresError, getSqlState, postgresClient, postgresDataClient } from "@awsless/postgres";
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { sendEmail } from "@awsless/ses";
 import { batchPutData, createDurationMetric, createMetric, createSizeMetric, putData } from "@awsless/cloudwatch";
@@ -1127,6 +1128,74 @@ const ClickHouse = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
+//#region src/lib/test/schema.ts
+const schemas = /* @__PURE__ */ new Map();
+const deferTestSchema = (schema, create) => {
+	schemas.set(schema, { create });
+};
+const ensureTestSchema = (schema) => {
+	const entry = schemas.get(schema);
+	if (entry) entry.created ??= entry.create();
+	return entry?.created;
+};
+//#endregion
+//#region src/lib/server/postgres.ts
+const getPostgresSchemaName = (stackName) => {
+	return kebabCase(stackName).replaceAll("-", "_");
+};
+const getPostgresProps = (stack = getStack()) => {
+	const schema = getPostgresSchemaName(stack);
+	return { schema: isTest() ? `${getPostgresSchemaName(getApp())}__${schema}` : schema };
+};
+const createClient = (schema) => {
+	const url = process.env.POSTGRES_URL;
+	if (url) return postgresClient({
+		url,
+		schema,
+		strict: true
+	});
+	const clusterArn = process.env.POSTGRES_CLUSTER_ARN;
+	const secretArn = process.env.POSTGRES_SECRET_ARN;
+	if (clusterArn && secretArn) return postgresDataClient({
+		clusterArn,
+		secretArn,
+		database: schema
+	});
+	throw new Error("Postgres has no database to query. Locally `awsless dev` and `awsless test` set POSTGRES_URL; a deployed function gets POSTGRES_CLUSTER_ARN and POSTGRES_SECRET_ARN when its app has a stack with Postgres tables.");
+};
+const clients = /* @__PURE__ */ new Map();
+const getClient$1 = (schema) => {
+	let client = clients.get(schema);
+	if (!client) {
+		const created = createClient(schema);
+		if (isTest()) registerTestCleanup(() => {
+			clients.delete(schema);
+			return created.close();
+		});
+		clients.set(schema, created);
+		client = created;
+	}
+	return client;
+};
+const Postgres = /*@__PURE__*/ createProxy((stack) => {
+	return {
+		get schema() {
+			return getPostgresProps(stack).schema;
+		},
+		query(sql, params) {
+			const { schema } = getPostgresProps(stack);
+			return trace$1("Postgres", async () => {
+				await ensureTestSchema(schema);
+				return getClient$1(schema).query(sql, params);
+			}, {
+				namespace: "remote",
+				annotations: { postgres_operation: "query" },
+				metadata: { schema }
+			});
+		}
+	};
+});
+//#endregion
 //#region src/lib/server/search.ts
 const formatSearchIndexName = (stackName, indexName) => {
 	return `${kebabCase(stackName)}--${indexName}`;
@@ -1307,6 +1376,7 @@ const setupTestEnv = async (manifest, options) => {
 	materializeTables(manifest, options.importFile, dynamodb);
 	await createSearchIndexes(manifest);
 	await createClickHouseTables(manifest);
+	deferPostgresSchemas(manifest);
 	s3.mockS3();
 	await redirectCacheClients(manifest);
 	const spies = registerResourceSpies(manifest, options.importFile);
@@ -1388,6 +1458,30 @@ const createClickHouseTables = async (manifest) => {
 		const { name } = getClickHouseProps(entry.id, entry.stack);
 		process.env[`CLICKHOUSE_COLUMNS_${name}`] = JSON.stringify(entry.columns);
 		await client.command(createTableStatement(name, entry.definition));
+	}
+};
+const deferPostgresSchemas = (manifest) => {
+	const url = manifest.servers?.postgres?.url;
+	if (!url) return;
+	for (const entry of manifest.postgres ?? []) {
+		const { schema } = getPostgresProps(entry.stack);
+		deferTestSchema(schema, async () => {
+			const { applySchema, postgresClient } = await import("@awsless/postgres");
+			const client = postgresClient({
+				url,
+				max: 1
+			});
+			const tables = entry.tables;
+			try {
+				await applySchema(client, {
+					schema,
+					tables,
+					functions: entry.functions
+				}, { reset: true });
+			} finally {
+				await client.close();
+			}
+		});
 	}
 };
 const redirectCacheClients = async (manifest) => {
@@ -1788,4 +1882,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresProps, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };

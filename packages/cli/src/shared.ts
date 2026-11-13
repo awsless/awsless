@@ -87,6 +87,12 @@ type SharedState = {
 		parameter: string
 	}
 
+	// Only set when a stack declares Postgres tables.
+	postgres: {
+		'cluster-arn': Output<string>
+		'secret-arn': Output<string>
+	}
+
 	// Only set when the app has a pubsub.
 	'load-balancer': {
 		main: {

@@ -21,6 +21,16 @@ packages:
     - 'packages/*'
 
 allowBuilds:
+    # Their install script only links library files, which
+    # @awsless/postgres-server does itself when it starts.
+    '@embedded-postgres/darwin-arm64': false
+    '@embedded-postgres/darwin-x64': false
+    '@embedded-postgres/linux-arm': false
+    '@embedded-postgres/linux-arm64': false
+    '@embedded-postgres/linux-ia32': false
+    '@embedded-postgres/linux-ppc64': false
+    '@embedded-postgres/linux-x64': false
+    '@embedded-postgres/windows-x64': false
     aws-crt: false
     aws-sdk: false
     core-js: false

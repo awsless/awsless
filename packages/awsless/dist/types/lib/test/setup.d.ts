@@ -28,6 +28,14 @@ export type TestManifest = {
         definition: unknown;
         columns: Record<string, string>;
     }[];
+    postgres?: {
+        stack: string;
+        tables: Record<string, unknown>;
+        functions: {
+            name: string;
+            sql: string;
+        }[];
+    }[];
     functions: {
         stack: string;
         id: string;
@@ -73,6 +81,9 @@ export type TestManifest = {
         };
         clickhouse?: {
             endpoint: string;
+        };
+        postgres?: {
+            url: string;
         };
     };
 };

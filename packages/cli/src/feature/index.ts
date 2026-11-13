@@ -20,6 +20,7 @@ import { loadBalancerFeature } from './load-balancer/index.js'
 import { metricFeature } from './metric/index.js'
 import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
+import { postgresFeature } from './postgres/index.js'
 import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
 import { restFeature } from './rest/index.js'
@@ -66,6 +67,7 @@ export const features = [
 	emailFeature,
 	searchFeature,
 	clickhouseFeature,
+	postgresFeature,
 	pubsubFeature,
 	metricFeature,
 	tableFeature,

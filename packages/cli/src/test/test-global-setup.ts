@@ -37,7 +37,7 @@ if (manifestFile) {
 	// namespace through a unique per-file app prefix - full isolation
 	// without booting those servers per file.
 	process.env.APP =
-		manifest.servers?.search || manifest.servers?.clickhouse
+		manifest.servers?.search || manifest.servers?.clickhouse || manifest.servers?.postgres
 			? `${manifest.app}-t${Math.random().toString(36).slice(2, 8)}`
 			: manifest.app
 
@@ -52,6 +52,10 @@ if (manifestFile) {
 
 	if (manifest.servers?.clickhouse) {
 		process.env.CLICKHOUSE_ENDPOINT = manifest.servers.clickhouse.endpoint
+	}
+
+	if (manifest.servers?.postgres) {
+		process.env.POSTGRES_URL = manifest.servers.postgres.url
 	}
 
 	// The table key envs must exist before any test file import, so
