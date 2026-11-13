@@ -439,7 +439,13 @@ const routeSchema = (props) => {
 const getRouteParams = (headers) => {
 	const params = {};
 	headers.forEach((value, name) => {
-		if (name.startsWith("x-param-")) params[name.slice(8)] = decodeURIComponent(value);
+		if (name.startsWith("x-param-")) params[name.slice(8)] = (() => {
+			try {
+				return decodeURIComponent(value);
+			} catch {
+				return value;
+			}
+		})();
 	});
 	return params;
 };

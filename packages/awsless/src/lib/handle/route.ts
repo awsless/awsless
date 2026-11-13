@@ -34,6 +34,16 @@ export type RouteEntry = {
 	fetch: (request: Request, context?: LambdaContext) => Promise<Response>
 }
 
+// A param with a broken escape (a request for `/items/%E0%A4`) stays as
+// written, for the handler's validation to refuse rather than a 500.
+const decodeParam = (value: string) => {
+	try {
+		return decodeURIComponent(value)
+	} catch {
+		return value
+	}
+}
+
 // Router routes deliver params as x-param-* headers. The deployed router
 // encodes each value, so it round-trips any character.
 const getRouteParams = (headers: Headers) => {
@@ -41,7 +51,7 @@ const getRouteParams = (headers: Headers) => {
 
 	headers.forEach((value, name) => {
 		if (name.startsWith('x-param-')) {
-			params[name.slice('x-param-'.length)] = decodeURIComponent(value)
+			params[name.slice('x-param-'.length)] = decodeParam(value)
 		}
 	})
 

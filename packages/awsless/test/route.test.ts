@@ -20,6 +20,14 @@ describe('route request', () => {
 		expect(parseBody(result)).toStrictEqual({ id: 'a/b c' })
 	})
 
+	it('keeps a param with a broken escape as written', async () => {
+		const handle = route(({ params }) => Response.json(params))
+		const result = await handle(event({ headers: { 'x-param-id': '%E0%A4' } }))
+
+		expect(result.statusCode).toBe(200)
+		expect(parseBody(result)).toStrictEqual({ id: '%E0%A4' })
+	})
+
 	it('prefers real path parameters over headers', async () => {
 		const handle = route(({ params }) => Response.json(params))
 		const result = await handle(event({ pathParameters: { id: '1' }, headers: { 'x-param-id': '2' } }))
