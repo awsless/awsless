@@ -154,6 +154,12 @@ export const alterTableStatements = (name: string, prior: TableDefinition, next:
 		statements.push(`ALTER TABLE ${table} MODIFY COLUMN ${formatColumn(column, after)}${position}`)
 	})
 
+	// The TTL changes after the new columns are there & before the old ones
+	// go: ClickHouse refuses to drop a column the table's TTL still reads.
+	if (from.ttl !== to.ttl) {
+		statements.push(to.ttl ? `ALTER TABLE ${table} MODIFY TTL ${to.ttl}` : `ALTER TABLE ${table} REMOVE TTL`)
+	}
+
 	for (const column of Object.keys(from.columns)) {
 		if (!to.columns[column]) {
 			statements.push(`ALTER TABLE ${table} DROP COLUMN IF EXISTS ${quoteIdentifier(column)}`)
@@ -174,10 +180,6 @@ export const alterTableStatements = (name: string, prior: TableDefinition, next:
 			// Builds the index for the rows already stored, in the background.
 			statements.push(`ALTER TABLE ${table} MATERIALIZE INDEX ${quoteIdentifier(index)}`)
 		}
-	}
-
-	if (from.ttl !== to.ttl) {
-		statements.push(to.ttl ? `ALTER TABLE ${table} MODIFY TTL ${to.ttl}` : `ALTER TABLE ${table} REMOVE TTL`)
 	}
 
 	const changed = Object.entries(to.settings).filter(([key, value]) => from.settings[key] !== value)
