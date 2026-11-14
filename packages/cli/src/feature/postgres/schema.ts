@@ -340,8 +340,9 @@ export const PostgresSchema = z
 			.optional()
 			.describe(
 				[
-					'SQL files with the functions of the schema, relative to the stack file, like ["./src/util/sql/function.sql"]. They run in this order after the tables are there, every time the schema is applied.',
-					'Every function in the schema is dropped before the files run, so they create their functions with a plain CREATE FUNCTION.',
+					'The files with the functions of the schema, relative to the stack file. They run in this order after the tables are there, every time the schema is applied.',
+					'A .sql file, like "./src/util/sql/function.sql", runs as it is. Every function in the schema is dropped before the files run, so it creates its functions with a plain CREATE FUNCTION.',
+					'A TypeScript file, like "./src/util/sql/function.ts", is a module whose exports are functions defined with postgres.function.define from @awsless/postgres: each is created, in any order after the .sql files, and the same export is the typed call the code uses. The module is loaded by the CLI, so it imports nothing that needs the app running, and only files of its own folder.',
 					'Install an extension into public, where every schema finds it: CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public.',
 					'On a deploy every statement of a file is sent on its own, so one statement can be 65,536 characters at most.',
 				].join('\n')

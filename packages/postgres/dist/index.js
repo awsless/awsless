@@ -241,6 +241,97 @@ const postgresDataClient = (props) => {
 	return client;
 };
 //#endregion
+//#region src/function.ts
+const POSTGRES_FUNCTION = Symbol.for("awsless.postgres.function");
+const valueType = (sql, encode) => ({
+	sql,
+	encode,
+	shape: "value"
+});
+const uuid = () => valueType("uuid");
+const text = () => valueType("text");
+const integer = () => valueType("integer");
+const double = () => valueType("double precision");
+const boolean = () => valueType("boolean");
+const date = () => valueType("date");
+const timestamp = () => valueType("timestamptz");
+const jsonb = () => valueType("jsonb", (value) => JSON.stringify(value));
+const array = (item) => valueType(`${item.sql}[]`);
+const nullable = (type) => ({
+	...type,
+	encode: type.encode && ((value) => value === null ? null : type.encode(value))
+});
+const custom = (sql) => valueType(sql);
+const table = (columns) => ({
+	sql: `TABLE (${Object.entries(columns).map(([name, type]) => `${name} ${type.sql}`).join(", ")})`,
+	shape: "rows"
+});
+const nothing = () => ({
+	sql: "void",
+	shape: "nothing"
+});
+const BODY_QUOTE = "$awsless$";
+const NAME = /^[a-z_][a-z0-9_]*$/;
+const assertName = (name, what) => {
+	if (!NAME.test(name)) throw new TypeError(`${what} "${name}" isn't a plain sql name: lowercase letters, digits and underscores.`);
+};
+const createStatement = (definition) => {
+	const { name, args, returns, language, attributes, body } = definition;
+	assertName(name, "The function name");
+	Object.keys(args).forEach((arg) => assertName(arg, `The argument of ${name}`));
+	if (body.includes(BODY_QUOTE)) throw new TypeError(`The body of ${name} holds ${BODY_QUOTE}, which quotes it.`);
+	return [
+		`CREATE OR REPLACE FUNCTION ${name}(${Object.entries(args).map(([arg, type]) => `${arg} ${type.sql}`).join(", ")}) RETURNS ${returns.sql}`,
+		`LANGUAGE ${language}${attributes ? ` ${attributes}` : ""} AS ${BODY_QUOTE}`,
+		body.trim(),
+		BODY_QUOTE
+	].join("\n");
+};
+const define = (definition) => {
+	const { name, args, returns } = definition;
+	const argTypes = Object.entries(args);
+	const placeholders = argTypes.map(([arg, type], index) => `${arg} => $${index + 1}::${type.sql}`).join(", ");
+	const call = {
+		rows: `SELECT * FROM ${name}(${placeholders})`,
+		value: `SELECT ${name}(${placeholders}) AS "result"`,
+		nothing: `SELECT ${name}(${placeholders})::text AS "result"`
+	}[returns.shape];
+	const callFunction = async (client, ...[values]) => {
+		const given = values ?? {};
+		const params = argTypes.map(([arg, type]) => {
+			const value = given[arg];
+			return type.encode && value !== void 0 ? type.encode(value) : value ?? null;
+		});
+		const rows = await client.query(call, params);
+		if (returns.shape === "rows") return rows;
+		return returns.shape === "nothing" ? void 0 : rows[0]?.result;
+	};
+	return Object.assign(callFunction, {
+		functionName: name,
+		sql: createStatement(definition),
+		[POSTGRES_FUNCTION]: true
+	});
+};
+const isPostgresFunction = (value) => typeof value === "function" && value[POSTGRES_FUNCTION] === true;
+const postgres = {
+	function: { define },
+	type: {
+		uuid,
+		text,
+		integer,
+		double,
+		boolean,
+		date,
+		timestamp,
+		jsonb,
+		array,
+		nullable,
+		custom,
+		table,
+		nothing
+	}
+};
+//#endregion
 //#region src/table.ts
 const COMMENT_PREFIX = "awsless:";
 var TableChangeError = class extends Error {
@@ -435,4 +526,4 @@ const applySchema = (client, definition, options = {}) => {
 	});
 };
 //#endregion
-export { DatabaseError as PostgresError, TableChangeError, alterTableStatements, applySchema, getSqlState, postgresClient, postgresDataClient };
+export { DatabaseError as PostgresError, TableChangeError, alterTableStatements, applySchema, getSqlState, isPostgresFunction, postgres, postgresClient, postgresDataClient };

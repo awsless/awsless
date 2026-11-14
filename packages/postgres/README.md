@@ -179,6 +179,52 @@ In one transaction, with the schema as the search path (before `public`):
 
 A change that fails rolls everything back. The error names the table (`Postgres table "orders": column "note" of relation "orders" contains null values`) or the file and line (`function.sql:12: syntax error at or near "RETRUN"`).
 
+### A function defined in TypeScript
+
+A function can be defined next to the code that calls it, like a redis script: its signature, its body and a typed call.
+
+```ts
+import { postgres } from '@awsless/postgres'
+
+const { integer, text, uuid } = postgres.type
+
+export const bump = postgres.function.define({
+	name: 'bump',
+	args: { project: uuid(), counter: text(), amount: integer() },
+	returns: integer(),
+	language: 'plpgsql',
+	attributes: 'VOLATILE',
+	body: `
+		DECLARE
+			result integer;
+		BEGIN
+			UPDATE counters SET value = value + amount
+			WHERE project_id = project AND name = counter
+			RETURNING value INTO result;
+
+			RETURN result;
+		END
+	`,
+})
+
+const value = await bump(client, { project, counter: 'visits', amount: 1 })
+```
+
+| Part         | Description                                                                                                      |
+| ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `name`       | The function's name in the schema.                                                                               |
+| `args`       | The arguments by name, in the order the function declares them, each a `postgres.type`.                          |
+| `returns`    | The result's type: a value (`integer()`, `jsonb<T>()`), rows (`table({ … })`) or `nothing()` for void.           |
+| `language`   | `sql` or `plpgsql`.                                                                                              |
+| `attributes` | What follows the language: the volatility, `PARALLEL SAFE`, a `SET` clause.                                      |
+| `body`       | The body, without its dollar quotes.                                                                             |
+
+The call names its arguments and casts each to its type, so they travel as parameters; it answers the function's value, its rows for a table, or nothing. `fn.sql` is the `CREATE OR REPLACE FUNCTION` statement and `fn.functionName` the name, for sql that uses the function.
+
+The types: `uuid`, `text`, `integer`, `double`, `boolean`, `date`, `timestamp`, `jsonb<T>` (sent as json text), `array(type)`, `nullable(type)`, `table(columns)`, `nothing` and `custom<T>('datemultirange')` for any other type by its name.
+
+In a stack file, list the module under `postgres.functions`: the awsless CLI loads it and creates every function it exports. Functions call each other and a module's exports have no order, so each is created twice: first without its body checked (`check_function_bodies = off`), then checked once all of them are there.
+
 ### Changing a table
 
 The definition a table was made with is stored in its comment, and the next apply compares against that, not against how Postgres spells things.

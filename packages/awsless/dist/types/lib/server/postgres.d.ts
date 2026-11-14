@@ -1,4 +1,4 @@
-export { getSqlState, PostgresError } from '@awsless/postgres';
+export { getSqlState, postgres, PostgresError, type PostgresFunction } from '@awsless/postgres';
 export declare const getPostgresSchemaName: (stackName: string) => string;
 export declare const getPostgresProps: (stack?: string) => {
     readonly schema: string;

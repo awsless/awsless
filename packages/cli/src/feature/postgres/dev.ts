@@ -5,7 +5,7 @@ import { getPostgresSchemaName } from 'awsless'
 import { StackConfig } from '../../config/stack.js'
 import { connectServerSink, createServerSink, type ServerSink } from '../../dev/server-sink.js'
 import { DevContext } from '../../feature.js'
-import { applyStackSchemas } from './util.js'
+import { applyStackSchemas, isFunctionModule } from './util.js'
 
 // The server kept across restarts of the dev environment.
 type KeptServer = {
@@ -80,7 +80,8 @@ export const postgresOnDev = async (ctx: DevContext) => {
 				for (const file of stack.postgres?.functions ?? []) {
 					watchers.push(
 						watch(dirname(file), (_event, filename) => {
-							if (filename === basename(file)) {
+							// A module of defined functions may import its folder's other files.
+							if (isFunctionModule(file) || filename === basename(file)) {
 								// Debounced, so a burst of saves applies once.
 								clearTimeout(timers.get(stack.name))
 								timers.set(

@@ -6,7 +6,7 @@ import { registerTestCleanup } from '../test/cleanup.js'
 import { ensureTestSchema } from '../test/schema.js'
 import { getApp, getStack, isTest } from './util.js'
 
-export { getSqlState, PostgresError } from '@awsless/postgres'
+export { getSqlState, postgres, PostgresError, type PostgresFunction } from '@awsless/postgres'
 
 // The schema of a stack, also used by the CLI: inside the one database
 // locally, and with a database of the same name around it on Aurora.
