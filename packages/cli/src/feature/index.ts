@@ -3,6 +3,7 @@ import { assetFeature } from './asset/index.js'
 import { authFeature } from './auth/index.js'
 import { bundleFeature } from './bundle/index.js'
 import { cacheFeature } from './cache/index.js'
+import { clickhouseFeature } from './clickhouse/index.js'
 import { commandFeature } from './command/index.js'
 import { configFeature } from './config/index.js'
 import { cronFeature } from './cron/index.js'
@@ -15,9 +16,11 @@ import { imageFeature } from './image/index.js'
 import { instanceFeature } from './instance/index.js'
 import { jobFeature } from './job/index.js'
 import { layerFeature } from './layer/index.js'
+import { loadBalancerFeature } from './load-balancer/index.js'
 import { metricFeature } from './metric/index.js'
 import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
+import { postgresFeature } from './postgres/index.js'
 import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
 import { restFeature } from './rest/index.js'
@@ -35,6 +38,8 @@ import { vpcFeature } from './vpc/index.js'
 export const features = [
 	// 1. The base infra that everything below builds on.
 	vpcFeature,
+	// The app's one load balancer, before the pubsub that uses it.
+	loadBalancerFeature,
 	domainFeature,
 	assetFeature,
 	routerFeature,
@@ -50,7 +55,7 @@ export const features = [
 	onFailureFeature,
 	onErrorLogFeature,
 
-	// 3. The shared bundle lambda that hosts all feature handlers.
+	// 3. The bundle, every feature's handlers, and its event & web functions.
 	bundleFeature,
 
 	// 4. The remaining app features, building on everything above.
@@ -61,6 +66,8 @@ export const features = [
 	configFeature,
 	emailFeature,
 	searchFeature,
+	clickhouseFeature,
+	postgresFeature,
 	pubsubFeature,
 	metricFeature,
 	tableFeature,

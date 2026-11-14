@@ -1,6 +1,7 @@
 import { seconds } from '@awsless/duration'
 import { Config } from '../src/lib/server/config'
 import { Cron } from '../src/lib/server/cron'
+import { Email } from '../src/lib/server/email'
 import { Fn } from '../src/lib/server/function'
 import { Instance } from '../src/lib/server/instance'
 import { Queue } from '../src/lib/server/queue'
@@ -186,5 +187,44 @@ describe('store', () => {
 
 		await expect(files.has('a.txt')).resolves.toBe(false)
 		await expect(files.get('a.txt')).resolves.toBeUndefined()
+	})
+})
+
+describe('email', () => {
+	it('records a send with its text part & headers', async () => {
+		await Email.send({
+			from: 'noreply@example.com',
+			to: ['user@example.com'],
+			subject: 'Hello',
+			html: '<p>Hello</p>',
+			text: 'Hello',
+			headers: [
+				{ name: 'List-Unsubscribe', value: '<https://example.com/unsubscribe?token=abc>' },
+				{ name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
+			],
+		})
+
+		expect(m.email.send).toHaveBeenCalledWith({
+			from: 'noreply@example.com',
+			to: ['user@example.com'],
+			subject: 'Hello',
+			html: '<p>Hello</p>',
+			text: 'Hello',
+			headers: [
+				{ name: 'List-Unsubscribe', value: '<https://example.com/unsubscribe?token=abc>' },
+				{ name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
+			],
+		})
+	})
+
+	it('records a plain html send without them', async () => {
+		await Email.send({ from: 'noreply@example.com', to: ['user@example.com'], subject: 'Hi', html: '<p>Hi</p>' })
+
+		expect(m.email.send).toHaveBeenCalledWith({
+			from: 'noreply@example.com',
+			to: ['user@example.com'],
+			subject: 'Hi',
+			html: '<p>Hi</p>',
+		})
 	})
 })

@@ -21,7 +21,7 @@ describe('env', () => {
 		expect(util.formatResourceName({ stackName: 'stack', resourceType: 'table', resourceName: 'items' })).toBe(
 			'my-app--stack--table--items'
 		)
-		expect(bundle.getBundleName()).toBe('my-app--function--bundle')
+		expect(bundle.getEventFunctionName()).toBe('my-app--bundle--event')
 		expect(onFailure.getOnFailureBucketName()).toBe('my-app--on-failure--failure--abc')
 		expect(onFailure.getOnFailureQueueArn()).toBe('arn:aws:sqs:eu-west-1:123:my-app--on-failure--failure')
 		expect(store.getStoreName('files', 'stack')).toBe('my-app--stack--store--files--abc')

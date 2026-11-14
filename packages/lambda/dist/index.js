@@ -1,74 +1,8 @@
 import { InvokeCommand, LambdaClient, LambdaClient as LambdaClient$1, ListFunctionsCommand } from "@aws-sdk/client-lambda";
-import { parse, patch, stringify, unpatch } from "@awsless/json";
-import { getVitest, globalClient, mockObjectValues, nextTick } from "@awsless/utils";
-import { ValiError, applyRedaction, parse as parse$1 } from "@awsless/validate";
+import { ValiError, applyRedaction, parse } from "@awsless/validate";
+import { parse as parse$1, patch, stringify, unpatch } from "@awsless/json";
+import { flushTraces, getVitest, globalClient, mockObjectValues, nextTick, withTraceHeader } from "@awsless/utils";
 import { AsyncLocalStorage } from "node:async_hooks";
-//#region src/errors/expected.ts
-var ExpectedError = class extends Error {
-	type;
-	data;
-	constructor(type, message, data) {
-		super(message);
-		this.type = type;
-		this.data = data;
-	}
-};
-//#endregion
-//#region src/errors/response.ts
-const isErrorResponse = (response) => {
-	return typeof response === "object" && response !== null && "__error__" in response && typeof response.__error__ === "object";
-};
-const toErrorResponse = (error) => {
-	return { __error__: {
-		type: error.type,
-		message: error.message,
-		data: unpatch(error.data)
-	} };
-};
-//#endregion
-//#region src/helpers/client.ts
-const lambdaClient = globalClient(() => {
-	return new LambdaClient$1({});
-});
-//#endregion
-//#region src/commands/invoke.ts
-const isLambdaErrorResponse = (response) => {
-	return typeof response === "object" && response !== null && typeof response.errorMessage === "string";
-};
-/** Invoke lambda function */
-const invoke = async ({ client = lambdaClient(), name, qualifier, type = "RequestResponse", payload, reflectExpectedErrors = true }) => {
-	const command = new InvokeCommand({
-		InvocationType: type,
-		FunctionName: name,
-		Payload: payload ? new TextEncoder().encode(stringify(payload)) : void 0,
-		Qualifier: qualifier
-	});
-	const result = await client.send(command);
-	if (!result.Payload) return;
-	const json = new TextDecoder().decode(result.Payload);
-	if (!json) return;
-	const response = parse(json);
-	if (isErrorResponse(response)) {
-		const e = response.__error__;
-		if (reflectExpectedErrors) throw new ExpectedError(e.type, e.message, e.data);
-		else throw new Error(e.message);
-	}
-	if (isLambdaErrorResponse(response)) {
-		const error = new Error(response.errorMessage);
-		error.name = response.errorType;
-		throw error;
-	}
-	return response;
-};
-//#endregion
-//#region src/commands/list-functions.ts
-const listFunctions = async ({ client = lambdaClient(), ...params }) => {
-	const command = new ListFunctionsCommand(params);
-	const result = await client.send(command);
-	if (!result.Functions) return;
-	return result;
-};
-//#endregion
 //#region src/helpers/error.ts
 const normalizeError = (maybeError) => {
 	if (maybeError instanceof Error) return maybeError;
@@ -118,27 +52,88 @@ const enhanceError = (maybeError, schema, input, context) => {
 	return error;
 };
 //#endregion
+//#region src/errors/expected.ts
+var ExpectedError = class extends Error {
+	type;
+	data;
+	constructor(type, message, data) {
+		super(message);
+		this.type = type;
+		this.data = data;
+	}
+};
+//#endregion
+//#region src/errors/response.ts
+const isErrorResponse = (response) => {
+	return typeof response === "object" && response !== null && "__error__" in response && typeof response.__error__ === "object";
+};
+const toErrorResponse = (error) => {
+	return { __error__: {
+		type: error.type,
+		message: error.message,
+		data: unpatch(error.data)
+	} };
+};
+//#endregion
+//#region src/helpers/client.ts
+const lambdaClient = globalClient(() => {
+	return new LambdaClient$1({});
+});
+//#endregion
+//#region src/commands/invoke.ts
+const isLambdaErrorResponse = (response) => {
+	return typeof response === "object" && response !== null && typeof response.errorMessage === "string";
+};
+/** Invoke lambda function */
+const invoke = async ({ client = lambdaClient(), name, qualifier, type = "RequestResponse", payload, reflectExpectedErrors = true }) => {
+	const command = new InvokeCommand({
+		InvocationType: type,
+		FunctionName: name,
+		Payload: payload ? new TextEncoder().encode(stringify(payload)) : void 0,
+		Qualifier: qualifier
+	});
+	const result = await client.send(command);
+	if (!result.Payload) return;
+	const json = new TextDecoder().decode(result.Payload);
+	if (!json) return;
+	const response = parse$1(json);
+	if (isErrorResponse(response)) {
+		const e = response.__error__;
+		if (reflectExpectedErrors) throw new ExpectedError(e.type, e.message, e.data);
+		else throw new Error(e.message);
+	}
+	if (isLambdaErrorResponse(response)) {
+		const error = new Error(response.errorMessage);
+		error.name = response.errorType;
+		throw error;
+	}
+	return response;
+};
+//#endregion
+//#region src/commands/list-functions.ts
+const listFunctions = async ({ client = lambdaClient(), ...params }) => {
+	const command = new ListFunctionsCommand(params);
+	const result = await client.send(command);
+	if (!result.Functions) return;
+	return result;
+};
+//#endregion
 //#region src/errors/timeout.ts
 var TimeoutError = class extends Error {
 	constructor(remainingTime) {
 		super(`Lambda will timeout in ${remainingTime}ms`);
 	}
 };
-const createTimeoutWrap = async (schema, event, context, log, callback) => {
-	if (!context) return callback();
-	const time = context.getRemainingTimeInMillis();
-	const delay = Math.max(time - 1e3, 1e3);
+const startTimeoutWarning = (schema, event, context, log) => {
+	if (!context) return () => {};
+	const delay = Math.max(context.getRemainingTimeInMillis() - 1e3, 1e3);
 	const id = setTimeout(() => {
 		const timeoutError = new TimeoutError(context.getRemainingTimeInMillis());
 		const enhancedError = enhanceError(timeoutError, schema, event, context);
 		log(enhancedError);
 		console.error(enhancedError);
 	}, delay);
-	try {
-		return await callback();
-	} finally {
-		clearTimeout(id);
-	}
+	return () => clearTimeout(id);
 };
 //#endregion
 //#region src/errors/validation.ts
@@ -204,7 +199,7 @@ const mockLambda = (lambdas, options) => {
 			const input = command.input;
 			const name = input.FunctionName ?? "";
 			const type = input.InvocationType ?? "RequestResponse";
-			const payload = input.Payload ? parse(new TextDecoder().decode(input.Payload)) : void 0;
+			const payload = input.Payload ? parse$1(new TextDecoder().decode(input.Payload)) : void 0;
 			const callback = globalList[name];
 			if (!callback) throw new TypeError(`Lambda mock function not defined for: ${name}`);
 			const result = await nextTick(callback, payload);
@@ -220,6 +215,74 @@ const mockLambda = (lambdas, options) => {
 	return list;
 };
 //#endregion
+//#region src/invocation.ts
+/**
+* One run of a handler: its input validated, the extended context that
+* getContext() returns, and the timeout warning. A failed run is answered,
+* not thrown, so its caller can log the error before finishing.
+*/
+const runInvocation = async (options) => {
+	const log = options.log ?? (async () => {});
+	const successCallbacks = [];
+	const failureCallbacks = [];
+	const finallyCallbacks = [];
+	let result;
+	let finishPromise;
+	const stopTimeoutWarning = startTimeoutWarning(options.schema, options.input, options.context, log);
+	const runCallbacks = async (failure) => {
+		stopTimeoutWarning();
+		try {
+			if (failure) {
+				await Promise.all(failureCallbacks.map((callback) => callback(failure.error)));
+				return;
+			}
+			try {
+				await Promise.all(successCallbacks.map((callback) => callback(result)));
+			} catch (callbackError) {
+				await Promise.all(failureCallbacks.map((callback) => callback(callbackError)));
+				throw callbackError;
+			}
+		} finally {
+			await Promise.all(finallyCallbacks.map((callback) => callback()));
+			await flushTraces();
+		}
+	};
+	const finishInvocation = (failure) => finishPromise ??= runCallbacks(failure);
+	const xRayTraceId = options.context?.xRayTraceId;
+	try {
+		result = await withTraceHeader(xRayTraceId, () => transformValidationErrors(() => {
+			const event = options.schema ? parse(options.schema, options.input) : options.input;
+			const context = {
+				event,
+				context: options.context,
+				raw: options.raw,
+				log,
+				onSuccess(callback) {
+					successCallbacks.push(callback);
+				},
+				onFailure(callback) {
+					failureCallbacks.push(callback);
+				},
+				onFinally(callback) {
+					finallyCallbacks.push(callback);
+				}
+			};
+			return eventContext.run(context, () => options.handle(event, context));
+		}));
+	} catch (error) {
+		return {
+			isSuccessful: false,
+			error,
+			finishInvocation
+		};
+	}
+	return {
+		isSuccessful: true,
+		result,
+		finishInvocation
+	};
+};
+//#endregion
 //#region src/lambda.ts
 /** Create a lambda handle function. */
 const lambda = (options) => {
@@ -228,53 +291,49 @@ const lambda = (options) => {
 			const error = normalizeError(maybeError);
 			const list = [options.logger].flat(10);
 			await Promise.all(list.map(async (logger) => {
-				await logger?.(error, { input: event });
+				await logger?.(error, { input: options.schema ? applyRedaction(options.schema, event) : event });
 			}));
 		};
 		const isTest = isTestEnv();
-		const successCallbacks = [];
-		const failureCallbacks = [];
-		const finallyCallbacks = [];
-		try {
-			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
-				return transformValidationErrors(() => {
-					const raw = typeof event === "undefined" || isTest ? event : patch(event);
-					const input = options.schema ? parse$1(options.schema, raw) : raw;
-					const extendedContext = {
-						event: input,
-						context,
-						raw,
-						log,
-						onSuccess(cb) {
-							successCallbacks.push(cb);
-						},
-						onFailure(cb) {
-							failureCallbacks.push(cb);
-						},
-						onFinally(cb) {
-							finallyCallbacks.push(cb);
-						}
-					};
-					return eventContext.run(extendedContext, () => {
-						return options.handle(input, extendedContext);
-					});
-				});
-			});
-			await Promise.all(successCallbacks.map((cb) => cb(result)));
-			if (isTest) return parse(stringify(result, { preserveUndefinedValues: true }));
-			return unpatch(result);
-		} catch (error) {
-			await Promise.all(failureCallbacks.map((cb) => cb(error)));
-			const isExpectedError = error instanceof ExpectedError;
-			const throwExpectedErrors = typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
-			if (!isExpectedError || throwExpectedErrors) await log(error);
-			if (!isTest && !throwExpectedErrors && isExpectedError) return toErrorResponse(error);
-			if (!isTest) throw enhanceError(normalizeError(error), options.schema, event, context);
-			throw error;
-		} finally {
-			await Promise.all(finallyCallbacks.map((cb) => cb()));
+		const raw = typeof event === "undefined" || isTest ? event : patch(event);
+		const invocation = await runInvocation({
+			schema: options.schema,
+			input: raw,
+			raw,
+			context,
+			log,
+			handle: (input, extendedContext) => options.handle(input, extendedContext)
+		});
+		let shouldThrowExpectedErrors;
+		const isReturnedError = (error) => {
+			shouldThrowExpectedErrors ??= typeof options.throwExpectedErrors === "function" ? options.throwExpectedErrors() : !!options.throwExpectedErrors;
+			return error instanceof ExpectedError && !shouldThrowExpectedErrors;
+		};
+		const logThrownError = async (error) => {
+			if (!isReturnedError(error)) await log(error);
+		};
+		const returnOrThrowError = (error) => {
+			if (isTest) throw error;
+			if (isReturnedError(error)) return toErrorResponse(error);
+			throw enhanceError(normalizeError(error), options.schema, event, context);
+		};
+		if (!invocation.isSuccessful) {
+			try {
+				await logThrownError(invocation.error);
+			} finally {
+				await invocation.finishInvocation({ error: invocation.error });
+			}
+			return returnOrThrowError(invocation.error);
 		}
+		try {
+			await invocation.finishInvocation();
+		} catch (error) {
+			await logThrownError(error);
+			return returnOrThrowError(error);
+		}
+		if (isTest) return parse$1(stringify(invocation.result, { preserveUndefinedValues: true }));
+		return unpatch(invocation.result);
 	});
 };
 //#endregion
-export { ExpectedError, LambdaClient, TimeoutError, ValidationError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { ExpectedError, LambdaClient, TimeoutError, ValidationError, enhanceError, getContext, invoke, isErrorResponse, isTestEnv, lambda, lambdaClient, listFunctions, mockLambda, runInvocation, toErrorResponse };

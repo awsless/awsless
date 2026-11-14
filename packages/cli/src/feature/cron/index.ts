@@ -62,7 +62,7 @@ export const cronFeature = defineFeature({
 	onApp(ctx) {
 		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)
 		if (found) {
-			const bundle = ctx.shared.get('bundle', 'main')
+			const eventFunction = ctx.shared.get('bundle', 'event-function')
 			const groupName = formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'cron',
@@ -111,7 +111,7 @@ export const cronFeature = defineFeature({
 					inlinePolicy: [
 						{
 							name: 'InvokeFunction',
-							policy: bundle.alias.arn.pipe(arn =>
+							policy: eventFunction.alias.arn.pipe(arn =>
 								JSON.stringify({
 									Version: '2012-10-17',
 									Statement: [
@@ -150,7 +150,7 @@ export const cronFeature = defineFeature({
 		}
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
+		const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Group(ctx.stack, 'cron', id)
@@ -182,7 +182,7 @@ export const cronFeature = defineFeature({
 					scheduleExpression: props.schedule,
 					flexibleTimeWindow: { mode: 'OFF' },
 					target: {
-						arn: bundle.alias.arn,
+						arn: eventFunction.alias.arn,
 						roleArn: ctx.shared.get('cron', 'role-arn'),
 						input: JSON.stringify(formatRoutePayload(routeKey, props.payload)),
 						// Fires the scheduler can't deliver land on the on-failure queue.

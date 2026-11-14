@@ -45,15 +45,11 @@ export const findImports = async (file: string, code: string) => {
 		},
 	})
 
+	// Package imports keep their subpath ("pkg/bundle"): a workspace
+	// package's subpath export is its own file to hash.
 	return [...importing].map(importee => {
 		if (importee.startsWith('.')) {
 			return resolve(dirname(file), importee)
-		}
-
-		const parts = importee.split('/')
-
-		if (parts.length > 2) {
-			return parts.slice(0, 2).join('/')
 		}
 
 		return importee

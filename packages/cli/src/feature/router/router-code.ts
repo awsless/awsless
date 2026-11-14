@@ -1,4 +1,5 @@
 import { minutes, seconds, toSeconds } from '@awsless/duration'
+import { DEPLOYMENT_ID_HEADER, ROUTE_HEADER } from '../bundle/util.js'
 import { MAINTENANCE_KEY, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { LOGIN_PAGE_HEADER, LOGIN_PATH, PasswordAuth } from './password-auth.js'
 
@@ -8,12 +9,19 @@ const ORIGIN_CONNECTION_TIMEOUT = toSeconds(seconds(10))
 
 export const getViewerRequestFunctionCode = (props: {
 	router: string
+	// Answer OPTIONS preflights at the edge (the default). A router without
+	// cors lets them through to its routes.
+	cors?: boolean
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
+	// The share of requests to trace (0 to 1), decided here instead of by Lambda.
+	traceSampleRate?: number
 }): string => {
 	return compact(
 		CODE({
+			cors: props.cors !== false,
+			traceSampling: props.traceSampleRate === undefined ? '' : TRACE_SAMPLING(props.traceSampleRate),
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 				props.redirectWww ? REDIRECT_WWW : '',
@@ -95,6 +103,14 @@ function handler(event) {
 `)
 }
 
+// The router's own sampling decision for a function's trace, with a fresh
+// X-Ray trace id: Lambda follows a decision that comes with the request.
+// Written dense: the function sits close to CloudFront's 10KB cap.
+const TRACE_SAMPLING = (sampleRate: number) => `
+let t='';
+for(let i=0;i<24;i++)t+=(Math.random()*16|0).toString(16);
+headers['x-amzn-trace-id']={value:'Root=1-'+(Date.now()/1000|0).toString(16)+'-'+t+';Sampled='+ +(Math.random()<${sampleRate})};`
+
 // CloudFront caps a function at 10KB, so the indentation & comments stay out of it.
 const compact = (code: string) => {
 	return code
@@ -149,7 +165,13 @@ if (headers.host && headers.host.value.startsWith('www.')) {
 // which doubles as the per request auth for scripts without a cookie jar.
 const PASSWORD_AUTH_CHECK = (auth: PasswordAuth) => {
 	const name = JSON.stringify(auth.name)
-	const attributes = ['Path=/', 'Secure', 'HttpOnly', 'SameSite=Lax', ...(auth.domain ? [`Domain=${auth.domain}`] : [])]
+	const attributes = [
+		'Path=/',
+		'Secure',
+		'HttpOnly',
+		'SameSite=Lax',
+		...(auth.domain ? [`Domain=${auth.domain}`] : []),
+	]
 	const cookie = `{ ${name}: { value: expires + '.' + sign(expires), attributes: ${JSON.stringify([...attributes, ...(auth.maxAge ? [`Max-Age=${auth.maxAge}`] : [])].join('; '))} } }`
 
 	// A session is its expiry plus an hmac over it, so a leaked cookie
@@ -252,7 +274,27 @@ try {
 
 const prefix = table + ':' + router + ':';`
 
-const CODE = (props: { before: string[]; prefix: string; after: string[]; withCrypto: boolean }) => `
+const CORS_PREFLIGHT = `
+if (request.method === 'OPTIONS') {
+	return {
+		statusCode: 204,
+		headers: {
+			'access-control-allow-origin': { value: '*' },
+			'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
+			'access-control-allow-headers': { value: '*' },
+			'access-control-max-age': { value: '86400' }
+		}
+	};
+}`
+
+const CODE = (props: {
+	before: string[]
+	prefix: string
+	after: string[]
+	withCrypto: boolean
+	cors: boolean
+	traceSampling: string
+}) => `
 import cf from "cloudfront";
 ${props.withCrypto ? 'import crypto from "crypto";' : ''}
 
@@ -365,8 +407,11 @@ async function findRoute(path, method, prefix) {
 function setRouteOrigin(route) {
 	if(route.type === 's3') {
 		setS3Origin(route);
-	} else if(route.type === 'lambda') {
-		setLambdaOrigin(route);
+	} else if(route.type === 'lambda' || route.type === 'event-function') {
+		setLambdaOrigin(route, 'always');
+	} else if(route.type === 'web-function') {
+		// A Lambda Web Function takes only this signing, which keeps a body unsigned.
+		setLambdaOrigin(route, 'always-amz-auth');
 	} else if(route.type === 'url') {
 		setUrlOrigin(route);
 	} else {
@@ -424,7 +469,7 @@ function setS3Origin(route) {
 	}));
 }
 
-function setLambdaOrigin(route) {
+function setLambdaOrigin(route, signingBehavior) {
 	const config = getRequestOriginConfig(route);
 
 	if(typeof config.timeouts.readTimeout !== 'number') {
@@ -443,7 +488,7 @@ function setLambdaOrigin(route) {
 		},
 		originAccessControlConfig: {
 			enabled: true,
-			signingBehavior: 'always',
+			signingBehavior: signingBehavior,
 			signingProtocol: 'sigv4',
 			originType: 'lambda',
 		}
@@ -465,17 +510,7 @@ async function handler(event) {
 		path = request.uri;
 	}
 
-	if (request.method === 'OPTIONS') {
-		return {
-			statusCode: 204,
-			headers: {
-				'access-control-allow-origin': { value: '*' },
-				'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
-				'access-control-allow-headers': { value: '*' },
-				'access-control-max-age': { value: '86400' }
-			}
-		};
-	}
+	${props.cors ? CORS_PREFLIGHT : ''}
 
 	${props.before.join('\n')}
 
@@ -513,18 +548,33 @@ async function handler(event) {
 		}
 	}
 
+	// Only the route names the bundle handler & its deployment, never the client.
+	delete headers['${ROUTE_HEADER}'];
+	delete headers['${DEPLOYMENT_ID_HEADER}'];
+
+	if(route.type === 'web-function') {
+		headers['${DEPLOYMENT_ID_HEADER}'] = { value: route.deploymentId };
+	}
+
+	// Whether a request is traced is never the client's call.
+	delete headers['x-amzn-trace-id'];
+	delete headers.traceparent;
+	delete headers.tracestate;
+
 	if(route.requestHeaders) {
 		for(const name in route.requestHeaders) {
 			headers[name] = { value: route.requestHeaders[name] };
 		}
 	}
 
-	if(route.type === 'lambda') {
+	if(route.type === 'lambda' || route.type === 'event-function' || route.type === 'web-function') {
 		if(headers.authorization) {
 			headers['x-awsless-authorization'] = headers.authorization;
 		} else {
 			delete headers['x-awsless-authorization'];
 		}
+
+		${props.traceSampling}
 	}
 
 	setRouteOrigin(route);
@@ -535,7 +585,8 @@ async function handler(event) {
 		delete headers['x-forwarded-host'];
 	}
 
-	headers['x-origin'] = { value: route.domainName };
+	// The cache key: a bundle route's endpoint stays the same, so its deployment id busts the cache.
+	headers['x-origin'] = { value: route.type === 'web-function' ? route.domainName + '#' + route.deploymentId : route.domainName };
 
 	if(route.urlEncodedQueryString) {
 		for (var key in request.querystring) {

@@ -31,4 +31,33 @@ describe('auth', () => {
 
 		expect(pool.input.adminCreateUserConfig).toEqual({ allowAdminCreateUserOnly: true })
 	})
+
+	it('sets token validity in hours and days', () => {
+		const { app } = createTestApp({
+			app: {
+				auth: {
+					users: { validity: { accessToken: '2 hours', idToken: '1 day', refreshToken: '30 days' } },
+				},
+			},
+		})
+
+		const client = listResources(app, 'aws_cognito_user_pool_client')[0]!
+
+		expect(client.input).toMatchObject({
+			accessTokenValidity: 2,
+			idTokenValidity: 24,
+			refreshTokenValidity: 30,
+			tokenValidityUnits: [{ accessToken: 'hours', idToken: 'hours', refreshToken: 'days' }],
+		})
+	})
+
+	it.each([
+		{ accessToken: '15 minutes' },
+		{ accessToken: '90 minutes' },
+		{ idToken: '2 days' },
+		{ refreshToken: '36 hours' },
+		{ refreshToken: '3651 days' },
+	])('refuses a validity that is not whole units or outside cognito limits %o', validity => {
+		expect(() => createTestApp({ app: { auth: { users: { validity } } } })).toThrow()
+	})
 })

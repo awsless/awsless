@@ -22,6 +22,20 @@ export type TestManifest = {
         mappings: unknown;
         settings?: unknown;
     }[];
+    clickhouse?: {
+        stack: string;
+        id: string;
+        definition: unknown;
+        columns: Record<string, string>;
+    }[];
+    postgres?: {
+        stack: string;
+        tables: Record<string, unknown>;
+        functions: {
+            name: string;
+            sql: string;
+        }[];
+    }[];
     functions: {
         stack: string;
         id: string;
@@ -64,6 +78,12 @@ export type TestManifest = {
         };
         search?: {
             endpoint: string;
+        };
+        clickhouse?: {
+            endpoint: string;
+        };
+        postgres?: {
+            url: string;
         };
     };
 };

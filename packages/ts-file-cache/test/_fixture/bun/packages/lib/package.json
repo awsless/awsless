@@ -1,4 +1,8 @@
 {
 	"name": "@fixture/lib",
-	"main": "_index.ts"
+	"main": "_index.ts",
+	"exports": {
+		".": "./_index.ts",
+		"./extra": { "import": "./_extra.ts" }
+	}
 }

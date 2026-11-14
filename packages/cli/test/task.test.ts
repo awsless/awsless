@@ -20,7 +20,7 @@ describe('task schedule role', () => {
 			{
 				Action: ['lambda:InvokeFunction'],
 				Effect: 'Allow',
-				Resource: 'arn:aws:lambda:us-east-1:123456789012:function:test-app--function--bundle:*',
+				Resource: 'arn:aws:lambda:us-east-1:123456789012:function:test-app--bundle--event:*',
 			},
 			{
 				Action: ['sqs:SendMessage'],

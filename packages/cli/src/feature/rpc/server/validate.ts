@@ -16,13 +16,7 @@ import {
 } from '@awsless/validate'
 
 export const requestSchema = object({
-	requestContext: object({
-		http: object({
-			method: literal('POST'),
-			userAgent: string(),
-			sourceIp: string(),
-		}),
-	}),
+	method: literal('POST'),
 	headers: record(string(), string()),
 	body: json(
 		pipe(

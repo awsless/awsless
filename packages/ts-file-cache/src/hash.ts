@@ -64,17 +64,17 @@ export const generateRecursiveFileHashes = async (
 				throw new Error(`Can't find the local workspace package for: ${file}`)
 			}
 
-			if (!localPackage.main) {
-				throw new Error(`Workspace package doesn't have a main entry: ${file}`)
+			// A subpath import ("pkg/bundle") is the file its exports name,
+			// not the main entry, or a change there would never bust the
+			// cache.
+			const subpath = `.${file.slice(module.length)}`
+			const entry = localPackage.exports[subpath] ?? (subpath === '.' ? localPackage.main : undefined)
+
+			if (!entry) {
+				throw new Error(`Workspace package doesn't export the import: ${file}`)
 			}
 
-			await generateRecursiveFileHashes(
-				workspace,
-				localPackage.main,
-				localPackage.main,
-				allowedExtensions,
-				hashes
-			)
+			await generateRecursiveFileHashes(workspace, entry, entry, allowedExtensions, hashes)
 		}
 
 		return

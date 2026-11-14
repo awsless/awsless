@@ -75,7 +75,7 @@ describe('search serverless', () => {
 
 		expect(principals).toEqual(
 			expect.arrayContaining([
-				'test-app--function--bundle',
+				'test-app--bundle--event',
 				'test-app--stack-1--function--echo',
 				'test-app--stack-1--job--export',
 				'test-app--stack-1--instance--worker',

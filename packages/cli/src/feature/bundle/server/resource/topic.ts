@@ -1,14 +1,15 @@
 import type { SNSEvent } from 'aws-lambda'
 import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
-import { asyncRoute, routeType } from './util.js'
+import { asyncRoute, describeSnsSpan, routeType } from './util.js'
 
 export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	const route = event?.[ROUTE_PROPERTY]
 
 	if (typeof route === 'string') {
 		if (routeType(route) === 'topic') {
-			return asyncRoute(route, event.event)
+			// One of several subscribers, each invoked with the topic's event.
+			return asyncRoute(route, event.event, () => describeSnsSpan(event.event))
 		}
 
 		return
@@ -47,7 +48,7 @@ export const topicHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	}
 
 	if (subscribers.length === 1) {
-		return asyncRoute(subscribers[0]!, event)
+		return asyncRoute(subscribers[0]!, event, () => describeSnsSpan(event))
 	}
 
 	// Isolate subscribers in separate invocations so a hard failure in one can't block or retry the others.

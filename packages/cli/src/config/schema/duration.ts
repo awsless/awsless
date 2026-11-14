@@ -1,4 +1,4 @@
-import { Duration, DurationFormat, parse } from '@awsless/duration'
+import { days, Duration, DurationFormat, parse } from '@awsless/duration'
 import { z } from 'zod'
 
 export const DurationSchema = z
@@ -17,3 +17,5 @@ export const durationMax = (max: Duration) => {
 		return duration.value <= max.value
 	}
 }
+
+export const isWholeDays = (duration: Duration) => duration.value % days(1).value === 0n

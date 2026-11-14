@@ -137,14 +137,16 @@ export const queueFeature = defineFeature({
 			if (local.consumer) {
 				// The bundle routes the queue event to the right consumer based on the event source arn.
 				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), local.consumer)
+				const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 				new aws.lambda.EventSourceMapping(
 					group,
 					'event',
 					{
-						functionName: bundle.alias.arn,
+						functionName: eventFunction.alias.arn,
 						eventSourceArn: queue.arn,
 						batchSize: props.batchSize,
+						scalingConfig: props.maxConcurrency ? { maximumConcurrency: props.maxConcurrency } : undefined,
 					},
 					{
 						dependsOn: [bundle.policy],

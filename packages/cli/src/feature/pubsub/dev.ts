@@ -8,7 +8,7 @@ import { localEngine } from '../../dev/engine.js'
 import { createSnsServer } from '../../dev/servers/sns.js'
 import { findFreePort, stopChild, watchdogPath } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
-import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
+import { formatGlobalResourceName, getEventFunctionName } from '../../util/name.js'
 import { formatRouteKey } from '../bundle/util.js'
 
 const waitForHealth = async (port: number, timeoutMs: number) => {
@@ -238,7 +238,7 @@ export const pubsubOnDev = async (ctx: DevContext) => {
 							PORT: String(wsPort),
 							BIND_ADDRESS: '127.0.0.1',
 							APP: env.APP,
-							AUTH: `${getBundleFunctionName(ctx.appConfig.name)}:live`,
+							AUTH: `${getEventFunctionName(ctx.appConfig.name)}:live`,
 							AUTH_ROUTE: formatRouteKey('base', 'pubsub', `${id}-auth`),
 							EVENTS_TOPIC: eventsTopic,
 							REDIS_HOST: '127.0.0.1',

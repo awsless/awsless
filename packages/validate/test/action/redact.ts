@@ -1,5 +1,23 @@
-import { array, GenericSchema, map, number, object, pipe, record, set, string, union } from 'valibot'
-import { applyRedaction, redact } from '../../src'
+import { define, number as dbNumber, object as dbObject, string as dbString } from '@awsless/dynamodb'
+import {
+	array,
+	GenericSchema,
+	looseObject,
+	map,
+	nullable,
+	nullish,
+	number,
+	object,
+	optional,
+	pipe,
+	record,
+	set,
+	string,
+	tuple,
+	union,
+} from 'valibot'
+import { applyRedaction, dynamoDbStream, json, redact, sqsQueue } from '../../src'
+import { redactWith } from '../../src/action/redact'
 
 const test = (schema: GenericSchema, input: any, output: any) => {
 	it(`${JSON.stringify(input)} = ${JSON.stringify(output)}`, () => {
@@ -80,5 +98,91 @@ describe('redact', () => {
 
 		test(schema, new Map([['pass', 'password']]), new Map([['pass', '[REDACTED]']]))
 		testPlainTypes(schema)
+	})
+
+	describe('wrappers', () => {
+		const schema = object({
+			email: optional(pipe(string(), redact())),
+			ip: nullable(pipe(string(), redact())),
+			name: nullish(object({ first: pipe(string(), redact()) })),
+		})
+
+		test(
+			schema,
+			{ email: 'pat@example.com', ip: '192.0.2.1', name: { first: 'Pat' } },
+			{ email: '[REDACTED]', ip: '[REDACTED]', name: { first: '[REDACTED]' } }
+		)
+	})
+
+	describe('marked wrapper', () => {
+		const schema = object({ token: pipe(optional(string()), redact()) })
+
+		test(schema, { token: 'abc' }, { token: '[REDACTED]' })
+	})
+
+	describe('loose object', () => {
+		const schema = looseObject({ password: pipe(string(), redact()) })
+
+		test(schema, { password: 'pass', extra: 1 }, { password: '[REDACTED]', extra: 1 })
+	})
+
+	describe('tuple', () => {
+		const schema = tuple([string(), pipe(string(), redact())])
+
+		test(schema, ['a', 'b'], ['a', '[REDACTED]'])
+	})
+
+	describe('redactWith', () => {
+		const schema = object({
+			headers: pipe(
+				record(string(), string()),
+				redactWith(input =>
+					Object.fromEntries(
+						Object.entries(input as Record<string, string>).map(([name, value]) => [
+							name,
+							name === 'authorization' ? '[REDACTED]' : value,
+						])
+					)
+				)
+			),
+		})
+
+		test(
+			schema,
+			{ headers: { authorization: 'Bearer x', accept: '*/*' } },
+			{ headers: { authorization: '[REDACTED]', accept: '*/*' } }
+		)
+	})
+
+	describe('json', () => {
+		const schema = object({ body: json(object({ id: string(), email: pipe(string(), redact()) })) })
+
+		test(schema, { body: '{"id":"1","email":"pat@example.com"}' }, { body: '{"id":"1","email":"[REDACTED]"}' })
+		test(schema, { body: 'not json' }, { body: 'not json' })
+	})
+
+	describe('sqs queue', () => {
+		const schema = sqsQueue(object({ email: pipe(string(), redact()) }))
+
+		test(
+			schema,
+			{ Records: [{ body: '{"email":"pat@example.com"}' }] },
+			{ Records: [{ body: '{"email":"[REDACTED]"}' }] }
+		)
+	})
+
+	describe('dynamodb stream', () => {
+		const table = define('users', { hash: 'id', schema: dbObject({ id: dbNumber(), email: dbString() }) })
+		const schema = dynamoDbStream(table)
+		const record = {
+			eventName: 'MODIFY',
+			dynamodb: { Keys: { id: { N: '1' } }, NewImage: { id: { N: '1' }, email: { S: 'pat@example.com' } } },
+		}
+
+		test(
+			schema,
+			{ Records: [record] },
+			{ Records: [{ eventName: 'MODIFY', dynamodb: { Keys: { id: { N: '1' } }, NewImage: '[REDACTED]' } }] }
+		)
 	})
 })

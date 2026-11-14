@@ -1,26 +1,30 @@
 import { t as createProxy } from "./proxy-HAezNYiX.js";
 import * as s from "@awsless/open-search";
 import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search";
+import * as c from "@awsless/clickhouse";
+import { clickhouseClient, define as define$1 } from "@awsless/clickhouse";
 import * as t from "@awsless/dynamodb";
-import { define as define$1 } from "@awsless/dynamodb";
+import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
-import { array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, getContext, invoke, isErrorResponse, isTestEnv, lambda, toErrorResponse } from "@awsless/lambda";
+import { REDACTED, applyRedaction, array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, redact, redactWith, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
+import { ExpectedError, enhanceError, getContext, invoke, isErrorResponse, isTestEnv, lambda, runInvocation, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
+import { createHash, randomUUID } from "node:crypto";
 import { stringify } from "@awsless/json";
 import { publish } from "@awsless/sns";
 import { ssm } from "@awsless/ssm";
 import { WeakCache } from "@awsless/weak-cache";
 import { getCachedQueueUrl, sendMessage, sendMessageBatch } from "@awsless/sqs";
-import { randomUUID } from "crypto";
+import { randomUUID as randomUUID$1 } from "crypto";
 import { runTask } from "@awsless/ecs";
 import { deleteObject, getObject, headObject, putObject } from "@awsless/s3";
 import { schedule } from "@awsless/scheduler";
+import { flushTraces, isTracing, runTraceStep, runTraceStep as runTraceStep$1, startSpan, trace, trace as trace$1, withTraceHeader } from "@awsless/utils";
+import { PostgresError, getSqlState, postgresClient, postgresDataClient } from "@awsless/postgres";
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { sendEmail } from "@awsless/ses";
 import { batchPutData, createDurationMetric, createMetric, createSizeMetric, putData } from "@awsless/cloudwatch";
-import { createHash } from "node:crypto";
 //#region \0rolldown/runtime.js
 var __defProp = Object.defineProperty;
 var __exportAll = (all, no_symbols) => {
@@ -73,11 +77,12 @@ const bindGlobalResourceName = (resourceType) => {
 //#region src/lib/server/bundle.ts
 const ROUTE_PROPERTY = "$awsless-route";
 const ROUTE_HEADER = "x-awsless-route";
+const DEPLOYMENT_ID_HEADER = "x-awsless-deployment-id";
 const LIVE_BUNDLE_ALIAS = "live";
-const getBundleName = () => {
+const getEventFunctionName = () => {
 	return formatResourceName({
-		resourceType: "function",
-		resourceName: "bundle"
+		resourceType: "bundle",
+		resourceName: "event"
 	});
 };
 const formatRouteKey = (stackName, resourceType, resourceName) => {
@@ -104,7 +109,7 @@ const invokeBundle = ({ routeKey, payload, ...options }) => {
 	const proxy = process.env.SANDBOX_PROXY;
 	return invoke({
 		...options,
-		name: proxy || getBundleName(),
+		name: proxy || getEventFunctionName(),
 		qualifier: options.qualifier ?? getInvokedQualifier() ?? "live",
 		payload: formatRoutePayload(routeKey, payload)
 	});
@@ -223,56 +228,28 @@ const queue = (schema, handle) => {
 	return consumer(sqsQueue(schema), handle);
 };
 //#endregion
-//#region src/lib/handle/route.ts
-var RouteRequest = class {
-	/** The http method of the request. */
-	method;
-	/** The full request url. */
-	url;
-	/** The request headers. */
-	headers;
-	/** The validated route path parameters. */
-	params;
-	/** The validated query string parameters. */
-	query;
-	/** The parsed & validated request body, when a body schema is given. */
-	data;
-	/** The ip address of the caller. */
-	ip;
-	/** The user agent header of the caller. */
-	userAgent;
-	/** The raw request body bytes. */
-	body;
-	constructor(props) {
-		this.method = props.method;
-		this.url = new URL(props.url);
-		this.headers = props.headers;
-		this.params = props.params;
-		this.query = props.query;
-		this.data = props.data;
-		this.ip = props.ip;
-		this.userAgent = props.userAgent;
-		this.body = props.body;
-	}
-	/** The body decoded as text. */
-	text() {
-		return this.body?.toString();
-	}
-	/** The body parsed as json. */
-	json() {
-		return JSON.parse(this.text() ?? "null");
-	}
+//#region src/lib/server/http.ts
+const isTextContentType = (contentType) => {
+	const type = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+	return type.startsWith("text/") || type.endsWith("+json") || type.endsWith("+xml") || [
+		"application/json",
+		"application/javascript",
+		"application/xml",
+		"application/x-www-form-urlencoded",
+		"application/graphql"
+	].includes(type);
 };
-const envelopeSchema = object({
+const functionUrlEventSchema = object({
 	rawPath: optional(string()),
 	rawQueryString: optional(string()),
 	body: optional(string()),
 	isBase64Encoded: optional(boolean()),
 	headers: optional(record(string(), string())),
+	cookies: optional(array(string())),
 	pathParameters: optional(record(string(), string())),
-	queryStringParameters: optional(record(string(), string())),
 	requestContext: object({
-		domainName: string(),
+		domainName: optional(string()),
+		requestId: optional(string()),
 		http: object({
 			method: picklist([
 				"GET",
@@ -283,119 +260,314 @@ const envelopeSchema = object({
 				"PATCH",
 				"DELETE"
 			]),
-			path: string(),
+			path: optional(string()),
 			sourceIp: string(),
-			userAgent: string()
+			userAgent: optional(string())
 		})
 	})
 });
-const extractParts = (event) => {
-	let params = event.pathParameters ?? {};
-	if (Object.keys(params).length === 0) {
-		for (const [name, value] of Object.entries(event.headers ?? {})) if (name.startsWith("x-param-")) params[name.slice(8)] = decodeURIComponent(value);
-	}
-	let query = event.queryStringParameters ?? {};
-	if (Object.keys(query).length === 0 && event.rawQueryString) query = Object.fromEntries(new URLSearchParams(event.rawQueryString));
-	const body = typeof event.body === "string" ? event.isBase64Encoded ? Buffer.from(event.body, "base64").toString() : event.body : void 0;
-	return {
-		event,
-		params,
-		query,
-		body
-	};
-};
-const partsSchema = (props) => {
-	return object({
-		event: custom(() => true),
-		params: props.params ?? optional(unknown()),
-		query: props.query ?? optional(unknown()),
-		body: props.body ? json(props.body) : optional(unknown())
-	});
-};
-const stripPort = (address) => {
-	const index = address.lastIndexOf(":");
-	return index === -1 ? address : address.slice(0, index);
-};
-const buildRequest = (props, parts) => {
-	const { event, params, query, body } = parts;
+/**
+* A function url or http api event as a web Request, with what only the
+* event knows: the lambda's source ip and a rest api's path parameters.
+*/
+const toWebRequest = (input) => {
+	const event = parse(functionUrlEventSchema, input);
 	const headers = new Headers();
 	for (const [name, value] of Object.entries(event.headers ?? {})) headers.set(name, value);
+	if (event.cookies?.length && !headers.has("cookie")) headers.set("cookie", event.cookies.join("; "));
 	const method = event.requestContext.http.method;
-	const viewerAddress = headers.get("cloudfront-viewer-address");
-	const ip = viewerAddress ? stripPort(viewerAddress) : event.requestContext.http.sourceIp;
 	const domain = headers.get("x-forwarded-host") || event.requestContext.domainName || "localhost";
-	const path = event.rawPath || event.requestContext.http.path || "/";
-	const url = `${headers.get("x-forwarded-proto") ?? "https"}://${domain}${path}${event.rawQueryString ? `?${event.rawQueryString}` : ""}`;
-	const rawBody = typeof event.body === "undefined" ? void 0 : event.isBase64Encoded ? Buffer.from(event.body, "base64") : Buffer.from(event.body);
-	return new RouteRequest({
-		method,
-		url,
+	const url = new URL(`${headers.get("x-forwarded-proto") ?? "https"}://${domain}`);
+	url.pathname = event.rawPath || event.requestContext.http.path || "/";
+	url.search = event.rawQueryString ?? "";
+	const hasBody = typeof event.body === "string" && method !== "GET" && method !== "HEAD";
+	return {
+		request: new Request(url, {
+			method,
+			headers,
+			body: hasBody ? Buffer.from(event.body, event.isBase64Encoded ? "base64" : "utf8") : void 0
+		}),
+		sourceIp: event.requestContext.http.sourceIp,
+		pathParameters: event.pathParameters
+	};
+};
+/** A web Request as the function url event a handler without a web entry takes, its body read whole. */
+const toFunctionUrlEvent = async (request, props = {}) => {
+	const headers = Object.fromEntries(request.headers);
+	const url = new URL(request.url);
+	const query = getQuery(url);
+	const body = Buffer.from(await request.arrayBuffer());
+	const isText = isTextContentType(headers["content-type"]) && Buffer.from(body.toString()).equals(body);
+	const cookies = headers.cookie?.split(";").map((cookie) => cookie.trim()).filter(Boolean);
+	const now = /* @__PURE__ */ new Date();
+	return {
+		version: "2.0",
+		routeKey: "$default",
+		rawPath: url.pathname,
+		rawQueryString: url.search.slice(1),
+		cookies: cookies && cookies.length > 0 ? cookies : void 0,
 		headers,
-		params,
-		query,
-		data: props.body ? body : void 0,
-		ip,
-		userAgent: event.requestContext.http.userAgent,
-		body: rawBody
+		queryStringParameters: Object.keys(query).length > 0 ? query : void 0,
+		requestContext: {
+			accountId: "anonymous",
+			apiId: "web",
+			domainName: url.host,
+			domainPrefix: url.host.split(".")[0] ?? "",
+			http: {
+				method: request.method,
+				path: url.pathname,
+				protocol: "HTTP/1.1",
+				sourceIp: props.sourceIp ?? "",
+				userAgent: headers["user-agent"] ?? ""
+			},
+			requestId: randomUUID(),
+			routeKey: "$default",
+			stage: "$default",
+			time: now.toISOString(),
+			timeEpoch: now.getTime()
+		},
+		body: body.byteLength > 0 ? body.toString(isText ? "utf8" : "base64") : void 0,
+		isBase64Encoded: body.byteLength > 0 && !isText
+	};
+};
+const isFunctionUrlResult = (result) => {
+	return typeof result === "object" && result !== null && typeof result.statusCode === "number";
+};
+const NULL_BODY_STATUSES = [
+	101,
+	103,
+	204,
+	205,
+	304
+];
+/** A handler's answer as a web Response: a result with a status code is the response, anything else a 200 json body. */
+const toWebResponse = (result) => {
+	if (!isFunctionUrlResult(result)) return Response.json(result ?? null);
+	const headers = new Headers();
+	for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
+	for (const cookie of result.cookies ?? []) headers.append("set-cookie", cookie);
+	const body = typeof result.body === "string" && !NULL_BODY_STATUSES.includes(result.statusCode) ? Buffer.from(result.body, result.isBase64Encoded ? "base64" : "utf8") : null;
+	return new Response(body, {
+		status: result.statusCode,
+		headers
 	});
 };
-const routeSchema = (props) => {
-	return pipe(envelopeSchema, transform(extractParts), partsSchema(props), transform((parts) => buildRequest(props, parts)));
-};
-const isTextual = (contentType) => {
-	return contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("xml") || contentType.includes("javascript") || contentType.includes("x-www-form-urlencoded");
-};
-const toLambdaUrlResult = async (response) => {
+/** A web Response read to its end, as the result a function url answers. */
+const toFunctionUrlResult = async (response) => {
 	const headers = {};
-	const cookies = [];
 	response.headers.forEach((value, name) => {
-		if (name.toLowerCase() === "set-cookie") cookies.push(value);
-		else headers[name] = value;
+		if (name !== "set-cookie") headers[name] = value;
 	});
-	const buffer = Buffer.from(await response.arrayBuffer());
-	const contentType = headers["content-type"];
-	const textual = typeof contentType === "string" && isTextual(contentType);
+	const cookies = response.headers.getSetCookie();
+	const body = Buffer.from(await response.arrayBuffer());
+	const isText = isTextContentType(headers["content-type"]);
 	return {
 		statusCode: response.status,
 		headers,
 		cookies: cookies.length > 0 ? cookies : void 0,
-		body: buffer.length > 0 ? textual ? buffer.toString() : buffer.toString("base64") : void 0,
-		isBase64Encoded: buffer.length > 0 && !textual
+		body: body.byteLength > 0 ? body.toString(isText ? "utf8" : "base64") : void 0,
+		isBase64Encoded: body.byteLength > 0 && !isText
+	};
+};
+/** A url's query, a repeated name's values joined with commas like a function url's. */
+const getQuery = (url) => {
+	const query = {};
+	for (const name of new Set(url.searchParams.keys())) query[name] = url.searchParams.getAll(name).join(",");
+	return query;
+};
+/** The caller behind CloudFront: its viewer address ("ip:port", also for ipv6), which CloudFront writes over any a client sends. */
+const getViewerIp = (headers) => {
+	const address = headers.get("cloudfront-viewer-address");
+	if (!address) return;
+	const portSeparator = address.lastIndexOf(":");
+	return portSeparator === -1 ? address : address.slice(0, portSeparator);
+};
+//#endregion
+//#region src/lib/handle/route.ts
+const SECRET_NAME = /authorization|cookie|token|secret|password|api-?key|signature|session|totp|(^|[-_])(otp|code)$/i;
+const PERSONAL_HEADER = /address|forwarded-for|real-ip|client-ip|connecting-ip|(^|-)ip$|viewer-(latitude|longitude|city|postal-code|metro-code|country-region)/i;
+const PERSONAL_FIELD = /e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i;
+const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/;
+const isSecretHeader = (name) => SECRET_NAME.test(name) || PERSONAL_HEADER.test(name);
+const isSecretField = (name) => SECRET_NAME.test(name) || PERSONAL_FIELD.test(name) || IP_FIELD.test(name);
+const redactHeaders = (headers) => {
+	return headers && Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value]));
+};
+const redactBody = (bodySchema, body) => {
+	if (!bodySchema || !body) return;
+	try {
+		return JSON.stringify(applyRedaction(bodySchema, JSON.parse(body)));
+	} catch {
+		return REDACTED;
+	}
+};
+const redactQuery = (query) => {
+	const redacted = new URLSearchParams(query);
+	for (const name of new Set(query.keys())) if (isSecretField(name)) redacted.set(name, REDACTED);
+	return redacted.toString();
+};
+const redactPath = (pathname, secretValues) => {
+	const secretSegments = new Set(secretValues.flatMap((value) => [value, encodeURIComponent(value)]));
+	return pathname.split("/").map((segment) => secretSegments.has(segment) ? REDACTED : segment).join("/");
+};
+/** The route's input as an error logs it, without credentials or personal data (exported for its tests). */
+const redactRouteInput = (props) => (input) => {
+	const { request, params, body } = input;
+	const url = new URL(request.url);
+	const secretParams = Object.entries(params).filter(([name]) => isSecretField(name));
+	return {
+		method: request.method,
+		path: redactPath(url.pathname, secretParams.map(([, value]) => value)),
+		query: redactQuery(url.searchParams),
+		headers: redactHeaders(Object.fromEntries(request.headers)),
+		params: {
+			...params,
+			...Object.fromEntries(secretParams.map(([name]) => [name, REDACTED]))
+		},
+		body: redactBody(props.body, body),
+		ip: REDACTED
+	};
+};
+const routeSchema = (props) => {
+	return pipe(object({
+		request: custom((value) => value instanceof Request),
+		params: props.params ?? record(string(), string()),
+		query: props.query ?? record(string(), string()),
+		body: props.body ? json(props.body) : optional(string()),
+		ip: string()
+	}), redactWith(redactRouteInput(props)));
+};
+const getRouteParams = (headers) => {
+	const params = {};
+	headers.forEach((value, name) => {
+		if (name.startsWith("x-param-")) params[name.slice(8)] = (() => {
+			try {
+				return decodeURIComponent(value);
+			} catch {
+				return value;
+			}
+		})();
+	});
+	return params;
+};
+const createErrorResponse = (error) => {
+	return Response.json({
+		type: error.type,
+		message: error.message,
+		data: error.data
+	}, { status: error.type === "validation" ? 400 : 500 });
+};
+const finishInvocationAfterBody = (body, runInContext, finishInvocation, toLoggedError) => {
+	const reader = body.getReader();
+	return new ReadableStream({
+		async pull(controller) {
+			let chunk;
+			try {
+				chunk = await runInContext(() => reader.read());
+			} catch (error) {
+				await finishInvocation({ error });
+				controller.error(toLoggedError(error));
+				return;
+			}
+			if (!chunk.done) {
+				controller.enqueue(chunk.value);
+				return;
+			}
+			try {
+				await finishInvocation();
+				controller.close();
+			} catch (error) {
+				controller.error(toLoggedError(error));
+			}
+		},
+		async cancel(reason) {
+			try {
+				await runInContext(() => reader.cancel(reason));
+			} finally {
+				await finishInvocation();
+			}
+		}
+	});
+};
+const createRouteRunner = (props, handle) => {
+	const schema = routeSchema(props);
+	return async (call, lambdaContext) => {
+		const { request } = call;
+		const url = new URL(request.url);
+		const input = {
+			request,
+			params: call.params ?? getRouteParams(request.headers),
+			query: getQuery(url),
+			body: props.body ? await request.clone().text() : void 0,
+			ip: call.ip
+		};
+		const toLoggedError = (error) => enhanceError(error, schema, input, lambdaContext);
+		let runInContext = (callback) => callback();
+		const invocation = await runInvocation({
+			schema,
+			input,
+			raw: call.raw,
+			context: lambdaContext,
+			handle: async (parsed, context) => {
+				const { params, query, body, ip } = parsed;
+				const response = await handle({
+					request,
+					url,
+					params,
+					query,
+					data: body,
+					ip
+				}, context);
+				runInContext = AsyncLocalStorage.snapshot();
+				return response;
+			}
+		});
+		const returnOrThrowError = (error) => {
+			if (error instanceof ExpectedError) return createErrorResponse(toErrorResponse(error).__error__);
+			throw toLoggedError(error);
+		};
+		if (!invocation.isSuccessful) {
+			await invocation.finishInvocation({ error: invocation.error });
+			return returnOrThrowError(invocation.error);
+		}
+		const response = invocation.result;
+		if (!response.body) {
+			try {
+				await invocation.finishInvocation();
+			} catch (error) {
+				return returnOrThrowError(error);
+			}
+			return response;
+		}
+		return new Response(finishInvocationAfterBody(response.body, runInContext, invocation.finishInvocation, toLoggedError), {
+			status: response.status,
+			statusText: response.statusText,
+			headers: response.headers
+		});
 	};
 };
 function route(arg1, arg2) {
-	const props = arg2 ? arg1 : {};
-	const handle = arg2 ?? arg1;
-	const handler = lambda({
-		schema: routeSchema(props),
-		handle: async (request, context) => {
-			const result = await handle(request, context);
-			return result instanceof Response ? toLambdaUrlResult(result) : result;
-		}
-	});
-	return async (event, context) => {
-		let result;
-		try {
-			result = await handler(event, context);
-		} catch (error) {
-			if (error instanceof ExpectedError) return jsonErrorResponse(toErrorResponse(error).__error__);
-			throw error;
-		}
-		if (isErrorResponse(result)) return jsonErrorResponse(result.__error__);
-		return result;
+	const runRoute = createRouteRunner(arg2 ? arg1 : {}, arg2 ?? arg1);
+	const entry = async (event, context) => {
+		const { request, sourceIp, pathParameters } = toWebRequest(event);
+		const params = pathParameters && Object.keys(pathParameters).length > 0 ? pathParameters : void 0;
+		const ip = getViewerIp(request.headers) ?? sourceIp;
+		return toFunctionUrlResult(await runRoute({
+			request,
+			ip,
+			params,
+			raw: event
+		}, context));
 	};
+	return Object.assign(entry, { fetch: async (request, context) => {
+		return runRoute({
+			request,
+			ip: getViewerIp(request.headers),
+			raw: request
+		}, context);
+	} });
 }
-const jsonErrorResponse = (error) => {
-	return {
-		statusCode: error.type === "validation" ? 400 : 500,
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({
-			type: error.type,
-			message: error.message,
-			data: error.data
-		})
-	};
-};
+/** A site ssr handler: a route without schemas. */
 const site = (handle) => {
 	return route(handle);
 };
@@ -414,7 +586,7 @@ var pubsub_exports = /* @__PURE__ */ __exportAll({
 	subscribed: () => subscribed,
 	unsubscribed: () => unsubscribed
 });
-const authEventSchema$1 = object({ token: optional(string()) });
+const authEventSchema$1 = object({ token: optional(pipe(string(), redact())) });
 const auth$1 = (handle) => {
 	return consumer(authEventSchema$1, handle);
 };
@@ -464,7 +636,7 @@ function unsubscribed(...args) {
 //#endregion
 //#region src/lib/handle/rpc.ts
 var rpc_exports = /* @__PURE__ */ __exportAll({ auth: () => auth });
-const authEventSchema = object({ token: string() });
+const authEventSchema = object({ token: pipe(string(), redact()) });
 const auth = (handle) => {
 	return consumer(authEventSchema, handle);
 };
@@ -502,7 +674,6 @@ const stream = (table, handle) => {
 //#endregion
 //#region src/lib/handle/index.ts
 var handle_exports = /* @__PURE__ */ __exportAll({
-	RouteRequest: () => RouteRequest,
 	cron: () => cron,
 	error: () => error,
 	failure: () => failure,
@@ -511,6 +682,7 @@ var handle_exports = /* @__PURE__ */ __exportAll({
 	image: () => image,
 	pubsub: () => pubsub_exports,
 	queue: () => queue,
+	redactRouteInput: () => redactRouteInput,
 	route: () => route,
 	rpc: () => rpc_exports,
 	site: () => site,
@@ -702,7 +874,7 @@ const Job = /*@__PURE__*/ createProxy((stackName) => {
 			let storedPayload = payload;
 			const bucket = process.env.JOB_PAYLOAD_BUCKET;
 			if (payload !== void 0 && bucket) {
-				const key = `job/payloads/${randomUUID()}.json`;
+				const key = `job/payloads/${randomUUID$1()}.json`;
 				await putObject({
 					bucket,
 					key,
@@ -834,7 +1006,7 @@ const Task = /*@__PURE__*/ createProxy((stackName) => {
 				}
 				const resourceTaskName = bindGlobalResourceName("task");
 				await schedule({
-					name: `${getBundleName()}:${LIVE_BUNDLE_ALIAS}`,
+					name: `${getEventFunctionName()}:${LIVE_BUNDLE_ALIAS}`,
 					payload: formatRoutePayload(routeKey, payload),
 					schedule: scheduleAt,
 					group: resourceTaskName("group"),
@@ -884,6 +1056,146 @@ const Topic = /*@__PURE__*/ createProxy((name) => {
 	};
 });
 //#endregion
+//#region src/lib/server/clickhouse.ts
+const getClickHouseTableName = (stackName, tableName) => {
+	return `${kebabCase(stackName)}--${tableName}`;
+};
+const getClickHouseProps = (name, stack = getStack()) => {
+	const table = getClickHouseTableName(stack, name);
+	return {
+		endpoint: process.env.CLICKHOUSE_ENDPOINT,
+		name: isTest() ? `${kebabCase(getApp())}--${table}` : table
+	};
+};
+let client;
+const CLICKHOUSE_REQUEST_TIMEOUT = 3e5;
+const traceClient$1 = (raw) => ({
+	...raw,
+	query: (...args) => trace$1("ClickHouse", () => raw.query(...args), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "query" }
+	}),
+	command: (...args) => trace$1("ClickHouse", () => raw.command(...args), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "command" }
+	}),
+	insert: (table, rows, options) => trace$1("ClickHouse", () => raw.insert(table, rows, options), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "insert" },
+		metadata: {
+			table,
+			rows: rows.length
+		}
+	})
+});
+const getClient = () => {
+	if (!client) {
+		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER;
+		client = traceClient$1(clickhouseClient({
+			endpoint: process.env.CLICKHOUSE_ENDPOINT,
+			password: parameter ? async () => (await ssm({ password: parameter })).password : void 0,
+			requestTimeout: CLICKHOUSE_REQUEST_TIMEOUT,
+			settings: {
+				send_progress_in_http_headers: 1,
+				http_headers_progress_interval_ms: "10000"
+			}
+		}));
+	}
+	return client;
+};
+const assertMatchingColumns = (label, declared, defined) => {
+	for (const column of Object.keys(defined)) if (!declared[column]) throw new Error(`The schema of ClickHouse table "${label}" defines the column "${column}", which the stack file doesn't declare.`);
+	for (const [column, type] of Object.entries(declared)) {
+		const definedType = defined[column];
+		if (!definedType) throw new Error(`The stack file declares the column "${column}" for ClickHouse table "${label}", which the code schema doesn't define.`);
+		if (definedType.replaceAll(" ", "") !== type.replaceAll(" ", "")) throw new Error(`The column "${column}" of ClickHouse table "${label}" is a "${definedType}" in the code schema but a "${type}" in the stack file.`);
+	}
+};
+const ClickHouse = /*@__PURE__*/ createProxy((stack) => {
+	return /* @__PURE__ */ createProxy((name) => {
+		const { endpoint, name: table } = getClickHouseProps(name, stack);
+		return {
+			name: table,
+			endpoint,
+			define(schema) {
+				if (isTest()) {
+					const declared = process.env[`CLICKHOUSE_COLUMNS_${table}`];
+					if (declared) assertMatchingColumns(`${stack}.${name}`, JSON.parse(declared), schema.columns);
+				}
+				return define$1(table, schema, getClient);
+			}
+		};
+	});
+});
+//#endregion
+//#region src/lib/test/schema.ts
+const schemas = /* @__PURE__ */ new Map();
+const deferTestSchema = (schema, create) => {
+	schemas.set(schema, { create });
+};
+const ensureTestSchema = (schema) => {
+	const entry = schemas.get(schema);
+	if (entry) entry.created ??= entry.create();
+	return entry?.created;
+};
+//#endregion
+//#region src/lib/server/postgres.ts
+const getPostgresSchemaName = (stackName) => {
+	return kebabCase(stackName).replaceAll("-", "_");
+};
+const getPostgresProps = (stack = getStack()) => {
+	const schema = getPostgresSchemaName(stack);
+	return { schema: isTest() ? `${getPostgresSchemaName(getApp())}__${schema}` : schema };
+};
+const createClient = (schema) => {
+	const url = process.env.POSTGRES_URL;
+	if (url) return postgresClient({
+		url,
+		schema,
+		strict: true
+	});
+	const clusterArn = process.env.POSTGRES_CLUSTER_ARN;
+	const secretArn = process.env.POSTGRES_SECRET_ARN;
+	if (clusterArn && secretArn) return postgresDataClient({
+		clusterArn,
+		secretArn,
+		database: schema
+	});
+	throw new Error("Postgres has no database to query. Locally `awsless dev` and `awsless test` set POSTGRES_URL; a deployed function gets POSTGRES_CLUSTER_ARN and POSTGRES_SECRET_ARN when its app has a stack with Postgres tables.");
+};
+const clients = /* @__PURE__ */ new Map();
+const getClient$1 = (schema) => {
+	let client = clients.get(schema);
+	if (!client) {
+		const created = createClient(schema);
+		if (isTest()) registerTestCleanup(() => {
+			clients.delete(schema);
+			return created.close();
+		});
+		clients.set(schema, created);
+		client = created;
+	}
+	return client;
+};
+const Postgres = /*@__PURE__*/ createProxy((stack) => {
+	return {
+		get schema() {
+			return getPostgresProps(stack).schema;
+		},
+		query(sql, params) {
+			const { schema } = getPostgresProps(stack);
+			return trace$1("Postgres", async () => {
+				await ensureTestSchema(schema);
+				return getClient$1(schema).query(sql, params);
+			}, {
+				namespace: "remote",
+				annotations: { postgres_operation: "query" },
+				metadata: { schema }
+			});
+		}
+	};
+});
+//#endregion
 //#region src/lib/server/search.ts
 const formatSearchIndexName = (stackName, indexName) => {
 	return `${kebabCase(stackName)}--${indexName}`;
@@ -923,6 +1235,38 @@ const assertMatchingMappings = (label, declared, defined, path = "") => {
 		if (declaredField.type && definedField.type && !compatibleTypes(declaredField.type, definedField.type)) throw new Error(`The field "${path}${field}" of search index "${label}" is a "${definedField.type}" in the code schema but a "${declaredField.type}" in the stack file.`);
 	}
 };
+const getSearchOperation = (path = "") => {
+	return path.split("/").find((part) => part.startsWith("_"))?.split("?")[0] ?? "index";
+};
+const traceTransport = (index, transport) => {
+	const request = transport.request.bind(transport);
+	transport.request = (params, options, callback) => {
+		if (typeof callback === "function" || typeof options === "function") return request(params, options, callback);
+		return trace$1("OpenSearch", () => request(params, options), {
+			namespace: "remote",
+			annotations: { search_operation: getSearchOperation(params.path) },
+			metadata: { index },
+			http: { method: params.method },
+			endWith: (response) => {
+				const status = response?.statusCode;
+				return typeof status === "number" ? { http: { status } } : {};
+			},
+			endWithError: (error) => {
+				const status = error?.meta?.statusCode;
+				const errorType = error instanceof Error ? error.name : "Error";
+				if (typeof status !== "number") return {
+					fault: true,
+					errorType
+				};
+				return {
+					http: { status },
+					errorType,
+					...status === 429 ? { throttle: true } : status >= 500 ? { fault: true } : { error: true }
+				};
+			}
+		});
+	};
+};
 const Search = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
 		const { endpoint, name: index } = getSearchProps(name, stack);
@@ -936,7 +1280,10 @@ const Search = /*@__PURE__*/ createProxy((stack) => {
 					if (declared) assertMatchingMappings(`${stack}.${name}`, JSON.parse(declared), schema.mapping);
 				}
 				return define(index, schema, () => {
-					if (!client) client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? "aoss" : "es");
+					if (!client) {
+						client = searchClient({ node: endpoint }, isServerlessEndpoint(endpoint) ? "aoss" : "es");
+						runTraceStep$1(void 0, () => traceTransport(index, client.transport));
+					}
 					return client;
 				});
 			}
@@ -969,7 +1316,7 @@ const Table = /*@__PURE__*/ createProxy((stack) => {
 				const { name: tableName, keys } = getTableProps(name, stack);
 				if (!keys) throw new Error(`No table key config found for "${stack}.${name}". Is the table defined in your stack file?`);
 				if (isTest()) assertKeyAttributes(`${stack}.${name}`, keys, schema);
-				return define$1(tableName, {
+				return define$2(tableName, {
 					hash: keys.hash,
 					sort: keys.sort,
 					indexes: keys.indexes,
@@ -1028,6 +1375,8 @@ const setupTestEnv = async (manifest, options) => {
 	applyTestConfigValues(manifest);
 	materializeTables(manifest, options.importFile, dynamodb);
 	await createSearchIndexes(manifest);
+	await createClickHouseTables(manifest);
+	deferPostgresSchemas(manifest);
 	s3.mockS3();
 	await redirectCacheClients(manifest);
 	const spies = registerResourceSpies(manifest, options.importFile);
@@ -1098,6 +1447,41 @@ const createSearchIndexes = async (manifest) => {
 			})
 		});
 		if (!result.ok) throw new Error(`Failed to create the search index "${name}": ${await result.text()}`);
+	}
+};
+const createClickHouseTables = async (manifest) => {
+	const endpoint = manifest.servers?.clickhouse?.endpoint;
+	if (!endpoint) return;
+	const { clickhouseClient, createTableStatement } = await import("@awsless/clickhouse");
+	const client = clickhouseClient({ endpoint });
+	for (const entry of manifest.clickhouse ?? []) {
+		const { name } = getClickHouseProps(entry.id, entry.stack);
+		process.env[`CLICKHOUSE_COLUMNS_${name}`] = JSON.stringify(entry.columns);
+		await client.command(createTableStatement(name, entry.definition));
+	}
+};
+const deferPostgresSchemas = (manifest) => {
+	const url = manifest.servers?.postgres?.url;
+	if (!url) return;
+	for (const entry of manifest.postgres ?? []) {
+		const { schema } = getPostgresProps(entry.stack);
+		deferTestSchema(schema, async () => {
+			const { applySchema, postgresClient } = await import("@awsless/postgres");
+			const client = postgresClient({
+				url,
+				max: 1
+			});
+			const tables = entry.tables;
+			try {
+				await applySchema(client, {
+					schema,
+					tables,
+					functions: entry.functions
+				}, { reset: true });
+			} finally {
+				await client.close();
+			}
+		});
 	}
 };
 const redirectCacheClients = async (manifest) => {
@@ -1218,11 +1602,22 @@ const recordEmails = (mockSES) => {
 	testRegistry.emails.send = vi.fn(() => {});
 	mockSES((input) => {
 		const email = input;
+		const simple = email.Content?.Simple;
 		testRegistry.emails.send({
 			from: email.FromEmailAddress,
 			to: email.Destination?.ToAddresses,
-			subject: email.Content?.Simple?.Subject?.Data,
-			html: email.Content?.Simple?.Body?.Html?.Data
+			subject: simple?.Subject?.Data,
+			html: simple?.Body?.Html?.Data,
+			...simple?.Body?.Text ? { text: simple.Body.Text.Data } : {},
+			...simple?.Headers ? { headers: simple.Headers.map(({ Name, Value }) => ({
+				name: Name,
+				value: Value
+			})) } : {},
+			...simple?.Attachments ? { attachments: simple.Attachments.map(({ FileName, ContentType, RawContent }) => ({
+				filename: FileName,
+				contentType: ContentType,
+				content: RawContent
+			})) } : {}
 		});
 	});
 };
@@ -1324,10 +1719,39 @@ const getCacheProps = (name, stack = getStack()) => {
 		port: parseInt(process.env[`${prefix}_PORT`], 10)
 	};
 };
+const formatCommandNames = (commands) => {
+	return [...new Set(commands.map((command) => command.name.toLowerCase()))].join(",");
+};
+const traceClient = (cache, raw) => ({
+	send: (name, args, options) => trace$1("Redis", () => raw.send(name, args, options), {
+		namespace: "remote",
+		annotations: { redis_command: name.toLowerCase() },
+		metadata: { cache }
+	}),
+	batch: (commands) => trace$1("Redis", () => raw.batch(commands), {
+		namespace: "remote",
+		annotations: { redis_command: "batch" },
+		metadata: {
+			cache,
+			commands: commands.length,
+			command_names: formatCommandNames(commands)
+		}
+	}),
+	transact: (commands) => trace$1("Redis", () => raw.transact(commands), {
+		namespace: "remote",
+		annotations: { redis_command: "transaction" },
+		metadata: {
+			cache,
+			commands: commands.length,
+			command_names: formatCommandNames(commands)
+		}
+	}),
+	destroy: () => raw.destroy()
+});
 const Cache = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
-		return (db = 0) => {
-			return createLazyClient(() => {
+		return (db = 0, { keepConnection = false } = {}) => {
+			return traceClient(`${stack}.${name}`, createLazyClient(() => {
 				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
 					db,
@@ -1340,9 +1764,9 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 					}
 				});
 				if (isTest()) registerTestCleanup(() => client.destroy());
-				else getContext().onFinally(() => client.destroy());
+				else if (!keepConnection) getContext().onFinally(() => client.destroy());
 				return client;
-			});
+			}));
 		};
 	});
 });
@@ -1458,4 +1882,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, Config, Cron, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingMappings, captureInvokedQualifier, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getBundleName, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, mock, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, t, v, withBundleRouteContext };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresProps, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };

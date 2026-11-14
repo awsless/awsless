@@ -1,4 +1,4 @@
-import { createHash, UUID } from 'crypto'
+import { createHash } from 'crypto'
 import * as zlib from 'zlib'
 import {
 	array,
@@ -13,7 +13,6 @@ import {
 	string,
 	toLowerCase,
 	transform,
-	uuid,
 } from '@awsless/validate'
 import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { formatSourcemapVersionKey } from '../keys.js'
@@ -23,7 +22,7 @@ import { createSymbolicator, SourcemapLoaders } from './sourcemap.js'
 const RuntimeErrorSchema = object({
 	timestamp: string(),
 	level: pipe(string(), toLowerCase(), picklist(['error', 'warn', 'fatal'])),
-	requestId: uuid(),
+	requestId: string(),
 	message: looseObject({
 		errorType: string(),
 		errorMessage: string(),
@@ -35,7 +34,7 @@ const RuntimeErrorSchema = object({
 const SimpleErrorSchema = object({
 	timestamp: string(),
 	level: pipe(string(), toLowerCase(), picklist(['error', 'warn', 'fatal'])),
-	requestId: uuid(),
+	requestId: string(),
 	message: string(),
 })
 
@@ -44,7 +43,7 @@ const SystemErrorSchema = object({
 	type: literal('platform.report'),
 	time: string(),
 	record: looseObject({
-		requestId: uuid(),
+		requestId: string(),
 		status: picklist(['timeout', 'error', 'failure']),
 		errorType: optional(string()),
 	}),
@@ -69,7 +68,7 @@ const EventSchema = object({
 
 type ErrorLog = {
 	hash: string
-	requestId: UUID
+	requestId: string
 	origin: string
 	level: 'warn' | 'error' | 'fatal'
 	type: string

@@ -57,7 +57,7 @@ describe('pubsub', () => {
 		// like the asset bucket, which the server never touches.
 		const bucket = listResources(app, 'aws_s3_bucket')[0]!
 		const bundle = listResources(app, 'aws_lambda_function').find(
-			meta => meta.input.functionName === 'test-app--function--bundle'
+			meta => meta.input.functionName === 'test-app--bundle--event'
 		)!
 
 		expect(findInputDeps(policy.input.policy)).toContain(bundle)

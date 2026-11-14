@@ -1,7 +1,7 @@
 // lambda
 export { LambdaClient } from '@aws-sdk/client-lambda'
 export type { Context as LambdaContext } from 'aws-lambda'
-export type { RoutedLambdaContext } from './errors/enhanced'
+export { enhanceError, type RoutedLambdaContext } from './errors/enhanced'
 // commands
 export { invoke } from './commands/invoke'
 export { listFunctions } from './commands/list-functions'
@@ -20,5 +20,6 @@ export { isTestEnv } from './helpers/env'
 // mock
 export { mockLambda } from './helpers/mock'
 export { lambda, type LambdaFunction, type LambdaFactory } from './lambda'
+export { runInvocation, type Invocation } from './invocation'
 // types
 export { type Context, type ExtraMetaData, type Handler, type Input, type Logger, type Loggers } from './type'

@@ -93,7 +93,8 @@ export const registerMediaServer = (
 
 	addRoutes({
 		[routeKey]: {
-			type: 'lambda',
+			// Sharp comes from a Lambda layer, which only the event function has.
+			type: 'event-function',
 			requestHeaders: {
 				[ROUTE_HEADER]: serverRouteKey,
 			},

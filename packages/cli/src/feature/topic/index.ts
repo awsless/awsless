@@ -94,7 +94,46 @@ export const topicFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		for (const id of ctx.appConfig.topics ?? []) {
+		const topics = ctx.appConfig.topics ?? []
+
+		// With tracing on, each topic records its own X-Ray segment per delivery,
+		// between the publisher's span and the subscribers'. SNS sends them as
+		// the service, which X-Ray allows per account by a resource policy.
+		const tracingPolicy =
+			ctx.appConfig.tracing && topics.length > 0
+				? new aws.xray.ResourcePolicy(new Group(ctx.base, 'topic', 'tracing'), 'policy', {
+						policyName: `${ctx.appConfig.name}--topic-tracing`,
+						policyDocument: JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Effect: 'Allow',
+									Principal: { Service: 'sns.amazonaws.com' },
+									Action: [
+										'xray:PutTraceSegments',
+										'xray:GetSamplingRules',
+										'xray:GetSamplingTargets',
+									],
+									Resource: '*',
+									Condition: {
+										StringEquals: { 'aws:SourceAccount': ctx.accountId },
+										StringLike: {
+											'aws:SourceArn': `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName(
+												{
+													appName: ctx.appConfig.name,
+													resourceType: 'topic',
+													resourceName: '*',
+												}
+											)}`,
+										},
+									},
+								},
+							],
+						}),
+					})
+				: undefined
+
+		for (const id of topics) {
 			const group = new Group(ctx.base, 'topic', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
@@ -107,8 +146,10 @@ export const topicFeature = defineFeature({
 				'topic',
 				{
 					name,
+					tracingConfig: tracingPolicy ? 'Active' : 'PassThrough',
 				},
 				{
+					dependsOn: tracingPolicy ? [tracingPolicy] : undefined,
 					import: ctx.import ? `arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${name}` : undefined,
 				}
 			)
@@ -117,24 +158,34 @@ export const topicFeature = defineFeature({
 			const subscribed = ctx.stackConfigs.some(stack => stack.subscribers?.[id])
 
 			if (subscribed) {
-				const bundle = ctx.shared.get('bundle', 'main')
+				const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 				// Accepted staging window: a NEW subscription on an already
 				// active topic delivers to the old live bundle until promote,
 				// which retries those events as unknown routes.
-				new aws.sns.TopicSubscription(group, 'subscription', {
-					topicArn: topic.arn,
-					protocol: 'lambda',
-					endpoint: bundle.alias.arn,
-				})
+				new aws.sns.TopicSubscription(
+					group,
+					'subscription',
+					{
+						topicArn: topic.arn,
+						protocol: 'lambda',
+						endpoint: eventFunction.alias.arn,
+					},
+					{ replaceOnChanges: ['endpoint'] }
+				)
 
-				new aws.lambda.Permission(group, 'permission', {
-					action: 'lambda:InvokeFunction',
-					principal: 'sns.amazonaws.com',
-					functionName: bundle.lambda.functionName,
-					qualifier: bundle.alias.name,
-					sourceArn: topic.arn,
-				})
+				new aws.lambda.Permission(
+					group,
+					'permission',
+					{
+						action: 'lambda:InvokeFunction',
+						principal: 'sns.amazonaws.com',
+						functionName: eventFunction.lambda.functionName,
+						qualifier: eventFunction.alias.name,
+						sourceArn: topic.arn,
+					},
+					{ replaceOnChanges: ['functionName'] }
+				)
 			}
 		}
 

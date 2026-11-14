@@ -1,8 +1,8 @@
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
-import { existsSync } from 'fs'
+import { existsSync, realpathSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { dirname, extname, join } from 'path'
+import { dirname, extname, join, sep } from 'path'
 import { fileURLToPath } from 'url'
 import { Minimatch } from 'minimatch'
 import { Plugin, rolldown } from 'rolldown'
@@ -25,10 +25,17 @@ export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'
 	minify?: boolean
 	external?: string[]
+
+	/** Bundles the AWS SDK instead of leaving it to the runtime. */
+	bundleAwsSdk?: boolean
 	moduleSideEffects?: string[]
 	handler?: string
 	file: string
 	importAsString?: string[]
+
+	// Bare imports of modules in these folders resolve from the app root
+	// first, so the prebuilt runtime shares the app's packages.
+	resolveFromRoot?: string[]
 }
 
 const createModuleMatcher = (patterns: string[] = []) => {
@@ -113,6 +120,13 @@ const findBuildWorker = () => {
 	return workerPath
 }
 
+// The Lambda runtime of an event function ships the AWS SDK; a web function's doesn't.
+const isAwsSdk = (importee: string) => importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk')
+
+const isExternal = (importee: string, props: Pick<BundleTypeScriptProps, 'external' | 'bundleAwsSdk'>) => {
+	return (!props.bundleAwsSdk && isAwsSdk(importee)) || props.external?.includes(importee) === true
+}
+
 export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) => {
 	const { format = 'esm', minify = true } = props
 	const hasModuleSideEffects = createModuleMatcher(props.moduleSideEffects)
@@ -127,13 +141,7 @@ export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) =>
 				'process.env.NODE_ENV': JSON.stringify('production'),
 			},
 		},
-		external: importee => {
-			return (
-				importee.startsWith('@aws-sdk') || //
-				importee.startsWith('aws-sdk') ||
-				props.external?.includes(importee)
-			)
-		},
+		external: importee => isExternal(importee, props),
 		treeshake: {
 			// Dependencies are treated as side-effect free, so unused imports
 			// like the local test servers never reach the production bundle.
@@ -153,6 +161,7 @@ export const bundleTypeScriptInProcess = async (props: BundleTypeScriptProps) =>
 		},
 		plugins: [
 			routeModulePlugin(),
+			props.resolveFromRoot?.length ? rootResolvePlugin(props.resolveFromRoot, props) : undefined,
 			props.importAsString
 				? importAsString({
 						include: props.importAsString,
@@ -252,3 +261,65 @@ const routeModulePlugin = (): Plugin => ({
 		}
 	},
 })
+
+const isBareImport = (source: string) => {
+	return !source.startsWith('.') && !source.startsWith('/') && !source.startsWith('\0') && !source.includes(':')
+}
+
+// The prebuilt runtime would otherwise resolve "awsless" next to the cli,
+// and a cli run from another install than the app's own then bundles a
+// second awsless copy: the handlers' copy never sees the runtime's
+// AsyncLocalStorage, so every Fn call leaves the bundle as a real invoke.
+// The runtime's other peers follow the app's awsless, falling back to the
+// cli's own copies when the app has none.
+const rootResolvePlugin = (
+	folders: string[],
+	props: Pick<BundleTypeScriptProps, 'external' | 'bundleAwsSdk'>
+): Plugin => {
+	const dirs = folders.map(folder => {
+		try {
+			return realpathSync(folder)
+		} catch {
+			return folder
+		}
+	})
+
+	const isRuntimeModule = (importer: string) => {
+		return dirs.some(dir => importer.startsWith(`${dir}${sep}`))
+	}
+
+	// The importer only gives the resolver a folder to start from.
+	const rootImporter = () => join(directories.root, 'package.json')
+	let awslessImporter: Promise<string | undefined> | undefined
+
+	return {
+		name: 'root-resolve',
+		async resolveId(source, importer, options) {
+			if (!importer || !isBareImport(source) || isExternal(source, props) || !isRuntimeModule(importer)) {
+				return
+			}
+
+			// Resolving from inside the app's awsless finds the peers it
+			// pins, even when the app doesn't depend on them itself.
+			awslessImporter ??= this.resolve('awsless', rootImporter(), { skipSelf: true }).then(resolved =>
+				resolved && !resolved.external ? resolved.id : undefined
+			)
+
+			const candidates = [rootImporter(), await awslessImporter]
+
+			for (const candidate of candidates) {
+				if (!candidate) {
+					continue
+				}
+
+				const resolved = await this.resolve(source, candidate, { ...options, skipSelf: true })
+
+				if (resolved) {
+					return resolved
+				}
+			}
+
+			return
+		},
+	}
+}

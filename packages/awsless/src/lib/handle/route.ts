@@ -1,370 +1,211 @@
-import { ExpectedError, Handler, isErrorResponse, lambda, LambdaContext, toErrorResponse } from '@awsless/lambda'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import {
-	BaseSchema,
-	boolean,
-	custom,
-	GenericIssue,
-	GenericSchema,
-	InferInput,
-	InferOutput,
-	json,
-	object,
-	ObjectEntries,
-	ObjectSchema,
-	optional,
-	picklist,
-	pipe,
-	record,
-	string,
-	transform,
-	unknown,
-} from '@awsless/validate'
+	Context,
+	enhanceError,
+	ExpectedError,
+	Invocation,
+	LambdaContext,
+	runInvocation,
+	toErrorResponse,
+} from '@awsless/lambda'
+import { FunctionUrlResult, toFunctionUrlResult, toWebRequest, getViewerIp } from '../server/http.js'
 
-export type RouteSchemaProps = {
-	/** The schema the json request body validates against - the parsed result lands on `request.data`. */
-	body?: GenericSchema
+/** What a route or site handler receives. */
+export type RouteEvent = {
+	/** The web request: its method, url & headers, and a body streamed as it arrives. */
+	readonly request: Request
 
-	/** The schema the query string parameters validate against. */
-	query?: ObjectSchema<ObjectEntries, undefined> | undefined
+	/** The route path parameters. */
+	readonly params: Record<string, string>
 
-	/** The schema the route path parameters validate against. */
-	params?: ObjectSchema<ObjectEntries, undefined> | undefined
-}
-
-type Op<T extends GenericSchema | undefined, D> = T extends GenericSchema ? InferOutput<T> : D
-
-type Method = 'GET' | 'POST' | 'HEAD' | 'OPTIONS' | 'PUT' | 'PATCH' | 'DELETE'
-
-// The useful parts of the web Request; the body is already buffered,
-// so reading it is synchronous.
-export class RouteRequest<Params = Record<string, string>, Query = Record<string, string>, Data = unknown> {
-	/** The http method of the request. */
-	readonly method: Method
-
-	/** The full request url. */
-	readonly url: URL
-
-	/** The request headers. */
-	readonly headers: Headers
-
-	/** The validated route path parameters. */
-	readonly params: Params
-
-	/** The validated query string parameters. */
-	readonly query: Query
-
-	/** The parsed & validated request body, when a body schema is given. */
-	readonly data: Data
-
-	/** The ip address of the caller. */
+	/** The caller's ip address: CloudFront's viewer address behind a router, else the connection's. */
 	readonly ip: string
+}
 
-	/** The user agent header of the caller. */
-	readonly userAgent: string
+type RouteHandler = (event: RouteEvent, context: Context) => Response | Promise<Response>
 
-	/** The raw request body bytes. */
-	readonly body?: Buffer
+/**
+ * A route entry: called with a function url (or http api) event it answers
+ * the result read whole; its fetch takes a web Request & answers the Response
+ * as the handler streams it, on the web function.
+ */
+export type RouteEntry = {
+	(event: unknown, context?: LambdaContext): Promise<FunctionUrlResult>
+	fetch: (request: Request, context?: LambdaContext) => Promise<Response>
+}
 
-	constructor(props: {
-		method: Method
-		url: string
-		headers: Headers
-		params: Params
-		query: Query
-		data: Data
-		ip: string
-		userAgent: string
-		body?: Buffer
-	}) {
-		this.method = props.method
-		this.url = new URL(props.url)
-		this.headers = props.headers
-		this.params = props.params
-		this.query = props.query
-		this.data = props.data
-		this.ip = props.ip
-		this.userAgent = props.userAgent
-		this.body = props.body
-	}
-
-	/** The body decoded as text. */
-	text() {
-		return this.body?.toString()
-	}
-
-	/** The body parsed as json. */
-	json<T = unknown>(): T {
-		return JSON.parse(this.text() ?? 'null') as T
+// A param with a broken escape (a request for `/items/%E0%A4`) stays as
+// written, for the handler's validation to refuse rather than a 500.
+const decodeParam = (value: string) => {
+	try {
+		return decodeURIComponent(value)
+	} catch {
+		return value
 	}
 }
 
-// The whole event validates as one schema, ending in the request object.
+// Router routes deliver params as x-param-* headers. The deployed router
+// encodes each value, so it round-trips any character.
+const getRouteParams = (headers: Headers) => {
+	const params: Record<string, string> = {}
 
-const envelopeSchema = object({
-	rawPath: optional(string()),
-	rawQueryString: optional(string()),
-	body: optional(string()),
-	isBase64Encoded: optional(boolean()),
-	headers: optional(record(string(), string())),
-	pathParameters: optional(record(string(), string())),
-	queryStringParameters: optional(record(string(), string())),
-	requestContext: object({
-		domainName: string(),
-		http: object({
-			method: picklist(['GET', 'POST', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'DELETE']),
-			path: string(),
-			sourceIp: string(),
-			userAgent: string(),
-		}),
-	}),
-})
+	headers.forEach((value, name) => {
+		if (name.startsWith('x-param-')) {
+			params[name.slice('x-param-'.length)] = decodeParam(value)
+		}
+	})
 
-type EnvelopeInput = InferInput<typeof envelopeSchema>
-type EnvelopeEvent = InferOutput<typeof envelopeSchema>
-
-type Extracted = {
-	event: EnvelopeEvent
-	params: Record<string, string>
-	query: Record<string, string>
-	body: string | undefined
+	return params
 }
 
-type Parts<P extends RouteSchemaProps> = {
-	event: EnvelopeEvent
-	params: Op<P['params'], Record<string, string>>
-	query: Op<P['query'], Record<string, string>>
-	body: Op<P['body'], string | undefined>
+// Bad input is a 400, any other expected error a 500.
+const createErrorResponse = (error: { type: string; message: string; data?: unknown }) => {
+	return Response.json(
+		{ type: error.type, message: error.message, data: error.data },
+		{ status: error.type === 'validation' ? 400 : 500 }
+	)
 }
 
-type RouteRequestOf<P extends RouteSchemaProps> = RouteRequest<
-	Op<P['params'], Record<string, string>>,
-	Op<P['query'], Record<string, string>>,
-	Op<P['body'], undefined>
->
+type RunInContext = <R>(callback: () => R) => R
 
-export type RouteSchema<P extends RouteSchemaProps> = BaseSchema<EnvelopeInput, RouteRequestOf<P>, GenericIssue>
+// A body stream that finishes the invocation once it's read to the end,
+// fails or the caller goes away. Each read runs in the handler's own async
+// context, so a stream's own work still reaches getContext() & in-process Fn calls.
+const finishInvocationAfterBody = (
+	body: ReadableStream<Uint8Array>,
+	runInContext: RunInContext,
+	finishInvocation: Invocation<unknown>['finishInvocation'],
+	toLoggedError: (error: unknown) => Error
+) => {
+	const reader = body.getReader()
 
-const extractParts = (event: EnvelopeEvent): Extracted => {
-	// Router routes deliver params as x-param-* headers, rest apis as path parameters.
-	let params: Record<string, string> = event.pathParameters ?? {}
+	return new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			let chunk: ReadableStreamReadResult<Uint8Array>
 
-	if (Object.keys(params).length === 0) {
-		for (const [name, value] of Object.entries(event.headers ?? {})) {
-			if (name.startsWith('x-param-')) {
-				// The deployed router encodes the param value into the
-				// header, so it round-trips any character - decode it back.
-				params[name.slice('x-param-'.length)] = decodeURIComponent(value)
+			try {
+				chunk = await runInContext(() => reader.read())
+			} catch (error) {
+				// The caller sees the logged error once the invocation finished, to log once.
+				await finishInvocation({ error })
+				controller.error(toLoggedError(error))
+				return
 			}
-		}
-	}
 
-	let query: Record<string, string> = event.queryStringParameters ?? {}
+			if (!chunk.done) {
+				controller.enqueue(chunk.value)
+				return
+			}
 
-	if (Object.keys(query).length === 0 && event.rawQueryString) {
-		query = Object.fromEntries(new URLSearchParams(event.rawQueryString))
-	}
-
-	const body =
-		typeof event.body === 'string'
-			? event.isBase64Encoded
-				? Buffer.from(event.body, 'base64').toString()
-				: event.body
-			: undefined
-
-	return { event, params, query, body }
-}
-
-// Valibot can't express conditionally typed object entries, so the
-// parts schema declares its exact input & output shape itself.
-const partsSchema = <P extends RouteSchemaProps>(props: P) => {
-	return object({
-		event: custom<EnvelopeEvent>(() => true),
-		params: props.params ?? optional(unknown()),
-		query: props.query ?? optional(unknown()),
-		body: props.body ? json(props.body) : optional(unknown()),
-	}) as GenericSchema<Extracted, Parts<P>>
-}
-
-// CloudFront sends "ip:port" for both ipv4 & ipv6, so the port is
-// always the last colon segment.
-const stripPort = (address: string) => {
-	const index = address.lastIndexOf(':')
-
-	return index === -1 ? address : address.slice(0, index)
-}
-
-const buildRequest = <P extends RouteSchemaProps>(props: P, parts: Parts<P>): RouteRequestOf<P> => {
-	const { event, params, query, body } = parts
-	const headers = new Headers()
-
-	for (const [name, value] of Object.entries(event.headers ?? {})) {
-		headers.set(name, value)
-	}
-
-	const method = event.requestContext.http.method
-
-	// Behind the router the lambda sourceIp is the CloudFront edge,
-	// only the viewer address header holds the real caller.
-	const viewerAddress = headers.get('cloudfront-viewer-address')
-	const ip = viewerAddress ? stripPort(viewerAddress) : event.requestContext.http.sourceIp
-
-	// The forwarded host is the domain the caller used; synthetic test
-	// events may carry none, so the url must still parse.
-	const domain = headers.get('x-forwarded-host') || event.requestContext.domainName || 'localhost'
-	const path = event.rawPath || event.requestContext.http.path || '/'
-	const protocol = headers.get('x-forwarded-proto') ?? 'https'
-	const url = `${protocol}://${domain}${path}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`
-
-	const rawBody =
-		typeof event.body === 'undefined'
-			? undefined
-			: event.isBase64Encoded
-				? Buffer.from(event.body, 'base64')
-				: Buffer.from(event.body)
-
-	// Without a body schema the data stays undefined - the conditional
-	// prop type can't narrow on the runtime check.
-	const data = (props.body ? body : undefined) as Op<P['body'], undefined>
-
-	return new RouteRequest({
-		method,
-		url,
-		headers,
-		params,
-		query,
-		data,
-		ip,
-		userAgent: event.requestContext.http.userAgent,
-		body: rawBody,
-	})
-}
-
-const routeSchema = <P extends RouteSchemaProps>(props: P): RouteSchema<P> => {
-	return pipe(
-		envelopeSchema,
-		transform(extractParts),
-		partsSchema(props),
-		transform((parts: Parts<P>) => buildRequest(props, parts))
-	)
-}
-
-const isTextual = (contentType: string) => {
-	return (
-		contentType.startsWith('text/') ||
-		contentType.includes('json') ||
-		contentType.includes('xml') ||
-		contentType.includes('javascript') ||
-		contentType.includes('x-www-form-urlencoded')
-	)
-}
-
-// Handlers return standard web Responses.
-const toLambdaUrlResult = async (response: Response) => {
-	const headers: Record<string, string> = {}
-	const cookies: string[] = []
-
-	response.headers.forEach((value, name) => {
-		if (name.toLowerCase() === 'set-cookie') {
-			cookies.push(value)
-		} else {
-			headers[name] = value
-		}
-	})
-
-	const buffer = Buffer.from(await response.arrayBuffer())
-
-	// A Response over raw bytes has no content type, and decoding
-	// unknown bytes as utf-8 would corrupt them.
-	const contentType = headers['content-type']
-	const textual = typeof contentType === 'string' && isTextual(contentType)
-
-	return {
-		statusCode: response.status,
-		headers,
-		cookies: cookies.length > 0 ? cookies : undefined,
-		body: buffer.length > 0 ? (textual ? buffer.toString() : buffer.toString('base64')) : undefined,
-		isBase64Encoded: buffer.length > 0 && !textual,
-	}
-}
-
-/** The request a route or site handler receives, validated against the route schemas. */
-export type RouteEvent<P extends RouteSchemaProps = {}> = RouteRequestOf<P>
-
-/** What a route or site handler may return: a web Response or a lambda url result object. */
-export type RouteResponse = Response | RouteEntryResult
-
-type RouteResult = RouteResponse | Promise<RouteResponse>
-
-/** The lambda url result a route entry resolves to - a returned web Response converts into this shape. */
-export type RouteEntryResult = {
-	statusCode: number
-	headers?: Record<string, string>
-	cookies?: string[]
-	body?: string
-	isBase64Encoded?: boolean
-	[key: string]: unknown
-}
-
-// The inner handler receives the extended lambda context, while the
-// outer entrypoint receives the raw aws context.
-type HandlerContext = Parameters<Handler>[1]
-
-type RouteHandler<P extends RouteSchemaProps> = (request: RouteRequestOf<P>, context: HandlerContext) => RouteResult
-type RouteEntry = (event: unknown, context?: LambdaContext) => Promise<RouteEntryResult>
-
-export function route<H extends RouteHandler<{}>>(handle: H): RouteEntry
-export function route<P extends RouteSchemaProps>(props: P, handle: RouteHandler<P>): RouteEntry
-export function route(
-	arg1: RouteSchemaProps | RouteHandler<RouteSchemaProps>,
-	arg2?: RouteHandler<RouteSchemaProps>
-): RouteEntry {
-	const props = arg2 ? (arg1 as RouteSchemaProps) : {}
-	const handle = arg2 ?? (arg1 as RouteHandler<RouteSchemaProps>)
-
-	const handler = lambda({
-		schema: routeSchema(props),
-		handle: async (request, context) => {
-			const result = await handle(request, context)
-
-			return result instanceof Response ? toLambdaUrlResult(result) : result
+			try {
+				// The caller sees the end once the invocation finished.
+				await finishInvocation()
+				controller.close()
+			} catch (error) {
+				// A success callback failed the run.
+				controller.error(toLoggedError(error))
+			}
+		},
+		async cancel(reason) {
+			try {
+				await runInContext(() => reader.cancel(reason))
+			} finally {
+				await finishInvocation()
+			}
 		},
 	})
+}
 
-	return async (event, context) => {
-		let result: Awaited<ReturnType<typeof handler>>
+// What a route is called with: the request, its caller's ip, a rest api's path
+// parameters, and what the context gives as raw.
+type RouteCall = { request: Request; ip: string; params?: Record<string, string>; raw: unknown }
 
-		try {
-			result = await handler(event as EnvelopeInput, context)
-		} catch (error) {
-			// Test mode throws expected errors instead of returning them;
-			// the route contract is http, so they still render as a response.
+const createRouteRunner = (handle: RouteHandler) => {
+	return async (call: RouteCall, lambdaContext?: LambdaContext): Promise<Response> => {
+		const { request } = call
+
+		// What an error logs of the request: never its headers, query, body or ip,
+		// which could hold a credential or personal data.
+		const input = { method: request.method, path: new URL(request.url).pathname }
+		const toLoggedError = (error: unknown) => enhanceError(error, undefined, input, lambdaContext)
+
+		// The handler's async context, for reading a streamed body.
+		let runInContext: RunInContext = callback => callback()
+
+		const invocation = await runInvocation({
+			input,
+			raw: call.raw,
+			context: lambdaContext,
+			handle: async (_, context) => {
+				const response = await handle(
+					{
+						request,
+						params: call.params ?? getRouteParams(request.headers),
+						ip: call.ip,
+					},
+					context
+				)
+
+				runInContext = AsyncLocalStorage.snapshot() as RunInContext
+
+				return response
+			},
+		})
+
+		// A finished invocation's error: an expected one returned as json, any other thrown.
+		const returnOrThrowError = (error: unknown) => {
 			if (error instanceof ExpectedError) {
-				return jsonErrorResponse(toErrorResponse(error).__error__)
+				return createErrorResponse(toErrorResponse(error).__error__)
 			}
 
-			throw error
+			throw toLoggedError(error)
 		}
 
-		if (isErrorResponse(result)) {
-			return jsonErrorResponse(result.__error__)
+		if (!invocation.isSuccessful) {
+			await invocation.finishInvocation({ error: invocation.error })
+
+			return returnOrThrowError(invocation.error)
 		}
 
-		return result
+		const response = invocation.result
+
+		if (!response.body) {
+			try {
+				await invocation.finishInvocation()
+			} catch (error) {
+				// A success callback failed the run.
+				return returnOrThrowError(error)
+			}
+
+			return response
+		}
+
+		return new Response(
+			finishInvocationAfterBody(response.body, runInContext, invocation.finishInvocation, toLoggedError),
+			{ status: response.status, statusText: response.statusText, headers: response.headers }
+		)
 	}
 }
 
-// Bad input is a 400, any other expected error a 500. Unexpected errors
-// propagate, so the on-error-log consumer sees them.
-const jsonErrorResponse = (error: { type: string; message: string; data?: unknown }) => {
-	return {
-		statusCode: error.type === 'validation' ? 400 : 500,
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ type: error.type, message: error.message, data: error.data }),
+/** A route handler: a web Request in, a Response out. */
+export const route = (handle: RouteHandler): RouteEntry => {
+	const runRoute = createRouteRunner(handle)
+
+	const entry = async (event: unknown, context?: LambdaContext) => {
+		const { request, sourceIp, pathParameters } = toWebRequest(event)
+		const params = pathParameters && Object.keys(pathParameters).length > 0 ? pathParameters : undefined
+		const ip = getViewerIp(request.headers) ?? sourceIp
+
+		return toFunctionUrlResult(await runRoute({ request, ip, params, raw: event }, context))
 	}
+
+	return Object.assign(entry, {
+		fetch: async (request: Request, context?: LambdaContext) => {
+			// Only CloudFront calls the web function, and it always names the viewer.
+			return runRoute({ request, ip: getViewerIp(request.headers)!, raw: request }, context)
+		},
+	})
 }
 
-// A site ssr handler is a schema-less route: an expected error must
-// never serialize as a 200 error payload.
-export const site = <H extends RouteHandler<{}>>(handle: H): RouteEntry => {
-	return route(handle)
-}
+/** A site ssr handler: a route. */
+export const site = route

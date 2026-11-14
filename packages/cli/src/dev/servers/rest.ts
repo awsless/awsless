@@ -1,8 +1,9 @@
 import { randomUUID } from 'crypto'
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
+import { toWebResponse } from 'awsless'
 import { DevDispatch } from '../../feature.js'
+import { writeWebResponse } from '../../feature/bundle/server/web-function.js'
 import { ROUTE_HEADER } from '../../feature/bundle/util.js'
-import { writeWebResponse } from '../router.js'
 import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 
 export type RestRoute = {
@@ -174,7 +175,7 @@ export const createRestServer = (props: { id: string; routes: RestRoute[] }) => 
 			parseTraceHeader(req.headers[TRACE_HEADER])
 		)
 
-		writeWebResponse(res, result)
+		await writeWebResponse(toWebResponse(result), res)
 	}
 
 	return {

@@ -21,18 +21,6 @@ export type FunctionError = {
 
 export type FunctionResult = FunctionSuccess | FunctionError
 
-export type Response = {
-	headers?: Record<string, string>
-	statusCode: number
-	body: string
-}
-
-export const response = (statusCode: number, results: GlobalError | FunctionResult[]): Response => {
-	return {
-		headers: {
-			'content-type': 'application/json',
-		},
-		statusCode,
-		body: stringify(results),
-	}
+export const response = (status: number, results: GlobalError | FunctionResult[]) => {
+	return new Response(stringify(results), { status, headers: { 'content-type': 'application/json' } })
 }

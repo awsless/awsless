@@ -1,8 +1,9 @@
 import { InvokeOptions } from '@awsless/lambda';
 export declare const ROUTE_PROPERTY = "$awsless-route";
 export declare const ROUTE_HEADER = "x-awsless-route";
+export declare const DEPLOYMENT_ID_HEADER = "x-awsless-deployment-id";
 export declare const LIVE_BUNDLE_ALIAS = "live";
-export declare const getBundleName: () => string;
+export declare const getEventFunctionName: () => string;
 export declare const formatRouteKey: (stackName: string, resourceType: string, resourceName: string) => string;
 export declare const formatRoutePayload: (routeKey: string, event: unknown) => {
     "$awsless-route": string;

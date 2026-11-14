@@ -2,6 +2,7 @@ import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled, ExpectedError } from '../../error.js'
+import { hasClickHouseTables } from '../../feature/clickhouse/util.js'
 import { withTestEnvironment } from '../../test/environment.js'
 import {
 	claimDeployment,
@@ -9,12 +10,14 @@ import {
 	preflightDeployment,
 	promoteAppDeployment,
 	readDeployedFunctionVersions,
+	readDeployedWebFunctionRevisionId,
 } from '../../util/deployment.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
+import { fetchClickHouseKey } from '../ui/complex/fetch-clickhouse-key.js'
 import { layout } from '../ui/complex/layout.js'
 import { createTestEnv, runTests } from '../ui/complex/run-tests.js'
 import { showWarnings } from '../ui/complex/show-warnings.js'
@@ -46,6 +49,11 @@ export const deploy = (program: Command) => {
 				// deploy the bootstrap first...
 
 				await bootstrapAwsless({ credentials, region, accountId })
+
+				// Asked now rather than after the builds, which take a while.
+				if (hasClickHouseTables(stackConfigs)) {
+					await fetchClickHouseKey(accountId)
+				}
 
 				// ---------------------------------------------------
 
@@ -144,6 +152,7 @@ export const deploy = (program: Command) => {
 					credentials,
 					accountId,
 					region,
+					stackConfigs,
 				})
 				const releaseUrn = getAppReleaseLockUrn(globalAppId)
 
@@ -168,6 +177,7 @@ export const deploy = (program: Command) => {
 									appId: globalAppId,
 									id: deployment.id,
 									functionVersion,
+									webFunctionRevisionId: readDeployedWebFunctionRevisionId(remoteState),
 								})
 							}
 

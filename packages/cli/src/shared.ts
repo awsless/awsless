@@ -3,6 +3,7 @@ import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Permission } from './feature.js'
 import { BucketLifecycleRule } from './feature/asset/index.js'
 import { BundleHandler } from './feature/bundle/util.js'
+import type { WebFunction } from './feature/bundle/web-function.js'
 import { Route } from './feature/router/route.js'
 
 type SharedState = {
@@ -38,12 +39,10 @@ type SharedState = {
 		}
 	}
 
+	// The bundle: every handler in one code archive, which two lambdas run.
 	bundle: {
 		main: {
-			lambda: aws.lambda.Function
-			alias: aws.lambda.Alias
-			deployment: Resource
-			logGroup: aws.cloudwatch.LogGroup | undefined
+			// The role's policy both lambdas share.
 			policy: aws.iam.RolePolicy
 			addHandler: (handler: BundleHandler) => void
 			addEnv: (name: string, value: Input<string>) => void
@@ -51,6 +50,15 @@ type SharedState = {
 			addPermission: (statement: Permission) => void
 			statements: ReadonlySet<Permission>
 		}
+		// The Lambda function: invokes, queues, streams, crons & the routes that need its layers.
+		'event-function': {
+			lambda: aws.lambda.Function
+			alias: aws.lambda.Alias
+			deployment: Resource
+			logGroup: aws.cloudwatch.LogGroup | undefined
+		}
+		// The Lambda Web Function: the routers' bundle routes over HTTP.
+		'web-function': WebFunction
 	}
 
 	cron: {
@@ -72,6 +80,29 @@ type SharedState = {
 	search: {
 		endpoint: Output<string>
 		accessRole: aws.iam.Role
+	}
+
+	clickhouse: {
+		endpoint: Output<string>
+		parameter: string
+	}
+
+	// Only set when a stack declares Postgres tables.
+	postgres: {
+		'cluster-arn': Output<string>
+		'secret-arn': Output<string>
+	}
+
+	// Only set when the app has a pubsub.
+	'load-balancer': {
+		main: {
+			lb: aws.Lb
+			listener: aws.lb.Listener
+			securityGroup: aws.security.Group
+			dnsName: Output<string>
+			// The priority of a rule by its key, unique across the listener.
+			priority: (key: string) => number
+		}
 	}
 }
 

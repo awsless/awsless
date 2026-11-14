@@ -1,7 +1,7 @@
 import type { SNSEvent } from 'aws-lambda'
 import { ROUTE_HEADER, ROUTE_PROPERTY } from 'awsless'
 import type { RouteMatcher } from './types.js'
-import { asyncRoute, routeType } from './util.js'
+import { asyncRoute, describeSnsSpan, invokedRoute, routeType } from './util.js'
 
 const eventTypes = ['connected', 'disconnected', 'subscribed', 'unsubscribed']
 
@@ -13,13 +13,10 @@ export const pubsubHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 			// Event listener routes retry & reach the on-failure destination,
 			// while the auth & publisher routes respond to their caller.
 			if (eventTypes.some(type => route.endsWith(`-${type}`))) {
-				return asyncRoute(route, event.event)
+				return asyncRoute(route, event.event, () => describeSnsSpan(event.event))
 			}
 
-			return {
-				key: route,
-				payload: event.event,
-			}
+			return invokedRoute(route, event.event)
 		}
 
 		return
@@ -55,7 +52,7 @@ export const pubsubHandler: RouteMatcher<SNSEvent> = (event, routes) => {
 	}
 
 	if (listeners.length === 1) {
-		return asyncRoute(listeners[0]!, event)
+		return asyncRoute(listeners[0]!, event, () => describeSnsSpan(event))
 	}
 
 	// Isolate listeners in separate invocations so a hard failure in one can't block or retry the others.

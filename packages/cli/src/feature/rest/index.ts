@@ -12,7 +12,7 @@ export const restFeature = defineFeature({
 	name: 'rest',
 	onDev: restOnDev,
 	onApp(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
+		const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 		for (const [id, props] of Object.entries(ctx.appConfig.rest ?? {})) {
 			const group = new Group(ctx.base, 'rest', id)
@@ -33,13 +33,20 @@ export const restFeature = defineFeature({
 				autoDeploy: true,
 			})
 
-			const permission = new aws.lambda.Permission(group, 'permission', {
-				action: 'lambda:InvokeFunction',
-				principal: 'apigateway.amazonaws.com',
-				functionName: bundle.lambda.functionName,
-				qualifier: bundle.alias.name,
-				sourceArn: api.id.pipe(id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`),
-			})
+			const permission = new aws.lambda.Permission(
+				group,
+				'permission',
+				{
+					action: 'lambda:InvokeFunction',
+					principal: 'apigateway.amazonaws.com',
+					functionName: eventFunction.lambda.functionName,
+					qualifier: eventFunction.alias.name,
+					sourceArn: api.id.pipe(
+						id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`
+					),
+				},
+				{ replaceOnChanges: ['functionName'] }
+			)
 
 			ctx.shared.add('rest', 'id', id, api.id)
 			ctx.shared.add('rest', 'permission', id, permission)
@@ -110,7 +117,7 @@ export const restFeature = defineFeature({
 		}
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
+		const eventFunction = ctx.shared.get('bundle', 'event-function')
 
 		for (const [id, routes] of Object.entries(ctx.stackConfig.rest ?? {})) {
 			const restGroup = new Group(ctx.stack, 'rest', id)
@@ -130,7 +137,7 @@ export const restFeature = defineFeature({
 					integrationType: 'AWS_PROXY',
 					integrationMethod: 'POST',
 					payloadFormatVersion: '2.0',
-					integrationUri: bundle.alias.arn.pipe(arn => {
+					integrationUri: eventFunction.alias.arn.pipe(arn => {
 						return `arn:aws:apigateway:${ctx.appConfig.region}:lambda:path/2015-03-31/functions/${arn}/invocations`
 					}),
 

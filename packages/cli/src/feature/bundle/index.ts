@@ -10,24 +10,33 @@ import { defineFeature, Permission } from '../../feature.js'
 import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
-import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
+import { formatGlobalResourceName, getEventFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { formatPolicyDocument } from '../../util/policy.js'
-import { deployFunctionSourcemaps, formatLoggingConfig } from '../function/util.js'
+import {
+	deployFunctionSourcemaps,
+	formatLoggingConfig,
+	formatTracingConfig,
+	TRACING_PERMISSION,
+} from '../function/util.js'
 import { createLogGroup } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipWithEnvFile } from './build/zip.js'
 import { PolicyStatement } from './policy.js'
 import { buildBundle, BundleHandler } from './util.js'
+import { createWebFunction } from './web-function.js'
 
 export const bundleFeature = defineFeature({
 	name: 'bundle',
 	onApp(ctx) {
 		// ------------------------------------------------------
-		// Create the app bundle lambda that contains all handlers.
+		// The bundle: every handler in one code archive with one role, run by
+		// two lambdas. The event function takes invokes, queues, streams,
+		// crons and the routes that need its layers; the web function
+		// (web-function.ts) serves the routers' bundle routes over HTTP.
 
 		const defaults = ctx.appConfig.function
-		const group = new Group(ctx.base, 'function', 'bundle')
+		const group = new Group(ctx.base, 'bundle', 'event')
 
 		// ------------------------------------------------------
 		// Collect the handlers & env vars from every feature.
@@ -77,11 +86,12 @@ export const bundleFeature = defineFeature({
 			addLayer(ctx.shared.entry('layer', 'arn', id))
 		}
 
-		const name = getBundleFunctionName(ctx.app.name)
+		const name = getEventFunctionName(ctx.app.name)
 
-		const shortName = formatGlobalResourceName({
+		// The role both functions run with.
+		const roleName = formatGlobalResourceName({
 			appName: ctx.app.name,
-			resourceType: 'function',
+			resourceType: 'bundle',
 			resourceName: shortId(`bundle:${ctx.appId}`),
 		})
 
@@ -144,7 +154,7 @@ export const bundleFeature = defineFeature({
 			group,
 			'role',
 			{
-				name: shortName,
+				name: roleName,
 				description: name,
 				assumeRolePolicy: JSON.stringify({
 					Version: '2012-10-17',
@@ -160,7 +170,7 @@ export const bundleFeature = defineFeature({
 				}),
 			},
 			{
-				import: ctx.import ? shortName : undefined,
+				import: ctx.import ? roleName : undefined,
 			}
 		)
 
@@ -187,7 +197,7 @@ export const bundleFeature = defineFeature({
 		})
 
 		// ------------------------------------------------------
-		// The bundle lambda function.
+		// The event function.
 
 		const vpcPolicy = new aws.iam.RolePolicy(group, 'vpc-policy', {
 			role: role.name,
@@ -210,6 +220,30 @@ export const bundleFeature = defineFeature({
 				],
 			}),
 		})
+
+		// Lambda refuses active tracing to a role that can't send segments, so the right comes before the function.
+		const tracingPolicy = ctx.appConfig.tracing
+			? new aws.iam.RolePolicy(group, 'tracing-policy', {
+					role: role.name,
+					name: 'lambda-tracing-policy',
+					policy: formatPolicyDocument([TRACING_PERMISSION]),
+				})
+			: undefined
+
+		// The basics every copy of the bundle gets in its own env; the rest is
+		// delivered through the awsless-env.mjs file inside the code bundle,
+		// because the lambda env size is limited.
+		const variables = {
+			APP: ctx.appConfig.name,
+			APP_ID: ctx.appId,
+			AWS_ACCOUNT_ID: ctx.accountId,
+			REGION: ctx.appConfig.region,
+			STAGE: ctx.appConfig.stage ?? 'default',
+
+			// The bundle always lives inside a vpc, so use the
+			// dualstack aws endpoints.
+			AWS_USE_DUALSTACK_ENDPOINT: 'true',
+		}
 
 		const lambdaProps: aws.lambda.FunctionInput = {
 			functionName: name,
@@ -242,20 +276,12 @@ export const bundleFeature = defineFeature({
 
 			sourceCodeHash: sourceHash,
 
-			// Only the basics live on the lambda itself, the rest is
-			// delivered through the awsless-env.mjs file inside the code
-			// bundle, because the lambda env size is limited.
 			environment: {
 				variables: {
-					APP: ctx.appConfig.name,
-					APP_ID: ctx.appId,
-					AWS_ACCOUNT_ID: ctx.accountId,
-					REGION: ctx.appConfig.region,
-					STAGE: ctx.appConfig.stage ?? 'default',
+					...variables,
 
-					// The bundle always lives inside a vpc, so use the
-					// dualstack aws endpoints.
-					AWS_USE_DUALSTACK_ENDPOINT: 'true',
+					// The runtime's spans only go out where the app turned tracing on.
+					...(ctx.appConfig.tracing ? { AWSLESS_TRACING: 'true' } : {}),
 				},
 			},
 
@@ -267,10 +293,11 @@ export const bundleFeature = defineFeature({
 			},
 
 			loggingConfig: formatLoggingConfig(name, defaults.log),
+			tracingConfig: formatTracingConfig(ctx),
 		}
 
 		const lambda = new aws.lambda.Function(group, 'function', lambdaProps, {
-			dependsOn: [vpcPolicy],
+			dependsOn: tracingPolicy ? [vpcPolicy, tracingPolicy] : [vpcPolicy],
 			import: ctx.import ? name : undefined,
 		})
 
@@ -371,6 +398,25 @@ export const bundleFeature = defineFeature({
 		}
 
 		// ------------------------------------------------------
+		// The web function serves the routers' bundle routes, with the same
+		// code & role, but without the layers (a Lambda Web Function takes
+		// none), so routes that need them stay on the event function's url.
+		// It sends no spans: a Lambda Web Function has no X-Ray daemon.
+
+		const webFunction =
+			Object.keys(ctx.appConfig.router ?? {}).length > 0
+				? createWebFunction(ctx, {
+						code,
+						role,
+						variables,
+						timeout,
+						// The bucket policy lets Lambda read the code.
+						dependsOn: [policy, ctx.shared.get('asset', 'bucket').policy],
+						addPermission,
+					})
+				: undefined
+
+		// ------------------------------------------------------
 		// The app level env vars & permissions apply to every handler.
 
 		for (const [name, value] of Object.entries(defaults.environment ?? {})) {
@@ -387,12 +433,13 @@ export const bundleFeature = defineFeature({
 		// Every feature defines the permissions for its own resources.
 		ctx.onPermission(addPermission)
 
+		if (webFunction) {
+			ctx.shared.set('bundle', 'web-function', webFunction)
+		}
+
 		ctx.shared.add('function', 'role', 'bundle', role)
+		ctx.shared.set('bundle', 'event-function', { lambda, alias, deployment, logGroup })
 		ctx.shared.set('bundle', 'main', {
-			lambda,
-			alias,
-			deployment,
-			logGroup,
 			policy,
 			addHandler,
 			addEnv,

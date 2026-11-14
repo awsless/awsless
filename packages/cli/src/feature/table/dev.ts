@@ -52,7 +52,9 @@ export const createTableInput = (name: string, props: TableProps) => {
 			props.indexes && Object.keys(props.indexes).length > 0
 				? Object.entries(props.indexes).map(([name, index]) => ({
 						IndexName: name,
-						Projection: { ProjectionType: constantCase(index.projection) as 'ALL' | 'KEYS_ONLY' },
+						Projection: Array.isArray(index.projection)
+							? { ProjectionType: 'INCLUDE' as const, NonKeyAttributes: index.projection }
+							: { ProjectionType: constantCase(index.projection) as 'ALL' | 'KEYS_ONLY' },
 						KeySchema: [
 							...index.hash.map(name => ({ AttributeName: name, KeyType: 'HASH' as const })),
 							...(index.sort ?? []).map(name => ({ AttributeName: name, KeyType: 'RANGE' as const })),
@@ -82,6 +84,14 @@ const loadSeed = async (stackName: string, id: string) => {
 	} catch {
 		return []
 	}
+}
+
+const hasBatchItemFailures = (result: unknown) => {
+	if (typeof result !== 'object' || result === null || !('batchItemFailures' in result)) {
+		return false
+	}
+
+	return Array.isArray(result.batchItemFailures) && result.batchItemFailures.length > 0
 }
 
 export const tableOnDev = async (ctx: DevContext) => {
@@ -176,14 +186,24 @@ export const tableOnDev = async (ctx: DevContext) => {
 						// The write that caused this record carried its trace
 						// as the request context, so the stream consumer joins
 						// the writer's trace.
-						dispatch(event, parseTraceHeader(context)).catch(error => {
+						const report = (error: unknown) => {
 							reportFailure({
 								kind: 'stream',
 								routeKey,
 								event,
 								error,
 							})
-						})
+						}
+
+						// Locally a record goes alone & isn't retried, so a record the
+						// handler names as failed is reported like a thrown error.
+						dispatch(event, parseTraceHeader(context))
+							.then(result => {
+								if (hasBatchItemFailures(result)) {
+									report(new Error('The stream handler reported the record as failed.'))
+								}
+							})
+							.catch(report)
 					})
 
 					unsubscribes.push(unsubscribe)

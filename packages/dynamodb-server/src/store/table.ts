@@ -496,6 +496,13 @@ export class Table {
 		return this.globalSecondaryIndexes.has(indexName) || this.localSecondaryIndexes.has(indexName)
 	}
 
+	getIndexProjection(indexName: string) {
+		return (
+			this.globalSecondaryIndexes.get(indexName)?.projection ||
+			this.localSecondaryIndexes.get(indexName)?.projection
+		)
+	}
+
 	getIndexKeySchema(indexName: string): KeySchemaElement[] | undefined {
 		return (
 			this.globalSecondaryIndexes.get(indexName)?.keySchema ||

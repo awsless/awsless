@@ -10,7 +10,7 @@ export const logHandler: RouteMatcher<CloudWatchLogsEvent> = event => {
 
 	if (typeof route === 'string') {
 		if (routeType(route) === 'on-error-log') {
-			return asyncRoute(route, event.event)
+			return asyncRoute(route, event.event, () => ({ trigger: 'async-invoke' }))
 		}
 	}
 

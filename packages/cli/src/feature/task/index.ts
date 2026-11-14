@@ -5,7 +5,7 @@ import { camelCase } from 'change-case'
 import { createSchedulerServer } from '../../dev/servers/scheduler.js'
 import { defineFeature } from '../../feature.js'
 import { funcType, invokeTypes, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
-import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName, getEventFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 
@@ -149,7 +149,7 @@ export const taskFeature = defineFeature({
 								{
 									Action: ['lambda:InvokeFunction'],
 									Effect: 'Allow',
-									Resource: `arn:aws:lambda:${region}:${account}:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
+									Resource: `arn:aws:lambda:${region}:${account}:function:${getEventFunctionName(ctx.appConfig.name)}:*`,
 								},
 								// The on-failure queue only exists when the app configures it.
 								...(ctx.appConfig.onFailure

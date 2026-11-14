@@ -8,10 +8,12 @@ import {
 	PutFunctionEventInvokeConfigCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
+import { LambdaWebClient } from '@aws-sdk/client-lambda-web'
 import { createCustomProvider, createCustomResourceClass, Input, OptionalOutput, Output } from '@terraforge/core'
 import { z } from 'zod'
 import { isError, ProviderProps } from '../util/aws.js'
 import { getLambdaAlias, LIVE_LAMBDA_ALIAS } from '../util/lambda.js'
+import { getEndpointRevisionId } from '../util/web-function.js'
 
 // The per deployment alias carries the async retry & on-failure config
 // and is what the prune command deletes.
@@ -40,6 +42,26 @@ type LiveTargetOutput = {
 
 export const LiveTarget = createCustomResourceClass<LiveTargetInput, LiveTargetOutput>('lambda', 'live-target')
 
+// Reads the revision the web function's endpoint serves, so the endpoint
+// keeps serving the promoted deployment while a new one is staged; a new
+// endpoint takes the deployment's own revision. Every deployment reads it again.
+
+type WebFunctionLiveRevisionInput = {
+	functionName: Input<string>
+	endpointName: Input<string>
+	revisionId: Input<string>
+	deploymentId: Input<string>
+}
+
+type WebFunctionLiveRevisionOutput = {
+	liveRevisionId: Output<string>
+}
+
+export const WebFunctionLiveRevision = createCustomResourceClass<
+	WebFunctionLiveRevisionInput,
+	WebFunctionLiveRevisionOutput
+>('lambda', 'web-function-live-revision')
+
 // The function url & cloudfront permissions that make a deployment
 // alias reachable as a router origin.
 
@@ -60,6 +82,18 @@ export const FunctionDeployment = createCustomResourceClass<FunctionDeploymentIn
 
 export const createLambdaProvider = ({ credentials, region }: ProviderProps) => {
 	const lambda = new LambdaClient({ credentials, region })
+	const lambdaWeb = new LambdaWebClient({ credentials, region })
+	const webFunctionLiveRevisionInputSchema = z.object({
+		functionName: z.string(),
+		endpointName: z.string(),
+		revisionId: z.string(),
+		deploymentId: z.string(),
+	})
+	const readWebFunctionLiveRevision = async (state: z.output<typeof webFunctionLiveRevisionInputSchema>) => {
+		const liveRevisionId = await getEndpointRevisionId(lambdaWeb, state.functionName, state.endpointName)
+
+		return { ...state, liveRevisionId: liveRevisionId ?? state.revisionId }
+	}
 	const deploymentAliasInputSchema = z.object({
 		functionName: z.string(),
 		functionVersion: z.string(),
@@ -267,6 +301,14 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				const proposed = liveTargetInputSchema.parse(props.proposedState)
 
 				return readLiveTarget(proposed)
+			},
+		},
+		'web-function-live-revision': {
+			async createResource(props) {
+				return readWebFunctionLiveRevision(webFunctionLiveRevisionInputSchema.parse(props.state))
+			},
+			async updateResource(props) {
+				return readWebFunctionLiveRevision(webFunctionLiveRevisionInputSchema.parse(props.proposedState))
 			},
 		},
 		'function-deployment': {

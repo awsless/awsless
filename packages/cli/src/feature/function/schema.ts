@@ -266,7 +266,7 @@ export const FunctionDefaultSchema = z
 			system: 'system' in log ? log.system : 'warn',
 			format: 'format' in log ? log.format : 'json',
 		})),
-		// The defaults size the shared bundle lambda, which also serves queues,
+		// The defaults size the event function, which also serves queues,
 		// crons & tasks. Stand-alone functions inherit them as well.
 		timeout: TimeoutSchema.prefault('15 minutes'),
 		memorySize: MemorySizeSchema.prefault('1024 MB'),

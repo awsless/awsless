@@ -31,7 +31,7 @@ describe('sandbox proxy handler', () => {
 		const command = sendMock.mock.calls[0]![0] as { input: Record<string, unknown> }
 
 		expect(command.input).toMatchObject({
-			FunctionName: 'test-app--function--bundle',
+			FunctionName: 'test-app--bundle--event',
 			Qualifier: 'live',
 			InvocationType: 'RequestResponse',
 			Payload: JSON.stringify({ '$awsless-route': 'stack:function:allowed', event: { n: 1 } }),
@@ -52,7 +52,7 @@ describe('sandbox proxy handler', () => {
 		const command = sendMock.mock.calls[0]![0] as { input: Record<string, unknown> }
 
 		expect(command.input).toMatchObject({
-			FunctionName: 'test-app--function--bundle',
+			FunctionName: 'test-app--bundle--event',
 			Qualifier: 'main-7',
 		})
 	})

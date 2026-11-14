@@ -39,7 +39,7 @@ const ErrorResponseSchema = z
 	.union([
 		ErrorResponsePathSchema,
 		z.object({
-			path: ErrorResponsePathSchema,
+			path: ErrorResponsePathSchema.optional(),
 			statusCode: StatusCodeSchema.optional(),
 			minTTL: MinTTLSchema.optional(),
 		}),
@@ -202,20 +202,28 @@ export const RouterDefaultSchema = z
 					.describe('Customize the error responses for specific HTTP status codes.'),
 
 				cors: z
-					.object({
-						override: z.boolean().default(false),
-						maxAge: DurationSchema.prefault('365 days'),
-						exposeHeaders: z.string().array().default(['*']),
-						credentials: z.boolean().default(false),
-						headers: z.string().array().default(['*']),
-						origins: z.string().array().default(['*']),
-						methods: z
-							.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
-							.array()
-							.default(['ALL']),
-					})
+					.union([
+						z.literal(false),
+						z.object({
+							override: z.boolean().default(false),
+							maxAge: DurationSchema.prefault('365 days'),
+							exposeHeaders: z.string().array().default(['*']),
+							credentials: z.boolean().default(false),
+							headers: z.string().array().default(['*']),
+							origins: z.string().array().default(['*']),
+							methods: z
+								.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
+								.array()
+								.default(['ALL']),
+						}),
+					])
 					.prefault({})
-					.describe('Specify the cors headers.'),
+					.describe(
+						[
+							'Specify the cors headers.',
+							'Use false for a router no browser may call cross origin: no cors headers, and OPTIONS requests reach the routes instead of a preflight answer.',
+						].join('\n')
+					),
 
 				maintenance: z
 					.boolean()
