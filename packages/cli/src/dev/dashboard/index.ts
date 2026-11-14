@@ -79,7 +79,13 @@ export const createDashboardServer = (props: {
 			host = host.split(':')[0]!
 		}
 
-		return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
+		return (
+			host === 'localhost' ||
+			host.endsWith('.localhost') ||
+			host === '127.0.0.1' ||
+			host === '[::1]' ||
+			host === '::1'
+		)
 	}
 
 	const allowed = (req: IncomingMessage) => {

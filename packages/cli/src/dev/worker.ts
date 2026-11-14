@@ -51,7 +51,8 @@ let getCurrentRoute = () => undefined
 // requests, exactly like the route context.
 const traceContext = new AsyncLocalStorage()
 
-const isLoopback = host => host === '127.0.0.1' || host === 'localhost' || host === '::1'
+const isLoopback = host =>
+	host === '127.0.0.1' || host === 'localhost' || host.endsWith('.localhost') || host === '::1'
 
 // Outgoing requests to the local emulators carry the active trace as a
 // header, so a queue send or task invoke made by a handler links the

@@ -226,6 +226,9 @@ export const startDev = async (props: {
 	port: number
 	// Expose the routers on the lan, so a phone can open the sites.
 	host?: boolean
+	// The host name the routers are opened on: localhost, or a name under
+	// .localhost.
+	domain?: string
 	pool: ServerPool
 	onLog?: (message: string) => void
 	phase?: DevPhase
@@ -437,7 +440,7 @@ export const startDev = async (props: {
 			// The bind carries a bare host like the deployed domain name bind,
 			// so app code can prepend its own protocol.
 			for (const [id, port] of Object.entries(routerPorts)) {
-				env[`ROUTER_${constantCase(id)}_ENDPOINT`] = `localhost:${port}`
+				env[`ROUTER_${constantCase(id)}_ENDPOINT`] = `${props.domain ?? 'localhost'}:${port}`
 			}
 
 			// Sibling processes like `awsless bind --local vite dev` attach to
