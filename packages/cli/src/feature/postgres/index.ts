@@ -18,11 +18,11 @@ type PostgresDatabase = {
 }
 `
 
-// The Aurora PostgreSQL version of an app that names none. The newest 17
-// that Aurora lists, the major version the local Postgres runs. From 17.4
-// the Data API works on it, and from 16.3 scaling to zero.
+// The Aurora PostgreSQL version of an app that names none. The newest 18
+// that Aurora lists, the major version the local Postgres runs. From 18.3
+// the Data API works on it, and scaling to zero.
 // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraPostgreSQLReleaseNotes/AuroraPostgreSQL.Updates.html
-export const POSTGRES_VERSION = '17.11'
+export const POSTGRES_VERSION = '18.6'
 
 export const postgresFeature = defineFeature({
 	name: 'postgres',
@@ -110,6 +110,8 @@ export const postgresFeature = defineFeature({
 				// Serverless v2 is a provisioned cluster with serverless instances.
 				engineMode: 'provisioned',
 				engineVersion: version,
+				// A new major version in the config upgrades the cluster in place.
+				allowMajorVersionUpgrade: true,
 				// RDS makes the password, keeps it in Secrets Manager & rotates it.
 				// The Data API logs in with that secret, so no function ever holds it.
 				masterUsername: 'postgres',

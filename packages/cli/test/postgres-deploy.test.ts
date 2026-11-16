@@ -65,6 +65,7 @@ describe('postgres cluster', () => {
 			engine: 'aurora-postgresql',
 			engineMode: 'provisioned',
 			engineVersion: POSTGRES_VERSION,
+			allowMajorVersionUpgrade: true,
 			masterUsername: 'postgres',
 			// The password is RDS's own, in Secrets Manager.
 			manageMasterUserPassword: true,
@@ -79,7 +80,7 @@ describe('postgres cluster', () => {
 			deletionProtection: false,
 			skipFinalSnapshot: true,
 		})
-		expect(POSTGRES_VERSION).toBe('17.11')
+		expect(POSTGRES_VERSION).toBe('18.6')
 
 		// One writer, which scales with the cluster.
 		expect(resource(app, 'aws_rds_cluster_instance').input).toEqual({
@@ -154,10 +155,10 @@ describe('postgres cluster', () => {
 	})
 
 	it('takes the backup retention & the version from the app', () => {
-		const { cluster, writer } = clusterOf({ postgres: { backup: { retention: '7 days' }, version: '17' } })
+		const { cluster, writer } = clusterOf({ postgres: { backup: { retention: '7 days' }, version: '18' } })
 
 		expect(cluster.input.backupRetentionPeriod).toBe(7)
-		expect(cluster.input.engineVersion).toBe('17')
+		expect(cluster.input.engineVersion).toBe('18')
 		// Only a major version follows Aurora's minors.
 		expect(writer.input.autoMinorVersionUpgrade).toBe(true)
 
@@ -324,6 +325,7 @@ describe('postgres cluster', () => {
 				clusterIdentifier: `${appConfig.name}-postgres-main`,
 				engine: 'aurora-postgresql',
 				engineVersion: POSTGRES_VERSION,
+			allowMajorVersionUpgrade: true,
 				enableHttpEndpoint: true,
 				manageMasterUserPassword: true,
 			})

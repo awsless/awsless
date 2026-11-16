@@ -50,10 +50,10 @@ export const PostgresDefaultSchema = z
 			.describe("The database's own continuous backups."),
 		version: z
 			.string()
-			.regex(/^\d+(\.\d+)?$/, 'A version looks like "17" or "17.5".')
+			.regex(/^\d+(\.\d+)?$/, 'A version looks like "18" or "18.6".')
 			.optional()
 			.describe(
-				'The Aurora PostgreSQL version to run, like "17.11", or "17" to follow the minor versions Aurora picks. Leave it out for the default, 17.11. Queries go through the RDS Data API, which needs 17.4 or newer on version 17.'
+				'The Aurora PostgreSQL version to run, like "18.6", or "18" to follow the minor versions Aurora picks. Leave it out for the default, 18.6. Queries go through the RDS Data API, which needs 18.3 or newer on version 18. The local Postgres runs version 18.'
 			),
 	})
 	.strict()

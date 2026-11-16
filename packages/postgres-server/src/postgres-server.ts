@@ -141,7 +141,7 @@ const createCluster = async (initdb: string, dir: string) => {
 	}
 }
 
-// A real Postgres 17 server for tests & local development, from the
+// A real Postgres 18 server for tests & local development, from the
 // binaries the embedded-postgres package installs, on a temporary data
 // directory that close removes.
 export class PostgresServer {

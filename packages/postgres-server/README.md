@@ -1,6 +1,6 @@
 # @awsless/postgres-server
 
-A real local Postgres 17 server for tests and local development. There is no in-memory engine: tests get the real planner, real locks and as many connections as they open.
+A real local Postgres 18 server for tests and local development. There is no in-memory engine: tests get the real planner, real locks and as many connections as they open.
 
 ```ts
 import { PostgresServer } from '@awsless/postgres-server'
@@ -29,7 +29,7 @@ await server.close()
 
 ## The binaries
 
-They come from the npm package `embedded-postgres` (pinned to `17.11.0-beta.19`), which installs the build for this machine as `@embedded-postgres/<platform>-<arch>`, about 300 MB on disk. Nothing is downloaded at runtime.
+They come from the npm package `embedded-postgres` (pinned to `18.6.0-beta.19`), which installs the build for this machine as `@embedded-postgres/<platform>-<arch>`, about 300 MB on disk. Nothing is downloaded at runtime.
 
 Only that package's files are used, never its own server class: importing it installs exit handlers in the process, which a CLI can't have.
 

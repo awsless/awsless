@@ -32,7 +32,7 @@ describe('PostgresServer', () => {
 		await server.close()
 	})
 
-	it('runs Postgres 17 in UTC on a free port', async () => {
+	it('runs Postgres 18 in UTC on a free port', async () => {
 		const client = await connect(server.url)
 		const { rows } = await client.query(
 			"SELECT current_setting('server_version_num')::int AS version, current_setting('TimeZone') AS zone"
@@ -41,8 +41,8 @@ describe('PostgresServer', () => {
 		await client.end()
 
 		expect(server.url).toBe(`postgres://postgres:postgres@127.0.0.1:${server.port}/postgres`)
-		expect(rows[0].version).toBeGreaterThanOrEqual(170000)
-		expect(rows[0].version).toBeLessThan(180000)
+		expect(rows[0].version).toBeGreaterThanOrEqual(180000)
+		expect(rows[0].version).toBeLessThan(190000)
 		expect(rows[0].zone).toBe('UTC')
 	})
 
