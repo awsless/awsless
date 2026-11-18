@@ -32,7 +32,7 @@ await client.close()
 
 - Connections open on first use and stay open until `close()`. A query waits when all `max` are busy.
 - A connection the server closed is dropped, and the next query opens another.
-- Values come back as `pg` reads them: `bigint` and `numeric` as strings, `timestamptz` as a `Date`, `json` and `jsonb` parsed. Cast in SQL where a number is wanted: `count(*)::int`.
+- Values come back as described under Values: a `bigint` as a string, a `numeric` as a `BigFloat`, `timestamptz` as a `Date`, `json` and `jsonb` parsed. Cast in SQL where a number is wanted: `count(*)::int`.
 - A call with several statements and no params answers with the rows of the last one (not with `strict`).
 - `close()` ends the pool; a query after it opens a new one.
 
