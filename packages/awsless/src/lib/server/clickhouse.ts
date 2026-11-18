@@ -1,14 +1,35 @@
-import { AnyObjectSchema, clickhouseClient, ClickHouseClient, define } from '@awsless/clickhouse'
+import {
+	AnyObjectSchema,
+	clickhouseClient,
+	ClickHouseClient,
+	clickhouseQueryBuilder,
+	type ClickHouseQueryBuilder,
+	define,
+} from '@awsless/clickhouse'
 import { ssm } from '@awsless/ssm'
 import { trace } from '@awsless/utils'
 import { kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
+
+export type {
+	ClickHouseColumn,
+	ClickHouseDecimal,
+	ClickHouseGenerated,
+	ClickHouseGeneratedAlways,
+	ClickHouseQueryBuilder,
+} from '@awsless/clickhouse'
 import { getApp, getStack, isTest } from './util.js'
 
 // The physical table name inside the app's ClickHouse service, also used
 // by the CLI.
 export const getClickHouseTableName = (stackName: string, tableName: string) => {
 	return `${kebabCase(stackName)}--${tableName}`
+}
+
+// The stack in front of a table in the query builder, `stack.table`: with
+// underscores, like the stack's schema in Postgres. Also used by the CLI.
+export const getClickHouseStackName = (stackName: string) => {
+	return kebabCase(stackName).replaceAll('-', '_')
 }
 
 export const getClickHouseProps = (name: string, stack: string = getStack()) => {
@@ -35,6 +56,11 @@ const traceClient = (raw: ClickHouseClient): ClickHouseClient => ({
 	...raw,
 	query: <T = Record<string, unknown>>(...args: Parameters<ClickHouseClient['query']>) =>
 		trace('ClickHouse', () => raw.query<T>(...args), {
+			namespace: 'remote',
+			annotations: { clickhouse_operation: 'query' },
+		}),
+	queryTyped: (...args) =>
+		trace('ClickHouse', () => raw.queryTyped(...args), {
 			namespace: 'remote',
 			annotations: { clickhouse_operation: 'query' },
 		}),
@@ -108,24 +134,46 @@ export const assertMatchingColumns = (
 
 export interface ClickHouseResources {}
 
-export const ClickHouse: ClickHouseResources = /*@__PURE__*/ createProxy(stack => {
-	return createProxy(name => {
-		const { endpoint, name: table } = getClickHouseProps(name, stack)
+// The tables of every stack, as `stack.table`: filled in by `awsless types`.
+export interface ClickHouseTables {}
 
-		return {
-			name: table,
-			endpoint,
-			define(schema: AnyObjectSchema) {
-				if (isTest()) {
-					const declared = process.env[`CLICKHOUSE_COLUMNS_${table}`]
+let builder: ClickHouseQueryBuilder<ClickHouseTables> | undefined
 
-					if (declared) {
-						assertMatchingColumns(`${stack}.${name}`, JSON.parse(declared), schema.columns)
-					}
-				}
-
-				return define(table, schema, getClient)
-			},
-		}
+// A typed query builder (Kysely) over the tables the stack files declare.
+// It names a table `stack.table`, and writes the table's own name into the sql.
+const getBuilder = () => {
+	builder ??= clickhouseQueryBuilder<ClickHouseTables>({
+		client: getClient,
+		tableName: (stack, table) => getClickHouseProps(table, stack).name,
 	})
-})
+
+	return builder
+}
+
+export const ClickHouse: ClickHouseResources & { readonly db: ClickHouseQueryBuilder<ClickHouseTables> } =
+	/*@__PURE__*/ createProxy(stack => {
+		// No stack with tables can be called "db".
+		if (stack === 'db') {
+			return getBuilder()
+		}
+
+		return createProxy(name => {
+			const { endpoint, name: table } = getClickHouseProps(name, stack)
+
+			return {
+				name: table,
+				endpoint,
+				define(schema: AnyObjectSchema) {
+					if (isTest()) {
+						const declared = process.env[`CLICKHOUSE_COLUMNS_${table}`]
+
+						if (declared) {
+							assertMatchingColumns(`${stack}.${name}`, JSON.parse(declared), schema.columns)
+						}
+					}
+
+					return define(table, schema, getClient)
+				},
+			}
+		})
+	}) as never

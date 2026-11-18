@@ -4,11 +4,15 @@ import { DeleteParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk
 import { clickhouseClient } from '@awsless/clickhouse'
 import { ClickHouseServer } from '@awsless/clickhouse-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { AppSchema } from '../src/config/app'
+import { StackSchema } from '../src/config/stack'
 import { ExpectedError } from '../src/error'
-import { formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
+import { clickhouseFeature, formatPasswordParameter, formatServiceName } from '../src/feature/clickhouse/index'
 import { resolveColumnType } from '../src/feature/clickhouse/schema'
 import { hasClickHouseTables } from '../src/feature/clickhouse/util'
+import { validateFeatures } from '../src/feature/validate'
 import { createClickHouseProvider, serviceGone } from '../src/formation/clickhouse'
+import { TypeFile } from '../src/type-gen/file'
 import { TypeObject } from '../src/type-gen/object'
 import { createTestApp, credentials, findStatements, listResources, notFound, sent } from './_kit'
 
@@ -298,6 +302,90 @@ describe('clickhouse column types', () => {
 			flags: 'Array(LowCardinality(String))',
 			at: { type: "DateTime64(3, 'UTC')", default: 'now64(3)' },
 		})
+	})
+})
+
+describe('clickhouse query builder types', () => {
+	const generate = async (stacks: Record<string, unknown>[]) => {
+		let types: string | undefined
+
+		await clickhouseFeature.onTypeGen!({
+			appConfig: {} as never,
+			stackConfigs: stacks.map(stack => ({ ...StackSchema.parse(stack), file: 'stack.jsonc' })),
+			async write(_file, data) {
+				types = (data as TypeFile | undefined)?.toString()
+			},
+		})
+
+		return types
+	}
+
+	it('types every table by its stack, with what a query returns & an insert takes', async () => {
+		const types = await generate([
+			{
+				name: 'related-links',
+				clickhouse: {
+					'page-views': {
+						columns: {
+							id: 'uuid',
+							path: 'keyword',
+							tags: 'keyword[]',
+							referrer: 'string?',
+							views: 'UInt64',
+							price: 'Decimal(18, 4)',
+							score: 'number',
+							bot: "Enum8('good' = 1, 'bad' = 2)",
+							extra: 'Map(String, UInt32)',
+							place: 'Tuple(lat Float64, lon Float64)',
+							details: 'JSON',
+							createdAt: 'date',
+							day: { type: 'Date', default: 'toDate(createdAt)' },
+							seenAt: { type: 'date', default: 'now64(3)' },
+							hour: { type: 'UInt8', materialized: 'toHour(createdAt)' },
+						},
+						orderBy: ['path', 'createdAt'],
+					},
+				},
+			},
+			{ name: 'plain' },
+		])
+
+		expect(types).toContain(
+			[
+				'\tinterface ClickHouseTables {',
+				"\t\treadonly 'related_links.page-views': {",
+				'\t\t\tid: string',
+				'\t\t\tpath: string',
+				'\t\t\ttags: (string)[]',
+				'\t\t\treferrer: string | null',
+				'\t\t\tviews: ClickHouseColumn<bigint, bigint | number | string, never>',
+				'\t\t\tprice: ClickHouseColumn<ClickHouseDecimal, ClickHouseDecimal | number | string, never>',
+				'\t\t\tscore: number',
+				"\t\t\tbot: 'good' | 'bad'",
+				'\t\t\textra: Record<string, number>',
+				'\t\t\tplace: [number, number]',
+				'\t\t\tdetails: Record<string, unknown>',
+				'\t\t\tcreatedAt: ClickHouseColumn<Date, Date | string, never>',
+				'\t\t\tday: ClickHouseGenerated<string>',
+				'\t\t\tseenAt: ClickHouseColumn<Date, Date | string | undefined, never>',
+				'\t\t\thour: ClickHouseGeneratedAlways<number>',
+				'\t\t}',
+				'\t}',
+			].join('\n')
+		)
+		expect(types).not.toContain('plain')
+	})
+
+	it('keeps the name of the query builder free', () => {
+		const validate = (name: string, clickhouse?: unknown) => () =>
+			validateFeatures({
+				appConfig: AppSchema.parse({ name: 'test-app', region: 'us-east-1', profile: 'test' }),
+				stackConfigs: [{ ...StackSchema.parse({ name, clickhouse }), file: `${name}/stack.jsonc` }],
+			})
+
+		expect(validate('db', { events })).toThrow('ClickHouse.db is the query builder')
+		expect(validate('db')).not.toThrow()
+		expect(validate('shop', { events })).not.toThrow()
 	})
 })
 

@@ -3,7 +3,8 @@ import { toDays, toHours, toMinutes } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { clickhouse } from '@terraforge/clickhouse'
 import { Group } from '@terraforge/core'
-import { getClickHouseTableName } from 'awsless'
+import { getClickHouseStackName, getClickHouseTableName } from 'awsless'
+import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { ClickHouseBackupBucket, ClickHousePassword, ClickHouseTable } from '../../formation/clickhouse.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -11,6 +12,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { clickhouseOnDev } from './dev.js'
+import { formatTableType } from './types.js'
 import { hasClickHouseTables } from './util.js'
 
 const typeGenCode = `
@@ -21,6 +23,11 @@ type ClickHouseTable = {
 	readonly endpoint: string
 	readonly define: <S extends AnyObjectSchema>(schema: S) => Table<string, S>
 }
+
+type ClickHouseColumn<Select, Insert = Select, Update = Insert> = import('awsless').ClickHouseColumn<Select, Insert, Update>
+type ClickHouseGenerated<Value> = import('awsless').ClickHouseGenerated<Value>
+type ClickHouseGeneratedAlways<Value> = import('awsless').ClickHouseGeneratedAlways<Value>
+type ClickHouseDecimal = import('awsless').ClickHouseDecimal
 `
 
 // One ClickHouse organisation serves every AWS account & stage an app
@@ -56,10 +63,31 @@ export const clickhouseFeature = defineFeature({
 			resources.addType(stack.name, list)
 		}
 
+		// A table by the name the query builder knows it by: `stack.table`.
+		const tables = new TypeObject(1)
+
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, table] of Object.entries(stack.clickhouse ?? {})) {
+				tables.addKey(`${getClickHouseStackName(stack.name)}.${id}`, formatTableType(table.columns, '\t\t'))
+			}
+		}
+
 		gen.addCode(typeGenCode)
 		gen.addInterface('ClickHouseResources', resources)
+		gen.addInterface('ClickHouseTables', tables)
 
 		await ctx.write('clickhouse.d.ts', gen, true)
+	},
+	onValidate(ctx) {
+		for (const stack of ctx.stackConfigs) {
+			// `ClickHouse.db` is the query builder.
+			if (Object.keys(stack.clickhouse ?? {}).length > 0 && getClickHouseStackName(stack.name) === 'db') {
+				throw new FileError(
+					stack.file,
+					`A stack called "${stack.name}" can't have ClickHouse tables: ClickHouse.db is the query builder. Give the stack another name.`
+				)
+			}
+		}
 	},
 	onApp(ctx) {
 		// Every table in the app shares one ClickHouse Cloud service, like

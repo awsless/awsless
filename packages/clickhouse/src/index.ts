@@ -10,8 +10,30 @@ export {
 	type InsertOptions,
 	type QueryParams,
 	type Settings,
+	type TypedRows,
 } from './client'
 export { quoteIdentifier, quoteString } from './param'
+
+// query builder
+export {
+	clickhouseQueryBuilder,
+	type ClickHouseColumn,
+	type ClickHouseGenerated,
+	type ClickHouseGeneratedAlways,
+	type ClickHouseQueryBuilder,
+	type ClickHouseQueryBuilderProps,
+} from './query-builder'
+export {
+	decodeValue,
+	isBigInteger,
+	isDateTime,
+	isDecimal,
+	parseType,
+	tupleFieldType,
+	unwrapType,
+	type ClickHouseDecimal,
+	type ClickHouseType,
+} from './type'
 
 // ddl
 export {

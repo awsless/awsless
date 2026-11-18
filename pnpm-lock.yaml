@@ -381,7 +381,13 @@ importers:
       '@clickhouse/client':
         specifier: 1.24.1
         version: 1.24.1
+      kysely:
+        specifier: 0.29.9
+        version: 0.29.9
     devDependencies:
+      '@awsless/big-float':
+        specifier: workspace:^
+        version: link:../big-float
       '@awsless/clickhouse-server':
         specifier: workspace:^
         version: link:../clickhouse-server

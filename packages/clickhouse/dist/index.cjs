@@ -1,5 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 let _clickhouse_client = require("@clickhouse/client");
+let kysely = require("kysely");
+let _awsless_big_float = require("@awsless/big-float");
 //#region src/param.ts
 const escape = (value) => {
 	return value.replaceAll("\\", "\\\\").replaceAll("'", "\\'").replaceAll("	", "\\t").replaceAll("\n", "\\n").replaceAll("\r", "\\r");
@@ -14,6 +16,11 @@ const quoteString = (value) => {
 //#region src/client.ts
 const QUERY_SETTINGS = {
 	output_format_json_quote_64bit_integers: 0,
+	date_time_output_format: "iso"
+};
+const TYPED_QUERY_SETTINGS = {
+	output_format_json_quote_64bit_integers: 1,
+	output_format_json_quote_decimals: 1,
 	date_time_output_format: "iso"
 };
 const INSERT_SETTINGS = { date_time_input_format: "best_effort" };
@@ -48,6 +55,21 @@ const clickhouseClient = (props) => {
 				}
 			})).json();
 		},
+		async queryTyped(sql, params, settings) {
+			const { meta, data } = await (await (await getClient()).query({
+				query: sql,
+				format: "JSON",
+				query_params: params,
+				clickhouse_settings: {
+					...TYPED_QUERY_SETTINGS,
+					...settings
+				}
+			})).json();
+			return {
+				columns: meta ?? [],
+				rows: data
+			};
+		},
 		async command(sql, params, settings) {
 			await (await getClient()).command({
 				query: sql,
@@ -77,6 +99,291 @@ const clickhouseClient = (props) => {
 			await (await current)?.close();
 		}
 	};
+};
+//#endregion
+//#region src/type.ts
+const splitArgs = (text) => {
+	const args = [];
+	let depth = 0;
+	let quoted = false;
+	let current = "";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index];
+		if (quoted) {
+			current += char;
+			if (char === "\\") current += text[++index] ?? "";
+			else if (char === "'") quoted = false;
+			continue;
+		}
+		if (char === "'") quoted = true;
+		else if (char === "(") depth++;
+		else if (char === ")") depth--;
+		else if (char === "," && depth === 0) {
+			args.push(current.trim());
+			current = "";
+			continue;
+		}
+		current += char;
+	}
+	if (current.trim()) args.push(current.trim());
+	return args;
+};
+const parseType = (text) => {
+	const type = text.trim();
+	const open = type.indexOf("(");
+	if (open === -1 || !type.endsWith(")")) return {
+		name: type,
+		args: []
+	};
+	return {
+		name: type.slice(0, open).trim(),
+		args: splitArgs(type.slice(open + 1, -1))
+	};
+};
+const WRAPPERS = ["LowCardinality", "SimpleAggregateFunction"];
+const unwrapType = (type) => {
+	return WRAPPERS.includes(type.name) ? unwrapType(parseType(type.args.at(-1) ?? "String")) : type;
+};
+const isBigInteger = (name) => /^U?Int(64|128|256)$/.test(name);
+const isDecimal = (name) => /^Decimal(32|64|128|256)?$/.test(name);
+const isDateTime = (name) => name === "DateTime" || name === "DateTime64";
+const tupleFieldType = (field) => {
+	const named = field.match(/^`?[A-Za-z_][A-Za-z0-9_]*`?\s+(.+)$/s);
+	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? named[1] : field;
+};
+const decodeValue = (text, value) => {
+	const type = unwrapType(parseType(text));
+	if (value === null || value === void 0) return value ?? null;
+	if (type.name === "Nullable") return decodeValue(type.args[0], value);
+	if (isBigInteger(type.name)) return BigInt(value);
+	if (isDecimal(type.name)) return (0, _awsless_big_float.parse)(value);
+	if (isDateTime(type.name)) return new Date(value);
+	if (type.name === "Array" && Array.isArray(value)) return value.map((item) => decodeValue(type.args[0], item));
+	if (type.name === "Tuple" && Array.isArray(value)) return value.map((item, index) => decodeValue(tupleFieldType(type.args[index] ?? "String"), item));
+	if (type.name === "Map" && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, decodeValue(type.args[1], item)]));
+	return value;
+};
+//#endregion
+//#region src/query-builder.ts
+const isBigFloat = (value) => {
+	const { coefficient, exponent } = value;
+	return typeof coefficient === "bigint" && typeof exponent === "number";
+};
+const pad = (value, length = 2) => String(value).padStart(length, "0");
+const formatDateTime = (date) => {
+	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${pad(date.getUTCMilliseconds(), 3)}`;
+};
+const INT64_MAX = 2n ** 63n - 1n;
+const toParameter = (value) => {
+	if (value === null || value === void 0) return {
+		type: "Nullable(String)",
+		value: null
+	};
+	if (typeof value === "string") return {
+		type: "String",
+		value
+	};
+	if (typeof value === "boolean") return {
+		type: "Bool",
+		value
+	};
+	if (typeof value === "number") return {
+		type: Number.isInteger(value) ? "Int64" : "Float64",
+		value
+	};
+	if (typeof value === "bigint") return {
+		type: value > INT64_MAX ? "UInt64" : "Int64",
+		value: value.toString()
+	};
+	if (value instanceof Date) return {
+		type: "DateTime64(3, 'UTC')",
+		value: formatDateTime(value)
+	};
+	if (isBigFloat(value)) return {
+		type: `Decimal(76, ${Math.max(0, -value.exponent)})`,
+		value: value.toString()
+	};
+	if (Array.isArray(value)) {
+		const items = value.map(toParameter);
+		return {
+			type: `Array(${items[0]?.type ?? "String"})`,
+			value: items.map((item) => item.value)
+		};
+	}
+	return {
+		type: "String",
+		value: JSON.stringify(value)
+	};
+};
+const toInsertValue = (value) => {
+	if (typeof value === "bigint") return value.toString();
+	if (value instanceof Date) return value.toISOString();
+	if (value !== null && typeof value === "object") {
+		if (isBigFloat(value)) return value.toString();
+		if (Array.isArray(value)) return value.map(toInsertValue);
+		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toInsertValue(item)]));
+	}
+	return value;
+};
+var ClickHouseQueryCompiler = class extends kysely.DefaultQueryCompiler {
+	getLeftIdentifierWrapper() {
+		return "`";
+	}
+	getRightIdentifierWrapper() {
+		return "`";
+	}
+	sanitizeIdentifier(identifier) {
+		return identifier.replaceAll("\\", "\\\\").replaceAll("`", "\\`");
+	}
+	appendCount(node) {
+		const value = node.kind === "ValueNode" ? node.value : void 0;
+		if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) this.append(String(value));
+		else this.visitNode(node);
+	}
+	visitLimit(node) {
+		this.append("limit ");
+		this.appendCount(node.limit);
+	}
+	visitOffset(node) {
+		this.append("offset ");
+		this.appendCount(node.offset);
+	}
+	appendValue(parameter) {
+		const { type, value } = toParameter(parameter);
+		this.addParameter(value);
+		this.append(`{p${this.numParameters}:${type}}`);
+	}
+};
+var TableNameTransformer = class extends kysely.OperationNodeTransformer {
+	tableName;
+	constructor(tableName) {
+		super();
+		this.tableName = tableName;
+	}
+	transformSchemableIdentifier(node) {
+		const transformed = super.transformSchemableIdentifier(node);
+		if (!transformed.schema) return transformed;
+		return kysely.SchemableIdentifierNode.create(this.tableName(transformed.schema.name, transformed.identifier.name));
+	}
+};
+var TableNamePlugin = class {
+	transformer;
+	constructor(tableName) {
+		this.transformer = new TableNameTransformer(tableName);
+	}
+	transformQuery(args) {
+		return this.transformer.transformNode(args.node);
+	}
+	async transformResult(args) {
+		return args.result;
+	}
+};
+const insertRowsOf = (query) => {
+	if (query.kind !== "InsertQueryNode" || query.values?.kind !== "ValuesNode" || !query.into || !query.columns) return;
+	const node = query;
+	const columns = node.columns.map((column) => column.column.name);
+	const rows = [];
+	for (const list of node.values.values) {
+		if (list?.kind === "PrimitiveValueListNode") {
+			rows.push(Object.fromEntries(columns.map((column, index) => [column, toInsertValue(list.values[index])])));
+			continue;
+		}
+		const values = list?.values ?? [];
+		const isPlain = (value) => value.kind === "ValueNode" || value.kind === "DefaultInsertValueNode";
+		if (list?.kind !== "ValueListNode" || !values.every(isPlain)) return;
+		rows.push(Object.fromEntries(columns.flatMap((column, index) => {
+			const value = values[index];
+			return value?.kind === "ValueNode" ? [[column, toInsertValue(value.value)]] : [];
+		})));
+	}
+	return {
+		table: node.into.table.identifier.name,
+		rows
+	};
+};
+const UNSUPPORTED = {
+	transaction: "ClickHouse has no transactions: an insert of rows is written whole, and that's all it keeps together.",
+	stream: "The query builder doesn't stream a result. Read it in parts, with a limit.",
+	update: "ClickHouse changes rows with a mutation, not an update. Write it as sql: ALTER TABLE … UPDATE … WHERE …"
+};
+var Connection = class {
+	props;
+	constructor(props) {
+		this.props = props;
+	}
+	async executeQuery(compiled) {
+		const client = await this.props.client();
+		const kind = compiled.query.kind;
+		const params = Object.fromEntries(compiled.parameters.map((value, index) => [`p${index + 1}`, value]));
+		if (kind === "UpdateQueryNode") throw new Error(UNSUPPORTED.update);
+		const insert = insertRowsOf(compiled.query);
+		if (insert) {
+			await client.insert(insert.table, insert.rows);
+			return {
+				rows: [],
+				numAffectedRows: BigInt(insert.rows.length)
+			};
+		}
+		if (!(kind === "SelectQueryNode" || kind === "RawNode" && /^\s*(select|with|show|describe|exists)\b/i.test(compiled.sql))) {
+			await client.command(compiled.sql, params);
+			return { rows: [] };
+		}
+		const { columns, rows } = await client.queryTyped(compiled.sql, params);
+		return { rows: rows.map((row) => {
+			return Object.fromEntries(columns.map((column) => [column.name, decodeValue(column.type, row[column.name])]));
+		}) };
+	}
+	streamQuery() {
+		throw new Error(UNSUPPORTED.stream);
+	}
+};
+const createDriver = (props) => ({
+	async init() {},
+	async acquireConnection() {
+		return new Connection(props);
+	},
+	async beginTransaction() {
+		throw new Error(UNSUPPORTED.transaction);
+	},
+	async commitTransaction() {
+		throw new Error(UNSUPPORTED.transaction);
+	},
+	async rollbackTransaction() {
+		throw new Error(UNSUPPORTED.transaction);
+	},
+	async releaseConnection() {},
+	async destroy() {}
+});
+const adapter = {
+	supportsCreateIfNotExists: true,
+	supportsTransactionalDdl: false,
+	supportsReturning: false,
+	async acquireMigrationLock() {},
+	async releaseMigrationLock() {}
+};
+const introspector = {
+	async getSchemas() {
+		return [];
+	},
+	async getTables() {
+		return [];
+	}
+};
+/**
+* A typed query builder on a ClickHouse client. Values travel as typed
+* parameters, an insert of plain rows as rows, and a result is read by the
+* type of its columns.
+*/
+const clickhouseQueryBuilder = (props) => {
+	return new kysely.Kysely({
+		dialect: {
+			createAdapter: () => adapter,
+			createDriver: () => createDriver(props),
+			createIntrospector: () => introspector,
+			createQueryCompiler: () => new ClickHouseQueryCompiler()
+		},
+		plugins: props.tableName ? [new TableNamePlugin(props.tableName)] : []
+	});
 };
 //#endregion
 //#region src/ddl.ts
@@ -282,11 +589,13 @@ Object.defineProperty(exports, "ClickHouseError", {
 exports.array = array;
 exports.boolean = boolean;
 exports.clickhouseClient = clickhouseClient;
+exports.clickhouseQueryBuilder = clickhouseQueryBuilder;
 exports.columnOf = columnOf;
 exports.count = count;
 exports.createTable = createTable;
 exports.createTableStatement = createTableStatement;
 exports.date = date;
+exports.decodeValue = decodeValue;
 exports.define = define;
 exports.deleteRows = deleteRows;
 exports.dropTable = dropTable;
@@ -302,19 +611,25 @@ exports.int16 = int16;
 exports.int32 = int32;
 exports.int64 = int64;
 exports.int8 = int8;
+exports.isBigInteger = isBigInteger;
+exports.isDateTime = isDateTime;
+exports.isDecimal = isDecimal;
 exports.json = json;
 exports.map = map;
 exports.nullable = nullable;
 exports.number = number;
 exports.object = object;
 exports.optional = optional;
+exports.parseType = parseType;
 exports.query = query;
 exports.quoteIdentifier = quoteIdentifier;
 exports.quoteString = quoteString;
 exports.select = select;
 exports.string = string;
+exports.tupleFieldType = tupleFieldType;
 exports.uint16 = uint16;
 exports.uint32 = uint32;
 exports.uint64 = uint64;
 exports.uint8 = uint8;
+exports.unwrapType = unwrapType;
 exports.uuid = uuid;

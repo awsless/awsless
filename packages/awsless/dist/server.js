@@ -2,7 +2,7 @@ import { t as createProxy } from "./proxy-HAezNYiX.js";
 import * as s from "@awsless/open-search";
 import { define, isServerlessEndpoint, searchClient } from "@awsless/open-search";
 import * as c from "@awsless/clickhouse";
-import { clickhouseClient, define as define$1 } from "@awsless/clickhouse";
+import { clickhouseClient, clickhouseQueryBuilder, define as define$1 } from "@awsless/clickhouse";
 import * as t from "@awsless/dynamodb";
 import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
@@ -1000,6 +1000,9 @@ const Topic = /*@__PURE__*/ createProxy((name) => {
 const getClickHouseTableName = (stackName, tableName) => {
 	return `${kebabCase(stackName)}--${tableName}`;
 };
+const getClickHouseStackName = (stackName) => {
+	return kebabCase(stackName).replaceAll("-", "_");
+};
 const getClickHouseProps = (name, stack = getStack()) => {
 	const table = getClickHouseTableName(stack, name);
 	return {
@@ -1012,6 +1015,10 @@ const CLICKHOUSE_REQUEST_TIMEOUT = 3e5;
 const traceClient$1 = (raw) => ({
 	...raw,
 	query: (...args) => trace$1("ClickHouse", () => raw.query(...args), {
+		namespace: "remote",
+		annotations: { clickhouse_operation: "query" }
+	}),
+	queryTyped: (...args) => trace$1("ClickHouse", () => raw.queryTyped(...args), {
 		namespace: "remote",
 		annotations: { clickhouse_operation: "query" }
 	}),
@@ -1051,7 +1058,16 @@ const assertMatchingColumns = (label, declared, defined) => {
 		if (definedType.replaceAll(" ", "") !== type.replaceAll(" ", "")) throw new Error(`The column "${column}" of ClickHouse table "${label}" is a "${definedType}" in the code schema but a "${type}" in the stack file.`);
 	}
 };
+let builder$1;
+const getBuilder = () => {
+	builder$1 ??= clickhouseQueryBuilder({
+		client: getClient$1,
+		tableName: (stack, table) => getClickHouseProps(table, stack).name
+	});
+	return builder$1;
+};
 const ClickHouse = /*@__PURE__*/ createProxy((stack) => {
+	if (stack === "db") return getBuilder();
 	return /* @__PURE__ */ createProxy((name) => {
 		const { endpoint, name: table } = getClickHouseProps(name, stack);
 		return {
@@ -1843,4 +1859,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresDatabaseName, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, sql, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseStackName, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresDatabaseName, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, sql, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };

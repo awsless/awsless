@@ -35,6 +35,19 @@ const QUERY_SETTINGS: Settings = {
 	date_time_output_format: 'iso',
 }
 
+// For the query builder: every digit of a big integer & a decimal, which
+// travel as text, and the type of every column to read them by.
+const TYPED_QUERY_SETTINGS: Settings = {
+	output_format_json_quote_64bit_integers: 1,
+	output_format_json_quote_decimals: 1,
+	date_time_output_format: 'iso',
+}
+
+export type TypedRows = {
+	columns: { name: string; type: string }[]
+	rows: Record<string, unknown>[]
+}
+
 const INSERT_SETTINGS: Settings = {
 	date_time_input_format: 'best_effort',
 }
@@ -80,6 +93,22 @@ export const clickhouseClient = (props: ClickHouseClientProps) => {
 			})
 
 			return result.json<T>()
+		},
+
+		// Rows as the server sent them, next to the type of every column.
+		async queryTyped(sql: string, params?: QueryParams, settings?: Settings): Promise<TypedRows> {
+			const result = await (
+				await getClient()
+			).query({
+				query: sql,
+				format: 'JSON',
+				query_params: params,
+				clickhouse_settings: { ...TYPED_QUERY_SETTINGS, ...settings },
+			})
+
+			const { meta, data } = await result.json<Record<string, unknown>>()
+
+			return { columns: meta ?? [], rows: data }
 		},
 
 		// Statements without a result, like ddl.
