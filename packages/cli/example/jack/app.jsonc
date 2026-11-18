@@ -63,6 +63,13 @@
 		}
 	},
 	"topics": ["task-created"],
+
+	// The app's one Postgres database, for the billing stack. It scales to
+	// nothing & pauses when idle, so an example app costs next to nothing.
+	"postgres": {
+		"memory": { "min": 0, "max": 2 },
+		"idleTimeout": "10 minutes"
+	},
 	"function": {
 		"log": {
 			"retention": "1 days",
