@@ -306,23 +306,64 @@ export const routerFeature = defineFeature({
 
 			const wafRules: aws.wafv2.WebAclInput['rule'] = []
 
-			if (wafSettingsConfig?.rateLimiter) {
+			const rateLimiter = wafSettingsConfig?.rateLimiter
+
+			if (rateLimiter) {
+				const { key, path, response } = rateLimiter
+
 				wafRules.push({
 					name: 'rateLimiter',
 					priority: 3,
 					statement: {
 						rateBasedStatement: {
-							limit: wafSettingsConfig.rateLimiter.limit,
-							aggregateKeyType: 'IP',
-							evaluationWindowSec: toSeconds(wafSettingsConfig.rateLimiter.window),
+							limit: rateLimiter.limit,
+							evaluationWindowSec: toSeconds(rateLimiter.window),
+							...(key === 'ip'
+								? { aggregateKeyType: 'IP' }
+								: {
+										aggregateKeyType: 'CUSTOM_KEYS',
+										customKey: [
+											{
+												header: {
+													name: key.header.toLowerCase(),
+													textTransformation: [{ priority: 0, type: 'NONE' }],
+												},
+											},
+										],
+									}),
+							...(path
+								? {
+										scopeDownStatement: {
+											byteMatchStatement: {
+												fieldToMatch: { uriPath: {} },
+												positionalConstraint: 'EXACTLY',
+												searchString: path,
+												textTransformation: [{ priority: 0, type: 'NONE' }],
+											},
+										},
+									}
+								: {}),
 						},
 					},
 					action: {
-						block: {},
+						block: response
+							? {
+									customResponse: {
+										responseCode: response.status,
+										customResponseBodyKey: 'rateLimiter',
+										responseHeader: Object.entries(response.headers).map(([name, value]) => ({
+											name,
+											value,
+										})),
+									},
+								}
+							: {},
 					},
 					visibilityConfig: {
-						sampledRequestsEnabled: true,
-						cloudwatchMetricsEnabled: wafSettingsConfig.rateLimiter.visibility,
+						// Samples keep every header of a limited request, secrets like API keys
+						// and cookies included: the metrics count what the rule matched.
+						sampledRequestsEnabled: false,
+						cloudwatchMetricsEnabled: rateLimiter.visibility,
 						metricName: `${name}-wafv2-rateLimiter`,
 					},
 				})
@@ -409,6 +450,15 @@ export const routerFeature = defineFeature({
 						},
 						description: 'AWS Managed Rules Rule Set',
 						rule: wafRules,
+						customResponseBody: rateLimiter?.response
+							? [
+									{
+										key: 'rateLimiter',
+										content: rateLimiter.response.body,
+										contentType: rateLimiter.response.contentType,
+									},
+								]
+							: undefined,
 						captchaConfig: {
 							immunityTimeProperty: {
 								immunityTime: toSeconds(wafSettingsConfig.captchaImmunityTime),

@@ -1396,4 +1396,68 @@ describe('router waf', () => {
 		expect(acls[0]!.input.scope).toBe('CLOUDFRONT')
 		expect(acls[0]!.provider).toBe('terraform:aws:global-aws')
 	})
+
+	it('should count by ip with waf\'s own answer by default', () => {
+		const result = createRouterApp({ main: { waf: { rateLimiter: { limit: 100 } } } })
+		result.ready()
+
+		const acl = listResources(result.app, 'aws_wafv2_web_acl')[0]!.input
+		const rule = acl.rule[0]
+
+		expect(rule.statement.rateBasedStatement).toEqual({ limit: 100, evaluationWindowSec: 300, aggregateKeyType: 'IP' })
+		expect(rule.action).toEqual({ block: {} })
+		expect(rule.visibilityConfig.sampledRequestsEnabled).toBe(false)
+		expect(acl.customResponseBody).toBeUndefined()
+	})
+
+	it("should count one path's requests by a header's value and answer with a custom response", () => {
+		const result = createRouterApp({
+			server: {
+				waf: {
+					rateLimiter: {
+						limit: 30000,
+						window: '1 minute',
+						key: { header: 'Auth-API-Key' },
+						path: '/proxy',
+						response: {
+							status: 200,
+							body: '{"capped":true}',
+							headers: { 'x-limited': 'yes' },
+						},
+					},
+				},
+			},
+		})
+		result.ready()
+
+		const acl = listResources(result.app, 'aws_wafv2_web_acl')[0]!.input
+		const rule = acl.rule[0]
+
+		expect(rule.statement.rateBasedStatement).toEqual({
+			limit: 30000,
+			evaluationWindowSec: 60,
+			aggregateKeyType: 'CUSTOM_KEYS',
+			customKey: [{ header: { name: 'auth-api-key', textTransformation: [{ priority: 0, type: 'NONE' }] } }],
+			scopeDownStatement: {
+				byteMatchStatement: {
+					fieldToMatch: { uriPath: {} },
+					positionalConstraint: 'EXACTLY',
+					searchString: '/proxy',
+					textTransformation: [{ priority: 0, type: 'NONE' }],
+				},
+			},
+		})
+		expect(rule.action).toEqual({
+			block: {
+				customResponse: {
+					responseCode: 200,
+					customResponseBodyKey: 'rateLimiter',
+					responseHeader: [{ name: 'x-limited', value: 'yes' }],
+				},
+			},
+		})
+		expect(acl.customResponseBody).toEqual([
+			{ key: 'rateLimiter', content: '{"capped":true}', contentType: 'APPLICATION_JSON' },
+		])
+	})
 })
