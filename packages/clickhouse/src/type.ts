@@ -78,12 +78,14 @@ export const isDecimal = (name: string) => /^Decimal(32|64|128|256)?$/.test(name
 export const isDateTime = (name: string) => name === 'DateTime' || name === 'DateTime64'
 
 // The field of a tuple: `name Type` for a named one, else the type alone.
-export const tupleFieldType = (field: string) => {
-	const named = field.match(/^`?[A-Za-z_][A-Za-z0-9_]*`?\s+(.+)$/s)
+export const tupleField = (field: string): { name?: string; type: string } => {
+	const named = /^`?([A-Za-z_][A-Za-z0-9_]*)`?\s+(.+)$/s.exec(field)
 
 	// "DateTime64(3)" has no name in front, "at DateTime64(3)" has.
-	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? named[1]! : field
+	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? { name: named[1]!, type: named[2]! } : { type: field }
 }
+
+export const tupleFieldType = (field: string) => tupleField(field).type
 
 export type ClickHouseDecimal = BigFloat
 
@@ -119,6 +121,17 @@ export const decodeValue = (text: string, value: unknown): unknown => {
 
 	if (type.name === 'Tuple' && Array.isArray(value)) {
 		return value.map((item, index) => decodeValue(tupleFieldType(type.args[index] ?? 'String'), item))
+	}
+
+	// A tuple whose fields have names comes back as an object by those names.
+	if (type.name === 'Tuple' && typeof value === 'object') {
+		const types = new Map(type.args.map(tupleField).map(field => [field.name, field.type]))
+
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>).map(([name, item]) => {
+				return [name, decodeValue(types.get(name) ?? 'String', item)]
+			})
+		)
 	}
 
 	if (type.name === 'Map' && typeof value === 'object') {

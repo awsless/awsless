@@ -29,6 +29,7 @@ export {
 	isDateTime,
 	isDecimal,
 	parseType,
+	tupleField,
 	tupleFieldType,
 	unwrapType,
 	type ClickHouseDecimal,

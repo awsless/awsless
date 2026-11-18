@@ -87,6 +87,10 @@ declare const unwrapType: (type: ClickHouseType) => ClickHouseType;
 declare const isBigInteger: (name: string) => boolean;
 declare const isDecimal: (name: string) => boolean;
 declare const isDateTime: (name: string) => name is "DateTime" | "DateTime64";
+declare const tupleField: (field: string) => {
+  name?: string;
+  type: string;
+};
 declare const tupleFieldType: (field: string) => string;
 type ClickHouseDecimal = BigFloat;
 declare const decodeValue: (text: string, value: unknown) => unknown;
@@ -228,4 +232,4 @@ declare const string: <T extends string = string>(props?: StringProps) => Schema
 //#region src/schema/uuid.d.ts
 declare const uuid: () => Schema<string, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 //#endregion
-export { type AnyObjectSchema, type AnySchema, type AnyTable, type ClickHouseClient, type ClickHouseClientProps, type ClickHouseColumn, type ClickHouseDecimal, ClickHouseError, type ClickHouseGenerated, type ClickHouseGeneratedAlways, type ClickHouseQueryBuilder, type ClickHouseQueryBuilderProps, type ClickHouseType, type Column, type ColumnDefinition, type IndexDefinition, type InsertOptions, type ObjectSchema, type QueryParams, type Schema, type Settings, type Table, type TableDefinition, type TypedRows, array, boolean, clickhouseClient, clickhouseQueryBuilder, columnOf, count, createTable, createTableStatement, date, decodeValue, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, isBigInteger, isDateTime, isDecimal, json, map, nullable, number, object, optional, parseType, query, quoteIdentifier, quoteString, select, string, tupleFieldType, uint16, uint32, uint64, uint8, unwrapType, uuid };
+export { type AnyObjectSchema, type AnySchema, type AnyTable, type ClickHouseClient, type ClickHouseClientProps, type ClickHouseColumn, type ClickHouseDecimal, ClickHouseError, type ClickHouseGenerated, type ClickHouseGeneratedAlways, type ClickHouseQueryBuilder, type ClickHouseQueryBuilderProps, type ClickHouseType, type Column, type ColumnDefinition, type IndexDefinition, type InsertOptions, type ObjectSchema, type QueryParams, type Schema, type Settings, type Table, type TableDefinition, type TypedRows, array, boolean, clickhouseClient, clickhouseQueryBuilder, columnOf, count, createTable, createTableStatement, date, decodeValue, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, isBigInteger, isDateTime, isDecimal, json, map, nullable, number, object, optional, parseType, query, quoteIdentifier, quoteString, select, string, tupleField, tupleFieldType, uint16, uint32, uint64, uint8, unwrapType, uuid };

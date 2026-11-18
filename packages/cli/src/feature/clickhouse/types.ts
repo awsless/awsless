@@ -4,7 +4,7 @@ import {
 	isDateTime,
 	isDecimal,
 	parseType,
-	tupleFieldType,
+	tupleField,
 	unwrapType,
 } from '@awsless/clickhouse'
 
@@ -73,7 +73,22 @@ const valueType = (text: string): ValueType => {
 	}
 
 	if (type.name === 'Tuple') {
-		return each(value => `[${value}]`, ...type.args.map(arg => valueType(tupleFieldType(arg))))
+		const fields = type.args.map(tupleField)
+		const values = fields.map(field => valueType(field.type))
+
+		// A tuple whose fields all have names is an object by those names.
+		if (fields.length > 0 && fields.every(field => field.name)) {
+			const object = (pick: (value: ValueType) => string) => {
+				return `{ ${fields.map((field, index) => `${field.name}: ${pick(values[index]!)}`).join('; ')} }`
+			}
+
+			return {
+				select: object(value => value.select),
+				insert: values.some(value => value.insert) ? object(value => value.insert ?? value.select) : undefined,
+			}
+		}
+
+		return each(value => `[${value}]`, ...values)
 	}
 
 	if (type.name === 'JSON' || type.name === 'Object') {

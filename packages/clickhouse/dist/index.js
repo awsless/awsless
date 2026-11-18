@@ -146,10 +146,14 @@ const unwrapType = (type) => {
 const isBigInteger = (name) => /^U?Int(64|128|256)$/.test(name);
 const isDecimal = (name) => /^Decimal(32|64|128|256)?$/.test(name);
 const isDateTime = (name) => name === "DateTime" || name === "DateTime64";
-const tupleFieldType = (field) => {
-	const named = field.match(/^`?[A-Za-z_][A-Za-z0-9_]*`?\s+(.+)$/s);
-	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? named[1] : field;
+const tupleField = (field) => {
+	const named = /^`?([A-Za-z_][A-Za-z0-9_]*)`?\s+(.+)$/s.exec(field);
+	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? {
+		name: named[1],
+		type: named[2]
+	} : { type: field };
 };
+const tupleFieldType = (field) => tupleField(field).type;
 const decodeValue = (text, value) => {
 	const type = unwrapType(parseType(text));
 	if (value === null || value === void 0) return value ?? null;
@@ -159,6 +163,12 @@ const decodeValue = (text, value) => {
 	if (isDateTime(type.name)) return new Date(value);
 	if (type.name === "Array" && Array.isArray(value)) return value.map((item) => decodeValue(type.args[0], item));
 	if (type.name === "Tuple" && Array.isArray(value)) return value.map((item, index) => decodeValue(tupleFieldType(type.args[index] ?? "String"), item));
+	if (type.name === "Tuple" && typeof value === "object") {
+		const types = new Map(type.args.map(tupleField).map((field) => [field.name, field.type]));
+		return Object.fromEntries(Object.entries(value).map(([name, item]) => {
+			return [name, decodeValue(types.get(name) ?? "String", item)];
+		}));
+	}
 	if (type.name === "Map" && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, decodeValue(type.args[1], item)]));
 	return value;
 };
@@ -172,7 +182,17 @@ const pad = (value, length = 2) => String(value).padStart(length, "0");
 const formatDateTime = (date) => {
 	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${pad(date.getUTCMilliseconds(), 3)}`;
 };
-const INT64_MAX = 2n ** 63n - 1n;
+const integerType = (value) => {
+	for (const bits of [
+		64n,
+		128n,
+		256n
+	]) {
+		if (value >= -(2n ** (bits - 1n)) && value < 2n ** (bits - 1n)) return `Int${bits}`;
+		if (value >= 0n && value < 2n ** bits) return `UInt${bits}`;
+	}
+	throw new RangeError("ClickHouse has no whole number of more than 256 bits.");
+};
 const toParameter = (value) => {
 	if (value === null || value === void 0) return {
 		type: "Nullable(String)",
@@ -191,7 +211,7 @@ const toParameter = (value) => {
 		value
 	};
 	if (typeof value === "bigint") return {
-		type: value > INT64_MAX ? "UInt64" : "Int64",
+		type: integerType(value),
 		value: value.toString()
 	};
 	if (value instanceof Date) return {
@@ -211,7 +231,7 @@ const toParameter = (value) => {
 	}
 	return {
 		type: "String",
-		value: JSON.stringify(value)
+		value: JSON.stringify(toInsertValue(value))
 	};
 };
 const toInsertValue = (value) => {
@@ -579,4 +599,4 @@ const string = (props = {}) => new Schema((value) => value, (value) => value, pr
 //#region src/schema/uuid.ts
 const uuid = () => new Schema((value) => value, (value) => value, "UUID");
 //#endregion
-export { ClickHouseError, array, boolean, clickhouseClient, clickhouseQueryBuilder, columnOf, count, createTable, createTableStatement, date, decodeValue, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, isBigInteger, isDateTime, isDecimal, json, map, nullable, number, object, optional, parseType, query, quoteIdentifier, quoteString, select, string, tupleFieldType, uint16, uint32, uint64, uint8, unwrapType, uuid };
+export { ClickHouseError, array, boolean, clickhouseClient, clickhouseQueryBuilder, columnOf, count, createTable, createTableStatement, date, decodeValue, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, isBigInteger, isDateTime, isDecimal, json, map, nullable, number, object, optional, parseType, query, quoteIdentifier, quoteString, select, string, tupleField, tupleFieldType, uint16, uint32, uint64, uint8, unwrapType, uuid };

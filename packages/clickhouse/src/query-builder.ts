@@ -58,7 +58,21 @@ const formatDateTime = (date: Date) => {
 	)
 }
 
-const INT64_MAX = 2n ** 63n - 1n
+// The narrowest whole number type that holds a value: a parameter of a type
+// too narrow for it would not match the value it stands for.
+const integerType = (value: bigint) => {
+	for (const bits of [64n, 128n, 256n]) {
+		if (value >= -(2n ** (bits - 1n)) && value < 2n ** (bits - 1n)) {
+			return `Int${bits}`
+		}
+
+		if (value >= 0n && value < 2n ** bits) {
+			return `UInt${bits}`
+		}
+	}
+
+	throw new RangeError('ClickHouse has no whole number of more than 256 bits.')
+}
 
 // The ClickHouse type a value travels as, and the value in the text or
 // shape the client sends for it.
@@ -80,7 +94,7 @@ const toParameter = (value: unknown): { type: string; value: unknown } => {
 	}
 
 	if (typeof value === 'bigint') {
-		return { type: value > INT64_MAX ? 'UInt64' : 'Int64', value: value.toString() }
+		return { type: integerType(value), value: value.toString() }
 	}
 
 	if (value instanceof Date) {
@@ -98,8 +112,8 @@ const toParameter = (value: unknown): { type: string; value: unknown } => {
 		return { type: `Array(${items[0]?.type ?? 'String'})`, value: items.map(item => item.value) }
 	}
 
-	// Anything else is a json document.
-	return { type: 'String', value: JSON.stringify(value) }
+	// Anything else is a json document, with what json can't carry as text.
+	return { type: 'String', value: JSON.stringify(toInsertValue(value)) }
 }
 
 // A row for an insert: what JSON can't carry exactly goes as text.

@@ -183,6 +183,42 @@ describe(`clickhouseQueryBuilder (${engine})`, () => {
 		])
 	})
 
+	it('finds a whole number wider than 64 bits, and reads a named tuple by its names', async () => {
+		await client.command(
+			'CREATE TABLE `shop--wide` (id String, big UInt128, pair Tuple(name String, amount UInt64), plain Tuple(String, UInt64)) ENGINE = MergeTree ORDER BY id'
+		)
+
+		const wide = clickhouseQueryBuilder<{
+			'shop.wide': {
+				id: string
+				big: bigint
+				pair: { name: string; amount: bigint }
+				plain: [string, bigint]
+			}
+		}>({ client: () => client, tableName: (stack, table) => `${stack}--${table}` })
+
+		const big = 2n ** 80n
+
+		await wide
+			.insertInto('shop.wide')
+			.values({ id: 'w1', big, pair: { name: 'abc', amount: 42n }, plain: ['x', 7n] })
+			.execute()
+
+		const query = wide.selectFrom('shop.wide').selectAll().where('big', '=', big)
+
+		expect(query.compile().sql).toContain('{p1:Int128}')
+		expect(await query.execute()).toEqual([{ id: 'w1', big, pair: { name: 'abc', amount: 42n }, plain: ['x', 7n] }])
+		expect(
+			wide
+				.selectFrom('shop.wide')
+				.select('id')
+				.where('big', '=', 2n ** 200n)
+				.compile().sql
+		).toContain('{p1:Int256}')
+
+		await client.command('DROP TABLE `shop--wide`')
+	})
+
 	it('deletes rows, and says what ClickHouse has no word for', async () => {
 		await db.insertInto('shop.orders').values(order).execute()
 		await db.deleteFrom('shop.orders').where('id', '=', 'o1').execute()

@@ -31,6 +31,8 @@ describe('clickhouse types', () => {
 		expect(decodeValue('Array(Nullable(UInt64))', ['1', null])).toEqual([1n, null])
 		expect(decodeValue('Map(String, Int64)', { a: '1' })).toEqual({ a: 1n })
 		expect(decodeValue('Tuple(id UInt64, name String)', ['7', 'x'])).toEqual([7n, 'x'])
+		// A tuple with names is an object by those names.
+		expect(decodeValue('Tuple(id UInt64, name String)', { id: '7', name: 'x' })).toEqual({ id: 7n, name: 'x' })
 		expect(decodeValue('LowCardinality(String)', 'x')).toBe('x')
 		expect(decodeValue('UInt32', 5)).toBe(5)
 	})
