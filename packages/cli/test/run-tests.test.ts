@@ -10,6 +10,7 @@ import { setRoot } from '../src/util/path'
 
 const mocks = vi.hoisted(() => ({
 	start: vi.fn(),
+	message: vi.fn(),
 }))
 
 vi.mock('../src/test/start', () => ({ startProjectsTest: mocks.start }))
@@ -23,7 +24,7 @@ vi.mock('@awsless/clui', async importOriginal => {
 			...mod.log,
 			step: () => {},
 			error: () => {},
-			message: () => {},
+			message: mocks.message,
 			task: async (props: { task: (ctx: unknown) => Promise<void> }) => {
 				await props.task({ updateMessage() {}, updateSuccessMessage() {} })
 			},
@@ -71,6 +72,7 @@ describe('test runner cache', () => {
 
 	afterEach(() => {
 		mocks.start.mockReset()
+		mocks.message.mockReset()
 		delete process.env.NO_CACHE
 	})
 
@@ -87,6 +89,39 @@ describe('test runner cache', () => {
 
 		await expect(runTests(tests(), [], [], { showLogs: false })).resolves.toBe(true)
 		expect(mocks.start).toHaveBeenCalledTimes(1)
+	})
+
+	it('should show what a failed test wrote to the console, and a passing one only when asked', async () => {
+		const noisy: TestResponse = {
+			...response(1),
+			tests: [
+				{ file: 'a.test.ts', name: 'passes', errors: [], logs: [{ time: 0, text: 'an error it provokes' }] },
+				{
+					file: 'a.test.ts',
+					name: 'fails',
+					errors: [{ message: 'boom' } as never],
+					logs: [{ time: 0, text: 'the clue' }],
+				},
+			],
+		}
+		const written = () => mocks.message.mock.calls.map(([text]) => String(text))
+
+		process.env.NO_CACHE = '1'
+		mocks.start.mockResolvedValue(new Map([['a', noisy]]))
+
+		await expect(runTests(tests(), [], [], { showLogs: 'failed' })).resolves.toBe(false)
+		expect(written()).toContain('the clue')
+		expect(written()).not.toContain('an error it provokes')
+
+		mocks.message.mockClear()
+
+		await expect(runTests(tests(), [], [], { showLogs: true })).resolves.toBe(false)
+		expect(written()).toEqual(expect.arrayContaining(['the clue', 'an error it provokes']))
+
+		mocks.message.mockClear()
+
+		await expect(runTests(tests(), [], [], { showLogs: false })).resolves.toBe(false)
+		expect(written()).not.toContain('the clue')
 	})
 
 	it('should run again when the test files change', async () => {
