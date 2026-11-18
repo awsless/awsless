@@ -11,15 +11,21 @@
       "name": "@fixture/app",
       "dependencies": {
         "@fixture/lib": "workspace:*",
+        "@fixture/plain": "workspace:*",
         "yaml": "^2.9.0",
       },
     },
     "packages/lib": {
       "name": "@fixture/lib",
     },
+    "packages/plain": {
+      "name": "@fixture/plain",
+    },
   },
   "packages": {
     "@fixture/lib": ["@fixture/lib@workspace:packages/lib"],
+
+    "@fixture/plain": ["@fixture/plain@workspace:packages/plain"],
 
     "typescript": ["typescript@5.9.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-fake"],
 

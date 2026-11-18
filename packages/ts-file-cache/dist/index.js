@@ -62,6 +62,17 @@ const toAbsolute = (file) => {
 };
 //#endregion
 //#region src/hash.ts
+const resolveSubpath = (localPackage, subpath) => {
+	const exact = localPackage.exports[subpath];
+	if (exact) return exact;
+	const patterns = Object.entries(localPackage.exports).filter(([pattern]) => pattern.includes("*")).toSorted(([a], [b]) => b.indexOf("*") - a.indexOf("*"));
+	for (const [pattern, target] of patterns) {
+		const [prefix, suffix] = pattern.split("*");
+		if (subpath.length > prefix.length + suffix.length && subpath.startsWith(prefix) && subpath.endsWith(suffix)) return target.replaceAll("*", subpath.slice(prefix.length, subpath.length - suffix.length));
+	}
+	if (subpath === ".") return localPackage.main;
+	return localPackage.hasExports ? void 0 : join(localPackage.path, subpath);
+};
 const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExtensions, hashes) => {
 	if (isLocalCodeFile(file)) {
 		try {
@@ -88,7 +99,7 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 			const localPackage = workspace.packages[dependency.link];
 			if (!localPackage) throw new Error(`Can't find the local workspace package for: ${file}`);
 			const subpath = `.${file.slice(module.length)}`;
-			const entry = localPackage.exports[subpath] ?? (subpath === "." ? localPackage.main : void 0);
+			const entry = resolveSubpath(localPackage, subpath);
 			if (!entry) throw new Error(`Workspace package doesn't export the import: ${file}`);
 			await generateRecursiveFileHashes(workspace, entry, entry, allowedExtensions, hashes);
 		}
@@ -326,6 +337,7 @@ const buildPackages = async (cwd, importers) => {
 			path: join(cwd, path),
 			main: entry ? join(cwd, path, entry) : void 0,
 			exports,
+			hasExports: packageData.exports !== void 0,
 			dependencies
 		};
 	}));
@@ -351,7 +363,7 @@ const exportFiles = (exports) => {
 	if (exports && typeof exports === "object" && !Array.isArray(exports)) {
 		const entries = Object.entries(exports);
 		if (entries.every(([key]) => key.startsWith("."))) return Object.fromEntries(entries.flatMap(([subpath, value]) => {
-			const file = subpath.includes("*") ? void 0 : target(value);
+			const file = target(value);
 			return file ? [[subpath, file]] : [];
 		}));
 	}

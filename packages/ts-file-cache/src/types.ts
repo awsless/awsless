@@ -20,8 +20,11 @@ export type Package = {
 	path: string
 	name: string
 	main?: string
-	// The package.json exports by subpath (".", "./bundle"), as files.
+	// The package.json exports by subpath (".", "./bundle"), as files. A
+	// pattern ("./features/*") keeps its "*" on both sides.
 	exports: Record<string, string>
+	// Without an exports map, any file of the package can be imported.
+	hasExports: boolean
 	dependencies: Record<string, Dependency>
 }
 

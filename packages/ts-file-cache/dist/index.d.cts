@@ -14,6 +14,7 @@ type Package = {
   name: string;
   main?: string;
   exports: Record<string, string>;
+  hasExports: boolean;
   dependencies: Record<string, Dependency>;
 };
 type Workspace = {

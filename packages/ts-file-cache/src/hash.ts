@@ -1,10 +1,40 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { builtinModules } from 'node:module'
-import { relative, sep } from 'path'
+import { join, relative, sep } from 'path'
 import { findImports } from './import'
 import { isLocalCodeFile, resolveModuleImportFile } from './module'
-import { Workspace } from './types'
+import { Package, Workspace } from './types'
+
+// The file a subpath of a workspace package names ("." is the package
+// itself): its export, also through a "*" pattern, or the file itself in a
+// package without an exports map.
+const resolveSubpath = (localPackage: Package, subpath: string) => {
+	const exact = localPackage.exports[subpath]
+
+	if (exact) {
+		return exact
+	}
+
+	// The pattern with the longest part before its "*" wins, like in node.
+	const patterns = Object.entries(localPackage.exports)
+		.filter(([pattern]) => pattern.includes('*'))
+		.toSorted(([a], [b]) => b.indexOf('*') - a.indexOf('*'))
+
+	for (const [pattern, target] of patterns) {
+		const [prefix, suffix] = pattern.split('*') as [string, string]
+
+		if (subpath.length > prefix.length + suffix.length && subpath.startsWith(prefix) && subpath.endsWith(suffix)) {
+			return target.replaceAll('*', subpath.slice(prefix.length, subpath.length - suffix.length))
+		}
+	}
+
+	if (subpath === '.') {
+		return localPackage.main
+	}
+
+	return localPackage.hasExports ? undefined : join(localPackage.path, subpath)
+}
 
 export const generateRecursiveFileHashes = async (
 	workspace: Workspace,
@@ -68,7 +98,7 @@ export const generateRecursiveFileHashes = async (
 			// not the main entry, or a change there would never bust the
 			// cache.
 			const subpath = `.${file.slice(module.length)}`
-			const entry = localPackage.exports[subpath] ?? (subpath === '.' ? localPackage.main : undefined)
+			const entry = resolveSubpath(localPackage, subpath)
 
 			if (!entry) {
 				throw new Error(`Workspace package doesn't export the import: ${file}`)

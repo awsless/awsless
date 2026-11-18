@@ -58,7 +58,10 @@ export const buildPackages = async (cwd: string, importers: Record<string, Recor
 
 			const entry = packageData.module ?? packageData.main
 			const exports = Object.fromEntries(
-				Object.entries(exportFiles(packageData.exports)).map(([subpath, file]) => [subpath, join(cwd, path, file)])
+				Object.entries(exportFiles(packageData.exports)).map(([subpath, file]) => [
+					subpath,
+					join(cwd, path, file),
+				])
 			)
 
 			// Keyed by path - package names can repeat inside a workspace
@@ -69,6 +72,7 @@ export const buildPackages = async (cwd: string, importers: Record<string, Recor
 				path: join(cwd, path),
 				main: entry ? join(cwd, path, entry) : undefined,
 				exports,
+				hasExports: packageData.exports !== undefined,
 				dependencies,
 			}
 		})
@@ -79,7 +83,7 @@ export const buildPackages = async (cwd: string, importers: Record<string, Recor
 
 // A package.json's exports as one file per subpath: a string, conditions
 // (the first of bun's, import or default that leads to a file) or a map of
-// subpaths. Patterns with a "*" are left out.
+// subpaths. A pattern with a "*" is kept as written.
 const exportFiles = (exports: unknown): Record<string, string> => {
 	const target = (value: unknown): string | undefined => {
 		if (typeof value === 'string') {
@@ -107,7 +111,7 @@ const exportFiles = (exports: unknown): Record<string, string> => {
 		if (entries.every(([key]) => key.startsWith('.'))) {
 			return Object.fromEntries(
 				entries.flatMap(([subpath, value]) => {
-					const file = subpath.includes('*') ? undefined : target(value)
+					const file = target(value)
 
 					return file ? [[subpath, file]] : []
 				})

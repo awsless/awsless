@@ -3,6 +3,7 @@
 	"main": "_index.ts",
 	"exports": {
 		".": "./_index.ts",
-		"./extra": { "import": "./_extra.ts" }
+		"./extra": { "import": "./_extra.ts" },
+		"./features/*": "./_features/*.ts"
 	}
 }
