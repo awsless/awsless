@@ -494,11 +494,12 @@ describe('postgres schema plan', () => {
 		expect(await plan(state({ counters }), moved)).toMatchObject({ state: moved, requiresReplacement: false })
 	})
 
-	it('replaces a schema that moves to another database', async () => {
-		expect(
-			await plan(state({ counters }), state({ counters }, { database: 'visits', schema: 'visits' }))
-		).toMatchObject({
+	it('replaces a schema that gets another name, and keeps one whose database does', async () => {
+		expect(await plan(state({ counters }), state({ counters }, { schema: 'visits' }))).toMatchObject({
 			requiresReplacement: true,
+		})
+		expect(await plan(state({ counters }), state({ counters }, { database: 'visits' }))).toMatchObject({
+			requiresReplacement: false,
 		})
 	})
 })
@@ -797,7 +798,6 @@ describe('postgres schema apply', { timeout: 120_000 }, () => {
 
 		// What a deploy before the app had one database left behind.
 		await provider.createResource({ type: 'schema', state: legacy } as never)
-		await admin.query('CREATE TABLE IF NOT EXISTS marker ()')
 
 		const old = postgresClient({ url: server.url.replace(/\/postgres$/, '/old_stack') })
 

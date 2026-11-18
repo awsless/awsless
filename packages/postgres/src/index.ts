@@ -16,6 +16,7 @@ export {
 	declareTable,
 	TableChangeError,
 	type ColumnDefinition,
+	type DeclaredTable,
 	type IndexDefinition,
 	type TableDefinition,
 } from './table'

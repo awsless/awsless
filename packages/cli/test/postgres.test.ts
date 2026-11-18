@@ -344,6 +344,12 @@ describe('postgres feature', () => {
 								day: 'date',
 								kind: 'event_kind',
 								days: 'datemultirange',
+								seen_at: 'timestamp(3) with time zone',
+								waited: 'interval day to second',
+								price_range: 'price_range',
+								moments: 'timestamptz[]',
+								amounts: 'numeric(10, 2)[]',
+								gone: 'int4range?',
 							},
 							primaryKey: ['id'],
 						},
@@ -370,6 +376,13 @@ describe('postgres feature', () => {
 				'\t\t\tday: PostgresColumn<Date, Date | string, Date | string>',
 				'\t\t\tkind: string',
 				'\t\t\tdays: PostgresColumn<never, string, string>',
+				'\t\t\tseen_at: PostgresColumn<Date, Date | string, Date | string>',
+				'\t\t\twaited: PostgresColumn<never, string, string>',
+				// An enum that happens to end in "range" is text.
+				'\t\t\tprice_range: string',
+				'\t\t\tmoments: PostgresColumn<never, (Date | string)[], (Date | string)[]>',
+				'\t\t\tamounts: PostgresColumn<(PostgresNumeric)[], (PostgresNumeric | string | number)[], (PostgresNumeric | string | number)[]>',
+				'\t\t\tgone: PostgresColumn<never, string | null, string | null>',
 				'\t\t}',
 			].join('\n')
 		)

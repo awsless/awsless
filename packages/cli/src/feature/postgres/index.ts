@@ -1,8 +1,8 @@
 import { toDays, toSeconds } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
-import { getPostgresDatabaseName, getPostgresSchemaName } from 'awsless'
-import { FileError } from '../../error.js'
+import { getPostgresDatabaseName, getPostgresSchemaName, getPostgresSearchPath } from 'awsless'
+import { ExpectedError, FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { PostgresSchemaResource } from '../../formation/postgres.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -22,10 +22,7 @@ type PostgresNumeric = import('awsless').PostgresNumeric
 // The schema of every stack with tables, in the order unqualified names
 // resolve in.
 const getSchemas = (stackConfigs: { name: string; postgres?: unknown }[]) => {
-	return stackConfigs
-		.filter(stack => stack.postgres)
-		.map(stack => getPostgresSchemaName(stack.name))
-		.toSorted()
+	return getPostgresSearchPath(stackConfigs.filter(stack => stack.postgres).map(stack => stack.name))
 }
 
 // The Aurora PostgreSQL version of an app that names none. The newest 18
@@ -55,26 +52,22 @@ export const postgresFeature = defineFeature({
 	},
 	onValidate(ctx) {
 		const database = getPostgresDatabaseName(ctx.appConfig.name)
+		const stacks = ctx.stackConfigs.filter(stack => stack.postgres)
 
-		for (const stack of ctx.stackConfigs) {
-			if (!stack.postgres) {
-				continue
-			}
+		// The app's database is named after the app.
+		if (stacks.length > 0 && RESERVED_DATABASES.includes(database)) {
+			throw new ExpectedError(
+				`An app called "${ctx.appConfig.name}" can't have Postgres tables: its database would be "${database}", which Postgres keeps for itself. Give the app another name.`
+			)
+		}
 
+		for (const stack of stacks) {
 			const schema = getPostgresSchemaName(stack.name)
 
 			if (isReservedSchema(schema)) {
 				throw new FileError(
 					stack.file,
 					`A stack called "${stack.name}" can't have Postgres tables: its schema would be "${schema}", which Postgres keeps for itself. Give the stack another name.`
-				)
-			}
-
-			// The app's database is named after the app.
-			if (RESERVED_DATABASES.includes(database)) {
-				throw new FileError(
-					stack.file,
-					`An app called "${ctx.appConfig.name}" can't have Postgres tables: its database would be "${database}", which Postgres keeps for itself. Give the app another name.`
 				)
 			}
 		}

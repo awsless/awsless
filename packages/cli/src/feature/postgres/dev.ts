@@ -1,7 +1,7 @@
 import { watch } from 'fs'
 import { basename, dirname } from 'path'
 import { PostgresServer } from '@awsless/postgres-server'
-import { getPostgresSchemaName } from 'awsless'
+import { getPostgresSchemaName, getPostgresSearchPath } from 'awsless'
 import { StackConfig } from '../../config/stack.js'
 import { connectServerSink, createServerSink, type ServerSink } from '../../dev/server-sink.js'
 import { DevContext } from '../../feature.js'
@@ -40,13 +40,7 @@ export const postgresOnDev = async (ctx: DevContext) => {
 	ctx.addEnv('POSTGRES_URL', url)
 
 	// The search path the deployed database sets itself: every stack's schema.
-	ctx.addEnv(
-		'POSTGRES_SCHEMAS',
-		stacks
-			.map(stack => getPostgresSchemaName(stack.name))
-			.toSorted()
-			.join(',')
-	)
+	ctx.addEnv('POSTGRES_SCHEMAS', getPostgresSearchPath(stacks.map(stack => stack.name)).join(','))
 
 	// A new dev session starts on a new, empty server, like every other
 	// local resource: the app's seed fills it. A reload keeps the data, and

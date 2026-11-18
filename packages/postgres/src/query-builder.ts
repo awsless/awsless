@@ -22,7 +22,8 @@ export type {
 } from 'kysely'
 
 export type PostgresQueryBuilderProps = {
-	// Asked for on every statement, so a client that closed is opened again.
+	// Asked for on every statement: the caller may hand over another client,
+	// like a test file that gets one of its own.
 	client: () => PostgresClient | Promise<PostgresClient>
 	// Runs around every statement, like for a trace span.
 	wrap?: <T>(run: () => Promise<T>) => Promise<T>

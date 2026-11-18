@@ -11,7 +11,7 @@ import { getCronName } from '../server/cron.js'
 import { getFunctionName } from '../server/function.js'
 import { getInstanceQueueName } from '../server/instance.js'
 import { getJobName } from '../server/job.js'
-import { getPostgresDatabaseName, getPostgresSchemaName } from '../server/postgres.js'
+import { getPostgresDatabaseName, getPostgresSchemaName, getPostgresSearchPath } from '../server/postgres.js'
 import { getPubSubPublisherName } from '../server/pubsub.js'
 import { getQueueName } from '../server/queue.js'
 import { getSearchProps } from '../server/search.js'
@@ -291,7 +291,7 @@ const deferPostgresDatabase = (manifest: TestManifest) => {
 	}
 
 	const database = getPostgresDatabaseName()
-	const schemas = stacks.map(entry => getPostgresSchemaName(entry.stack)).toSorted()
+	const schemas = getPostgresSearchPath(stacks.map(entry => entry.stack))
 
 	// The search path the deployed database sets itself.
 	process.env.POSTGRES_SCHEMAS = schemas.join(',')

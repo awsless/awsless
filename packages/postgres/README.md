@@ -171,7 +171,7 @@ await Postgres.db
 What to know:
 
 - A value comes back the way `client.query` returns it (see Values): a `numeric` as a `BigFloat`, a `bigint` as text, a `date` and a `timestamptz` as a `Date`.
-- A range, a multirange and an interval can't be returned. Their columns are typed so a select of one doesn't compile: cast it in sql, like `` sql<string>`days::text` ``.
+- A range, a multirange and an interval can't be returned, nor an array the Data API has no type for (`timestamptz[]`, `jsonb[]`). Their columns are typed `never`: a select of one still compiles and fails when it runs (`0A000`), so cast it in sql, like `` sql<string>`days::text` ``.
 - A value without a cast is written into the sql, which has room for 65,536 characters. A long `in` list or many rows of `values` count against that; a big value belongs in a `sql` fragment with a cast, like `` sql`${json}::jsonb` ``.
 - A transaction needs `BeginTransaction`, `CommitTransaction` and `RollbackTransaction` on the cluster next to `ExecuteStatement`. An awsless app's functions have them.
 - `INSERT INTO table AS alias` isn't something Kysely writes. Name the table itself in `ON CONFLICT … DO UPDATE`.
@@ -278,7 +278,7 @@ const value = await bump(client, { project, counter: 'visits', amount: 1 })
 
 The call names its arguments and casts each to its type, so they travel as parameters; it answers the function's value, its rows for a table, or nothing. `fn.sql` is the `CREATE OR REPLACE FUNCTION` statement and `fn.functionName` the name, for sql that uses the function.
 
-The types: `uuid`, `text`, `integer`, `double`, `boolean`, `date`, `timestamp`, `jsonb<T>` (sent as json text), `array(type)`, `nullable(type)`, `table(columns)`, `nothing` and `custom<T>('datemultirange')` for any other type by its name.
+The types: `uuid`, `text`, `integer`, `double`, `numeric` (a `BigFloat`), `boolean`, `date` (its text, `2026-11-18`, where a query answers a `Date`), `timestamp`, `jsonb<T>` (sent as json text), `array(type)`, `nullable(type)`, `table(columns)`, `nothing` and `custom<T>('datemultirange')` for any other type by its name.
 
 In a stack file, list the module under `postgres.functions`: the awsless CLI loads it and creates every function it exports. Functions call each other and a module's exports have no order, so each is created twice: first without its body checked (`check_function_bodies = off`), then checked once all of them are there.
 

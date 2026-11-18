@@ -1,7 +1,8 @@
+import { BigFloat } from '@awsless/big-float'
 import { PostgresServer } from '@awsless/postgres-server'
 import { applySchema, isPostgresFunction, postgres, postgresClient } from '../src'
 
-const { integer, text, jsonb, array, nullable, table, nothing, boolean, date } = postgres.type
+const { integer, text, jsonb, array, nullable, table, nothing, boolean, date, numeric } = postgres.type
 
 const double = postgres.function.define({
 	name: 'double_of',
@@ -50,6 +51,16 @@ const days = postgres.function.define({
 	body: `SELECT day, ARRAY[day + 1, day + 2], NULL::date`,
 })
 
+// A numeric goes in & comes out as a BigFloat, with every digit.
+const addTax = postgres.function.define({
+	name: 'add_tax',
+	args: { amount: numeric(), rate: numeric() },
+	returns: numeric(),
+	language: 'sql',
+	attributes: 'IMMUTABLE',
+	body: `SELECT amount + amount * rate`,
+})
+
 const listCounters = postgres.function.define({
 	name: 'list_counters',
 	args: { names: array(text()), settings: jsonb<{ atLeast: number }>() },
@@ -74,7 +85,7 @@ const clearCounters = postgres.function.define({
 
 describe('postgres.function.define', () => {
 	const server = new PostgresServer()
-	const definitions = [bump, listCounters, clearCounters, double, nextDay, days]
+	const definitions = [bump, listCounters, clearCounters, double, nextDay, days, addTax]
 	let admin: ReturnType<typeof postgresClient>
 	let client: ReturnType<typeof postgresClient>
 
@@ -139,6 +150,16 @@ describe('postgres.function.define', () => {
 		])
 		expect(await clearCounters(client)).toBeUndefined()
 		expect(await listCounters(client, { names: ['visits'], settings: { atLeast: 0 } })).toStrictEqual([])
+	})
+
+	it('takes & answers a numeric as a BigFloat', async () => {
+		const total = await addTax(client, {
+			amount: new BigFloat('123456789012345678901234567890.10'),
+			rate: new BigFloat('0.21'),
+		})
+
+		expect(total).toBeInstanceOf(BigFloat)
+		expect(total.toString()).toBe('149382714704938271470493827147.021')
 	})
 
 	it('answers a day as the text it was given as', async () => {

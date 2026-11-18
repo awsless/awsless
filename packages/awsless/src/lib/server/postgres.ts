@@ -34,6 +34,10 @@ const toName = (name: string) => kebabCase(name).replaceAll('-', '_')
 // has to quote it.
 export const getPostgresSchemaName = (stackName: string) => toName(stackName)
 
+// The schemas a name without one is looked up in, in this order: the same
+// deployed, in dev and in a test. Also used by the CLI.
+export const getPostgresSearchPath = (stackNames: string[]) => stackNames.map(getPostgresSchemaName).toSorted()
+
 // The app's database, also used by the CLI. A test file runs under an app
 // name of its own, which gives it a database of its own.
 export const getPostgresDatabaseName = (appName: string = getApp()) => toName(appName)
