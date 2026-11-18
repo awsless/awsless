@@ -181,6 +181,14 @@ export const vpcFeature = defineFeature({
 			}
 		)
 
+		// The static IP external services can allowlist, for IPv4 traffic
+		// from the private subnets.
+		ctx.bind('NAT_IP', eip.publicIp)
+
+		// IPv6 traffic leaves from changing addresses, but always within this
+		// range, which stays until the VPC is recreated.
+		ctx.bind('VPC_IPV6_CIDR', vpc.ipv6CidrBlock)
+
 		new aws.Route(group, 'nat-ipv4', {
 			routeTableId: privateRouteTable.id,
 			destinationCidrBlock: '0.0.0.0/0',
