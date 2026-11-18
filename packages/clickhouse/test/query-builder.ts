@@ -1,9 +1,9 @@
 import { BigFloat } from '@awsless/big-float'
 import { ClickHouseServer } from '@awsless/clickhouse-server'
-import { sql } from 'kysely'
 import {
 	clickhouseClient,
 	clickhouseQueryBuilder,
+	sql,
 	type ClickHouseClient,
 	type ClickHouseColumn,
 	type ClickHouseGenerated,
@@ -219,6 +219,38 @@ describe(`clickhouseQueryBuilder (${engine})`, () => {
 		await client.command('DROP TABLE `shop--wide`')
 	})
 
+	it('gives an array parameter the one type that holds all its items', async () => {
+		const typeOf = (items: unknown[]) => {
+			return /CAST\(\{p1:String\}, '(.*)'\)/.exec(sql`SELECT ${items} AS items`.compile(db).sql)?.[1]
+		}
+
+		expect(typeOf([1, 2])).toBe('Array(Int64)')
+		expect(typeOf([1, 1.5])).toBe('Array(Float64)')
+		expect(typeOf([1n, 2n ** 80n])).toBe('Array(Int128)')
+		expect(typeOf([-1, 2n ** 64n - 1n])).toBe('Array(Int128)')
+		expect(typeOf(['a', null])).toBe('Array(Nullable(String))')
+		expect(typeOf([new BigFloat('1.5'), 2])).toBe('Array(Decimal(76, 1))')
+		expect(typeOf([])).toBe('Array(Nothing)')
+		expect(typeOf([1e300])).toBe('Array(Float64)')
+		// Items of different kinds are a tuple.
+		expect(typeOf(['a', 1])).toBe('Tuple(String, Int64)')
+
+		const read = async (items: unknown[]) => {
+			const { rows } = await sql<{ items: unknown[] }>`SELECT ${items} AS items`.execute(db)
+
+			return rows[0]!.items
+		}
+
+		expect(await read([1, 1.5])).toEqual([1, 1.5])
+		expect(await read(['a', null])).toEqual(['a', null])
+		expect(await read([1n, 2n ** 80n])).toEqual([1n, 2n ** 80n])
+		expect(await read([])).toEqual([])
+		expect(await read(["it's", 'a\\b', ''])).toEqual(["it's", 'a\\b', ''])
+		expect((await read([new BigFloat('1.5'), 2])).map(String)).toEqual(['1.5', '2'])
+		expect(await read([[1, 2], [3]])).toEqual([[1n, 2n], [3n]])
+		expect(await read([at, null])).toEqual([at, null])
+	})
+
 	it('deletes rows, and says what ClickHouse has no word for', async () => {
 		await db.insertInto('shop.orders').values(order).execute()
 		await db.deleteFrom('shop.orders').where('id', '=', 'o1').execute()
@@ -229,5 +261,79 @@ describe(`clickhouseQueryBuilder (${engine})`, () => {
 			'ClickHouse changes rows with a mutation'
 		)
 		await expect(db.transaction().execute(async () => {})).rejects.toThrow('ClickHouse has no transactions')
+		await expect(db.insertInto('shop.orders').values(order).returningAll().execute()).rejects.toThrow(
+			'ClickHouse inserts rows and nothing more'
+		)
+		await expect(
+			db
+				.insertInto('shop.orders')
+				.values(order)
+				.onConflict(conflict => conflict.doNothing())
+				.execute()
+		).rejects.toThrow('ClickHouse inserts rows and nothing more')
+		expect(await db.selectFrom('shop.orders').select('id').execute()).toEqual([])
+	})
+})
+
+// How a statement reaches the client, without a server.
+describe('clickhouseQueryBuilder calls', () => {
+	const calls: { call: string; table?: unknown; sql?: string }[] = []
+	const client = {
+		queryTyped: async (sql: string) => {
+			calls.push({ call: 'queryTyped', sql })
+
+			return { columns: [], rows: [] }
+		},
+		command: async (sql: string) => {
+			calls.push({ call: 'command', sql })
+		},
+		insert: async (table: unknown) => {
+			calls.push({ call: 'insert', table })
+		},
+	} as unknown as ClickHouseClient
+
+	const db = clickhouseQueryBuilder<{ 'other.events': { id: string }; events: { id: string } }>({
+		client: () => client,
+	})
+
+	beforeEach(() => {
+		calls.length = 0
+	})
+
+	it('names a table as it is written without a `tableName`, its database included', async () => {
+		await db.insertInto('other.events').values({ id: 'a' }).execute()
+		await db.insertInto('events').values({ id: 'a' }).execute()
+		await db.selectFrom('other.events').selectAll().execute()
+
+		expect(calls).toEqual([
+			{ call: 'insert', table: ['other', 'events'] },
+			{ call: 'insert', table: 'events' },
+			{ call: 'queryTyped', sql: 'select * from `other`.`events`' },
+		])
+	})
+
+	it('explains an insert instead of writing its row', async () => {
+		await db.insertInto('events').values({ id: 'a' }).explain()
+
+		expect(calls.map(entry => entry.call)).not.toContain('insert')
+	})
+
+	it('reads sql written out unless it starts as a statement that writes', async () => {
+		await sql`EXPLAIN SELECT 1`.execute(db)
+		await sql`DESC events`.execute(db)
+		await sql`/* the newest */ (SELECT 1)`.execute(db)
+		await sql`-- a note
+	WITH 1 AS one SELECT one`.execute(db)
+		await sql`OPTIMIZE TABLE events FINAL`.execute(db)
+		await sql`  alter table events delete where id = ${'a'}`.execute(db)
+
+		expect(calls.map(entry => entry.call)).toEqual([
+			'queryTyped',
+			'queryTyped',
+			'queryTyped',
+			'queryTyped',
+			'command',
+			'command',
+		])
 	})
 })

@@ -73,7 +73,7 @@ const traceClient = (raw: ClickHouseClient): ClickHouseClient => ({
 		trace('ClickHouse', () => raw.insert(table, rows, options), {
 			namespace: 'remote',
 			annotations: { clickhouse_operation: 'insert' },
-			metadata: { table, rows: rows.length },
+			metadata: { table: [table].flat().join('.'), rows: rows.length },
 		}),
 })
 

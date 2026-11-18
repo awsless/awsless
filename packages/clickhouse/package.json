@@ -22,11 +22,16 @@
 			"types": "./dist/index.d.ts",
 			"require": "./dist/index.cjs",
 			"import": "./dist/index.js"
+		},
+		"./type": {
+			"types": "./dist/type.d.ts",
+			"require": "./dist/type.cjs",
+			"import": "./dist/type.js"
 		}
 	},
 	"scripts": {
 		"test": "pnpm vitest run -c ../../vitest.shared.ts",
-		"build": "pnpm tsdown --no-fixed-extension src/index.ts --format cjs,esm --dts --clean",
+		"build": "pnpm tsdown --no-fixed-extension src/index.ts src/type.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {

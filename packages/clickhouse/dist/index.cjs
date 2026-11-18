@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+const require_type = require("./type.cjs");
 let _clickhouse_client = require("@clickhouse/client");
 let kysely = require("kysely");
-let _awsless_big_float = require("@awsless/big-float");
 //#region src/param.ts
 const escape = (value) => {
 	return value.replaceAll("\\", "\\\\").replaceAll("'", "\\'").replaceAll("	", "\\t").replaceAll("\n", "\\n").replaceAll("\r", "\\r");
@@ -80,7 +80,7 @@ const clickhouseClient = (props) => {
 		async insert(table, rows, options = {}) {
 			if (rows.length === 0) return;
 			await (await getClient()).insert({
-				table: quoteIdentifier(table),
+				table: [table].flat().map(quoteIdentifier).join("."),
 				values: rows,
 				format: "JSONEachRow",
 				clickhouse_settings: {
@@ -99,79 +99,6 @@ const clickhouseClient = (props) => {
 			await (await current)?.close();
 		}
 	};
-};
-//#endregion
-//#region src/type.ts
-const splitArgs = (text) => {
-	const args = [];
-	let depth = 0;
-	let quoted = false;
-	let current = "";
-	for (let index = 0; index < text.length; index++) {
-		const char = text[index];
-		if (quoted) {
-			current += char;
-			if (char === "\\") current += text[++index] ?? "";
-			else if (char === "'") quoted = false;
-			continue;
-		}
-		if (char === "'") quoted = true;
-		else if (char === "(") depth++;
-		else if (char === ")") depth--;
-		else if (char === "," && depth === 0) {
-			args.push(current.trim());
-			current = "";
-			continue;
-		}
-		current += char;
-	}
-	if (current.trim()) args.push(current.trim());
-	return args;
-};
-const parseType = (text) => {
-	const type = text.trim();
-	const open = type.indexOf("(");
-	if (open === -1 || !type.endsWith(")")) return {
-		name: type,
-		args: []
-	};
-	return {
-		name: type.slice(0, open).trim(),
-		args: splitArgs(type.slice(open + 1, -1))
-	};
-};
-const WRAPPERS = ["LowCardinality", "SimpleAggregateFunction"];
-const unwrapType = (type) => {
-	return WRAPPERS.includes(type.name) ? unwrapType(parseType(type.args.at(-1) ?? "String")) : type;
-};
-const isBigInteger = (name) => /^U?Int(64|128|256)$/.test(name);
-const isDecimal = (name) => /^Decimal(32|64|128|256)?$/.test(name);
-const isDateTime = (name) => name === "DateTime" || name === "DateTime64";
-const tupleField = (field) => {
-	const named = /^`?([A-Za-z_][A-Za-z0-9_]*)`?\s+(.+)$/s.exec(field);
-	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? {
-		name: named[1],
-		type: named[2]
-	} : { type: field };
-};
-const tupleFieldType = (field) => tupleField(field).type;
-const decodeValue = (text, value) => {
-	const type = unwrapType(parseType(text));
-	if (value === null || value === void 0) return value ?? null;
-	if (type.name === "Nullable") return decodeValue(type.args[0], value);
-	if (isBigInteger(type.name)) return BigInt(value);
-	if (isDecimal(type.name)) return (0, _awsless_big_float.parse)(value);
-	if (isDateTime(type.name)) return new Date(value);
-	if (type.name === "Array" && Array.isArray(value)) return value.map((item) => decodeValue(type.args[0], item));
-	if (type.name === "Tuple" && Array.isArray(value)) return value.map((item, index) => decodeValue(tupleFieldType(type.args[index] ?? "String"), item));
-	if (type.name === "Tuple" && typeof value === "object") {
-		const types = new Map(type.args.map(tupleField).map((field) => [field.name, field.type]));
-		return Object.fromEntries(Object.entries(value).map(([name, item]) => {
-			return [name, decodeValue(types.get(name) ?? "String", item)];
-		}));
-	}
-	if (type.name === "Map" && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, decodeValue(type.args[1], item)]));
-	return value;
 };
 //#endregion
 //#region src/query-builder.ts
@@ -194,6 +121,39 @@ const integerType = (value) => {
 	}
 	throw new RangeError("ClickHouse has no whole number of more than 256 bits.");
 };
+const bitsOf = (type) => Number(/\d+$/.exec(type)?.[0]);
+const arrayType = (types) => {
+	const item = itemType(types);
+	return item ? `Array(${item})` : `Tuple(${types.join(", ")})`;
+};
+const itemType = (types) => {
+	const present = [...new Set(types.filter((type) => type !== "Nullable(String)"))];
+	const nullable = (type) => present.length < new Set(types).size ? `Nullable(${type})` : type;
+	if (types.length === 0) return "Nothing";
+	if (present.length <= 1) return nullable(present[0] ?? "String");
+	const integers = present.filter((type) => /^U?Int\d+$/.test(type));
+	const decimals = present.filter((type) => type.startsWith("Decimal("));
+	if (integers.length === present.length) {
+		const bits = Math.max(...integers.map(bitsOf));
+		const signed = integers.some((type) => type.startsWith("Int"));
+		const widest = signed && integers.includes(`UInt${bits}`) ? bits * 2 : bits;
+		if (widest > 256) throw new RangeError("ClickHouse has no whole number of more than 256 bits.");
+		return nullable(`${signed ? "Int" : "UInt"}${widest}`);
+	}
+	if (decimals.length > 0 && integers.length + decimals.length === present.length) return nullable(`Decimal(76, ${Math.max(...decimals.map((type) => Number(/, (\d+)\)$/.exec(type)?.[1])))})`);
+	if (present.every((type) => type === "Float64" || integers.includes(type))) return nullable("Float64");
+};
+const formatLiteral = (value) => {
+	if (value === null || value === void 0) return "NULL";
+	if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
+	if (value instanceof Date) return `'${formatDateTime(value)}'`;
+	if (typeof value === "object" && isBigFloat(value)) return value.toString();
+	if (Array.isArray(value)) {
+		const items = value.map(formatLiteral).join(",");
+		return arrayType(value.map((item) => toParameter(item).type)).startsWith("Tuple(") ? `(${items})` : `[${items}]`;
+	}
+	return `'${(typeof value === "string" ? value : JSON.stringify(toInsertValue(value))).replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+};
 const toParameter = (value) => {
 	if (value === null || value === void 0) return {
 		type: "Nullable(String)",
@@ -208,7 +168,7 @@ const toParameter = (value) => {
 		value
 	};
 	if (typeof value === "number") return {
-		type: Number.isInteger(value) ? "Int64" : "Float64",
+		type: Number.isSafeInteger(value) ? "Int64" : "Float64",
 		value
 	};
 	if (typeof value === "bigint") return {
@@ -223,13 +183,10 @@ const toParameter = (value) => {
 		type: `Decimal(76, ${Math.max(0, -value.exponent)})`,
 		value: value.toString()
 	};
-	if (Array.isArray(value)) {
-		const items = value.map(toParameter);
-		return {
-			type: `Array(${items[0]?.type ?? "String"})`,
-			value: items.map((item) => item.value)
-		};
-	}
+	if (Array.isArray(value)) return {
+		type: arrayType(value.map((item) => toParameter(item).type)),
+		value: formatLiteral(value)
+	};
 	return {
 		type: "String",
 		value: JSON.stringify(toInsertValue(value))
@@ -271,7 +228,7 @@ var ClickHouseQueryCompiler = class extends kysely.DefaultQueryCompiler {
 	appendValue(parameter) {
 		const { type, value } = toParameter(parameter);
 		this.addParameter(value);
-		this.append(`{p${this.numParameters}:${type}}`);
+		this.append(Array.isArray(parameter) ? `CAST({p${this.numParameters}:String}, ${quoteString(type)})` : `{p${this.numParameters}:${type}}`);
 	}
 };
 var TableNameTransformer = class extends kysely.OperationNodeTransformer {
@@ -298,33 +255,47 @@ var TableNamePlugin = class {
 		return args.result;
 	}
 };
+const INSERT_CLAUSES = [
+	"returning",
+	"onConflict",
+	"onDuplicateKey",
+	"orAction",
+	"ignore",
+	"replace",
+	"top",
+	"output"
+];
 const insertRowsOf = (query) => {
-	if (query.kind !== "InsertQueryNode" || query.values?.kind !== "ValuesNode" || !query.into || !query.columns) return;
-	const node = query;
-	const columns = node.columns.map((column) => column.column.name);
+	if (!kysely.InsertQueryNode.is(query)) return;
+	for (const clause of INSERT_CLAUSES) if (query[clause]) throw new Error(UNSUPPORTED.insert);
+	const { into, columns, values, ...rest } = query;
+	if (Object.entries(rest).some(([key, value]) => key !== "kind" && value !== void 0) || !into || !columns || !values || !kysely.ValuesNode.is(values)) return;
+	const names = columns.map((column) => column.column.name);
 	const rows = [];
-	for (const list of node.values.values) {
-		if (list?.kind === "PrimitiveValueListNode") {
-			rows.push(Object.fromEntries(columns.map((column, index) => [column, toInsertValue(list.values[index])])));
+	for (const list of values.values) {
+		if (kysely.PrimitiveValueListNode.is(list)) {
+			rows.push(Object.fromEntries(names.map((name, index) => [name, toInsertValue(list.values[index])])));
 			continue;
 		}
-		const values = list?.values ?? [];
-		const isPlain = (value) => value.kind === "ValueNode" || value.kind === "DefaultInsertValueNode";
-		if (list?.kind !== "ValueListNode" || !values.every(isPlain)) return;
-		rows.push(Object.fromEntries(columns.flatMap((column, index) => {
-			const value = values[index];
-			return value?.kind === "ValueNode" ? [[column, toInsertValue(value.value)]] : [];
+		if (!list.values.every((value) => kysely.ValueNode.is(value) || kysely.DefaultInsertValueNode.is(value))) return;
+		rows.push(Object.fromEntries(names.flatMap((name, index) => {
+			const value = list.values[index];
+			return value && kysely.ValueNode.is(value) ? [[name, toInsertValue(value.value)]] : [];
 		})));
 	}
+	const { schema, identifier } = into.table;
 	return {
-		table: node.into.table.identifier.name,
+		table: schema ? [schema.name, identifier.name] : identifier.name,
 		rows
 	};
 };
+const WRITES = /^(insert|alter|create|drop|truncate|rename|optimize|delete|update|system|grant|revoke|set|use|attach|detach|exchange|kill|undrop|backup|restore)\b/i;
+const writes = (sql) => WRITES.test(sql.replace(/^(\s+|\(|--[^\n]*\n?|\/\*[\s\S]*?\*\/)+/, ""));
 const UNSUPPORTED = {
 	transaction: "ClickHouse has no transactions: an insert of rows is written whole, and that's all it keeps together.",
 	stream: "The query builder doesn't stream a result. Read it in parts, with a limit.",
-	update: "ClickHouse changes rows with a mutation, not an update. Write it as sql: ALTER TABLE … UPDATE … WHERE …"
+	update: "ClickHouse changes rows with a mutation, not an update. Write it as sql: ALTER TABLE … UPDATE … WHERE …",
+	insert: "ClickHouse inserts rows and nothing more: it has no returning, on conflict, ignore or replace."
 };
 var Connection = class {
 	props;
@@ -344,13 +315,13 @@ var Connection = class {
 				numAffectedRows: BigInt(insert.rows.length)
 			};
 		}
-		if (!(kind === "SelectQueryNode" || kind === "RawNode" && /^\s*(select|with|show|describe|exists)\b/i.test(compiled.sql))) {
+		if (!(kind === "SelectQueryNode" || kind === "RawNode" && !writes(compiled.sql))) {
 			await client.command(compiled.sql, params);
 			return { rows: [] };
 		}
 		const { columns, rows } = await client.queryTyped(compiled.sql, params);
 		return { rows: rows.map((row) => {
-			return Object.fromEntries(columns.map((column) => [column.name, decodeValue(column.type, row[column.name])]));
+			return Object.fromEntries(columns.map((column) => [column.name, require_type.decodeValue(column.type, row[column.name])]));
 		}) };
 	}
 	streamQuery() {
@@ -615,7 +586,6 @@ exports.count = count;
 exports.createTable = createTable;
 exports.createTableStatement = createTableStatement;
 exports.date = date;
-exports.decodeValue = decodeValue;
 exports.define = define;
 exports.deleteRows = deleteRows;
 exports.dropTable = dropTable;
@@ -631,26 +601,25 @@ exports.int16 = int16;
 exports.int32 = int32;
 exports.int64 = int64;
 exports.int8 = int8;
-exports.isBigInteger = isBigInteger;
-exports.isDateTime = isDateTime;
-exports.isDecimal = isDecimal;
 exports.json = json;
 exports.map = map;
 exports.nullable = nullable;
 exports.number = number;
 exports.object = object;
 exports.optional = optional;
-exports.parseType = parseType;
 exports.query = query;
 exports.quoteIdentifier = quoteIdentifier;
 exports.quoteString = quoteString;
 exports.select = select;
+Object.defineProperty(exports, "sql", {
+	enumerable: true,
+	get: function() {
+		return kysely.sql;
+	}
+});
 exports.string = string;
-exports.tupleField = tupleField;
-exports.tupleFieldType = tupleFieldType;
 exports.uint16 = uint16;
 exports.uint32 = uint32;
 exports.uint64 = uint64;
 exports.uint8 = uint8;
-exports.unwrapType = unwrapType;
 exports.uuid = uuid;

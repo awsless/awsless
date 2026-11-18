@@ -1,5 +1,5 @@
 import { BigFloat } from '@awsless/big-float'
-import { decodeValue, parseType, tupleFieldType, unwrapType } from '../src'
+import { decodeValue, parseType, tupleField, unwrapType } from '../src/type'
 
 describe('clickhouse types', () => {
 	it('reads a type into its name and what stands between its brackets', () => {
@@ -15,9 +15,9 @@ describe('clickhouse types', () => {
 			args: ['String'],
 		})
 		expect(unwrapType(parseType('SimpleAggregateFunction(sum, UInt64)')).name).toBe('UInt64')
-		expect(tupleFieldType('lat Float64')).toBe('Float64')
-		expect(tupleFieldType('at DateTime64(3)')).toBe('DateTime64(3)')
-		expect(tupleFieldType('DateTime64(3)')).toBe('DateTime64(3)')
+		expect(tupleField('lat Float64')).toEqual({ name: 'lat', type: 'Float64' })
+		expect(tupleField('at DateTime64(3)')).toEqual({ name: 'at', type: 'DateTime64(3)' })
+		expect(tupleField('DateTime64(3)')).toEqual({ type: 'DateTime64(3)' })
 	})
 
 	it('reads a value by the type of its column', () => {

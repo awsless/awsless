@@ -85,7 +85,7 @@ export const tupleField = (field: string): { name?: string; type: string } => {
 	return named && !/^[A-Za-z0-9]+\s*\(/.test(field) ? { name: named[1]!, type: named[2]! } : { type: field }
 }
 
-export const tupleFieldType = (field: string) => tupleField(field).type
+const tupleFieldType = (field: string) => tupleField(field).type
 
 export type ClickHouseDecimal = BigFloat
 

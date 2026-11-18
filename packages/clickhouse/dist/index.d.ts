@@ -1,6 +1,6 @@
+import { ClickHouseDecimal } from "./type.js";
 import { BaseQueryParams, ClickHouseError, ClickHouseSettings } from "@clickhouse/client";
-import { ColumnType as ClickHouseColumn, Generated as ClickHouseGenerated, GeneratedAlways as ClickHouseGeneratedAlways, Kysely, Kysely as ClickHouseQueryBuilder } from "kysely";
-import { BigFloat } from "@awsless/big-float";
+import { ColumnType as ClickHouseColumn, Generated as ClickHouseGenerated, GeneratedAlways as ClickHouseGeneratedAlways, Kysely, Kysely as ClickHouseQueryBuilder, sql } from "kysely";
 //#region src/schema/schema.d.ts
 type AnySchema = Schema<any, any, any>;
 declare class Schema<Encoded, Input, Output> {
@@ -57,7 +57,7 @@ declare const clickhouseClient: (props: ClickHouseClientProps) => {
   query<T = Record<string, unknown>>(sql: string, params?: QueryParams, settings?: Settings): Promise<T[]>;
   queryTyped(sql: string, params?: QueryParams, settings?: Settings): Promise<TypedRows>;
   command(sql: string, params?: QueryParams, settings?: Settings): Promise<void>;
-  insert<T extends Record<string, unknown>>(table: string, rows: T[], options?: InsertOptions): Promise<void>;
+  insert<T extends Record<string, unknown>>(table: string | [database: string, table: string], rows: T[], options?: InsertOptions): Promise<void>;
   close(): Promise<void>;
 };
 //#endregion
@@ -76,24 +76,6 @@ type ClickHouseQueryBuilderProps = {
  * type of its columns.
  */
 declare const clickhouseQueryBuilder: <Tables>(props: ClickHouseQueryBuilderProps) => Kysely<Tables>;
-//#endregion
-//#region src/type.d.ts
-type ClickHouseType = {
-  name: string;
-  args: string[];
-};
-declare const parseType: (text: string) => ClickHouseType;
-declare const unwrapType: (type: ClickHouseType) => ClickHouseType;
-declare const isBigInteger: (name: string) => boolean;
-declare const isDecimal: (name: string) => boolean;
-declare const isDateTime: (name: string) => name is "DateTime" | "DateTime64";
-declare const tupleField: (field: string) => {
-  name?: string;
-  type: string;
-};
-declare const tupleFieldType: (field: string) => string;
-type ClickHouseDecimal = BigFloat;
-declare const decodeValue: (text: string, value: unknown) => unknown;
 //#endregion
 //#region src/ddl.d.ts
 type ColumnDefinition = string | {
@@ -232,4 +214,4 @@ declare const string: <T extends string = string>(props?: StringProps) => Schema
 //#region src/schema/uuid.d.ts
 declare const uuid: () => Schema<string, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 //#endregion
-export { type AnyObjectSchema, type AnySchema, type AnyTable, type ClickHouseClient, type ClickHouseClientProps, type ClickHouseColumn, type ClickHouseDecimal, ClickHouseError, type ClickHouseGenerated, type ClickHouseGeneratedAlways, type ClickHouseQueryBuilder, type ClickHouseQueryBuilderProps, type ClickHouseType, type Column, type ColumnDefinition, type IndexDefinition, type InsertOptions, type ObjectSchema, type QueryParams, type Schema, type Settings, type Table, type TableDefinition, type TypedRows, array, boolean, clickhouseClient, clickhouseQueryBuilder, columnOf, count, createTable, createTableStatement, date, decodeValue, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, isBigInteger, isDateTime, isDecimal, json, map, nullable, number, object, optional, parseType, query, quoteIdentifier, quoteString, select, string, tupleField, tupleFieldType, uint16, uint32, uint64, uint8, unwrapType, uuid };
+export { type AnyObjectSchema, type AnySchema, type AnyTable, type ClickHouseClient, type ClickHouseClientProps, type ClickHouseColumn, type ClickHouseDecimal, ClickHouseError, type ClickHouseGenerated, type ClickHouseGeneratedAlways, type ClickHouseQueryBuilder, type ClickHouseQueryBuilderProps, type Column, type ColumnDefinition, type IndexDefinition, type InsertOptions, type ObjectSchema, type QueryParams, type Schema, type Settings, type Table, type TableDefinition, array, boolean, clickhouseClient, clickhouseQueryBuilder, columnOf, count, createTable, createTableStatement, date, define, deleteRows, dropTable, dropTable$1 as dropTableByName, enums, float32, float64, formatColumn, formatIndex, formatSetting, insert, int16, int32, int64, int8, json, map, nullable, number, object, optional, query, quoteIdentifier, quoteString, select, sql, string, uint16, uint32, uint64, uint8, uuid };

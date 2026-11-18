@@ -10,31 +10,21 @@ export {
 	type InsertOptions,
 	type QueryParams,
 	type Settings,
-	type TypedRows,
 } from './client'
 export { quoteIdentifier, quoteString } from './param'
 
 // query builder
 export {
 	clickhouseQueryBuilder,
+	sql,
 	type ClickHouseColumn,
 	type ClickHouseGenerated,
 	type ClickHouseGeneratedAlways,
 	type ClickHouseQueryBuilder,
 	type ClickHouseQueryBuilderProps,
 } from './query-builder'
-export {
-	decodeValue,
-	isBigInteger,
-	isDateTime,
-	isDecimal,
-	parseType,
-	tupleField,
-	tupleFieldType,
-	unwrapType,
-	type ClickHouseDecimal,
-	type ClickHouseType,
-} from './type'
+// How a type is read is at `@awsless/clickhouse/type`, for the cli.
+export { type ClickHouseDecimal } from './type'
 
 // ddl
 export {

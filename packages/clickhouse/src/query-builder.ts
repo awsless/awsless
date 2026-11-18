@@ -3,9 +3,11 @@ import {
 	type CompiledQuery,
 	type DatabaseConnection,
 	type DatabaseIntrospector,
+	DefaultInsertValueNode,
 	DefaultQueryCompiler,
 	type DialectAdapter,
 	type Driver,
+	InsertQueryNode,
 	type KyselyPlugin,
 	Kysely,
 	type LimitNode,
@@ -14,18 +16,22 @@ import {
 	OperationNodeTransformer,
 	type PluginTransformQueryArgs,
 	type PluginTransformResultArgs,
+	PrimitiveValueListNode,
 	type QueryResult,
 	type RootOperationNode,
 	SchemableIdentifierNode,
 	type UnknownRow,
-	type ValueNode,
+	ValueNode,
+	ValuesNode,
 } from 'kysely'
 import type { ClickHouseClient, QueryParams } from './client'
+import { quoteString } from './param'
 import { decodeValue } from './type'
 
 // The query builder is Kysely: a typed way to write sql. Every value
 // travels as a ClickHouse parameter ({p1:String}) next to the sql, never
 // inside it, so there's nothing to escape.
+export { sql } from 'kysely'
 export type {
 	ColumnType as ClickHouseColumn,
 	Generated as ClickHouseGenerated,
@@ -74,6 +80,87 @@ const integerType = (value: bigint) => {
 	throw new RangeError('ClickHouse has no whole number of more than 256 bits.')
 }
 
+const bitsOf = (type: string) => Number(/\d+$/.exec(type)?.[0])
+
+// The type of an array: of the one type that holds every item (the widest
+// whole number, a float next to whole numbers, Nullable when an item is
+// missing), or a tuple when its items are of different kinds.
+const arrayType = (types: string[]) => {
+	const item = itemType(types)
+
+	return item ? `Array(${item})` : `Tuple(${types.join(', ')})`
+}
+
+const itemType = (types: string[]) => {
+	const present = [...new Set(types.filter(type => type !== 'Nullable(String)'))]
+	const nullable = (type: string) => (present.length < new Set(types).size ? `Nullable(${type})` : type)
+
+	// An empty array fits a column of any item type.
+	if (types.length === 0) {
+		return 'Nothing'
+	}
+
+	if (present.length <= 1) {
+		return nullable(present[0] ?? 'String')
+	}
+
+	const integers = present.filter(type => /^U?Int\d+$/.test(type))
+	const decimals = present.filter(type => type.startsWith('Decimal('))
+
+	if (integers.length === present.length) {
+		const bits = Math.max(...integers.map(bitsOf))
+		const signed = integers.some(type => type.startsWith('Int'))
+		// A signed item next to an unsigned one of the most bits needs twice those.
+		const widest = signed && integers.includes(`UInt${bits}`) ? bits * 2 : bits
+
+		if (widest > 256) {
+			throw new RangeError('ClickHouse has no whole number of more than 256 bits.')
+		}
+
+		return nullable(`${signed ? 'Int' : 'UInt'}${widest}`)
+	}
+
+	if (decimals.length > 0 && integers.length + decimals.length === present.length) {
+		return nullable(`Decimal(76, ${Math.max(...decimals.map(type => Number(/, (\d+)\)$/.exec(type)?.[1])))})`)
+	}
+
+	if (present.every(type => type === 'Float64' || integers.includes(type))) {
+		return nullable('Float64')
+	}
+
+	return undefined
+}
+
+// An item of an array or tuple the way ClickHouse writes it, so a whole
+// number & a decimal keep their digits where the client would quote them.
+const formatLiteral = (value: unknown): string => {
+	if (value === null || value === undefined) {
+		return 'NULL'
+	}
+
+	if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+		return String(value)
+	}
+
+	if (value instanceof Date) {
+		return `'${formatDateTime(value)}'`
+	}
+
+	if (typeof value === 'object' && isBigFloat(value)) {
+		return value.toString()
+	}
+
+	if (Array.isArray(value)) {
+		const items = value.map(formatLiteral).join(',')
+
+		return arrayType(value.map(item => toParameter(item).type)).startsWith('Tuple(') ? `(${items})` : `[${items}]`
+	}
+
+	const text = typeof value === 'string' ? value : JSON.stringify(toInsertValue(value))
+
+	return `'${text.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
+}
+
 // The ClickHouse type a value travels as, and the value in the text or
 // shape the client sends for it.
 const toParameter = (value: unknown): { type: string; value: unknown } => {
@@ -90,7 +177,7 @@ const toParameter = (value: unknown): { type: string; value: unknown } => {
 	}
 
 	if (typeof value === 'number') {
-		return { type: Number.isInteger(value) ? 'Int64' : 'Float64', value }
+		return { type: Number.isSafeInteger(value) ? 'Int64' : 'Float64', value }
 	}
 
 	if (typeof value === 'bigint') {
@@ -107,9 +194,7 @@ const toParameter = (value: unknown): { type: string; value: unknown } => {
 	}
 
 	if (Array.isArray(value)) {
-		const items = value.map(toParameter)
-
-		return { type: `Array(${items[0]?.type ?? 'String'})`, value: items.map(item => item.value) }
+		return { type: arrayType(value.map(item => toParameter(item).type)), value: formatLiteral(value) }
 	}
 
 	// Anything else is a json document, with what json can't carry as text.
@@ -156,7 +241,8 @@ class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 		return identifier.replaceAll('\\', '\\\\').replaceAll('`', '\\`')
 	}
 
-	// A whole number as it is: a limit takes no parameter everywhere.
+	// A whole number as it is: the in-memory engine of the tests takes no
+	// parameter for a limit, where ClickHouse does.
 	private appendCount(node: OperationNode) {
 		const value = node.kind === 'ValueNode' ? (node as ValueNode).value : undefined
 
@@ -181,7 +267,15 @@ class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 		const { type, value } = toParameter(parameter)
 
 		this.addParameter(value)
-		this.append(`{p${this.numParameters}:${type}}`)
+
+		// An array or tuple travels as the text ClickHouse writes it in, which
+		// it reads back into the type: the client itself would quote a big
+		// whole number and has no way to write a decimal.
+		this.append(
+			Array.isArray(parameter)
+				? `CAST({p${this.numParameters}:String}, ${quoteString(type)})`
+				: `{p${this.numParameters}:${type}}`
+		)
 	}
 }
 
@@ -218,59 +312,73 @@ class TableNamePlugin implements KyselyPlugin {
 	}
 }
 
+// What ClickHouse has no word for on an insert.
+const INSERT_CLAUSES = ['returning', 'onConflict', 'onDuplicateKey', 'orAction', 'ignore', 'replace', 'top', 'output']
+
 // The rows of an insert of plain values, to send the way ClickHouse takes
-// rows in bulk instead of as sql.
+// rows in bulk instead of as sql. An insert with more to it goes as sql.
 const insertRowsOf = (query: CompiledQuery['query']) => {
-	if (query.kind !== 'InsertQueryNode' || query.values?.kind !== 'ValuesNode' || !query.into || !query.columns) {
+	if (!InsertQueryNode.is(query)) {
 		return
 	}
 
-	const node = query as unknown as {
-		into: { table: { identifier: { name: string } } }
-		columns: { column: { name: string } }[]
-		values: { values: ({ kind: string; values: unknown[] } | undefined)[] }
-		onConflict?: unknown
-		returning?: unknown
+	for (const clause of INSERT_CLAUSES) {
+		if ((query as unknown as Record<string, unknown>)[clause]) {
+			throw new Error(UNSUPPORTED.insert)
+		}
 	}
 
-	const columns = node.columns.map(column => column.column.name)
+	const { into, columns, values, ...rest } = query
+	const hasMore = Object.entries(rest).some(([key, value]) => key !== 'kind' && value !== undefined)
+
+	if (hasMore || !into || !columns || !values || !ValuesNode.is(values)) {
+		return
+	}
+
+	const names = columns.map(column => column.column.name)
 	const rows: Record<string, unknown>[] = []
 
-	for (const list of node.values.values) {
-		if (list?.kind === 'PrimitiveValueListNode') {
-			rows.push(Object.fromEntries(columns.map((column, index) => [column, toInsertValue(list.values[index])])))
+	for (const list of values.values) {
+		if (PrimitiveValueListNode.is(list)) {
+			rows.push(Object.fromEntries(names.map((name, index) => [name, toInsertValue(list.values[index])])))
 			continue
 		}
 
 		// A row with an expression in it has to go as sql. A column one row
 		// leaves out, where another has it, is left to its default.
-		const values = (list?.values ?? []) as { kind: string; value?: unknown }[]
-		const isPlain = (value: { kind: string }) =>
-			value.kind === 'ValueNode' || value.kind === 'DefaultInsertValueNode'
-
-		if (list?.kind !== 'ValueListNode' || !values.every(isPlain)) {
+		if (!list.values.every(value => ValueNode.is(value) || DefaultInsertValueNode.is(value))) {
 			return
 		}
 
 		rows.push(
 			Object.fromEntries(
-				columns.flatMap((column, index) => {
-					const value = values[index]
+				names.flatMap((name, index) => {
+					const value = list.values[index]
 
-					return value?.kind === 'ValueNode' ? [[column, toInsertValue(value.value)]] : []
+					return value && ValueNode.is(value) ? [[name, toInsertValue(value.value)]] : []
 				})
 			)
 		)
 	}
 
-	return { table: node.into.table.identifier.name, rows }
+	const { schema, identifier } = into.table
+
+	return { table: schema ? ([schema.name, identifier.name] as [string, string]) : identifier.name, rows }
 }
+
+// Sql written out answers with rows unless it starts as a statement that
+// writes, behind any comment or bracket.
+const WRITES =
+	/^(insert|alter|create|drop|truncate|rename|optimize|delete|update|system|grant|revoke|set|use|attach|detach|exchange|kill|undrop|backup|restore)\b/i
+
+const writes = (sql: string) => WRITES.test(sql.replace(/^(\s+|\(|--[^\n]*\n?|\/\*[\s\S]*?\*\/)+/, ''))
 
 const UNSUPPORTED = {
 	transaction:
 		"ClickHouse has no transactions: an insert of rows is written whole, and that's all it keeps together.",
 	stream: "The query builder doesn't stream a result. Read it in parts, with a limit.",
 	update: 'ClickHouse changes rows with a mutation, not an update. Write it as sql: ALTER TABLE … UPDATE … WHERE …',
+	insert: 'ClickHouse inserts rows and nothing more: it has no returning, on conflict, ignore or replace.',
 }
 
 class Connection implements DatabaseConnection {
@@ -295,10 +403,8 @@ class Connection implements DatabaseConnection {
 			return { rows: [], numAffectedRows: BigInt(insert.rows.length) }
 		}
 
-		// What answers with rows: a select, and sql written out that reads.
-		const reads =
-			kind === 'SelectQueryNode' ||
-			(kind === 'RawNode' && /^\s*(select|with|show|describe|exists)\b/i.test(compiled.sql))
+		// What answers with rows: a select, and sql written out that doesn't write.
+		const reads = kind === 'SelectQueryNode' || (kind === 'RawNode' && !writes(compiled.sql))
 
 		if (!reads) {
 			await client.command(compiled.sql, params)

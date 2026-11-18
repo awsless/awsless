@@ -36,7 +36,7 @@ const QUERY_SETTINGS: Settings = {
 }
 
 // For the query builder: every digit of a big integer & a decimal, which
-// travel as text, and the type of every column to read them by.
+// travel as text. The JSON format names the type of every column.
 const TYPED_QUERY_SETTINGS: Settings = {
 	output_format_json_quote_64bit_integers: 1,
 	output_format_json_quote_decimals: 1,
@@ -54,7 +54,7 @@ const INSERT_SETTINGS: Settings = {
 
 export type ClickHouseClient = ReturnType<typeof clickhouseClient>
 
-// The official client behind the three calls the ops need. It's created
+// The official client behind the calls the ops & the query builder need. It's created
 // on first use, once the password is known. Values always go in as
 // {name:Type} parameters.
 export const clickhouseClient = (props: ClickHouseClientProps) => {
@@ -122,7 +122,12 @@ export const clickhouseClient = (props: ClickHouseClientProps) => {
 			})
 		},
 
-		async insert<T extends Record<string, unknown>>(table: string, rows: T[], options: InsertOptions = {}) {
+		// A table by its name, or by its database and name.
+		async insert<T extends Record<string, unknown>>(
+			table: string | [database: string, table: string],
+			rows: T[],
+			options: InsertOptions = {}
+		) {
 			if (rows.length === 0) {
 				return
 			}
@@ -131,7 +136,7 @@ export const clickhouseClient = (props: ClickHouseClientProps) => {
 				await getClient()
 			).insert({
 				// The official client writes the table name into the sql as is.
-				table: quoteIdentifier(table),
+				table: [table].flat().map(quoteIdentifier).join('.'),
 				values: rows,
 				format: 'JSONEachRow',
 				clickhouse_settings: {

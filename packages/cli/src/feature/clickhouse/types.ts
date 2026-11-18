@@ -1,12 +1,5 @@
-import {
-	type Column,
-	isBigInteger,
-	isDateTime,
-	isDecimal,
-	parseType,
-	tupleField,
-	unwrapType,
-} from '@awsless/clickhouse'
+import type { Column } from '@awsless/clickhouse'
+import { isBigInteger, isDateTime, isDecimal, parseType, tupleField, unwrapType } from '@awsless/clickhouse/type'
 
 // What a column holds in TypeScript: what a query returns, and what an
 // insert takes when that's wider (a Date also takes its text).
@@ -100,7 +93,7 @@ const valueType = (text: string): ValueType => {
 
 // A column's type for the query builder. One with a default can be left
 // out of an insert, and a materialized one is never written.
-export const formatColumnType = (column: Column) => {
+const formatColumnType = (column: Column) => {
 	const { select, insert } = valueType(column.type)
 
 	if (column.materialized !== undefined) {

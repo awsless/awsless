@@ -150,10 +150,22 @@ describe('tables', () => {
 
 		// Only the comment, which keeps the declaration, is written again.
 		expect(alterTableStatements('single', reported, declared)).toEqual([expect.stringContaining('MODIFY COMMENT')])
-		// Brackets around a part of the key are the key itself.
-		expect(() => alterTableStatements('single', { ...declared, orderBy: ['(id)', '(v)'] }, declared)).toThrow(
-			TableChangeError
-		)
+	})
+
+	it('applies a table with a key of one column again, and changes it after', async () => {
+		const single = { columns: { id: 'String', v: 'UInt32' }, orderBy: ['id'] }
+
+		await applyTable(client, 'single', single)
+
+		// ClickHouse reports the key as `(id)`.
+		expect(await client.query("SELECT sorting_key FROM system.tables WHERE name = 'single'")).toEqual([
+			{ sorting_key: '(id)' },
+		])
+
+		await applyTable(client, 'single', single)
+		await applyTable(client, 'single', { ...single, columns: { ...single.columns, w: 'String' } })
+
+		expect((await columnsOf('single')).map(column => column.name)).toEqual(['id', 'v', 'w'])
 	})
 
 	it('refuses another version column for a ReplacingMergeTree, which would change nothing', () => {
