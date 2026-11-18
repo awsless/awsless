@@ -5,6 +5,7 @@ import {
 	fn,
 	IndexDef,
 	Join,
+	KeyList,
 	literal,
 	OrderItem,
 	Query,
@@ -679,8 +680,23 @@ class Parser {
 		return this.keyList()
 	}
 
+	// The token after the bracket that closes the one opening here.
+	private afterBrackets() {
+		let depth = 0
+
+		for (let index = this.pos; index < this.tokens.length; index++) {
+			const token = this.tokens[index]!
+
+			if (token.kind === 'op' && token.value === '(') depth++
+			if (token.kind === 'op' && token.value === ')' && --depth === 0) return index + 1
+		}
+
+		return -1
+	}
+
 	// ORDER BY (a, b), ORDER BY a or ORDER BY tuple().
-	private keyList(): Expr[] {
+	private keyList(): KeyList {
+		const end = this.isOp('(') ? this.afterBrackets() : -1
 		const expr = this.expression()
 
 		if (expr.kind === 'function' && expr.name === 'tuple') {
@@ -691,7 +707,8 @@ class Parser {
 			return expr.value.items.map(item => literal(item))
 		}
 
-		return [expr]
+		// `(id)`: one expression, with the brackets around all of it.
+		return Object.assign([expr], { isBracketed: this.pos === end })
 	}
 
 	private columnDef(): ColumnDef {

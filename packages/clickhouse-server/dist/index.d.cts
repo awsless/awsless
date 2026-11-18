@@ -124,6 +124,9 @@ type IndexDef = {
   type: string;
   granularity: number;
 };
+type KeyList = Expr[] & {
+  isBracketed?: boolean;
+};
 //#endregion
 //#region src/memory/values.d.ts
 declare class DateTimeValue {
@@ -215,8 +218,8 @@ type Table = {
     args: Expr[];
   };
   partitionBy?: Expr;
-  primaryKey?: Expr[];
-  orderBy: Expr[];
+  primaryKey?: KeyList;
+  orderBy: KeyList;
   ttl?: Expr;
   settings: [string, unknown][];
   comment: string;

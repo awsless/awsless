@@ -1,5 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`ClickHouse conformance > a key of one expression keeps its brackets 1`] = `
+"SELECT name, sorting_key, primary_key, engine_full, create_table_query FROM system.tables WHERE database = currentDatabase() ORDER BY name
+{"name":"expr","sorting_key":"(toString(v))","primary_key":"(toString(v))","engine_full":"MergeTree ORDER BY (toString(v)) SETTINGS index_granularity = 8192","create_table_query":"CREATE TABLE default.expr (\`id\` String, \`v\` UInt32) ENGINE = MergeTree ORDER BY (toString(v)) SETTINGS index_granularity = 8192"}
+{"name":"one","sorting_key":"(id)","primary_key":"(id)","engine_full":"MergeTree ORDER BY (id) SETTINGS index_granularity = 8192","create_table_query":"CREATE TABLE default.one (\`id\` String, \`v\` UInt32) ENGINE = MergeTree ORDER BY (id) SETTINGS index_granularity = 8192"}
+{"name":"prim","sorting_key":"id, v","primary_key":"(id)","engine_full":"MergeTree PRIMARY KEY (id) ORDER BY (id, v) SETTINGS index_granularity = 8192","create_table_query":"CREATE TABLE default.prim (\`id\` String, \`v\` UInt32) ENGINE = MergeTree PRIMARY KEY (id) ORDER BY (id, v) SETTINGS index_granularity = 8192"}
+"
+`;
+
 exports[`ClickHouse conformance > aggregation 1`] = `
 "SELECT projectId, count(), uniq(visitorId), sum(score), avg(score), min(createdAt), max(score) FROM events GROUP BY projectId ORDER BY projectId
 {"projectId":"p1","count()":3,"uniq(visitorId)":2,"sum(score)":9.5,"avg(score)":3.1666666666666665,"min(createdAt)":"2026-10-23 23:30:00.000","max(score)":6.5}

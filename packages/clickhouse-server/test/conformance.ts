@@ -148,6 +148,17 @@ const cases: Case[] = [
 		],
 	},
 	{
+		name: 'a key of one expression keeps its brackets',
+		setup: [
+			'CREATE TABLE one (id String, v UInt32) ENGINE = MergeTree ORDER BY (id)',
+			'CREATE TABLE prim (id String, v UInt32) ENGINE = MergeTree PRIMARY KEY (id) ORDER BY (id, v)',
+			'CREATE TABLE expr (id String, v UInt32) ENGINE = MergeTree ORDER BY (toString(v))',
+		],
+		queries: [
+			'SELECT name, sorting_key, primary_key, engine_full, create_table_query FROM system.tables WHERE database = currentDatabase() ORDER BY name',
+		],
+	},
+	{
 		name: 'ddl, alter & system tables',
 		setup: [
 			"CREATE TABLE `stack--t` (id String, d DateTime64(3,'UTC'), e Enum8('a'=1,'b'=2), l LowCardinality(Nullable(String)), m Map(String,UInt32), n INT, s TEXT, b BOOLEAN, x Float64 DEFAULT 1 COMMENT 'hi', INDEX ix id TYPE bloom_filter GRANULARITY 4) ENGINE = MergeTree PARTITION BY toYYYYMM(d) ORDER BY (id, d) TTL toDateTime(d) + INTERVAL 1 YEAR SETTINGS index_granularity = 8192 COMMENT 'awsless:{\"a\":1}'",

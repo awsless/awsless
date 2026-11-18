@@ -1,4 +1,4 @@
-import { ColumnDef, Expr, IndexDef } from './ast'
+import { ColumnDef, Expr, IndexDef, KeyList } from './ast'
 import { tableExists, unknownDatabase, unknownTable } from './errors'
 import { quoteIdentifier, sql } from './naming'
 import { DataType, formatType, parseType } from './types'
@@ -22,8 +22,8 @@ export type Table = {
 	indexes: IndexDef[]
 	engine: { name: string; args: Expr[] }
 	partitionBy?: Expr
-	primaryKey?: Expr[]
-	orderBy: Expr[]
+	primaryKey?: KeyList
+	orderBy: KeyList
 	ttl?: Expr
 	settings: [string, unknown][]
 	comment: string
@@ -77,10 +77,15 @@ export const formatColumn = (column: Column) => {
 		.join(' ')
 }
 
-const keyText = (exprs: Expr[]) => exprs.map(expr => sql(expr)).join(', ')
+// A key of one expression keeps the brackets it was written with.
+const keyText = (exprs: KeyList) => {
+	const text = exprs.map(expr => sql(expr)).join(', ')
 
-const orderByText = (exprs: Expr[]) =>
-	exprs.length === 0 ? 'tuple()' : exprs.length === 1 ? sql(exprs[0]!) : `(${keyText(exprs)})`
+	return exprs.length === 1 && exprs.isBracketed ? `(${text})` : text
+}
+
+const orderByText = (exprs: KeyList) =>
+	exprs.length === 0 ? 'tuple()' : exprs.length === 1 ? keyText(exprs) : `(${keyText(exprs)})`
 
 // ClickHouse spells out the settings a MergeTree table gets by default.
 export const effectiveSettings = (table: Table): [string, unknown][] => {

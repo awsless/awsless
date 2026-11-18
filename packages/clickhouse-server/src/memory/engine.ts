@@ -1,4 +1,4 @@
-import { AlterAction, ColumnDef, Expr, Query, Statement } from './ast'
+import { AlterAction, ColumnDef, Expr, KeyList, Query, Statement } from './ast'
 import { Catalog, Column, createTableQuery, Row, Table, toColumn } from './catalog'
 import {
 	alterForbidden,
@@ -99,7 +99,13 @@ const literalText = (value: Value): string => {
 // substitutes them - including their names as result columns.
 const substitute = <T>(node: T, params: Record<string, string>): T => {
 	if (Array.isArray(node)) {
-		return node.map(item => substitute(item, params)) as T
+		// A key's brackets ride on its list, which the copy has to keep.
+		const { isBracketed } = node as KeyList
+
+		return Object.assign(
+			node.map(item => substitute(item, params)),
+			isBracketed ? { isBracketed } : {}
+		) as T
 	}
 
 	if (node === null || typeof node !== 'object') {

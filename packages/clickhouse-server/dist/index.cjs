@@ -996,11 +996,21 @@ var Parser = class {
 	primaryKeyClause() {
 		return this.keyList();
 	}
+	afterBrackets() {
+		let depth = 0;
+		for (let index = this.pos; index < this.tokens.length; index++) {
+			const token = this.tokens[index];
+			if (token.kind === "op" && token.value === "(") depth++;
+			if (token.kind === "op" && token.value === ")" && --depth === 0) return index + 1;
+		}
+		return -1;
+	}
 	keyList() {
+		const end = this.isOp("(") ? this.afterBrackets() : -1;
 		const expr = this.expression();
 		if (expr.kind === "function" && expr.name === "tuple") return expr.args;
 		if (expr.kind === "literal" && expr.value instanceof TupleValue) return expr.value.items.map((item) => literal$1(item));
-		return [expr];
+		return Object.assign([expr], { isBracketed: this.pos === end });
 	}
 	columnDef() {
 		const column = { name: this.identifier() };
@@ -2956,8 +2966,11 @@ const formatColumn = (column) => {
 		column.comment ? `COMMENT ${quoteString(column.comment)}` : ""
 	].filter(Boolean).join(" ");
 };
-const keyText = (exprs) => exprs.map((expr) => sql(expr)).join(", ");
-const orderByText = (exprs) => exprs.length === 0 ? "tuple()" : exprs.length === 1 ? sql(exprs[0]) : `(${keyText(exprs)})`;
+const keyText = (exprs) => {
+	const text = exprs.map((expr) => sql(expr)).join(", ");
+	return exprs.length === 1 && exprs.isBracketed ? `(${text})` : text;
+};
+const orderByText = (exprs) => exprs.length === 0 ? "tuple()" : exprs.length === 1 ? keyText(exprs) : `(${keyText(exprs)})`;
 const effectiveSettings = (table) => {
 	if (!MERGE_TREE$1.test(table.engine.name) || table.settings.some(([key]) => key === "index_granularity")) return table.settings;
 	return [["index_granularity", 8192], ...table.settings];
@@ -8108,7 +8121,10 @@ const literalText = (value) => {
 	return String(value);
 };
 const substitute = (node, params) => {
-	if (Array.isArray(node)) return node.map((item) => substitute(item, params));
+	if (Array.isArray(node)) {
+		const { isBracketed } = node;
+		return Object.assign(node.map((item) => substitute(item, params)), isBracketed ? { isBracketed } : {});
+	}
 	if (node === null || typeof node !== "object") return node;
 	const record = node;
 	if (record.kind === "literal") return node;

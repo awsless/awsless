@@ -79,8 +79,8 @@ export type Statement =
 			indexes: IndexDef[]
 			engine: { name: string; args: Expr[] }
 			partitionBy?: Expr
-			primaryKey?: Expr[]
-			orderBy?: Expr[]
+			primaryKey?: KeyList
+			orderBy?: KeyList
 			ttl?: Expr
 			settings: [string, unknown][]
 			comment?: string
@@ -137,3 +137,7 @@ export type AlterAction =
 export const fn = (name: string, ...args: Expr[]): Expr => ({ kind: 'function', name, args })
 
 export const literal = (value: unknown, text?: string): Expr => ({ kind: 'literal', value, text })
+
+// The expressions of a key. ClickHouse keeps the brackets around a key of
+// one expression, `ORDER BY (id)`, and reports it with them.
+export type KeyList = Expr[] & { isBracketed?: boolean }
