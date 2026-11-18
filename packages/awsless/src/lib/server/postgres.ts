@@ -1,116 +1,137 @@
-import { postgresClient, postgresDataClient, type PostgresClient } from '@awsless/postgres'
+import {
+	postgresClient,
+	postgresDataClient,
+	postgresQueryBuilder,
+	type PostgresClient,
+	type PostgresQueryBuilder,
+} from '@awsless/postgres'
 import { trace } from '@awsless/utils'
 import { kebabCase } from 'change-case'
-import { createProxy } from '../proxy.js'
 import { registerTestCleanup } from '../test/cleanup.js'
-import { ensureTestSchema } from '../test/schema.js'
-import { getApp, getStack, isTest } from './util.js'
+import { ensureTestDatabase } from '../test/database.js'
+import { getApp, isTest } from './util.js'
 
-export { getSqlState, postgres, PostgresError, type PostgresFunction } from '@awsless/postgres'
+export {
+	getSqlState,
+	postgres,
+	PostgresError,
+	sql,
+	type PostgresColumn,
+	type PostgresFunction,
+	type PostgresGenerated,
+	type PostgresGeneratedAlways,
+	type PostgresNumeric,
+	type PostgresQueryBuilder,
+} from '@awsless/postgres'
 
-// The schema of a stack, also used by the CLI: inside the one database
-// locally, and with a database of the same name around it on Aurora.
-// Underscores, so sql never has to quote it.
-export const getPostgresSchemaName = (stackName: string) => {
-	return kebabCase(stackName).replaceAll('-', '_')
-}
+// An app has one database, with a schema per stack that declares tables.
+// A table is `stack.table` in sql, so two stacks can each have an `events`
+// and a query can join the tables of several stacks.
 
-export const getPostgresProps = (stack: string = getStack()) => {
-	const schema = getPostgresSchemaName(stack)
+const toName = (name: string) => kebabCase(name).replaceAll('-', '_')
 
-	return {
-		// Every test file shares one Postgres server, so the per-file app
-		// prefix keeps their schemas apart.
-		schema: isTest() ? `${getPostgresSchemaName(getApp())}__${schema}` : schema,
-	} as const
-}
+// The schema of a stack, also used by the CLI. Underscores, so sql never
+// has to quote it.
+export const getPostgresSchemaName = (stackName: string) => toName(stackName)
 
-// How a stack's queries reach its database. Locally & in tests the CLI
+// The app's database, also used by the CLI. A test file runs under an app
+// name of its own, which gives it a database of its own.
+export const getPostgresDatabaseName = (appName: string = getApp()) => toName(appName)
+
+// How the app's queries reach its database. Locally & in tests the CLI
 // starts a server and hands over its url. Deployed, they go through the
 // RDS Data API to the app's Aurora cluster: no connection, pool or password.
-const createClient = (schema: string): PostgresClient => {
+const createClient = (): PostgresClient => {
 	const url = process.env.POSTGRES_URL
 
 	if (url) {
+		// The stacks' schemas, which the database itself lists when deployed.
+		const schema = process.env.POSTGRES_SCHEMAS?.split(',').filter(Boolean)
+		const target = new URL(url)
+
+		// Every test file shares one server, with a database per file.
+		if (isTest()) {
+			target.pathname = `/${getPostgresDatabaseName()}`
+		}
+
 		// Strict: what the Data API would refuse is refused here too, so a
 		// query that runs locally also runs deployed.
-		return postgresClient({ url, schema, strict: true })
+		return postgresClient({ url: target.toString(), schema, strict: true })
 	}
 
 	const clusterArn = process.env.POSTGRES_CLUSTER_ARN
 	const secretArn = process.env.POSTGRES_SECRET_ARN
+	const database = process.env.POSTGRES_DATABASE
 
-	if (clusterArn && secretArn) {
-		// On the cluster a stack has a database of its own, named like its
-		// schema, that sets the search path itself: the Data API keeps no
-		// session setting from one call to the next.
-		return postgresDataClient({ clusterArn, secretArn, database: schema })
+	if (clusterArn && secretArn && database) {
+		return postgresDataClient({ clusterArn, secretArn, database })
 	}
 
 	throw new Error(
-		'Postgres has no database to query. Locally `awsless dev` and `awsless test` set POSTGRES_URL; a deployed function gets POSTGRES_CLUSTER_ARN and POSTGRES_SECRET_ARN when its app has a stack with Postgres tables.'
+		'Postgres has no database to query. Locally `awsless dev` and `awsless test` set POSTGRES_URL; a deployed function gets POSTGRES_CLUSTER_ARN, POSTGRES_SECRET_ARN and POSTGRES_DATABASE when its app has a stack with Postgres tables.'
 	)
 }
 
 const clients = new Map<string, PostgresClient>()
 
-// One client per schema for the life of the lambda container, shared by
+// One client per database for the life of the lambda container, shared by
 // every invocation: locally, opening a connection costs far more than a query.
-const getClient = (schema: string) => {
-	let client = clients.get(schema)
+const getClient = async () => {
+	const database = getPostgresDatabaseName()
+
+	// Only a test file has a database that waits to be made.
+	await ensureTestDatabase(database)
+
+	let client = clients.get(database)
 
 	if (!client) {
-		const created = createClient(schema)
+		const created = createClient()
 
 		// A test file's connections close with the file.
 		if (isTest()) {
 			registerTestCleanup(() => {
-				clients.delete(schema)
+				clients.delete(database)
 
 				return created.close()
 			})
 		}
 
-		clients.set(schema, created)
+		clients.set(database, created)
 		client = created
 	}
 
 	return client
 }
 
-export type PostgresDatabase = {
-	readonly schema: string
-	readonly query: <Row = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<Row[]>
+// A span per statement: the sql and its params stay out of the trace.
+const traced = <T>(run: () => Promise<T>) => {
+	return trace('Postgres', run, {
+		namespace: 'remote',
+		annotations: { postgres_operation: 'query' },
+	})
 }
 
-export interface PostgresResources {}
+// The tables of every stack, as `stack.table`: filled in by `awsless types`.
+export interface PostgresTables {}
 
-export const Postgres: PostgresResources = /*@__PURE__*/ createProxy(stack => {
-	const database: PostgresDatabase = {
-		get schema() {
-			return getPostgresProps(stack).schema
-		},
-		// A span per query, named by the schema alone: the sql and its
-		// params stay out of the trace.
-		query<Row = Record<string, unknown>>(sql: string, params?: unknown[]) {
-			const { schema } = getPostgresProps(stack)
+export type PostgresDatabase<Tables = PostgresTables> = {
+	// Sql as written, with a row type given by hand.
+	readonly query: <Row = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<Row[]>
+	// A typed query builder (Kysely) over the tables the stack files declare.
+	readonly db: PostgresQueryBuilder<Tables>
+}
 
-			return trace(
-				'Postgres',
-				async () => {
-					// Only a test file has schemas that wait to be made.
-					await ensureTestSchema(schema)
+let builder: PostgresQueryBuilder<PostgresTables> | undefined
 
-					return getClient(schema).query<Row>(sql, params)
-				},
-				{
-					namespace: 'remote',
-					annotations: { postgres_operation: 'query' },
-					metadata: { schema },
-				}
-			)
-		},
-	}
+export const Postgres: PostgresDatabase = {
+	query<Row = Record<string, unknown>>(sql: string, params?: unknown[]) {
+		return traced(async () => (await getClient()).query<Row>(sql, params))
+	},
+	// It asks for the client on every statement, so it outlives a test
+	// file's connections.
+	get db() {
+		builder ??= postgresQueryBuilder<PostgresTables>({ client: getClient, wrap: traced })
 
-	return database
-})
+		return builder
+	},
+}

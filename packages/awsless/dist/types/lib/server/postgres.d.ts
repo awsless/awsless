@@ -1,12 +1,11 @@
-export { getSqlState, postgres, PostgresError, type PostgresFunction } from '@awsless/postgres';
+import { type PostgresQueryBuilder } from '@awsless/postgres';
+export { getSqlState, postgres, PostgresError, sql, type PostgresColumn, type PostgresFunction, type PostgresGenerated, type PostgresGeneratedAlways, type PostgresNumeric, type PostgresQueryBuilder, } from '@awsless/postgres';
 export declare const getPostgresSchemaName: (stackName: string) => string;
-export declare const getPostgresProps: (stack?: string) => {
-    readonly schema: string;
-};
-export type PostgresDatabase = {
-    readonly schema: string;
-    readonly query: <Row = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<Row[]>;
-};
-export interface PostgresResources {
+export declare const getPostgresDatabaseName: (appName?: string) => string;
+export interface PostgresTables {
 }
-export declare const Postgres: PostgresResources;
+export type PostgresDatabase<Tables = PostgresTables> = {
+    readonly query: <Row = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<Row[]>;
+    readonly db: PostgresQueryBuilder<Tables>;
+};
+export declare const Postgres: PostgresDatabase;

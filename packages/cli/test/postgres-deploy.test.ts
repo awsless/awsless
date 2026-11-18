@@ -1,11 +1,11 @@
-import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { postgresClient, postgresDataClient, type PostgresClient } from '@awsless/postgres'
+import { PostgresServer } from '@awsless/postgres-server'
 // A stand-in for the RDS Data API in front of a local Postgres.
 import { fakeDataApi } from '@awsless/postgres/fake-data-api'
-import { PostgresServer } from '@awsless/postgres-server'
 import { aws } from '@terraforge/aws'
 import { App, Stack } from '@terraforge/core'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -222,11 +222,17 @@ describe('postgres cluster', () => {
 			},
 		} as never)
 
-		expect(Object.keys(env)).toEqual(['POSTGRES_CLUSTER_ARN', 'POSTGRES_SECRET_ARN'])
+		expect(Object.keys(env)).toEqual(['POSTGRES_CLUSTER_ARN', 'POSTGRES_SECRET_ARN', 'POSTGRES_DATABASE'])
+		expect(env.POSTGRES_DATABASE).toBe('test_app')
 
-		// Nothing more than a statement on this cluster, with this secret.
+		// Nothing more than statements & transactions on this cluster, with this secret.
 		expect(permissions.map(permission => permission.actions)).toEqual([
-			['rds-data:ExecuteStatement'],
+			[
+				'rds-data:ExecuteStatement',
+				'rds-data:BeginTransaction',
+				'rds-data:CommitTransaction',
+				'rds-data:RollbackTransaction',
+			],
 			['secretsmanager:GetSecretValue'],
 		])
 
@@ -258,7 +264,7 @@ describe('postgres cluster', () => {
 		expect(findStatements(shared, 'rds-db:connect')).toEqual([])
 	})
 
-	it('gives every stack with tables a schema in a database of its own', async () => {
+	it('gives every stack with tables a schema in the one database of the app', async () => {
 		const root = await mkdtemp(join(tmpdir(), 'awsless-postgres-deploy-'))
 		const file = join(root, 'function.sql')
 
@@ -286,8 +292,10 @@ describe('postgres cluster', () => {
 			expect(counter!.input).toEqual({
 				clusterArn: expect.anything(),
 				secretArn: expect.anything(),
-				database: 'counter',
+				// The app's one database, and every stack's schema to look in.
+				database: 'test_app',
 				schema: 'counter',
+				searchPath: 'counter,related_links',
 				tables: JSON.stringify(StackSchema.parse({ name: 'counter', postgres }).postgres!.tables),
 				functions: expect.any(String),
 				retain: false,
@@ -299,15 +307,15 @@ describe('postgres cluster', () => {
 					sql: 'CREATE FUNCTION one() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n',
 				},
 			])
-			expect(counter!.config).toMatchObject({ replaceOnChanges: ['database', 'schema'] })
-			expect(links!.input).toMatchObject({ database: 'related_links', schema: 'related_links', functions: '[]' })
+			expect(counter!.config).toMatchObject({ replaceOnChanges: ['schema'] })
+			expect(links!.input).toMatchObject({ database: 'test_app', schema: 'related_links', functions: '[]' })
 		} finally {
 			await rm(root, { recursive: true })
 		}
 	})
 
 	it('builds the deploy of the example app from its files, as far as a deploy goes without AWS', async () => {
-		const example = join(import.meta.dirname, '../example/postgres')
+		const example = join(import.meta.dirname, './fixture/postgres')
 		const options = { configFile: join(example, 'app.jsonc') }
 		const appConfig = await loadAppConfig(options)
 		const stackConfigs = await loadStackConfigs(options)
@@ -325,7 +333,7 @@ describe('postgres cluster', () => {
 				clusterIdentifier: `${appConfig.name}-postgres-main`,
 				engine: 'aurora-postgresql',
 				engineVersion: POSTGRES_VERSION,
-			allowMajorVersionUpgrade: true,
+				allowMajorVersionUpgrade: true,
 				enableHttpEndpoint: true,
 				manageMasterUserPassword: true,
 			})
@@ -333,7 +341,12 @@ describe('postgres cluster', () => {
 			const schema = resource(app, 'schema').input
 			const [file] = JSON.parse(schema.functions) as { name: string; sql: string }[]
 
-			expect(schema).toMatchObject({ database: 'counter', schema: 'counter', retain: false })
+			expect(schema).toMatchObject({
+				database: 'app_postgres',
+				schema: 'counter',
+				searchPath: 'counter',
+				retain: false,
+			})
 			expect(Object.keys(JSON.parse(schema.tables)).toSorted()).toEqual(['bumps', 'counters'])
 			expect(file!.name).toBe('counter/src/util/sql/function.sql')
 			expect(file!.sql).toBe(await readFile(join(example, 'counter/src/util/sql/function.sql'), 'utf8'))
@@ -352,20 +365,25 @@ describe('postgres cluster', () => {
 		}
 	})
 
-	it('refuses tables in a stack named like a database Postgres keeps for itself', () => {
-		const validate = (name: string, block?: unknown) => () =>
-			validateFeatures({
-				appConfig: AppSchema.parse({ name: 'test-app', region: 'us-east-1', profile: 'test' }),
-				stackConfigs: [{ ...StackSchema.parse({ name, postgres: block }), file: `${name}/stack.jsonc` }],
-			})
+	it('refuses a stack or an app named like a schema or database Postgres keeps for itself', () => {
+		const validate =
+			(name: string, block?: unknown, app = 'test-app') =>
+			() =>
+				validateFeatures({
+					appConfig: AppSchema.parse({ name: app, region: 'us-east-1', profile: 'test' }),
+					stackConfigs: [{ ...StackSchema.parse({ name, postgres: block }), file: `${name}/stack.jsonc` }],
+				})
 
-		expect(validate('postgres', postgres)).toThrow(FileError)
-		expect(validate('postgres', postgres)).toThrow(
+		expect(validate('public', postgres)).toThrow(FileError)
+		expect(validate('public', postgres)).toThrow('its schema would be "public", which Postgres keeps for itself')
+		expect(validate('pg-catalog', postgres)).toThrow('its schema would be "pg_catalog"')
+		expect(validate('information-schema', postgres)).toThrow('its schema would be "information_schema"')
+		expect(validate('counter', postgres, 'postgres')).toThrow(
 			'its database would be "postgres", which Postgres keeps for itself'
 		)
-		expect(validate('rdsadmin', postgres)).toThrow('its database would be "rdsadmin"')
-		expect(validate('template-1', postgres)).not.toThrow()
-		expect(validate('postgres')).not.toThrow()
+		expect(validate('counter', postgres, 'rdsadmin')).toThrow('its database would be "rdsadmin"')
+		expect(validate('public')).not.toThrow()
+		expect(validate('postgres', postgres)).not.toThrow()
 		expect(validate('counter', postgres)).not.toThrow()
 	})
 })
@@ -379,6 +397,7 @@ const state = (tables: object, props: Record<string, unknown> = {}) => ({
 	...target,
 	database: 'counter',
 	schema: 'counter',
+	searchPath: 'counter',
 	tables: JSON.stringify(tables),
 	functions: JSON.stringify([]),
 	retain: false,
@@ -715,6 +734,97 @@ describe('postgres schema apply', { timeout: 120_000 }, () => {
 		expect(await admin.query("SELECT count(*)::int AS count FROM pg_database WHERE datname = 'counter'")).toEqual([
 			{ count: 1 },
 		])
+	})
+
+	it('puts the schemas of two stacks in one database, where a query joins them', async () => {
+		const path = 'orders,shop'
+		const items = { columns: { id: 'integer', name: 'text' }, primaryKey: ['id'] }
+		const lines = { columns: { id: 'integer', item_id: 'integer' }, primaryKey: ['id'] }
+		const app = postgresDataClient({
+			...target,
+			database: 'app',
+			client: new RDSDataClient({ credentials, region: 'us-east-1' }),
+		})
+
+		// Both stacks have a table called "items".
+		await provider.createResource({
+			type: 'schema',
+			state: state({ items }, { database: 'app', schema: 'shop', searchPath: path }),
+		} as never)
+		await provider.createResource({
+			type: 'schema',
+			state: state({ items: lines }, { database: 'app', schema: 'orders', searchPath: path }),
+		} as never)
+
+		await app.query("INSERT INTO shop.items VALUES (1, 'pen')")
+		await app.query('INSERT INTO orders.items VALUES (7, 1)')
+
+		expect(
+			await app.query(
+				'SELECT line.id, item.name FROM orders.items AS line JOIN shop.items AS item ON item.id = line.item_id'
+			)
+		).toEqual([{ id: 7, name: 'pen' }])
+		expect(await app.query("SELECT current_setting('search_path') AS path")).toEqual([
+			{ path: 'orders, shop, public' },
+		])
+	})
+
+	it('brings the database a stack had of its own along as the database of the app', async () => {
+		const legacy = state({ counters }, { database: 'old_stack', schema: 'old_stack', searchPath: '' })
+
+		// What a deploy before the app had one database left behind.
+		await provider.createResource({ type: 'schema', state: legacy } as never)
+		await admin.query('CREATE TABLE IF NOT EXISTS marker ()')
+
+		const old = postgresClient({ url: server.url.replace(/\/postgres$/, '/old_stack') })
+
+		await old.query("INSERT INTO old_stack.counters VALUES ('kept', 9)")
+		await old.close()
+
+		const next = state({ counters }, { database: 'moved_app', schema: 'old_stack', searchPath: 'old_stack' })
+		const planned = await provider.planResourceChange!({
+			type: 'schema',
+			priorState: legacy,
+			proposedState: next,
+		} as never)
+
+		// Not a replacement, which would start from empty tables.
+		expect(planned.requiresReplacement).toBe(false)
+
+		await provider.updateResource({ type: 'schema', priorState: legacy, proposedState: next } as never)
+
+		const moved = postgresClient({ url: server.url.replace(/\/postgres$/, '/moved_app') })
+
+		expect(await moved.query('SELECT name, value::int FROM old_stack.counters')).toEqual([
+			{ name: 'kept', value: 9 },
+		])
+		await moved.close()
+
+		expect(
+			await admin.query(
+				"SELECT datname::text AS name FROM pg_database WHERE datname IN ('old_stack', 'moved_app')"
+			)
+		).toEqual([{ name: 'moved_app' }])
+	})
+
+	it('leaves a second database of a stack for its owner to move', async () => {
+		const legacy = state({ counters }, { database: 'other_stack', schema: 'other_stack', searchPath: '' })
+
+		await provider.createResource({ type: 'schema', state: legacy } as never)
+
+		const next = state(
+			{ counters },
+			{ database: 'moved_app', schema: 'other_stack', searchPath: 'old_stack,other_stack' }
+		)
+
+		await expect(
+			provider.updateResource({ type: 'schema', priorState: legacy, proposedState: next } as never)
+		).rejects.toThrow("Postgres can't move tables between databases")
+
+		// Nothing of it was touched.
+		expect(
+			await admin.query("SELECT count(*)::int AS count FROM pg_database WHERE datname = 'other_stack'")
+		).toEqual([{ count: 1 }])
 	})
 
 	it('counts a schema whose database is gone as dropped', async () => {

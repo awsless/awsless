@@ -27,7 +27,7 @@ await client.close()
 | Prop     | Description                                                                            |
 | -------- | -------------------------------------------------------------------------------------- |
 | `url`    | `postgres://user:password@host:5432/database`, without parameters.                     |
-| `schema` | The `search_path` of every connection, before `public`, so SQL uses unqualified names. |
+| `schema` | The `search_path` of every connection, before `public`, so SQL uses unqualified names. One schema, or several in the order they are looked in. |
 | `max`    | The most connections open at once, 4 by default.                                       |
 
 - Connections open on first use and stay open until `close()`. A query waits when all `max` are busy.
@@ -75,7 +75,7 @@ The Data API keeps nothing between two calls: it resets a session before the nex
 
 ### Parameters
 
-The SQL keeps pg's placeholders (`$1`) and its values (strings, numbers, booleans, `null`, a `Date`, arrays, objects as json, a `Buffer`). The Data API itself only knows typed parameters, where Postgres refuses a string for a `uuid` or a `timestamptz` column. To keep pg's behaviour, where Postgres types a value by the place it stands in:
+The SQL keeps pg's placeholders (`$1`) and its values (strings, numbers, booleans, `null`, a `Date`, a `BigFloat`, arrays, objects as json, a `Buffer`). The Data API itself only knows typed parameters, where Postgres refuses a string for a `uuid` or a `timestamptz` column. To keep pg's behaviour, where Postgres types a value by the place it stands in:
 
 - A value is written into the SQL as an escaped literal, in the text pg would send. `WHERE project_id = $1` becomes `WHERE project_id = '6f1c…'`, which Postgres reads as a uuid.
 - A placeholder with a cast behind it (`$2::jsonb`, `$3::text[]`, `$4::bigint[]`, `$5::timestamptz`) goes as a real parameter, as text that the cast turns into its type. So a big value belongs behind a cast: the SQL has room for 65,536 characters, a parameter for what is left of a request of 4 MiB.
@@ -83,7 +83,7 @@ The SQL keeps pg's placeholders (`$1`) and its values (strings, numbers, boolean
 
 ### Results
 
-Values come back as over a connection: the Data API's typed fields are turned into the text Postgres sends and read by pg's own parsers. `bigint` and `numeric` are strings, `timestamptz` and `timestamp` a `Date`, `date` a `Date`, `json` and `jsonb` parsed, arrays as arrays, `uuid` and text as strings, `NULL` as `null`.
+Values come back as over a connection: the Data API's typed fields are turned into the text Postgres sends and read by the same parsers. `bigint` is a string, `numeric` a `BigFloat`, `timestamptz` and `timestamp` a `Date`, `date` a `Date`, `json` and `jsonb` parsed, arrays as arrays, `uuid` and text as strings, `NULL` as `null`.
 
 ### Errors
 
@@ -119,6 +119,63 @@ try {
 	throw error
 }
 ```
+
+## Values
+
+Both clients read and write values the same way.
+
+- A `numeric` is a `BigFloat` (`@awsless/big-float`), read and written, so it keeps every digit. A `numeric[]` is an array of them. A numeric of `NaN` or `Infinity` has no `BigFloat`: the query fails, cast it to text to read it.
+- A `json` or `jsonb` document goes through `@awsless/json`. What it holds comes back as it went in: a `BigFloat`, a `Date`, a `Set`, a `Map`, a `bigint`. They are stored as marked values (`{ "$date": "…" }`), so sql that reads into the document sees the mark. Plain json reads as plain json.
+- An object as a parameter is a json document. An array is a Postgres array, for an array column: pass an array for a `jsonb` column as its json text.
+- A `bigint` is a string.
+
+## The query builder
+
+`postgresQueryBuilder` puts a typed query builder ([Kysely](https://kysely.dev)) on a client. Every statement goes through the client, so it runs the same over a connection and through the Data API, a transaction included.
+
+```ts
+import { postgresQueryBuilder, sql, type PostgresGenerated } from '@awsless/postgres'
+
+type Tables = {
+	notes: {
+		id: PostgresGenerated<number>
+		body: string
+	}
+}
+
+const db = postgresQueryBuilder<Tables>({ client: () => client })
+
+const notes = await db.selectFrom('notes').select(['id', 'body']).where('id', '=', 1).execute()
+
+await db.transaction().execute(async transaction => {
+	await transaction.insertInto('notes').values({ body: 'first' }).execute()
+	await transaction.updateTable('notes').set({ body: 'second' }).where('id', '=', 1).execute()
+})
+
+// Sql the builder has no word for, with a typed result.
+const { rows } = await sql<{ total: number }>`SELECT count(*)::int AS total FROM notes`.execute(db)
+```
+
+In an awsless app the builder is `Postgres.db`, typed from the tables the stack files declare. An app has one database with a schema per stack, so a table is named by its stack, and a query can join the tables of several stacks:
+
+```ts
+await Postgres.db
+	.selectFrom('billing.payments as p')
+	.innerJoin('shop.orders as o', 'o.id', 'p.order_id')
+	.select(['o.customer', 'p.amount'])
+	.execute()
+```
+
+`Postgres.query(sql, params)` runs sql as written. A name without a schema is looked up in the schema of every stack, in the order of their names: say `billing.payments` when two stacks have a table of that name.
+
+What to know:
+
+- A value comes back the way `client.query` returns it (see Values): a `numeric` as a `BigFloat`, a `bigint` as text, a `date` and a `timestamptz` as a `Date`.
+- A range, a multirange and an interval can't be returned. Their columns are typed so a select of one doesn't compile: cast it in sql, like `` sql<string>`days::text` ``.
+- A value without a cast is written into the sql, which has room for 65,536 characters. A long `in` list or many rows of `values` count against that; a big value belongs in a `sql` fragment with a cast, like `` sql`${json}::jsonb` ``.
+- A transaction needs `BeginTransaction`, `CommitTransaction` and `RollbackTransaction` on the cluster next to `ExecuteStatement`. An awsless app's functions have them.
+- `INSERT INTO table AS alias` isn't something Kysely writes. Name the table itself in `ON CONFLICT … DO UPDATE`.
+- A result can't be streamed: the Data API returns it whole.
 
 ## applySchema
 

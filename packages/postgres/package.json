@@ -36,12 +36,18 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "3.1164.0",
+		"@awsless/json": "workspace:^",
 		"@types/pg": "8.23.1",
+		"kysely": "0.29.9",
 		"pg": "8.23.1"
 	},
 	"devDependencies": {
+		"@awsless/big-float": "workspace:^",
 		"@awsless/postgres-server": "workspace:^",
 		"aws-sdk-vitest-mock": "1.0.98"
+	},
+	"peerDependencies": {
+		"@awsless/big-float": "workspace:^"
 	},
 	"vitest": {
 		"testTimeout": 120000,

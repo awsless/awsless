@@ -1,14 +1,16 @@
-import { Pool, types } from 'pg'
+import { Pool, type PoolClient, type QueryResult } from 'pg'
 import { FIRST_OWN_OID, SUPPORTED_TYPES } from './result'
 import { MAX_RESULT_BYTES, renderQuery, STATEMENT_TIMEOUT } from './statement'
-import { assertIdentifier, createError, type PostgresClient, registerTransaction } from './transport'
+import { assertIdentifier, createError, type PostgresClient, registerExecute, registerTransaction } from './transport'
+import { getTypeParser, prepareParams, valueTypes } from './value'
 
 export type PostgresClientProps = {
 	// Like postgres://user:password@host:5432/database, without parameters.
 	url: string
-	// The schema unqualified names resolve in, on every connection. The
-	// public schema comes after it, for the extensions installed there.
-	schema?: string
+	// The schemas unqualified names resolve in, in this order, on every
+	// connection. The public schema comes after them, for the extensions
+	// installed there.
+	schema?: string | string[]
 	// The most connections open at once.
 	max?: number
 	// Refuses what the Data API can't do, so a query that runs here also
@@ -50,7 +52,7 @@ const parseUrl = (url: string) => {
 // A pool of connections behind one query call. It opens them on first
 // use, at most `max` at once.
 export const postgresClient = (props: PostgresClientProps): PostgresClient => {
-	const schema = props.schema ? assertIdentifier(props.schema) : undefined
+	const schema = [props.schema ?? []].flat().map(assertIdentifier).join(',') || undefined
 	const url = parseUrl(props.url)
 
 	let pool: Pool | undefined
@@ -105,18 +107,18 @@ export const postgresClient = (props: PostgresClientProps): PostgresClient => {
 
 	// A query the way the Data API would take it: what it refuses is
 	// refused here, with the same SQLSTATE.
-	const queryStrictly = async (sql: string, params?: unknown[]) => {
+	const queryStrictly = async (on: Pool | PoolClient, sql: string, values?: unknown[]) => {
 		// One statement, parameters that match & a size that fits.
-		renderQuery(sql, params)
+		renderQuery(sql, values)
 
 		let bytes = 0
 
-		const result = await getPool().query({
+		const result = await on.query({
 			text: sql,
-			values: params,
+			values,
 			types: {
 				getTypeParser(oid: number, format?: 'text' | 'binary') {
-					const parse = types.getTypeParser(oid, format as 'text')
+					const parse = getTypeParser(oid, format)
 
 					// Counts what the server sent, before it is parsed.
 					return (value: string) => {
@@ -159,12 +161,21 @@ export const postgresClient = (props: PostgresClientProps): PostgresClient => {
 		return result
 	}
 
+	const run = async (on: Pool | PoolClient, sql: string, params?: unknown[]) => {
+		const values = prepareParams(params)
+		const result = props.strict
+			? await queryStrictly(on, sql, values)
+			: await on.query({ text: sql, values, types: valueTypes })
+
+		// Several statements in one call answer with the rows of the last.
+		const last = (Array.isArray(result) ? result.at(-1) : result) as QueryResult | undefined
+
+		return { rows: last?.rows ?? [], affected: last?.rowCount ?? 0 }
+	}
+
 	const client: PostgresClient = {
 		async query<Row = Record<string, unknown>>(sql: string, params?: unknown[]) {
-			const result = props.strict ? await queryStrictly(sql, params) : await getPool().query(sql, params)
-
-			// Several statements in one call answer with the rows of the last.
-			return ((Array.isArray(result) ? result.at(-1)?.rows : result.rows) ?? []) as Row[]
+			return (await run(getPool(), sql, params)).rows as Row[]
 		},
 
 		async close() {
@@ -174,16 +185,19 @@ export const postgresClient = (props: PostgresClientProps): PostgresClient => {
 		},
 	}
 
+	registerExecute(client, (sql, params) => run(getPool(), sql, params))
+
 	// One connection for the whole transaction.
-	registerTransaction(client, async run => {
+	registerTransaction(client, async work => {
 		const connection = await getPool().connect()
 		let broken = false
 
 		try {
 			await connection.query('BEGIN')
 
-			const result = await run({
+			const result = await work({
 				query: async sql => (await connection.query(sql)).rows,
+				execute: (sql, params) => run(connection, sql, params),
 			})
 
 			await connection.query('COMMIT')

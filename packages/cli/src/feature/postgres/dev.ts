@@ -39,6 +39,15 @@ export const postgresOnDev = async (ctx: DevContext) => {
 	// The local superuser, reachable from this machine only.
 	ctx.addEnv('POSTGRES_URL', url)
 
+	// The search path the deployed database sets itself: every stack's schema.
+	ctx.addEnv(
+		'POSTGRES_SCHEMAS',
+		stacks
+			.map(stack => getPostgresSchemaName(stack.name))
+			.toSorted()
+			.join(',')
+	)
+
 	// A new dev session starts on a new, empty server, like every other
 	// local resource: the app's seed fills it. A reload keeps the data, and
 	// a table whose change a deploy would refuse is recreated instead of failing.

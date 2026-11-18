@@ -1,5 +1,7 @@
 import { DatabaseError } from "pg";
+import { BigFloat, BigFloat as BigFloat$1 } from "@awsless/big-float";
 import { RDSDataClient } from "@aws-sdk/client-rds-data";
+import { ColumnType as PostgresColumn, Generated as PostgresGenerated, GeneratedAlways as PostgresGeneratedAlways, Kysely, Kysely as PostgresQueryBuilder, sql } from "kysely";
 //#region src/transport.d.ts
 type PostgresClient = {
   query<Row = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<Row[]>;
@@ -10,7 +12,7 @@ declare const getSqlState: (error: unknown) => string | undefined;
 //#region src/client.d.ts
 type PostgresClientProps = {
   url: string;
-  schema?: string;
+  schema?: string | string[];
   max?: number;
   strict?: boolean;
 };
@@ -44,6 +46,7 @@ declare const double: () => PostgresType<number>;
 declare const boolean: () => PostgresType<boolean>;
 declare const date: () => PostgresType<string>;
 declare const timestamp: () => PostgresType<Date>;
+declare const numeric: () => PostgresType<BigFloat$1>;
 declare const jsonb: <T = unknown>() => PostgresType<T>;
 declare const array: <T>(item: PostgresType<T>) => PostgresType<T[]>;
 declare const nullable: <T>(type: PostgresType<T>) => PostgresType<T | null>;
@@ -77,6 +80,7 @@ declare const postgres: {
     text: typeof text;
     integer: typeof integer;
     double: typeof double;
+    numeric: typeof numeric;
     boolean: typeof boolean;
     date: typeof date;
     timestamp: typeof timestamp;
@@ -88,6 +92,17 @@ declare const postgres: {
     nothing: typeof nothing;
   };
 };
+//#endregion
+//#region src/query-builder.d.ts
+type PostgresQueryBuilderProps = {
+  client: () => PostgresClient | Promise<PostgresClient>;
+  wrap?: <T>(run: () => Promise<T>) => Promise<T>;
+};
+/**
+ * A typed query builder on a Postgres client. Every statement goes through
+ * the client, so it runs the same over a connection and through the Data API.
+ */
+declare const postgresQueryBuilder: <Tables>(props: PostgresQueryBuilderProps) => Kysely<Tables>;
 //#endregion
 //#region src/table.d.ts
 type ColumnDefinition = string | {
@@ -110,9 +125,31 @@ type TableDefinition = {
   };
   fillfactor?: number;
 };
+type Column = {
+  type: string;
+  nullable: boolean;
+  default?: string;
+  collate?: string;
+  identity: boolean;
+};
+type Index = {
+  columns: string[];
+  unique: boolean;
+};
+type DeclaredTable = {
+  columns: Record<string, Column>;
+  primaryKey: string[];
+  indexes: Record<string, Index>;
+  partitionBy?: {
+    hash: string[];
+    partitions: number;
+  };
+  fillfactor?: number;
+};
 declare class TableChangeError extends Error {
   constructor(message: string);
 }
+declare const declareTable: (table: TableDefinition) => DeclaredTable;
 declare const alterTableStatements: (name: string, prior: TableDefinition, next: TableDefinition) => string[];
 //#endregion
 //#region src/schema.d.ts
@@ -132,4 +169,4 @@ type ApplySchemaOptions = {
 };
 declare const applySchema: (client: PostgresClient, definition: SchemaDefinition, options?: ApplySchemaOptions) => Promise<void>;
 //#endregion
-export { type ApplySchemaOptions, type ColumnDefinition, type IndexDefinition, type PostgresClient, type PostgresClientProps, type PostgresDataClientProps, DatabaseError as PostgresError, type PostgresFunction, type PostgresType, type SchemaDefinition, type SqlFile, TableChangeError, type TableDefinition, alterTableStatements, applySchema, getSqlState, isPostgresFunction, postgres, postgresClient, postgresDataClient };
+export { type ApplySchemaOptions, type ColumnDefinition, type IndexDefinition, type PostgresClient, type PostgresClientProps, type PostgresColumn, type PostgresDataClientProps, DatabaseError as PostgresError, type PostgresFunction, type PostgresGenerated, type PostgresGeneratedAlways, type BigFloat as PostgresNumeric, type PostgresQueryBuilder, type PostgresQueryBuilderProps, type PostgresType, type SchemaDefinition, type SqlFile, TableChangeError, type TableDefinition, alterTableStatements, applySchema, declareTable, getSqlState, isPostgresFunction, postgres, postgresClient, postgresDataClient, postgresQueryBuilder, sql };

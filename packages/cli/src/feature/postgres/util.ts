@@ -1,14 +1,25 @@
 import { readFileSync } from 'fs'
 import { createRequire } from 'module'
 import { dirname, isAbsolute, relative } from 'path'
-import { applySchema, type ApplySchemaOptions, isPostgresFunction, postgresClient, type SqlFile } from '@awsless/postgres'
+import {
+	applySchema,
+	type ApplySchemaOptions,
+	isPostgresFunction,
+	postgresClient,
+	type SqlFile,
+} from '@awsless/postgres'
 import { getPostgresSchemaName } from 'awsless'
 import { StackConfig } from '../../config/stack.js'
 import { directories } from '../../util/path.js'
 
-// Deployed, a stack's schema lives in a database of the same name. These
-// databases are there before any stack: Postgres' own & the one RDS keeps.
+// The app's database is named after the app. These databases are there
+// before any app: Postgres' own & the one RDS keeps.
 export const RESERVED_DATABASES = ['postgres', 'template0', 'template1', 'rdsadmin']
+
+// A stack's schema is named after the stack. These are Postgres' own.
+export const isReservedSchema = (schema: string) => {
+	return schema === 'public' || schema === 'information_schema' || schema.startsWith('pg_')
+}
 
 const require = createRequire(import.meta.url)
 

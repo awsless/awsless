@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-rds-data'
 import { decodeRecords } from './result'
 import { MAX_RESULT_BYTES, renderQuery } from './statement'
-import { createError, type PostgresClient, registerTransaction } from './transport'
+import { createError, type Executed, type PostgresClient, registerExecute, registerTransaction } from './transport'
 
 export type PostgresDataClientProps = {
 	// The Aurora cluster, and the secret with the user & password to it.
@@ -189,25 +189,34 @@ export const postgresDataClient = (props: PostgresDataClientProps): PostgresClie
 		}
 	}
 
+	const run = async (sql: string, params?: unknown[], transaction?: Parameters<typeof execute>[2]) => {
+		const rendered = renderQuery(sql, params)
+		const response = await execute(rendered.sql, rendered.parameters, transaction)
+		const affected = (response as { numberOfRecordsUpdated?: number }).numberOfRecordsUpdated ?? 0
+
+		return { rows: decodeRecords(response), affected } satisfies Executed
+	}
+
 	const client: PostgresClient = {
 		async query<Row = Record<string, unknown>>(sql: string, params?: unknown[]) {
-			const rendered = renderQuery(sql, params)
-
-			return decodeRecords(await execute(rendered.sql, rendered.parameters)) as Row[]
+			return (await run(sql, params)).rows as Row[]
 		},
 
 		// Nothing stays open between calls.
 		async close() {},
 	}
 
-	registerTransaction(client, async run => {
+	registerExecute(client, (sql, params) => run(sql, params))
+
+	registerTransaction(client, async work => {
 		const { transactionId } = await whileResuming(() => api.send(new BeginTransactionCommand(target)))
 		const transaction = { id: transactionId!, deadline: Date.now() + TRANSACTION_TIMEOUT }
 		const end = { resourceArn: props.clusterArn, secretArn: props.secretArn, transactionId }
 
 		try {
-			const result = await run({
+			const result = await work({
 				query: async sql => decodeRecords(await execute(sql, [], transaction)),
+				execute: (sql, params) => run(sql, params, transaction),
 			})
 
 			await afterRunning(() => api.send(new CommitTransactionCommand(end)), transaction.deadline).catch(error => {

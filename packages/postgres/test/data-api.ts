@@ -5,6 +5,7 @@ import {
 	RDSDataClient,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data'
+import { BigFloat } from '@awsless/big-float'
 import { mockClient } from 'aws-sdk-vitest-mock'
 import { getSqlState, postgresDataClient, PostgresError } from '../src'
 import { transact } from '../src/transport'
@@ -164,7 +165,7 @@ describe('postgresDataClient', () => {
 				seen: 2,
 				small: 1,
 				weight: 0.75,
-				amount: '12.50',
+				amount: new BigFloat('12.50'),
 				kept: true,
 				project_id: '6f1c1f0e-3b7a-4c58-9d55-0f1f2a3b4c5d',
 				name: 'user-1042',

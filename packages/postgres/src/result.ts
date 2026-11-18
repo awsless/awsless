@@ -1,5 +1,5 @@
 import type { ColumnMetadata, ExecuteStatementCommandOutput, Field } from '@aws-sdk/client-rds-data'
-import { types } from 'pg'
+import { getTypeParser } from './value'
 
 // The column types the Data API returns, by the name Postgres gives them
 // and their oid. Anything else has to leave the query as text.
@@ -121,7 +121,7 @@ const parserOf = (column: ColumnMetadata): Parse => {
 	const array = ARRAYS[name]
 
 	if (scalar !== undefined) {
-		const parse = types.getTypeParser(scalar, 'text')
+		const parse = getTypeParser(scalar)
 
 		return field => {
 			if (field.blobValue) {
@@ -143,7 +143,7 @@ const parserOf = (column: ColumnMetadata): Parse => {
 	}
 
 	if (array !== undefined) {
-		const parse = types.getTypeParser(array, 'text')
+		const parse = getTypeParser(array)
 
 		return field => {
 			const elements = elementsOf(field)

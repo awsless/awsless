@@ -19,7 +19,7 @@ import { TypeFile } from '../src/type-gen/file'
 import { setRoot } from '../src/util/path'
 import { createTestApp, listResources } from './_kit'
 
-const example = join(import.meta.dirname, '../example/postgres')
+const example = join(import.meta.dirname, './fixture/postgres')
 
 const counters = {
 	columns: { name: { type: 'text', collate: 'C' }, value: { type: 'bigint', default: '0' } },
@@ -313,7 +313,7 @@ describe('postgres feature', () => {
 		return files['postgres.d.ts']
 	}
 
-	it('types a database for every stack that declares one', async () => {
+	it('types the tables of every stack by their stack, so two stacks can share a table name', async () => {
 		const types = await generate([
 			{ name: 'related-links', postgres },
 			{ name: 'plain' },
@@ -321,14 +321,58 @@ describe('postgres feature', () => {
 		])
 
 		expect(types).toContain("declare module 'awsless' {")
-		expect(types).toContain(
-			'\tinterface PostgresResources {\n\t\treadonly relatedLinks: PostgresDatabase\n\t\treadonly counter: PostgresDatabase\n\t}'
-		)
-		expect(types).toContain('readonly schema: string')
-		expect(types).toContain(
-			'readonly query: <Row = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<Row[]>'
-		)
+		expect(types).toContain('\tinterface PostgresTables {')
+		expect(types).toContain("\t\treadonly 'related_links.counters': {")
+		expect(types).toContain("\t\treadonly 'counter.counters': {")
 		expect(types).not.toContain('plain')
+	})
+
+	it('types the tables for the query builder, by what a query returns & an insert takes', async () => {
+		const types = await generate([
+			{
+				name: 'counter',
+				postgres: {
+					tables: {
+						bumps,
+						events: {
+							columns: {
+								id: 'uuid',
+								tags: 'text[]',
+								payload: 'jsonb?',
+								price: 'numeric(10, 2)',
+								seen: { type: 'integer', default: '0' },
+								day: 'date',
+								kind: 'event_kind',
+								days: 'datemultirange',
+							},
+							primaryKey: ['id'],
+						},
+					},
+				},
+			},
+		])
+
+		expect(types).toContain(
+			[
+				"\t\treadonly 'counter.bumps': {",
+				'\t\t\tid: PostgresGeneratedAlways<string>',
+				'\t\t\tname: string',
+				'\t\t\tamount: PostgresColumn<string, string | number | bigint, string | number | bigint>',
+				'\t\t\tbumped_at: PostgresColumn<Date, Date | string | undefined, Date | string>',
+				'\t\t\tnote: string | null',
+				'\t\t}',
+				"\t\treadonly 'counter.events': {",
+				'\t\t\tid: string',
+				'\t\t\ttags: (string)[]',
+				'\t\t\tpayload: PostgresColumn<unknown | null, string | { [key: string]: unknown } | null, string | { [key: string]: unknown } | null>',
+				'\t\t\tprice: PostgresColumn<PostgresNumeric, PostgresNumeric | string | number, PostgresNumeric | string | number>',
+				'\t\t\tseen: PostgresGenerated<number>',
+				'\t\t\tday: PostgresColumn<Date, Date | string, Date | string>',
+				'\t\t\tkind: string',
+				'\t\t\tdays: PostgresColumn<never, string, string>',
+				'\t\t}',
+			].join('\n')
+		)
 	})
 
 	it('writes no types without a database', async () => {

@@ -1,21 +1,21 @@
-// A test file's Postgres schemas are made the first time it queries them:
-// most files never do, and a table with partitions takes a while to make.
+// A test file's Postgres database is made the first time the file queries
+// it: most files never do, and a table with partitions takes a while to make.
 
-type TestSchema = {
+type TestDatabase = {
 	create: () => Promise<void>
 	created?: Promise<void>
 }
 
-const schemas = new Map<string, TestSchema>()
+const databases = new Map<string, TestDatabase>()
 
-export const deferTestSchema = (schema: string, create: () => Promise<void>) => {
-	schemas.set(schema, { create })
+export const deferTestDatabase = (database: string, create: () => Promise<void>) => {
+	databases.set(database, { create })
 }
 
-// Resolves once the schema is there. Every query of the file waits for
+// Resolves once the database is there. Every query of the file waits for
 // the one creation, and fails with its error when it failed.
-export const ensureTestSchema = (schema: string) => {
-	const entry = schemas.get(schema)
+export const ensureTestDatabase = (database: string) => {
+	const entry = databases.get(database)
 
 	if (entry) {
 		entry.created ??= entry.create()

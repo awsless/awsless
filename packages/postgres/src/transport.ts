@@ -29,10 +29,16 @@ export const assertIdentifier = (name: string) => {
 	return name
 }
 
-// One statement at a time inside a transaction, without parameters: what
-// both a connection and the Data API can do.
+// A statement's rows and how many rows it changed, for the query builder.
+export type Executed = { rows: Record<string, unknown>[]; affected: number }
+
+export type Execute = (sql: string, params?: unknown[]) => Promise<Executed>
+
+// One statement at a time inside a transaction: what both a connection
+// and the Data API can do.
 export type Session = {
 	query: (sql: string) => Promise<Record<string, unknown>[]>
+	execute: Execute
 }
 
 // Runs the work in one transaction: committed when it returns, rolled
@@ -43,6 +49,22 @@ const transactions = new WeakMap<PostgresClient, Transaction>()
 
 export const registerTransaction = (client: PostgresClient, transaction: Transaction) => {
 	transactions.set(client, transaction)
+}
+
+const executes = new WeakMap<PostgresClient, Execute>()
+
+export const registerExecute = (client: PostgresClient, execute: Execute) => {
+	executes.set(client, execute)
+}
+
+export const execute = (client: PostgresClient, sql: string, params?: unknown[]) => {
+	const run = executes.get(client)
+
+	if (!run) {
+		return Promise.reject(new TypeError('The client was not made by postgresClient or postgresDataClient.'))
+	}
+
+	return run(sql, params)
 }
 
 export const transact = <T>(client: PostgresClient, run: (session: Session) => Promise<T>) => {

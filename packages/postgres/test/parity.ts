@@ -5,6 +5,7 @@ import {
 	RDSDataClient,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data'
+import { BigFloat } from '@awsless/big-float'
 import { PostgresServer } from '@awsless/postgres-server'
 import { mockClient } from 'aws-sdk-vitest-mock'
 import {
@@ -309,7 +310,7 @@ describe('a connection & the Data API', () => {
 		])
 	})
 
-	it('return what pg returns: dates, strings for big & exact numbers, parsed json, arrays, null', () => {
+	it('return the same values: dates, a string for a bigint, a BigFloat for a numeric, parsed json, arrays, null', () => {
 		const [first, , third] = deployedResults['every kind of column'].rows
 
 		expect(first).toEqual({
@@ -332,14 +333,21 @@ describe('a connection & the Data API', () => {
 		expect(third.meta).toEqual({ page: '/login', n: 2 })
 
 		expect(deployedResults['updates with a number, a boolean, a decimal & null'].rows).toEqual([
-			{ id: '3', weight: 0.75, kept: false, amount: '12.50', happened_at: null, tags: ['a', 'b "c"'] },
+			{
+				id: '3',
+				weight: 0.75,
+				kept: false,
+				amount: new BigFloat('12.50'),
+				happened_at: null,
+				tags: ['a', 'b "c"'],
+			},
 		])
 		expect(deployedResults['whole numbers, counts, decimals & json'].rows).toEqual([
 			{
 				count: '3',
 				count_int: 3,
 				total: '4',
-				average: expect.stringMatching(/^1\.3333/),
+				average: expect.any(BigFloat),
 				last_id: '3',
 				small: 2,
 				real: 1.5,

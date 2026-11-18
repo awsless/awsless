@@ -75,7 +75,9 @@ describe('postgres.function.define', () => {
 
 		await applySchema(admin, {
 			schema: 'defined',
-			tables: { counters: { columns: { name: 'text', value: { type: 'bigint', default: '0' } }, primaryKey: ['name'] } },
+			tables: {
+				counters: { columns: { name: 'text', value: { type: 'bigint', default: '0' } }, primaryKey: ['name'] },
+			},
 			functions: files,
 		})
 	}, 60_000)
@@ -110,7 +112,9 @@ describe('postgres.function.define', () => {
 	it('answers the rows of a table, sends json as json and nothing for void', async () => {
 		await bump(client, { counter: 'logins', amount: 1 })
 
-		expect(await listCounters(client, { names: ['logins', 'visits', 'missing'], settings: { atLeast: 5 } })).toStrictEqual([
+		expect(
+			await listCounters(client, { names: ['logins', 'visits', 'missing'], settings: { atLeast: 5 } })
+		).toStrictEqual([
 			{ name: 'logins', value: 2, is_big: false },
 			{ name: 'visits', value: 6, is_big: true },
 		])
@@ -122,9 +126,9 @@ describe('postgres.function.define', () => {
 		const definition = { args: {}, returns: nothing(), language: 'sql' as const, body: 'SELECT 1' }
 
 		expect(() => postgres.function.define({ ...definition, name: 'drop table' })).toThrow(TypeError)
-		expect(() => postgres.function.define({ ...definition, name: 'fine', body: 'SELECT $awsless$x$awsless$' })).toThrow(
-			TypeError
-		)
+		expect(() =>
+			postgres.function.define({ ...definition, name: 'fine', body: 'SELECT $awsless$x$awsless$' })
+		).toThrow(TypeError)
 	})
 
 	it('fails the apply on a body that does not hold, at its function', async () => {

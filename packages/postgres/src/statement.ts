@@ -1,4 +1,5 @@
 import pg, { escapeLiteral } from 'pg'
+import { prepareParam } from './value'
 
 // The limits of the RDS Data API, which every query has to fit whichever
 // way it travels: what passes on a local Postgres also passes deployed.
@@ -221,7 +222,7 @@ type Prepare = (value: unknown) => string | Buffer | null
 const prepareValue = (pg as unknown as { utils: { prepareValue: Prepare } }).utils.prepareValue
 
 const toText = (value: unknown) => {
-	const prepared = prepareValue(value)
+	const prepared = prepareValue(prepareParam(value))
 
 	return Buffer.isBuffer(prepared) ? `\\x${prepared.toString('hex')}` : prepared
 }

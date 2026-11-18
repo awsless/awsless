@@ -1,31 +1,8 @@
-import { i as splitStatements, o as SUPPORTED_TYPES, r as renderQuery, s as decodeRecords, t as MAX_RESULT_BYTES } from "./statement-D0cFz05O.js";
-import { DatabaseError, Pool, types } from "pg";
+import { _ as registerTransaction, c as getTypeParser, d as DatabaseError, f as assertIdentifier, g as registerExecute, h as getSqlState, i as splitStatements, l as prepareParams, m as execute, o as SUPPORTED_TYPES, p as createError, r as renderQuery, s as decodeRecords, t as MAX_RESULT_BYTES, u as valueTypes, v as transact } from "./statement-OhRXi18z.js";
+import { Pool } from "pg";
+import { stringify } from "@awsless/json";
 import { BeginTransactionCommand, CommitTransactionCommand, ExecuteStatementCommand, RDSDataClient, RollbackTransactionCommand } from "@aws-sdk/client-rds-data";
-//#region src/transport.ts
-const getSqlState = (error) => {
-	return error instanceof DatabaseError ? error.code : void 0;
-};
-const createError = (code, message, fields = {}) => {
-	return Object.assign(new DatabaseError(message, message.length, "error"), {
-		severity: "ERROR",
-		code,
-		...fields
-	});
-};
-const assertIdentifier = (name) => {
-	if (!/^[a-z0-9_]{1,63}$/.test(name)) throw new TypeError(`"${name}" can't be a Postgres name: use up to 63 lowercase letters, digits & underscores.`);
-	return name;
-};
-const transactions = /* @__PURE__ */ new WeakMap();
-const registerTransaction = (client, transaction) => {
-	transactions.set(client, transaction);
-};
-const transact = (client, run) => {
-	const transaction = transactions.get(client);
-	if (!transaction) return Promise.reject(/* @__PURE__ */ new TypeError("The client was not made by postgresClient or postgresDataClient."));
-	return transaction(run);
-};
-//#endregion
+import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler, sql } from "kysely";
 //#region src/client.ts
 const parseUrl = (url) => {
 	const invalid = () => {
@@ -43,7 +20,7 @@ const parseUrl = (url) => {
 	};
 };
 const postgresClient = (props) => {
-	const schema = props.schema ? assertIdentifier(props.schema) : void 0;
+	const schema = [props.schema ?? []].flat().map(assertIdentifier).join(",") || void 0;
 	const url = parseUrl(props.url);
 	let pool;
 	const settings = [schema ? `-c search_path=${schema},public` : "", props.strict ? `-c statement_timeout=45000` : ""];
@@ -69,14 +46,14 @@ const postgresClient = (props) => {
 		}
 		return isReturned;
 	};
-	const queryStrictly = async (sql, params) => {
-		renderQuery(sql, params);
+	const queryStrictly = async (on, sql, values) => {
+		renderQuery(sql, values);
 		let bytes = 0;
-		const result = await getPool().query({
+		const result = await on.query({
 			text: sql,
-			values: params,
+			values,
 			types: { getTypeParser(oid, format) {
-				const parse = types.getTypeParser(oid, format);
+				const parse = getTypeParser(oid, format);
 				return (value) => {
 					bytes += Buffer.byteLength(value);
 					return parse(value);
@@ -90,10 +67,22 @@ const postgresClient = (props) => {
 		if (bytes > 1048576) throw createError("54000", `The result is ${bytes} bytes, over the ${MAX_RESULT_BYTES} the Data API returns. Read it in parts, with a LIMIT.`);
 		return result;
 	};
+	const run = async (on, sql, params) => {
+		const values = prepareParams(params);
+		const result = props.strict ? await queryStrictly(on, sql, values) : await on.query({
+			text: sql,
+			values,
+			types: valueTypes
+		});
+		const last = Array.isArray(result) ? result.at(-1) : result;
+		return {
+			rows: last?.rows ?? [],
+			affected: last?.rowCount ?? 0
+		};
+	};
 	const client = {
 		async query(sql, params) {
-			const result = props.strict ? await queryStrictly(sql, params) : await getPool().query(sql, params);
-			return (Array.isArray(result) ? result.at(-1)?.rows : result.rows) ?? [];
+			return (await run(getPool(), sql, params)).rows;
 		},
 		async close() {
 			const current = pool;
@@ -101,12 +90,16 @@ const postgresClient = (props) => {
 			await current?.end();
 		}
 	};
-	registerTransaction(client, async (run) => {
+	registerExecute(client, (sql, params) => run(getPool(), sql, params));
+	registerTransaction(client, async (work) => {
 		const connection = await getPool().connect();
 		let broken = false;
 		try {
 			await connection.query("BEGIN");
-			const result = await run({ query: async (sql) => (await connection.query(sql)).rows });
+			const result = await work({
+				query: async (sql) => (await connection.query(sql)).rows,
+				execute: (sql, params) => run(connection, sql, params)
+			});
 			await connection.query("COMMIT");
 			return result;
 		} catch (error) {
@@ -209,14 +202,23 @@ const postgresDataClient = (props) => {
 			throw toPostgresError(error);
 		}
 	};
+	const run = async (sql, params, transaction) => {
+		const rendered = renderQuery(sql, params);
+		const response = await execute(rendered.sql, rendered.parameters, transaction);
+		const affected = response.numberOfRecordsUpdated ?? 0;
+		return {
+			rows: decodeRecords(response),
+			affected
+		};
+	};
 	const client = {
 		async query(sql, params) {
-			const rendered = renderQuery(sql, params);
-			return decodeRecords(await execute(rendered.sql, rendered.parameters));
+			return (await run(sql, params)).rows;
 		},
 		async close() {}
 	};
-	registerTransaction(client, async (run) => {
+	registerExecute(client, (sql, params) => run(sql, params));
+	registerTransaction(client, async (work) => {
 		const { transactionId } = await whileResuming(() => api.send(new BeginTransactionCommand(target)));
 		const transaction = {
 			id: transactionId,
@@ -228,7 +230,10 @@ const postgresDataClient = (props) => {
 			transactionId
 		};
 		try {
-			const result = await run({ query: async (sql) => decodeRecords(await execute(sql, [], transaction)) });
+			const result = await work({
+				query: async (sql) => decodeRecords(await execute(sql, [], transaction)),
+				execute: (sql, params) => run(sql, params, transaction)
+			});
 			await afterRunning(() => api.send(new CommitTransactionCommand(end)), transaction.deadline).catch((error) => {
 				throw toPostgresError(error);
 			});
@@ -255,7 +260,8 @@ const double = () => valueType("double precision");
 const boolean = () => valueType("boolean");
 const date = () => valueType("date");
 const timestamp = () => valueType("timestamptz");
-const jsonb = () => valueType("jsonb", (value) => JSON.stringify(value));
+const numeric = () => valueType("numeric");
+const jsonb = () => valueType("jsonb", (value) => stringify(value));
 const array = (item) => valueType(`${item.sql}[]`);
 const nullable = (type) => ({
 	...type,
@@ -320,6 +326,7 @@ const postgres = {
 		text,
 		integer,
 		double,
+		numeric,
 		boolean,
 		date,
 		timestamp,
@@ -330,6 +337,83 @@ const postgres = {
 		table,
 		nothing
 	}
+};
+//#endregion
+//#region src/query-builder.ts
+const ROLLED_BACK = Symbol("rolled back");
+var Connection = class {
+	props;
+	transaction;
+	constructor(props) {
+		this.props = props;
+	}
+	async executeQuery(query) {
+		const wrap = this.props.wrap ?? ((run) => run());
+		const params = [...query.parameters];
+		const { rows, affected } = await wrap(async () => {
+			return this.transaction ? this.transaction.session.execute(query.sql, params) : execute(await this.props.client(), query.sql, params);
+		});
+		return {
+			rows,
+			numAffectedRows: BigInt(affected)
+		};
+	}
+	streamQuery() {
+		throw new Error("Postgres results can't be streamed: the Data API returns a result whole. Read it in parts, with a limit.");
+	}
+	async begin() {
+		const client = await this.props.client();
+		this.transaction = await new Promise((resolve, reject) => {
+			const done = transact(client, (session) => {
+				return new Promise((commit, rollback) => {
+					resolve({
+						session,
+						commit,
+						rollback,
+						done
+					});
+				});
+			});
+			done.catch(reject);
+		});
+	}
+	async commit() {
+		const transaction = this.transaction;
+		this.transaction = void 0;
+		transaction.commit();
+		await transaction.done;
+	}
+	async rollback() {
+		const transaction = this.transaction;
+		this.transaction = void 0;
+		transaction?.rollback(ROLLED_BACK);
+		await transaction?.done.catch((error) => {
+			if (error !== ROLLED_BACK) throw error;
+		});
+	}
+};
+const createDriver = (props) => ({
+	async init() {},
+	async acquireConnection() {
+		return new Connection(props);
+	},
+	beginTransaction: (connection) => connection.begin(),
+	commitTransaction: (connection) => connection.commit(),
+	rollbackTransaction: (connection) => connection.rollback(),
+	async releaseConnection() {},
+	async destroy() {}
+});
+/**
+* A typed query builder on a Postgres client. Every statement goes through
+* the client, so it runs the same over a connection and through the Data API.
+*/
+const postgresQueryBuilder = (props) => {
+	return new Kysely({ dialect: {
+		createAdapter: () => new PostgresAdapter(),
+		createDriver: () => createDriver(props),
+		createIntrospector: (db) => new PostgresIntrospector(db),
+		createQueryCompiler: () => new PostgresQueryCompiler()
+	} });
 };
 //#endregion
 //#region src/table.ts
@@ -526,4 +610,4 @@ const applySchema = (client, definition, options = {}) => {
 	});
 };
 //#endregion
-export { DatabaseError as PostgresError, TableChangeError, alterTableStatements, applySchema, getSqlState, isPostgresFunction, postgres, postgresClient, postgresDataClient };
+export { DatabaseError as PostgresError, TableChangeError, alterTableStatements, applySchema, declareTable, getSqlState, isPostgresFunction, postgres, postgresClient, postgresDataClient, postgresQueryBuilder, sql };

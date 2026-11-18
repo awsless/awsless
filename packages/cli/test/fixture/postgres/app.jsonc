@@ -1,5 +1,5 @@
 {
-	"$schema": "../../dist/app.json",
+	"$schema": "../../../dist/app.json",
 	"name": "app-postgres",
 	"region": "eu-west-1",
 	"profile": "test"

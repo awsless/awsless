@@ -22,6 +22,87 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 //#endregion
 let pg = require("pg");
 pg = __toESM(pg, 1);
+let _awsless_big_float = require("@awsless/big-float");
+let _awsless_json = require("@awsless/json");
+//#region src/transport.ts
+const getSqlState = (error) => {
+	return error instanceof pg.DatabaseError ? error.code : void 0;
+};
+const createError = (code, message, fields = {}) => {
+	return Object.assign(new pg.DatabaseError(message, message.length, "error"), {
+		severity: "ERROR",
+		code,
+		...fields
+	});
+};
+const assertIdentifier = (name) => {
+	if (!/^[a-z0-9_]{1,63}$/.test(name)) throw new TypeError(`"${name}" can't be a Postgres name: use up to 63 lowercase letters, digits & underscores.`);
+	return name;
+};
+const transactions = /* @__PURE__ */ new WeakMap();
+const registerTransaction = (client, transaction) => {
+	transactions.set(client, transaction);
+};
+const executes = /* @__PURE__ */ new WeakMap();
+const registerExecute = (client, execute) => {
+	executes.set(client, execute);
+};
+const execute = (client, sql, params) => {
+	const run = executes.get(client);
+	if (!run) return Promise.reject(/* @__PURE__ */ new TypeError("The client was not made by postgresClient or postgresDataClient."));
+	return run(sql, params);
+};
+const transact = (client, run) => {
+	const transaction = transactions.get(client);
+	if (!transaction) return Promise.reject(/* @__PURE__ */ new TypeError("The client was not made by postgresClient or postgresDataClient."));
+	return transaction(run);
+};
+//#endregion
+//#region src/value.ts
+const NUMERIC = 1700;
+const NUMERIC_ARRAY = 1231;
+const JSON_TYPES = [114, 3802];
+const JSON_ARRAYS = [199, 3807];
+const TEXT_ARRAY = 1009;
+const parseNumeric = (text) => {
+	try {
+		return (0, _awsless_big_float.parse)(text);
+	} catch {
+		throw createError("22003", `A numeric of ${text} can't be read as a BigFloat. Cast it to text in the query, like amount::text.`);
+	}
+};
+const parseArray = (parse) => {
+	const parseTexts = pg.types.getTypeParser(TEXT_ARRAY, "text");
+	const each = (value) => {
+		return Array.isArray(value) ? value.map(each) : value === null ? null : parse(value);
+	};
+	return (text) => each(parseTexts(text));
+};
+const parsers = new Map([
+	[NUMERIC, parseNumeric],
+	[NUMERIC_ARRAY, parseArray(parseNumeric)],
+	...JSON_TYPES.map((oid) => [oid, _awsless_json.parse]),
+	...JSON_ARRAYS.map((oid) => [oid, parseArray(_awsless_json.parse)])
+]);
+const getTypeParser = (oid, format = "text") => {
+	return format === "text" && parsers.get(oid) || pg.types.getTypeParser(oid, format);
+};
+const valueTypes = { getTypeParser };
+const isBigFloat = (value) => {
+	const { coefficient, exponent } = value;
+	return typeof coefficient === "bigint" && typeof exponent === "number";
+};
+const isPlain = (value) => {
+	return value instanceof Date || ArrayBuffer.isView(value) || value instanceof ArrayBuffer || typeof value.toPostgres === "function";
+};
+const prepareParam = (value) => {
+	if (value === null || typeof value !== "object" || isPlain(value)) return value;
+	if (isBigFloat(value)) return value.toString();
+	if (Array.isArray(value)) return value.map(prepareParam);
+	return (0, _awsless_json.stringify)(value);
+};
+const prepareParams = (params) => params?.map(prepareParam);
+//#endregion
 //#region src/result.ts
 const SCALARS = {
 	bool: 16,
@@ -99,7 +180,7 @@ const parserOf = (column) => {
 	const scalar = SCALARS[name];
 	const array = ARRAYS[name];
 	if (scalar !== void 0) {
-		const parse = pg.types.getTypeParser(scalar, "text");
+		const parse = getTypeParser(scalar);
 		return (field) => {
 			if (field.blobValue) return Buffer.from(field.blobValue);
 			const text = textOf(field);
@@ -109,7 +190,7 @@ const parserOf = (column) => {
 		};
 	}
 	if (array !== void 0) {
-		const parse = pg.types.getTypeParser(array, "text");
+		const parse = getTypeParser(array);
 		return (field) => {
 			const elements = elementsOf(field);
 			return elements ? parse(arrayText(elements)) : null;
@@ -249,7 +330,7 @@ const scan = (sql) => {
 const splitStatements = (sql) => scan(sql).statements;
 const prepareValue = pg.default.utils.prepareValue;
 const toText = (value) => {
-	const prepared = prepareValue(value);
+	const prepared = prepareValue(prepareParam(value));
 	return Buffer.isBuffer(prepared) ? `\\x${prepared.toString("hex")}` : prepared;
 };
 const renderQuery = (sql, values = []) => {
@@ -320,10 +401,58 @@ Object.defineProperty(exports, "__toESM", {
 		return __toESM;
 	}
 });
+Object.defineProperty(exports, "assertIdentifier", {
+	enumerable: true,
+	get: function() {
+		return assertIdentifier;
+	}
+});
+Object.defineProperty(exports, "createError", {
+	enumerable: true,
+	get: function() {
+		return createError;
+	}
+});
 Object.defineProperty(exports, "decodeRecords", {
 	enumerable: true,
 	get: function() {
 		return decodeRecords;
+	}
+});
+Object.defineProperty(exports, "execute", {
+	enumerable: true,
+	get: function() {
+		return execute;
+	}
+});
+Object.defineProperty(exports, "getSqlState", {
+	enumerable: true,
+	get: function() {
+		return getSqlState;
+	}
+});
+Object.defineProperty(exports, "getTypeParser", {
+	enumerable: true,
+	get: function() {
+		return getTypeParser;
+	}
+});
+Object.defineProperty(exports, "prepareParams", {
+	enumerable: true,
+	get: function() {
+		return prepareParams;
+	}
+});
+Object.defineProperty(exports, "registerExecute", {
+	enumerable: true,
+	get: function() {
+		return registerExecute;
+	}
+});
+Object.defineProperty(exports, "registerTransaction", {
+	enumerable: true,
+	get: function() {
+		return registerTransaction;
 	}
 });
 Object.defineProperty(exports, "renderQuery", {
@@ -336,5 +465,17 @@ Object.defineProperty(exports, "splitStatements", {
 	enumerable: true,
 	get: function() {
 		return splitStatements;
+	}
+});
+Object.defineProperty(exports, "transact", {
+	enumerable: true,
+	get: function() {
+		return transact;
+	}
+});
+Object.defineProperty(exports, "valueTypes", {
+	enumerable: true,
+	get: function() {
+		return valueTypes;
 	}
 });

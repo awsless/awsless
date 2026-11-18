@@ -1,7 +1,6 @@
 {
-	"$schema": "../../../dist/stack.json",
+	"$schema": "../../../../dist/stack.json",
 	"name": "counter",
-	"tests": "./test",
 
 	"postgres": {
 		"tables": {

@@ -16,9 +16,12 @@ type SchemaInput = {
 	// The app's Aurora cluster & the secret of its master user.
 	clusterArn: Input<string>
 	secretArn: Input<string>
-	// The stack's own database on the cluster, and its schema inside it.
+	// The app's database on the cluster, and the stack's schema inside it.
 	database: Input<string>
 	schema: Input<string>
+	// The schema of every stack, comma separated, in the order unqualified
+	// names resolve in.
+	searchPath: Input<string>
 	// The declared tables by name, as JSON.
 	tables: Input<string>
 	// The function files as JSON: their name & what they hold, in order.
@@ -32,6 +35,7 @@ type SchemaOutput = {
 	secretArn: Output<string>
 	database: Output<string>
 	schema: Output<string>
+	searchPath: Output<string>
 	tables: Output<string>
 	functions: Output<string>
 	retain: Output<boolean>
@@ -50,6 +54,11 @@ const schemaSchema = z.object({
 	secretArn: z.string(),
 	database: NameSchema,
 	schema: NameSchema,
+	// Without it, a state from before the app had one database: the stack alone.
+	searchPath: z
+		.string()
+		.regex(/^[a-z0-9_,]*$/)
+		.default(''),
 	tables: z.string(),
 	functions: z.string(),
 	retain: z.boolean().default(false),
@@ -59,6 +68,7 @@ type SchemaState = z.infer<typeof schemaSchema>
 
 const DUPLICATE_DATABASE = '42P04'
 const MISSING_DATABASE = '3D000'
+const DATABASE_IN_USE = '55006'
 
 // What the service answers while it can't take a call that it will take
 // in a moment: a writer that restarts, a secret that isn't readable yet
@@ -155,28 +165,80 @@ export const createPostgresProvider = ({
 		}
 	}
 
+	const hasDatabase = async (admin: ReturnType<typeof getClient>, database: string) => {
+		const rows = await admin.query('SELECT 1 AS found FROM pg_database WHERE datname = $1', [database])
+
+		return rows.length > 0
+	}
+
+	// Before an app had one database, every stack had a database of its own,
+	// named like its schema. The first stack to deploy brings its database
+	// along as the app's, with everything in it. Postgres has no way to move
+	// tables between databases, so a second one is left for its owner to move.
+	const adoptDatabase = async (props: SchemaState, legacy: string) => {
+		const admin = getClient(props, 'postgres')
+
+		if (!(await hasDatabase(admin, legacy))) {
+			return
+		}
+
+		if (await hasDatabase(admin, props.database)) {
+			throw new PostgresError(
+				`The Postgres tables of schema "${props.schema}" are in a database of their own ("${legacy}"), from before an app had one database. Another stack's database already became the app's ("${props.database}"), and Postgres can't move tables between databases. Copy the tables of "${legacy}" into schema "${props.schema}" of "${props.database}", drop the database "${legacy}", and deploy again.`,
+				0,
+				'error'
+			)
+		}
+
+		// A database with a session in it can't be renamed, and the Data API
+		// keeps its sessions around.
+		for (let attempt = 0; ; attempt++) {
+			await admin.query(
+				'SELECT pg_terminate_backend(pid)::text FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+				[legacy]
+			)
+
+			try {
+				await admin.query(`ALTER DATABASE "${legacy}" RENAME TO "${props.database}"`)
+				return
+			} catch (error) {
+				if (getSqlState(error) !== DATABASE_IN_USE || attempt >= 5) {
+					throw error
+				}
+			}
+		}
+	}
+
 	// The Data API resets a session before the next call uses it, so a
-	// search path set per query wouldn't hold. A stack gets a database of
-	// its own instead, that sets the search path for every session in it.
+	// search path set per query wouldn't hold. The app's database sets it
+	// for every session instead: the schema of every stack, so a name
+	// without a schema is found in whichever stack has it.
 	const ensureDatabase = async (props: SchemaState) => {
 		const admin = getClient(props, 'postgres')
 
 		try {
 			await admin.query(`CREATE DATABASE "${props.database}"`)
 		} catch (error) {
-			// Made by an earlier deploy or apply.
+			// Made by an earlier deploy or apply, or for another stack.
 			if (getSqlState(error) !== DUPLICATE_DATABASE) {
 				throw error
 			}
 		}
 
-		await admin.query(`ALTER DATABASE "${props.database}" SET search_path TO "${props.schema}", public`)
+		const schemas = (props.searchPath || props.schema).split(',').map(schema => `"${schema}"`)
+
+		await admin.query(`ALTER DATABASE "${props.database}" SET search_path TO ${[...schemas, 'public'].join(', ')}`)
 	}
 
-	const applyDefinition = async (state: unknown) => {
+	const applyDefinition = async (state: unknown, prior?: unknown) => {
 		const props = schemaSchema.parse(state)
+		const legacy = prior ? schemaSchema.parse(prior).database : props.database
 
 		await withRetry(async () => {
+			if (legacy !== props.database) {
+				await adoptDatabase(props, legacy)
+			}
+
 			await ensureDatabase(props)
 			await applySchema(
 				getClient(props, props.database),
@@ -198,15 +260,15 @@ export const createPostgresProvider = ({
 				return applyDefinition(props.state)
 			},
 			async updateResource(props) {
-				return applyDefinition(props.proposedState)
+				return applyDefinition(props.proposedState, props.priorState)
 			},
-			// A schema can't move to another database or name in place, so that
-			// replaces it. A table change that Postgres can't make in place, like
-			// another primary key, fails here, before anything deploys.
+			// A schema can't move to another name in place, so that replaces it.
+			// A table change that Postgres can't make in place, like another
+			// primary key, fails here, before anything deploys.
 			async planResourceChange(props) {
 				const prior = props.priorState as SchemaState | null
 				const proposed = props.proposedState as SchemaState | null
-				const replace = !!prior && (prior.database !== proposed?.database || prior.schema !== proposed?.schema)
+				const replace = !!prior && prior.schema !== proposed?.schema
 
 				// On another cluster the tables are made new, so nothing changes in place.
 				const sameCluster = prior?.clusterArn === proposed?.clusterArn

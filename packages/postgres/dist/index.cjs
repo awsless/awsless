@@ -1,32 +1,9 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const require_statement = require("./statement-CgsVvyce.cjs");
+const require_statement = require("./statement-CuKMVGBI.cjs");
 let pg = require("pg");
+let _awsless_json = require("@awsless/json");
 let _aws_sdk_client_rds_data = require("@aws-sdk/client-rds-data");
-//#region src/transport.ts
-const getSqlState = (error) => {
-	return error instanceof pg.DatabaseError ? error.code : void 0;
-};
-const createError = (code, message, fields = {}) => {
-	return Object.assign(new pg.DatabaseError(message, message.length, "error"), {
-		severity: "ERROR",
-		code,
-		...fields
-	});
-};
-const assertIdentifier = (name) => {
-	if (!/^[a-z0-9_]{1,63}$/.test(name)) throw new TypeError(`"${name}" can't be a Postgres name: use up to 63 lowercase letters, digits & underscores.`);
-	return name;
-};
-const transactions = /* @__PURE__ */ new WeakMap();
-const registerTransaction = (client, transaction) => {
-	transactions.set(client, transaction);
-};
-const transact = (client, run) => {
-	const transaction = transactions.get(client);
-	if (!transaction) return Promise.reject(/* @__PURE__ */ new TypeError("The client was not made by postgresClient or postgresDataClient."));
-	return transaction(run);
-};
-//#endregion
+let kysely = require("kysely");
 //#region src/client.ts
 const parseUrl = (url) => {
 	const invalid = () => {
@@ -44,7 +21,7 @@ const parseUrl = (url) => {
 	};
 };
 const postgresClient = (props) => {
-	const schema = props.schema ? assertIdentifier(props.schema) : void 0;
+	const schema = [props.schema ?? []].flat().map(require_statement.assertIdentifier).join(",") || void 0;
 	const url = parseUrl(props.url);
 	let pool;
 	const settings = [schema ? `-c search_path=${schema},public` : "", props.strict ? `-c statement_timeout=45000` : ""];
@@ -70,14 +47,14 @@ const postgresClient = (props) => {
 		}
 		return isReturned;
 	};
-	const queryStrictly = async (sql, params) => {
-		require_statement.renderQuery(sql, params);
+	const queryStrictly = async (on, sql, values) => {
+		require_statement.renderQuery(sql, values);
 		let bytes = 0;
-		const result = await getPool().query({
+		const result = await on.query({
 			text: sql,
-			values: params,
+			values,
 			types: { getTypeParser(oid, format) {
-				const parse = pg.types.getTypeParser(oid, format);
+				const parse = require_statement.getTypeParser(oid, format);
 				return (value) => {
 					bytes += Buffer.byteLength(value);
 					return parse(value);
@@ -85,16 +62,28 @@ const postgresClient = (props) => {
 			} }
 		});
 		for (const field of result.fields) {
-			if (!(require_statement.SUPPORTED_TYPES.has(field.dataTypeID) || field.dataTypeID >= 16384 && await isReturnedOwnType(field.dataTypeID))) throw createError("0A000", `The Data API can't return the type of column "${field.name}". Cast it to text in the query, like ${field.name}::text.`);
-			if (result.rows.some((row) => Array.isArray(row[field.name]) && row[field.name].some(Array.isArray))) throw createError("0A000", `The Data API can't return column "${field.name}": an array with more than one dimension. Return it as jsonb.`);
+			if (!(require_statement.SUPPORTED_TYPES.has(field.dataTypeID) || field.dataTypeID >= 16384 && await isReturnedOwnType(field.dataTypeID))) throw require_statement.createError("0A000", `The Data API can't return the type of column "${field.name}". Cast it to text in the query, like ${field.name}::text.`);
+			if (result.rows.some((row) => Array.isArray(row[field.name]) && row[field.name].some(Array.isArray))) throw require_statement.createError("0A000", `The Data API can't return column "${field.name}": an array with more than one dimension. Return it as jsonb.`);
 		}
-		if (bytes > 1048576) throw createError("54000", `The result is ${bytes} bytes, over the ${require_statement.MAX_RESULT_BYTES} the Data API returns. Read it in parts, with a LIMIT.`);
+		if (bytes > 1048576) throw require_statement.createError("54000", `The result is ${bytes} bytes, over the ${require_statement.MAX_RESULT_BYTES} the Data API returns. Read it in parts, with a LIMIT.`);
 		return result;
+	};
+	const run = async (on, sql, params) => {
+		const values = require_statement.prepareParams(params);
+		const result = props.strict ? await queryStrictly(on, sql, values) : await on.query({
+			text: sql,
+			values,
+			types: require_statement.valueTypes
+		});
+		const last = Array.isArray(result) ? result.at(-1) : result;
+		return {
+			rows: last?.rows ?? [],
+			affected: last?.rowCount ?? 0
+		};
 	};
 	const client = {
 		async query(sql, params) {
-			const result = props.strict ? await queryStrictly(sql, params) : await getPool().query(sql, params);
-			return (Array.isArray(result) ? result.at(-1)?.rows : result.rows) ?? [];
+			return (await run(getPool(), sql, params)).rows;
 		},
 		async close() {
 			const current = pool;
@@ -102,12 +91,16 @@ const postgresClient = (props) => {
 			await current?.end();
 		}
 	};
-	registerTransaction(client, async (run) => {
+	require_statement.registerExecute(client, (sql, params) => run(getPool(), sql, params));
+	require_statement.registerTransaction(client, async (work) => {
 		const connection = await getPool().connect();
 		let broken = false;
 		try {
 			await connection.query("BEGIN");
-			const result = await run({ query: async (sql) => (await connection.query(sql)).rows });
+			const result = await work({
+				query: async (sql) => (await connection.query(sql)).rows,
+				execute: (sql, params) => run(connection, sql, params)
+			});
 			await connection.query("COMMIT");
 			return result;
 		} catch (error) {
@@ -144,16 +137,16 @@ const afterRunning = async (call, deadline) => {
 const toPostgresError = (error) => {
 	const name = nameOf(error);
 	const message = messageOf(error);
-	if (name === "StatementTimeoutException") return createError("57014", "canceling statement due to statement timeout");
-	if (name === "UnsupportedResultException") return createError("0A000", `The Data API can't return the type of one of the columns. Cast it to text in the query, like days::text. (${message})`);
-	if (/exceeded size limit|response.*too large/i.test(message)) return createError("54000", `The result is over the ${require_statement.MAX_RESULT_BYTES} bytes the Data API returns. Read it in parts, with a LIMIT. (${message})`);
+	if (name === "StatementTimeoutException") return require_statement.createError("57014", "canceling statement due to statement timeout");
+	if (name === "UnsupportedResultException") return require_statement.createError("0A000", `The Data API can't return the type of one of the columns. Cast it to text in the query, like days::text. (${message})`);
+	if (/exceeded size limit|response.*too large/i.test(message)) return require_statement.createError("54000", `The result is over the ${require_statement.MAX_RESULT_BYTES} bytes the Data API returns. Read it in parts, with a LIMIT. (${message})`);
 	const state = /SQLState: ([0-9A-Z]{5})/.exec(message)?.[1];
 	if (!state) return error;
 	const [first = "", ...rest] = message.replace(/;?\s*SQLState: [0-9A-Z]{5}\s*$/, "").split("\n");
 	const field = (label) => {
 		return rest.find((line) => line.trim().startsWith(`${label}:`))?.trim().slice(label.length + 1).trim();
 	};
-	return createError(state, first.replace(/^ERROR:\s*/, ""), {
+	return require_statement.createError(state, first.replace(/^ERROR:\s*/, ""), {
 		detail: field("Detail"),
 		hint: field("Hint"),
 		position: field("Position"),
@@ -175,7 +168,7 @@ const postgresDataClient = (props) => {
 				return await call();
 			} catch (error) {
 				if (nameOf(error) !== "DatabaseResumingException") throw error;
-				if (Date.now() > deadline) throw createError("57P03", `Postgres was paused and is still resuming after ${Math.round(resumeTimeout / 1e3)} seconds. Try again in a moment.`);
+				if (Date.now() > deadline) throw require_statement.createError("57P03", `Postgres was paused and is still resuming after ${Math.round(resumeTimeout / 1e3)} seconds. Try again in a moment.`);
 			}
 			await sleep(Math.min(3e3, 500 * attempt));
 		}
@@ -210,14 +203,23 @@ const postgresDataClient = (props) => {
 			throw toPostgresError(error);
 		}
 	};
+	const run = async (sql, params, transaction) => {
+		const rendered = require_statement.renderQuery(sql, params);
+		const response = await execute(rendered.sql, rendered.parameters, transaction);
+		const affected = response.numberOfRecordsUpdated ?? 0;
+		return {
+			rows: require_statement.decodeRecords(response),
+			affected
+		};
+	};
 	const client = {
 		async query(sql, params) {
-			const rendered = require_statement.renderQuery(sql, params);
-			return require_statement.decodeRecords(await execute(rendered.sql, rendered.parameters));
+			return (await run(sql, params)).rows;
 		},
 		async close() {}
 	};
-	registerTransaction(client, async (run) => {
+	require_statement.registerExecute(client, (sql, params) => run(sql, params));
+	require_statement.registerTransaction(client, async (work) => {
 		const { transactionId } = await whileResuming(() => api.send(new _aws_sdk_client_rds_data.BeginTransactionCommand(target)));
 		const transaction = {
 			id: transactionId,
@@ -229,7 +231,10 @@ const postgresDataClient = (props) => {
 			transactionId
 		};
 		try {
-			const result = await run({ query: async (sql) => require_statement.decodeRecords(await execute(sql, [], transaction)) });
+			const result = await work({
+				query: async (sql) => require_statement.decodeRecords(await execute(sql, [], transaction)),
+				execute: (sql, params) => run(sql, params, transaction)
+			});
 			await afterRunning(() => api.send(new _aws_sdk_client_rds_data.CommitTransactionCommand(end)), transaction.deadline).catch((error) => {
 				throw toPostgresError(error);
 			});
@@ -256,7 +261,8 @@ const double = () => valueType("double precision");
 const boolean = () => valueType("boolean");
 const date = () => valueType("date");
 const timestamp = () => valueType("timestamptz");
-const jsonb = () => valueType("jsonb", (value) => JSON.stringify(value));
+const numeric = () => valueType("numeric");
+const jsonb = () => valueType("jsonb", (value) => (0, _awsless_json.stringify)(value));
 const array = (item) => valueType(`${item.sql}[]`);
 const nullable = (type) => ({
 	...type,
@@ -321,6 +327,7 @@ const postgres = {
 		text,
 		integer,
 		double,
+		numeric,
 		boolean,
 		date,
 		timestamp,
@@ -331,6 +338,83 @@ const postgres = {
 		table,
 		nothing
 	}
+};
+//#endregion
+//#region src/query-builder.ts
+const ROLLED_BACK = Symbol("rolled back");
+var Connection = class {
+	props;
+	transaction;
+	constructor(props) {
+		this.props = props;
+	}
+	async executeQuery(query) {
+		const wrap = this.props.wrap ?? ((run) => run());
+		const params = [...query.parameters];
+		const { rows, affected } = await wrap(async () => {
+			return this.transaction ? this.transaction.session.execute(query.sql, params) : require_statement.execute(await this.props.client(), query.sql, params);
+		});
+		return {
+			rows,
+			numAffectedRows: BigInt(affected)
+		};
+	}
+	streamQuery() {
+		throw new Error("Postgres results can't be streamed: the Data API returns a result whole. Read it in parts, with a limit.");
+	}
+	async begin() {
+		const client = await this.props.client();
+		this.transaction = await new Promise((resolve, reject) => {
+			const done = require_statement.transact(client, (session) => {
+				return new Promise((commit, rollback) => {
+					resolve({
+						session,
+						commit,
+						rollback,
+						done
+					});
+				});
+			});
+			done.catch(reject);
+		});
+	}
+	async commit() {
+		const transaction = this.transaction;
+		this.transaction = void 0;
+		transaction.commit();
+		await transaction.done;
+	}
+	async rollback() {
+		const transaction = this.transaction;
+		this.transaction = void 0;
+		transaction?.rollback(ROLLED_BACK);
+		await transaction?.done.catch((error) => {
+			if (error !== ROLLED_BACK) throw error;
+		});
+	}
+};
+const createDriver = (props) => ({
+	async init() {},
+	async acquireConnection() {
+		return new Connection(props);
+	},
+	beginTransaction: (connection) => connection.begin(),
+	commitTransaction: (connection) => connection.commit(),
+	rollbackTransaction: (connection) => connection.rollback(),
+	async releaseConnection() {},
+	async destroy() {}
+});
+/**
+* A typed query builder on a Postgres client. Every statement goes through
+* the client, so it runs the same over a connection and through the Data API.
+*/
+const postgresQueryBuilder = (props) => {
+	return new kysely.Kysely({ dialect: {
+		createAdapter: () => new kysely.PostgresAdapter(),
+		createDriver: () => createDriver(props),
+		createIntrospector: (db) => new kysely.PostgresIntrospector(db),
+		createQueryCompiler: () => new kysely.PostgresQueryCompiler()
+	} });
 };
 //#endregion
 //#region src/table.ts
@@ -373,7 +457,7 @@ const declareTable = (table) => {
 };
 const isSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const typeText = (type) => type.replace(/\s+/g, " ").toLowerCase();
-const quote = (name) => `"${assertIdentifier(name)}"`;
+const quote = (name) => `"${require_statement.assertIdentifier(name)}"`;
 const quoteString = (value) => `'${value.replaceAll("'", "''")}'`;
 const columnList = (columns) => columns.map(quote).join(", ");
 const indexName = (table, index) => `${table}_${index}`;
@@ -504,15 +588,15 @@ const applyTables = async (session, schema, tables, options) => {
 			await run(name, alterDeclaredTable(name, prior, next));
 		} catch (error) {
 			if (!options.recreate || !(error instanceof TableChangeError)) throw error;
-			await run(name, [`DROP TABLE "${assertIdentifier(name)}" CASCADE`, ...createTableStatements(name, next)]);
+			await run(name, [`DROP TABLE "${require_statement.assertIdentifier(name)}" CASCADE`, ...createTableStatements(name, next)]);
 		}
 	}
-	for (const [name, comment] of live) if (!Object.hasOwn(tables, name) && !options.retain && parseTableComment(comment)) await run(name, [`DROP TABLE "${assertIdentifier(name)}" CASCADE`]);
+	for (const [name, comment] of live) if (!Object.hasOwn(tables, name) && !options.retain && parseTableComment(comment)) await run(name, [`DROP TABLE "${require_statement.assertIdentifier(name)}" CASCADE`]);
 };
 const APPLY_LOCK_TIMEOUT = "10s";
 const applySchema = (client, definition, options = {}) => {
-	return transact(client, async (session) => {
-		const schema = assertIdentifier(definition.schema);
+	return require_statement.transact(client, async (session) => {
+		const schema = require_statement.assertIdentifier(definition.schema);
 		await session.query(`SELECT pg_advisory_xact_lock(hashtext('awsless.schema.${schema}'))::text`);
 		if (options.reset) await session.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
 		await session.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
@@ -531,8 +615,16 @@ exports.PostgresError = pg.DatabaseError;
 exports.TableChangeError = TableChangeError;
 exports.alterTableStatements = alterTableStatements;
 exports.applySchema = applySchema;
-exports.getSqlState = getSqlState;
+exports.declareTable = declareTable;
+exports.getSqlState = require_statement.getSqlState;
 exports.isPostgresFunction = isPostgresFunction;
 exports.postgres = postgres;
 exports.postgresClient = postgresClient;
 exports.postgresDataClient = postgresDataClient;
+exports.postgresQueryBuilder = postgresQueryBuilder;
+Object.defineProperty(exports, "sql", {
+	enumerable: true,
+	get: function() {
+		return kysely.sql;
+	}
+});

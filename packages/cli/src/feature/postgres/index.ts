@@ -1,7 +1,7 @@
 import { toDays, toSeconds } from '@awsless/duration'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
-import { getPostgresSchemaName } from 'awsless'
+import { getPostgresDatabaseName, getPostgresSchemaName } from 'awsless'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { PostgresSchemaResource } from '../../formation/postgres.js'
@@ -9,14 +9,24 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { postgresOnDev } from './dev.js'
-import { readFunctionFiles, RESERVED_DATABASES } from './util.js'
+import { formatTableType } from './types.js'
+import { isReservedSchema, readFunctionFiles, RESERVED_DATABASES } from './util.js'
 
 const typeGenCode = `
-type PostgresDatabase = {
-	readonly schema: string
-	readonly query: <Row = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<Row[]>
-}
+type PostgresColumn<Select, Insert = Select, Update = Insert> = import('awsless').PostgresColumn<Select, Insert, Update>
+type PostgresGenerated<Value> = import('awsless').PostgresGenerated<Value>
+type PostgresGeneratedAlways<Value> = import('awsless').PostgresGeneratedAlways<Value>
+type PostgresNumeric = import('awsless').PostgresNumeric
 `
+
+// The schema of every stack with tables, in the order unqualified names
+// resolve in.
+const getSchemas = (stackConfigs: { name: string; postgres?: unknown }[]) => {
+	return stackConfigs
+		.filter(stack => stack.postgres)
+		.map(stack => getPostgresSchemaName(stack.name))
+		.toSorted()
+}
 
 // The Aurora PostgreSQL version of an app that names none. The newest 18
 // that Aurora lists, the major version the local Postgres runs. From 18.3
@@ -29,28 +39,42 @@ export const postgresFeature = defineFeature({
 	onDev: postgresOnDev,
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('awsless')
-		const resources = new TypeObject(1)
+		const tables = new TypeObject(1)
 
+		// A table by the name it has in sql: `stack.table`.
 		for (const stack of ctx.stackConfigs) {
-			if (stack.postgres) {
-				resources.addType(stack.name, 'PostgresDatabase')
+			for (const [name, table] of Object.entries(stack.postgres?.tables ?? {})) {
+				tables.addKey(`${getPostgresSchemaName(stack.name)}.${name}`, formatTableType(table, '\t\t'))
 			}
 		}
 
 		gen.addCode(typeGenCode)
-		gen.addInterface('PostgresResources', resources)
+		gen.addInterface('PostgresTables', tables)
 
 		await ctx.write('postgres.d.ts', gen, true)
 	},
 	onValidate(ctx) {
-		for (const stack of ctx.stackConfigs) {
-			const database = getPostgresSchemaName(stack.name)
+		const database = getPostgresDatabaseName(ctx.appConfig.name)
 
-			// Deployed, the stack's schema lives in a database of this name.
-			if (stack.postgres && RESERVED_DATABASES.includes(database)) {
+		for (const stack of ctx.stackConfigs) {
+			if (!stack.postgres) {
+				continue
+			}
+
+			const schema = getPostgresSchemaName(stack.name)
+
+			if (isReservedSchema(schema)) {
 				throw new FileError(
 					stack.file,
-					`A stack called "${stack.name}" can't have Postgres tables: its database would be "${database}", which Postgres keeps for itself. Give the stack another name.`
+					`A stack called "${stack.name}" can't have Postgres tables: its schema would be "${schema}", which Postgres keeps for itself. Give the stack another name.`
+				)
+			}
+
+			// The app's database is named after the app.
+			if (RESERVED_DATABASES.includes(database)) {
+				throw new FileError(
+					stack.file,
+					`An app called "${ctx.appConfig.name}" can't have Postgres tables: its database would be "${database}", which Postgres keeps for itself. Give the app another name.`
 				)
 			}
 		}
@@ -163,11 +187,18 @@ export const postgresFeature = defineFeature({
 
 		ctx.addEnv('POSTGRES_CLUSTER_ARN', clusterArn)
 		ctx.addEnv('POSTGRES_SECRET_ARN', secretArn)
+		ctx.addEnv('POSTGRES_DATABASE', getPostgresDatabaseName(ctx.app.name))
 
 		// A query is one ExecuteStatement call, which logs in with the secret
 		// on behalf of the function.
+		// The transaction calls are for the query builder's transactions.
 		ctx.addPermission({
-			actions: ['rds-data:ExecuteStatement'],
+			actions: [
+				'rds-data:ExecuteStatement',
+				'rds-data:BeginTransaction',
+				'rds-data:CommitTransaction',
+				'rds-data:RollbackTransaction',
+			],
 			resources: [clusterArn],
 		})
 
@@ -202,16 +233,17 @@ export const postgresFeature = defineFeature({
 			{
 				clusterArn: ctx.shared.get('postgres', 'cluster-arn'),
 				secretArn: ctx.shared.get('postgres', 'secret-arn'),
-				// A database per stack, named like its schema: see the provider.
-				database: schema,
+				// The app's one database, with a schema per stack in it.
+				database: getPostgresDatabaseName(ctx.app.name),
 				schema,
+				searchPath: getSchemas(ctx.stackConfigs).join(','),
 				tables: JSON.stringify(props.tables),
 				functions: JSON.stringify(readFunctionFiles(ctx.stackConfig)),
 				retain: retainOnDelete,
 			},
 			{
 				retainOnDelete,
-				replaceOnChanges: ['database', 'schema'],
+				replaceOnChanges: ['schema'],
 			}
 		)
 	},

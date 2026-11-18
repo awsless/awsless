@@ -9,7 +9,7 @@ import { setRoot } from '../src/util/path'
 // The whole path of `awsless test` for the example app, short of spawning
 // vitest: its config loaded, the manifest made, the run-wide server booted
 // and this file set up the way the cli sets up every test file.
-const options = { configFile: join(import.meta.dirname, '../example/postgres/app.jsonc') }
+const options = { configFile: join(import.meta.dirname, './fixture/postgres/app.jsonc') }
 const appConfig = await loadAppConfig(options)
 const stackConfigs = await loadStackConfigs(options)
 
@@ -59,14 +59,18 @@ describe('postgres test environment', () => {
 		setRoot()
 	})
 
-	it('creates the declared tables of the stack in a schema for this test file', async () => {
-		expect(postgres.counter.schema).toBe('app_postgres_tfile01__counter')
-		expect(await postgres.counter.query('SELECT * FROM counters')).toEqual([])
-		expect(await postgres.counter.query('SELECT * FROM bumps')).toEqual([])
+	it('creates a database for this test file, with the declared tables in the schema of their stack', async () => {
+		expect(await postgres.query('SELECT current_database()::text AS database')).toEqual([
+			{ database: 'app_postgres_tfile01' },
+		])
 
-		const admin = postgresClient({ url })
+		// A table by its stack, and without it: the search path holds every stack.
+		expect(await postgres.query('SELECT * FROM counter.counters')).toEqual([])
+		expect(await postgres.query('SELECT * FROM bumps')).toEqual([])
+
+		const admin = postgresClient({ url: url.replace(/\/postgres$/, '/app_postgres_tfile01') })
 		const partitions = await admin.query(
-			"SELECT count(*)::int AS partitions FROM pg_tables WHERE schemaname = 'app_postgres_tfile01__counter' AND tablename LIKE 'bumps_p_'"
+			"SELECT count(*)::int AS partitions FROM pg_tables WHERE schemaname = 'counter' AND tablename LIKE 'bumps_p_'"
 		)
 
 		await admin.close()
@@ -77,18 +81,34 @@ describe('postgres test environment', () => {
 	it('runs the stack handler against its PL/pgSQL function', async () => {
 		expect(await fn.counter.bump({ name: 'visits' })).toBe(1)
 		expect(await fn.counter.bump({ name: 'visits' })).toBe(2)
-		expect(await postgres.counter.query('SELECT name, value::int FROM counters')).toEqual([
-			{ name: 'visits', value: 2 },
-		])
-		expect(await postgres.counter.query('SELECT id::int, name, amount::int, note FROM bumps ORDER BY id')).toEqual([
+		expect(await postgres.query('SELECT name, value::int FROM counters')).toEqual([{ name: 'visits', value: 2 }])
+		expect(await postgres.query('SELECT id::int, name, amount::int, note FROM bumps ORDER BY id')).toEqual([
 			{ id: 1, name: 'visits', amount: 1, note: null },
 			{ id: 2, name: 'visits', amount: 1, note: null },
 		])
 	})
 
+	it('runs typed queries of the query builder, in a transaction too', async () => {
+		const db = postgres.db
+
+		await db.insertInto('counter.counters').values({ name: 'typed', value: 5 }).execute()
+		await db.transaction().execute(async (transaction: typeof db) => {
+			await transaction.updateTable('counter.counters').set({ value: 6 }).where('name', '=', 'typed').execute()
+		})
+
+		// A bigint comes back as text, like from a query.
+		expect(
+			await db.selectFrom('counter.counters').select(['name', 'value']).where('name', '=', 'typed').execute()
+		).toEqual([{ name: 'typed', value: '6' }])
+
+		const deleted = await db.deleteFrom('counter.counters').where('name', '=', 'typed').executeTakeFirst()
+
+		expect(deleted.numDeletedRows).toBe(1n)
+	})
+
 	it('refuses what the Data API of a deployed stack would refuse', async () => {
-		await expect(postgres.counter.query('SELECT 1; SELECT 2')).rejects.toThrow('A query is one statement')
-		await expect(postgres.counter.query('SELECT pg_sleep(0)')).rejects.toThrow(
+		await expect(postgres.query('SELECT 1; SELECT 2')).rejects.toThrow('A query is one statement')
+		await expect(postgres.query('SELECT pg_sleep(0)')).rejects.toThrow(
 			'The Data API can\'t return the type of column "pg_sleep". Cast it to text in the query, like pg_sleep::text.'
 		)
 	})
@@ -97,7 +117,7 @@ describe('postgres test environment', () => {
 		const rows: [{ pid: number }][] = await Promise.all(
 			Array.from({ length: 8 }, () => {
 				// pg_sleep answers nothing (void), which a query has to hand back as text.
-				return postgres.counter.query('SELECT pg_backend_pid() AS pid, pg_sleep(0.05)::text')
+				return postgres.query('SELECT pg_backend_pid() AS pid, pg_sleep(0.05)::text')
 			})
 		)
 		const connections = new Set(rows.map(([row]) => row.pid)).size
@@ -107,31 +127,25 @@ describe('postgres test environment', () => {
 	})
 
 	it('passes the SQLSTATE of a failed query on', async () => {
-		const error = await postgres.counter
-			.query("INSERT INTO counters VALUES ('visits', 1)")
-			.catch((error: unknown) => error)
+		const error = await postgres.query("INSERT INTO counters VALUES ('visits', 1)").catch((error: unknown) => error)
 
 		expect(getSqlState(error)).toBe('23505')
 	})
 
-	it('gives the next test file a schema of its own, empty again', async () => {
+	it('gives the next test file a database of its own, empty again', async () => {
 		process.env.APP = `${manifest.app}-tfile02`
 
 		await setupTestEnv(manifest, { importFile: file => import(/* @vite-ignore */ file) })
 
-		expect(postgres.counter.schema).toBe('app_postgres_tfile02__counter')
-		expect(await postgres.counter.query('SELECT * FROM counters')).toEqual([])
+		expect(await postgres.query('SELECT * FROM counter.counters')).toEqual([])
 
 		const admin = postgresClient({ url })
-		const schemas = await admin.query<{ name: string }>(
-			"SELECT nspname AS name FROM pg_namespace WHERE nspname LIKE 'app_postgres_%' ORDER BY nspname"
+		const databases = await admin.query<{ name: string }>(
+			"SELECT datname::text AS name FROM pg_database WHERE datname LIKE 'app_postgres_%' ORDER BY datname"
 		)
 
 		await admin.close()
 
-		expect(schemas.map(schema => schema.name)).toEqual([
-			'app_postgres_tfile01__counter',
-			'app_postgres_tfile02__counter',
-		])
+		expect(databases.map(database => database.name)).toEqual(['app_postgres_tfile01', 'app_postgres_tfile02'])
 	})
 })

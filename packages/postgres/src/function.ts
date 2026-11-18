@@ -1,3 +1,5 @@
+import type { BigFloat } from '@awsless/big-float'
+import { stringify } from '@awsless/json'
 import type { PostgresClient } from './transport'
 
 // A function of a stack's schema, defined next to the code that calls it:
@@ -41,8 +43,10 @@ const boolean = () => valueType<boolean>('boolean')
 // A day, as `YYYY-MM-DD`.
 const date = () => valueType<string>('date')
 const timestamp = () => valueType<Date>('timestamptz')
+// Every digit kept: a BigFloat.
+const numeric = () => valueType<BigFloat>('numeric')
 // Sent as json text: pg would turn an array into a Postgres array.
-const jsonb = <T = unknown>() => valueType<T>('jsonb', value => JSON.stringify(value))
+const jsonb = <T = unknown>() => valueType<T>('jsonb', value => stringify(value))
 const array = <T>(item: PostgresType<T>) => valueType<T[]>(`${item.sql}[]`)
 const nullable = <T>(type: PostgresType<T>): PostgresType<T | null> => ({
 	...type,
@@ -164,5 +168,20 @@ export const isPostgresFunction = (value: unknown): value is PostgresFunction =>
 
 export const postgres = {
 	function: { define },
-	type: { uuid, text, integer, double, boolean, date, timestamp, jsonb, array, nullable, custom, table, nothing },
+	type: {
+		uuid,
+		text,
+		integer,
+		double,
+		numeric,
+		boolean,
+		date,
+		timestamp,
+		jsonb,
+		array,
+		nullable,
+		custom,
+		table,
+		nothing,
+	},
 }
