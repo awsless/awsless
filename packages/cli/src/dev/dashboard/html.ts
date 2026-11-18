@@ -361,6 +361,15 @@ a.row { text-decoration: none; }
    parent-child steps of the chain. */
 .trace-tree { max-height: none; }
 .trace-tree .entry .guide { color: var(--muted); flex-shrink: 0; }
+/* A span the runtime traced inside a dispatch, like a DynamoDB query:
+   one compact line with a bar placing it on the trace's timeline. */
+.trace-tree .span { padding-top: 2px; padding-bottom: 2px; }
+.trace-tree .span .name { word-break: break-all; }
+.trace-tree .span .kind { color: var(--muted); flex-shrink: 0; }
+.trace-tree .span.error .name { color: var(--bad); }
+.trace-tree .bar { position: relative; height: 3px; margin-top: 3px; background: var(--hover); border-radius: 2px; }
+.trace-tree .bar span { position: absolute; top: 0; bottom: 0; min-width: 2px; background: var(--accent); border-radius: 2px; }
+.trace-tree .span.error .bar span { background: var(--bad); }
 .row.problem .id { color: var(--bad); }
 .empty.good { color: var(--good); }
 .row .stack {
@@ -2094,6 +2103,11 @@ const renderHome = main => {
 	// so a chain's early spans stay renderable after the feed pruned them.
 	const activityData = []
 	const traceCounts = new Map()
+	const spanData = []
+
+	// A trace earns its chip with a second dispatch or any span inside one.
+	const isTraced = traceId =>
+		traceCounts.get(traceId) > 1 || spanData.some(span => span.trace === traceId)
 
 	const closeTrace = () => {
 		document.querySelector('.overlay')?.remove()
@@ -2106,25 +2120,65 @@ const renderHome = main => {
 		closeTrace()
 
 		const entries = activityData.filter(entry => entry.trace === traceId)
+		const spans = spanData.filter(span => span.trace === traceId)
 
 		if (entries.length === 0) {
 			return
 		}
 
-		const started = Math.min(...entries.map(entry => entry.date))
-		const ended = Math.max(...entries.map(entry => entry.date + entry.ms))
+		const started = Math.min(...entries.map(entry => entry.date), ...spans.map(span => span.start))
+		const ended = Math.max(...entries.map(entry => entry.date + entry.ms), ...spans.map(span => span.start + span.ms))
+		const total = Math.max(ended - started, 1)
 		const failed = entries.some(entry => !entry.ok)
 
 		const tree = $('div', { className: 'logs trace-tree' })
-		const spans = new Set(entries.map(entry => entry.span))
+		const dispatchSpans = new Set(entries.map(entry => entry.span))
 
-		// A span whose parent already fell out of the buffer renders as
+		// A dispatch whose parent already fell out of the buffer renders as
 		// its own root instead of vanishing.
-		const roots = entries.filter(entry => !entry.parent || !spans.has(entry.parent))
+		const roots = entries.filter(entry => !entry.parent || !dispatchSpans.has(entry.parent))
 
-		const renderSpan = (entry, depth) => {
+		const guideFor = depth => {
 			const guide = $('span', { className: 'guide' }, '└')
 			guide.style.paddingLeft = ((depth - 1) * 18) + 'px'
+			return guide
+		}
+
+		const renderTraced = (span, depth) => {
+			const bar = $('span')
+			bar.style.left = ((span.start - started) / total * 100) + '%'
+			bar.style.width = (span.ms / total * 100) + '%'
+
+			const kind = [span.namespace, span.operation, span.status, span.errorType].filter(Boolean).join(' · ')
+
+			tree.append($('div', { className: 'entry span' + (span.ok ? '' : ' error') }, [
+				$('div', { className: 'meta' }, [
+					guideFor(depth),
+					$('span', { className: 'name' }, span.name),
+					kind ? $('span', { className: 'kind' }, kind) : '',
+					$('span', { className: 'took' }, (span.ok ? '' : '✗ ') + span.ms + 'ms'),
+				]),
+				$('div', { className: 'bar' }, bar),
+			]))
+
+			renderChildren(span.id, depth + 1)
+		}
+
+		// A parent's spans and the dispatches it caused, in the order they started.
+		const renderChildren = (parent, depth) => {
+			const children = [
+				...spans.filter(span => span.parent === parent).map(span => ({ at: span.start, span })),
+				...entries.filter(entry => entry.parent === parent).map(entry => ({ at: entry.date, entry })),
+			].sort((a, b) => a.at - b.at)
+
+			for (const child of children) {
+				if (child.span) renderTraced(child.span, depth)
+				else renderSpan(child.entry, depth)
+			}
+		}
+
+		const renderSpan = (entry, depth) => {
+			const guide = guideFor(depth)
 
 			tree.append($('div', { className: 'entry' + (entry.ok ? '' : ' error') }, [
 				$('div', { className: 'meta' }, [
@@ -2137,9 +2191,7 @@ const renderHome = main => {
 				entry.payload ? $('div', { className: 'payload' }, entry.payload) : '',
 			]))
 
-			for (const child of entries.filter(other => other.parent === entry.span)) {
-				renderSpan(child, depth + 1)
-			}
+			renderChildren(entry.span, depth + 1)
 		}
 
 		for (const root of roots) {
@@ -2151,7 +2203,7 @@ const renderHome = main => {
 			$('div', { className: 'modal-head' }, [
 				$('h3', {}, 'Trace ' + traceId),
 				$('span', { className: 'detail' },
-					entries.length + ' spans · ' + (ended - started) + 'ms' + (failed ? ' · failed' : '')),
+					entries.length + ' dispatches · ' + spans.length + ' spans · ' + (ended - started) + 'ms' + (failed ? ' · failed' : '')),
 				close,
 			]),
 			tree,
@@ -2171,8 +2223,8 @@ const renderHome = main => {
 		return chip
 	}
 
-	// A lone dispatch shows no chip - once a second span of its trace
-	// arrives, every entry of the chain gets one, retroactively.
+	// A lone dispatch without spans shows no chip - once its trace has more
+	// to show, every entry of the chain gets one, retroactively.
 	const markTraced = traceId => {
 		for (const entry of activityFeed.querySelectorAll('[data-trace="' + traceId + '"]')) {
 			if (!entry.querySelector('.trace-link')) {
@@ -2210,7 +2262,7 @@ const renderHome = main => {
 
 		activityFeed.append(row)
 
-		if (data.trace && traceCounts.get(data.trace) > 1) {
+		if (data.trace && isTraced(data.trace)) {
 			markTraced(data.trace)
 		}
 
@@ -2222,6 +2274,16 @@ const renderHome = main => {
 	}
 
 	const unsubActivity = events('activity', activityRow)
+
+	const unsubSpans = events('spans', span => {
+		spanData.push(span)
+
+		while (spanData.length > 2000) {
+			spanData.shift()
+		}
+
+		markTraced(span.trace)
+	})
 
 	// ----------------------------------------------------------------
 	// Logs: the handlers' own console output, live - the full feed
@@ -2235,6 +2297,7 @@ const renderHome = main => {
 		unsubHealth()
 		unsubProblems()
 		unsubActivity()
+		unsubSpans()
 		logsFeed?.()
 	}
 }

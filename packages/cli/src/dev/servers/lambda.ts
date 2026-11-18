@@ -1,5 +1,6 @@
 import { createServer, Server } from 'http'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
+import { DevSandbox, SANDBOX_HEADER } from '../sandbox.js'
 import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
 import { WorkerError } from '../worker.js'
 
@@ -11,11 +12,17 @@ export const createLambdaServer = (props: { functionName: string }) => {
 	let closeServer: (() => Promise<void>) | undefined
 	let dispatch: DevDispatch | undefined
 	let reportFailure: DevReportFailure | undefined
+	let sandboxes: Record<string, DevSandbox> = {}
 
 	return {
-		connect(dispatchFn: DevDispatch, reportFailureFn?: DevReportFailure) {
+		connect(
+			dispatchFn: DevDispatch,
+			reportFailureFn?: DevReportFailure,
+			sandboxesByRoute: Record<string, DevSandbox> = {}
+		) {
 			dispatch = dispatchFn
 			reportFailure = reportFailureFn
+			sandboxes = sandboxesByRoute
 		},
 		// Binds immediately on a free port & returns the actual port, so
 		// a stale reserved port can never end up in the environment.
@@ -58,6 +65,25 @@ export const createLambdaServer = (props: { functionName: string }) => {
 						const type = String(req.headers['x-amz-invocation-type'] ?? 'RequestResponse')
 						const event = JSON.parse(body.toString() || '{}')
 						const trace = parseTraceHeader(req.headers[TRACE_HEADER])
+
+						// The sandbox proxy's answer to a route off the caller's allowlist.
+						const sandbox = sandboxes[String(req.headers[SANDBOX_HEADER])]
+						const route = String((event as { '$awsless-route'?: unknown })?.['$awsless-route'])
+
+						if (sandbox && !sandbox.routes.includes(route)) {
+							res.writeHead(200, {
+								'content-type': 'application/json',
+								'x-amz-function-error': 'Unhandled',
+							})
+							res.end(
+								JSON.stringify({
+									errorType: 'Error',
+									errorMessage: `Sandboxed route is not allowed: ${route}`,
+									trace: [],
+								})
+							)
+							return
+						}
 
 						if (type === 'Event') {
 							res.writeHead(202, { 'content-type': 'application/json' })

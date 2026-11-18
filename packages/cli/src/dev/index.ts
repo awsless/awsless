@@ -21,10 +21,12 @@ import { createFailureReporter } from './failure.js'
 import { ServerPool } from './pool.js'
 import { createDataReset } from './reset.js'
 import { startDevRouter } from './router.js'
+import { createDevSandboxes } from './sandbox.js'
 import { linkSdkPackages } from './sdk.js'
 import { createSeedRunner } from './seed.js'
 import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
+import { createXRayServer, toXRayHeader } from './servers/xray.js'
 import {
 	formatTraceHeader,
 	IGNORED_DIRECTORIES,
@@ -466,9 +468,22 @@ export const startDev = async (props: {
 	// fail on an empty pool - reporting that says nothing.
 	let stopping = false
 
+	// The runtime's spans land here, so the trace view shows what a
+	// dispatch did inside, like its DynamoDB queries and fetches.
+	// What each sandboxed function may reach, enforced like after a deploy.
+	const sandboxes = createDevSandboxes(stackConfigs)
+
+	const xray = createXRayServer({ onSpan: span => dev.events.emit('spans', span) })
+	const xrayPort = await xray.listen()
+
 	const worker = createBundleWorker({
 		buildDir,
-		env,
+		env: {
+			...env,
+			AWSLESS_DEV_SANDBOX: JSON.stringify(sandboxes),
+			AWSLESS_TRACING: 'true',
+			AWS_XRAY_DAEMON_ADDRESS: `127.0.0.1:${xrayPort}`,
+		},
 		functionName: eventFunctionName,
 		quiet: () => seeding,
 		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
@@ -570,7 +585,7 @@ export const startDev = async (props: {
 		}
 
 		try {
-			const result = await worker.dispatch(event, formatTraceHeader(trace))
+			const result = await worker.dispatch(event, formatTraceHeader(trace), toXRayHeader(trace))
 
 			dev.events.emit('activity', {
 				date: started,
@@ -636,7 +651,7 @@ export const startDev = async (props: {
 	// so the worker module init can talk to them right away. Their
 	// dispatch only fires in reaction to traffic, so the worker is
 	// always up by then.
-	lambda.connect(dispatch, reportFailure)
+	lambda.connect(dispatch, reportFailure, sandboxes)
 
 	await phase(
 		{
@@ -850,6 +865,8 @@ export const startDev = async (props: {
 			for (const server of dev.servers.toReversed()) {
 				await server.stop?.()
 			}
+
+			xray.stop()
 		},
 	}
 }

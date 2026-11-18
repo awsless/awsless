@@ -6,7 +6,7 @@ import { clickhouseClient, define as define$1 } from "@awsless/clickhouse";
 import * as t from "@awsless/dynamodb";
 import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
-import { REDACTED, applyRedaction, array, boolean, custom, date, dynamoDbStream, isoTimestamp, json, literal, object, optional, parse, picklist, pipe, record, redact, redactWith, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
+import { array, boolean, date, dynamoDbStream, isoTimestamp, literal, object, optional, parse, picklist, pipe, record, redact, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
 import { ExpectedError, enhanceError, getContext, invoke, isErrorResponse, isTestEnv, lambda, runInvocation, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
@@ -35,6 +35,14 @@ var __exportAll = (all, no_symbols) => {
 	});
 	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
 	return target;
+};
+//#endregion
+//#region src/lib/server/sandbox.ts
+let sandboxes;
+const getDevSandbox = (routeKey) => {
+	if (!routeKey || !process.env.AWSLESS_DEV_SANDBOX) return;
+	sandboxes ??= JSON.parse(process.env.AWSLESS_DEV_SANDBOX);
+	return sandboxes[routeKey];
 };
 //#endregion
 //#region src/lib/server/util.ts
@@ -128,6 +136,7 @@ const withBundleRouteContext = (routeKey, internalInvoke, callback, options = {}
 const internalInvoke = (routeKey, payload) => {
 	const context = bundleContext.getStore();
 	if (!context) throw new Error("Internal invocations are only available inside the bundle");
+	if (getDevSandbox(context.routeKey)?.routes.includes(routeKey) === false) throw new Error(`Sandboxed route is not allowed: ${routeKey}`);
 	return context.internalInvoke(routeKey, payload);
 };
 let bundleRoutes = [];
@@ -384,69 +393,17 @@ const getViewerIp = (headers) => {
 };
 //#endregion
 //#region src/lib/handle/route.ts
-const SECRET_NAME = /authorization|cookie|token|secret|password|api-?key|signature|session|totp|(^|[-_])(otp|code)$/i;
-const PERSONAL_HEADER = /address|forwarded-for|real-ip|client-ip|connecting-ip|(^|-)ip$|viewer-(latitude|longitude|city|postal-code|metro-code|country-region)/i;
-const PERSONAL_FIELD = /e-?mail|phone|address|street|postal|zip-?code|first-?name|last-?name|full-?name|^name$|vat|birth/i;
-const IP_FIELD = /^ips?$|^ip[A-Z_-]|[a-z]Ips?$|[_-]ips?$/;
-const isSecretHeader = (name) => SECRET_NAME.test(name) || PERSONAL_HEADER.test(name);
-const isSecretField = (name) => SECRET_NAME.test(name) || PERSONAL_FIELD.test(name) || IP_FIELD.test(name);
-const redactHeaders = (headers) => {
-	return headers && Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSecretHeader(name) ? REDACTED : value]));
-};
-const redactBody = (bodySchema, body) => {
-	if (!bodySchema || !body) return;
+const decodeParam = (value) => {
 	try {
-		return JSON.stringify(applyRedaction(bodySchema, JSON.parse(body)));
+		return decodeURIComponent(value);
 	} catch {
-		return REDACTED;
+		return value;
 	}
-};
-const redactQuery = (query) => {
-	const redacted = new URLSearchParams(query);
-	for (const name of new Set(query.keys())) if (isSecretField(name)) redacted.set(name, REDACTED);
-	return redacted.toString();
-};
-const redactPath = (pathname, secretValues) => {
-	const secretSegments = new Set(secretValues.flatMap((value) => [value, encodeURIComponent(value)]));
-	return pathname.split("/").map((segment) => secretSegments.has(segment) ? REDACTED : segment).join("/");
-};
-/** The route's input as an error logs it, without credentials or personal data (exported for its tests). */
-const redactRouteInput = (props) => (input) => {
-	const { request, params, body } = input;
-	const url = new URL(request.url);
-	const secretParams = Object.entries(params).filter(([name]) => isSecretField(name));
-	return {
-		method: request.method,
-		path: redactPath(url.pathname, secretParams.map(([, value]) => value)),
-		query: redactQuery(url.searchParams),
-		headers: redactHeaders(Object.fromEntries(request.headers)),
-		params: {
-			...params,
-			...Object.fromEntries(secretParams.map(([name]) => [name, REDACTED]))
-		},
-		body: redactBody(props.body, body),
-		ip: REDACTED
-	};
-};
-const routeSchema = (props) => {
-	return pipe(object({
-		request: custom((value) => value instanceof Request),
-		params: props.params ?? record(string(), string()),
-		query: props.query ?? record(string(), string()),
-		body: props.body ? json(props.body) : optional(string()),
-		ip: string()
-	}), redactWith(redactRouteInput(props)));
 };
 const getRouteParams = (headers) => {
 	const params = {};
 	headers.forEach((value, name) => {
-		if (name.startsWith("x-param-")) params[name.slice(8)] = (() => {
-			try {
-				return decodeURIComponent(value);
-			} catch {
-				return value;
-			}
-		})();
+		if (name.startsWith("x-param-")) params[name.slice(8)] = decodeParam(value);
 	});
 	return params;
 };
@@ -489,38 +446,23 @@ const finishInvocationAfterBody = (body, runInContext, finishInvocation, toLogge
 		}
 	});
 };
-const createRouteRunner = (props, handle) => {
-	const schema = routeSchema(props);
+const createRouteRunner = (handle) => {
 	return async (call, lambdaContext) => {
 		const { request } = call;
-		const url = new URL(request.url);
 		const input = {
-			request,
-			params: call.params ?? getRouteParams(request.headers),
-			query: getQuery(url),
-			body: props.body ? await request.clone().text() : void 0,
-			ip: call.ip
+			method: request.method,
+			path: new URL(request.url).pathname
 		};
-		const toLoggedError = (error) => enhanceError(error, schema, input, lambdaContext);
-		let runInContext = (callback) => callback();
+		const toLoggedError = (error) => enhanceError(error, void 0, input, lambdaContext);
 		const invocation = await runInvocation({
-			schema,
 			input,
 			raw: call.raw,
 			context: lambdaContext,
-			handle: async (parsed, context) => {
-				const { params, query, body, ip } = parsed;
-				const response = await handle({
-					request,
-					url,
-					params,
-					query,
-					data: body,
-					ip
-				}, context);
-				runInContext = AsyncLocalStorage.snapshot();
-				return response;
-			}
+			handle: (_, context) => handle({
+				request,
+				params: call.params ?? getRouteParams(request.headers),
+				ip: call.ip
+			}, context)
 		});
 		const returnOrThrowError = (error) => {
 			if (error instanceof ExpectedError) return createErrorResponse(toErrorResponse(error).__error__);
@@ -539,15 +481,16 @@ const createRouteRunner = (props, handle) => {
 			}
 			return response;
 		}
-		return new Response(finishInvocationAfterBody(response.body, runInContext, invocation.finishInvocation, toLoggedError), {
+		return new Response(finishInvocationAfterBody(response.body, invocation.runInContext, invocation.finishInvocation, toLoggedError), {
 			status: response.status,
 			statusText: response.statusText,
 			headers: response.headers
 		});
 	};
 };
-function route(arg1, arg2) {
-	const runRoute = createRouteRunner(arg2 ? arg1 : {}, arg2 ?? arg1);
+/** A route handler: a web Request in, a Response out. */
+const route = (handle) => {
+	const runRoute = createRouteRunner(handle);
 	const entry = async (event, context) => {
 		const { request, sourceIp, pathParameters } = toWebRequest(event);
 		const params = pathParameters && Object.keys(pathParameters).length > 0 ? pathParameters : void 0;
@@ -566,11 +509,9 @@ function route(arg1, arg2) {
 			raw: request
 		}, context);
 	} });
-}
-/** A site ssr handler: a route without schemas. */
-const site = (handle) => {
-	return route(handle);
 };
+/** A site ssr handler: a route. */
+const site = route;
 //#endregion
 //#region src/lib/handle/topic.ts
 function subscribe(source, handle) {
@@ -586,7 +527,7 @@ var pubsub_exports = /* @__PURE__ */ __exportAll({
 	subscribed: () => subscribed,
 	unsubscribed: () => unsubscribed
 });
-const authEventSchema$1 = object({ token: optional(pipe(string(), redact())) });
+const authEventSchema$1 = object({ token: optional(string()) });
 const auth$1 = (handle) => {
 	return consumer(authEventSchema$1, handle);
 };
@@ -682,7 +623,6 @@ var handle_exports = /* @__PURE__ */ __exportAll({
 	image: () => image,
 	pubsub: () => pubsub_exports,
 	queue: () => queue,
-	redactRouteInput: () => redactRouteInput,
 	route: () => route,
 	rpc: () => rpc_exports,
 	site: () => site,
@@ -725,7 +665,7 @@ data = {
 };
 const getConfigValue = (name) => {
 	const key = kebabCase(name);
-	const value = data[key];
+	const value = getDevSandbox(getCurrentRoute())?.configs.includes(key) === false ? void 0 : data[key];
 	if (typeof value === "undefined") {
 		if (!isTest() && !process.env.CONFIGS) throw new Error(`The "${name}" config value isn't available: this lambda loads no configs at all - the on-failure & on-error-log consumers run config free, so a broken config can never take down error reporting. Pass the value through a plain environment variable instead.`);
 		throw new Error(`The "${name}" config value hasn't been set yet. ${isTest() ? `Use "mock.config.${name} = 'VALUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`);
@@ -1088,7 +1028,7 @@ const traceClient$1 = (raw) => ({
 		}
 	})
 });
-const getClient = () => {
+const getClient$1 = () => {
 	if (!client) {
 		const parameter = process.env.CLICKHOUSE_PASSWORD_PARAMETER;
 		client = traceClient$1(clickhouseClient({
@@ -1122,11 +1062,25 @@ const ClickHouse = /*@__PURE__*/ createProxy((stack) => {
 					const declared = process.env[`CLICKHOUSE_COLUMNS_${table}`];
 					if (declared) assertMatchingColumns(`${stack}.${name}`, JSON.parse(declared), schema.columns);
 				}
-				return define$1(table, schema, getClient);
+				return define$1(table, schema, getClient$1);
 			}
 		};
 	});
 });
+//#endregion
+//#region src/lib/test/cleanup.ts
+const callbacks = [];
+let hooked = false;
+const registerTestCleanup = (callback) => {
+	callbacks.push(callback);
+};
+const hookTestCleanup = () => {
+	if (hooked || typeof afterAll === "undefined") return;
+	hooked = true;
+	afterAll(async () => {
+		await Promise.all(callbacks.splice(0).map((callback) => callback()));
+	});
+};
 //#endregion
 //#region src/lib/test/schema.ts
 const schemas = /* @__PURE__ */ new Map();
@@ -1164,7 +1118,7 @@ const createClient = (schema) => {
 	throw new Error("Postgres has no database to query. Locally `awsless dev` and `awsless test` set POSTGRES_URL; a deployed function gets POSTGRES_CLUSTER_ARN and POSTGRES_SECRET_ARN when its app has a stack with Postgres tables.");
 };
 const clients = /* @__PURE__ */ new Map();
-const getClient$1 = (schema) => {
+const getClient = (schema) => {
 	let client = clients.get(schema);
 	if (!client) {
 		const created = createClient(schema);
@@ -1186,7 +1140,7 @@ const Postgres = /*@__PURE__*/ createProxy((stack) => {
 			const { schema } = getPostgresProps(stack);
 			return trace$1("Postgres", async () => {
 				await ensureTestSchema(schema);
-				return getClient$1(schema).query(sql, params);
+				return getClient(schema).query(sql, params);
 			}, {
 				namespace: "remote",
 				annotations: { postgres_operation: "query" },
@@ -1326,20 +1280,6 @@ const Table = /*@__PURE__*/ createProxy((stack) => {
 		};
 	});
 });
-//#endregion
-//#region src/lib/test/cleanup.ts
-const callbacks = [];
-let hooked = false;
-const registerTestCleanup = (callback) => {
-	callbacks.push(callback);
-};
-const hookTestCleanup = () => {
-	if (hooked || typeof afterAll === "undefined") return;
-	hooked = true;
-	afterAll(async () => {
-		await Promise.all(callbacks.splice(0).map((callback) => callback()));
-	});
-};
 //#endregion
 //#region src/lib/test/setup.ts
 const mockBaselines = /* @__PURE__ */ new Map();
@@ -1882,4 +1822,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, postgres, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresProps, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresProps, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };

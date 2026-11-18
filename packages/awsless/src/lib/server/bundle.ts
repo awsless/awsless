@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { kebabCase } from 'change-case'
+import { getDevSandbox } from './sandbox.js'
 import { formatResourceName } from './util.js'
 
 // Every function of the app deploys into one bundle, run by its event function. A
@@ -112,6 +113,11 @@ export const internalInvoke = (routeKey: string, payload: unknown) => {
 
 	if (!context) {
 		throw new Error('Internal invocations are only available inside the bundle')
+	}
+
+	// The sandbox proxy's answer to a route off the allowlist, for local dev.
+	if (getDevSandbox(context.routeKey)?.routes.includes(routeKey) === false) {
+		throw new Error(`Sandboxed route is not allowed: ${routeKey}`)
 	}
 
 	return context.internalInvoke(routeKey, payload)

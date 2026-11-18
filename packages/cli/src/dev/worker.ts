@@ -13,7 +13,8 @@ export type BundleWorker = {
 	// The trace is the formatted trace header value of the dispatch's
 	// span - the worker carries it through the handler's async context
 	// into every outgoing loopback request.
-	dispatch: (event: unknown, trace?: string) => Promise<unknown>
+	// The X-Ray header turns the runtime's own spans on for this dispatch.
+	dispatch: (event: unknown, trace?: string, xRayTraceId?: string) => Promise<unknown>
 	// The number of live worker processes, for the dashboard's session
 	// header.
 	size: () => number
@@ -51,6 +52,19 @@ let getCurrentRoute = () => undefined
 // requests, exactly like the route context.
 const traceContext = new AsyncLocalStorage()
 
+// The sandboxed functions' limits by route, and the port that answers a
+// denied AWS call the way IAM does after a deploy.
+const sandboxes = JSON.parse(process.env.AWSLESS_DEV_SANDBOX ?? '{}')
+const deniedPort = Number(new URL(process.env.AWS_ENDPOINT_URL ?? 'http://127.0.0.1:0').port)
+
+// The service an AWS SDK request is signed for, from its credential scope:
+// Credential=key/date/region/<service>/aws4_request
+const signedService = headers => {
+	const auth = headers?.authorization ?? headers?.Authorization
+
+	return typeof auth === 'string' ? auth.split('Credential=')[1]?.split(',')[0]?.split('/')[3] : undefined
+}
+
 const isLoopback = host =>
 	host === '127.0.0.1' || host === 'localhost' || host.endsWith('.localhost') || host === '::1'
 
@@ -63,8 +77,10 @@ const injectTrace = module => {
 
 	module.request = function (...args) {
 		const trace = traceContext.getStore()
+		const route = getCurrentRoute()
+		const sandbox = route ? sandboxes[route] : undefined
 
-		if (trace) {
+		if (trace || sandbox) {
 			// The options may sit behind an optional url argument.
 			const index = typeof args[0] === 'string' || args[0] instanceof URL ? 1 : 0
 			let url
@@ -83,7 +99,26 @@ const injectTrace = module => {
 			const host = String(url?.hostname ?? options.hostname ?? options.host ?? '').split(':')[0]
 
 			if (isLoopback(host)) {
-				args[index] = { ...options, headers: { ...options.headers, 'x-awsless-trace': trace } }
+				const headers = { ...options.headers }
+				const service = sandbox ? signedService(headers) : undefined
+
+				if (trace) {
+					headers['x-awsless-trace'] = trace
+				}
+
+				args[index] = { ...options, headers }
+
+				// A sandboxed function's AWS call names its caller. The lambda
+				// emulator checks an invoke against the allowlist itself; any
+				// other service the function has no permission for is sent to
+				// the port that denies it.
+				if (service) {
+					headers['x-awsless-sandbox'] = route
+
+					if (service !== 'lambda' && !sandbox.services.includes(service) && !sandbox.services.includes('*') && index === 0) {
+						args[index] = { ...options, headers, host: '127.0.0.1', hostname: '127.0.0.1', port: deniedPort }
+					}
+				}
 			}
 		}
 
@@ -448,7 +483,7 @@ export const createBundleWorker = (props: {
 				await doStop()
 				await doStart()
 			}),
-		async dispatch(event, trace) {
+		async dispatch(event, trace, xRayTraceId) {
 			// A start or restart in flight finishes first, so a dispatch
 			// landing between a restart's stop & start never sees an empty
 			// pool. Only lifecycle operations count - a crash never stalls
@@ -473,7 +508,7 @@ export const createBundleWorker = (props: {
 				try {
 					const res = await fetch(`http://127.0.0.1:${worker.port}`, {
 						method: 'POST',
-						body: JSON.stringify({ event, context, trace }),
+						body: JSON.stringify({ event, context: { ...context, xRayTraceId }, trace }),
 					})
 
 					body = await res.json()

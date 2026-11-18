@@ -1,4 +1,5 @@
 import { createServer, Server } from 'http'
+import { SANDBOX_HEADER } from '../sandbox.js'
 import { trackConnections } from '../util.js'
 
 // The generic AWS_ENDPOINT_URL points here, so a call to a service
@@ -20,6 +21,23 @@ export const createBlockedServer = (props: { onLog?: (message: string) => void }
 				const service =
 					auth.match(/Credential=[^/]+\/[^/]+\/[^/]+\/([^/]+)\//)?.[1] ??
 					String(req.headers['x-amz-target'] ?? 'unknown')
+
+				// A sandboxed function's call to a service its permissions don't
+				// name lands here, answered the way IAM does after a deploy.
+				const sandboxed = req.headers[SANDBOX_HEADER]
+
+				if (typeof sandboxed === 'string') {
+					props.onLog?.(`Denied aws call of the sandboxed ${sandboxed}: ${service}`)
+
+					res.writeHead(400, { 'content-type': 'application/x-amz-json-1.1' })
+					res.end(
+						JSON.stringify({
+							__type: 'AccessDeniedException',
+							message: `The sandboxed function "${sandboxed}" is not authorized to call the "${service}" aws service. Give the function its own permissions for it.`,
+						})
+					)
+					return
+				}
 
 				const message = `The "${service}" aws service is not emulated by the local dev environment yet.`
 
