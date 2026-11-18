@@ -9,8 +9,6 @@ import {
 	literal,
 	object,
 	optional,
-	pipe,
-	redact,
 	snsTopic,
 	string,
 	unknown,
@@ -44,7 +42,7 @@ export type PubSubAuthResult =
 	  }
 
 const authEventSchema = object({
-	token: optional(pipe(string(), redact())),
+	token: optional(string()),
 })
 
 /** The event the pubsub authorizer receives. */

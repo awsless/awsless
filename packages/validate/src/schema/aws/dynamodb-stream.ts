@@ -12,7 +12,6 @@ import {
 	string,
 	unknown,
 } from 'valibot'
-import { redact } from '../../action/redact.js'
 
 type DynamoDBStreamInputRecord = {
 	eventName: 'INSERT' | 'MODIFY' | 'REMOVE'
@@ -62,12 +61,9 @@ export const dynamoDbStream = <T extends AnyTable>(
 			transform(v => table.unmarshall(v, table.keys))
 		)
 
-	// A whole item can hold anything personal, so a logged record shows its
-	// keys only.
 	const unmarshall = () =>
 		pipe(
 			unknown(),
-			redact(),
 			transform(v => table.unmarshall(v))
 		)
 
