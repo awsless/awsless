@@ -769,6 +769,29 @@ describe('postgres schema apply', { timeout: 120_000 }, () => {
 		])
 	})
 
+	it('lets every stack make the database of the app at the same moment', async () => {
+		const schemas = ['one', 'two', 'three', 'four', 'five', 'six']
+
+		// A first deploy: no stack finds the database, and all of them make it.
+		await Promise.all(
+			schemas.map(schema => {
+				return provider.createResource({
+					type: 'schema',
+					state: state({ counters }, { database: 'raced', schema, searchPath: schemas.toSorted().join(',') }),
+				} as never)
+			})
+		)
+
+		const raced = postgresClient({ url: server.url.replace(/\/postgres$/, '/raced') })
+		const made = await raced.query<{ schema: string }>(
+			"SELECT schemaname::text AS schema FROM pg_tables WHERE tablename = 'counters' ORDER BY 1"
+		)
+
+		await raced.close()
+
+		expect(made.map(row => row.schema)).toEqual(schemas.toSorted())
+	})
+
 	it('brings the database a stack had of its own along as the database of the app', async () => {
 		const legacy = state({ counters }, { database: 'old_stack', schema: 'old_stack', searchPath: '' })
 

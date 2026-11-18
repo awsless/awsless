@@ -444,6 +444,30 @@ describe('postgresDataClient', () => {
 			])
 		})
 
+		it('fails a query of the app that times out in a transaction, instead of answering no rows', async () => {
+			api.on(ExecuteStatementCommand).rejectsOnce(serviceError('StatementTimeoutException', 'Request timed out'))
+
+			const error = await settle(
+				transact(client, session => session.execute('SELECT * FROM links WHERE id = $1', [1])).catch(
+					(error: unknown) => error
+				)
+			)
+
+			expect(getSqlState(error)).toBe('57014')
+
+			// The statement doesn't run on, and the transaction is rolled back.
+			const statement = calls().find(call => 'ExecuteStatementCommand' in call) as
+				| { ExecuteStatementCommand: { continueAfterTimeout?: boolean } }
+				| undefined
+
+			expect(statement?.ExecuteStatementCommand.continueAfterTimeout).toBeUndefined()
+			expect(calls().map(call => Object.keys(call)[0])).toEqual([
+				'BeginTransactionCommand',
+				'ExecuteStatementCommand',
+				'RollbackTransactionCommand',
+			])
+		})
+
 		it('waits for a statement that outlives its call before the next one', async () => {
 			const stillRunning = serviceError('DatabaseErrorException', 'Transaction is still running a query')
 

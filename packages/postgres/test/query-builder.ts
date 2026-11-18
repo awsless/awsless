@@ -222,6 +222,30 @@ describe('postgresQueryBuilder', () => {
 			])
 		})
 
+		it('gives a transaction the isolation level & access mode it was asked for', async () => {
+			const settings = await db
+				.transaction()
+				.setIsolationLevel('serializable')
+				.setAccessMode('read only')
+				.execute(async transaction => {
+					const { rows } = await sql<{ isolation: string; read_only: string }>`
+						SELECT current_setting('transaction_isolation') AS isolation,
+							current_setting('transaction_read_only') AS read_only
+					`.execute(transaction)
+
+					return rows[0]
+				})
+
+			expect(settings).toEqual({ isolation: 'serializable', read_only: 'on' })
+
+			await expect(
+				db
+					.transaction()
+					.setAccessMode('read only')
+					.execute(transaction => transaction.insertInto('notes').values({ body: 'no', tags: [] }).execute())
+			).rejects.toThrow('read-only transaction')
+		})
+
 		it('wraps every statement', async () => {
 			const wrapped: string[] = []
 			const traced = postgresQueryBuilder<Tables>({

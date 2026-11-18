@@ -67,6 +67,9 @@ const schemaSchema = z.object({
 type SchemaState = z.infer<typeof schemaSchema>
 
 const DUPLICATE_DATABASE = '42P04'
+// Two stacks that make the app's database at the same moment: the one that
+// loses is told its name is taken, in the words of the catalog's index.
+const UNIQUE_VIOLATION = '23505'
 const MISSING_DATABASE = '3D000'
 const DATABASE_IN_USE = '55006'
 
@@ -220,14 +223,31 @@ export const createPostgresProvider = ({
 			await admin.query(`CREATE DATABASE "${props.database}"`)
 		} catch (error) {
 			// Made by an earlier deploy or apply, or for another stack.
-			if (getSqlState(error) !== DUPLICATE_DATABASE) {
+			const made = [DUPLICATE_DATABASE, UNIQUE_VIOLATION].includes(getSqlState(error) ?? '')
+
+			if (!made || !(await hasDatabase(admin, props.database))) {
 				throw error
 			}
 		}
 
 		const schemas = (props.searchPath || props.schema).split(',').map(schema => `"${schema}"`)
+		const setPath = `ALTER DATABASE "${props.database}" SET search_path TO ${[...schemas, 'public'].join(', ')}`
 
-		await admin.query(`ALTER DATABASE "${props.database}" SET search_path TO ${[...schemas, 'public'].join(', ')}`)
+		// Every stack sets the same path. Two that do at the same moment
+		// collide in the catalog, and the one that loses sets it again.
+		for (let attempt = 0; ; attempt++) {
+			try {
+				await admin.query(setPath)
+				return
+			} catch (error) {
+				const collided =
+					getSqlState(error) === UNIQUE_VIOLATION || /concurrently updated/.test((error as Error).message)
+
+				if (!collided || attempt >= 10) {
+					throw error
+				}
+			}
+		}
 	}
 
 	const applyDefinition = async (state: unknown, prior?: unknown) => {

@@ -33,7 +33,9 @@ declare const POSTGRES_FUNCTION: unique symbol;
 type PostgresType<T> = {
   sql: string;
   encode?(value: T): unknown;
+  decode?: (value: unknown) => T;
   shape: 'value' | 'rows' | 'nothing';
+  columns?: Columns;
   readonly __value?: T;
 };
 type Columns = Record<string, PostgresType<unknown>>;

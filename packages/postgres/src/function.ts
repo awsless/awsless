@@ -17,8 +17,12 @@ export type PostgresType<T> = {
 	sql: string
 	// How a value travels when the text pg makes of it isn't what the type reads.
 	encode?(value: T): unknown
+	// How a value comes back when it isn't what a query returns for the type.
+	decode?: (value: unknown) => T
 	// How the function's rows are read: one value, rows, or nothing.
 	shape: 'value' | 'rows' | 'nothing'
+	// The columns of rows, to read each by its type.
+	columns?: Columns
 	// Only for TypeScript: the value's type.
 	readonly __value?: T
 }
@@ -40,17 +44,33 @@ const text = <T extends string = string>() => valueType<T>('text')
 const integer = () => valueType<number>('integer')
 const double = () => valueType<number>('double precision')
 const boolean = () => valueType<boolean>('boolean')
-// A day, as `YYYY-MM-DD`.
-const date = () => valueType<string>('date')
+const pad = (value: number) => String(value).padStart(2, '0')
+
+// A day, as `YYYY-MM-DD`. A query returns it as a Date at the local midnight
+// of that day, which is read back into the day.
+const date = (): PostgresType<string> => ({
+	...valueType<string>('date'),
+	decode: value => {
+		return value instanceof Date
+			? `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+			: (value as string)
+	},
+})
 const timestamp = () => valueType<Date>('timestamptz')
 // Every digit kept: a BigFloat.
 const numeric = () => valueType<BigFloat>('numeric')
 // Sent as json text: pg would turn an array into a Postgres array.
 const jsonb = <T = unknown>() => valueType<T>('jsonb', value => stringify(value))
-const array = <T>(item: PostgresType<T>) => valueType<T[]>(`${item.sql}[]`)
+const array = <T>(item: PostgresType<T>): PostgresType<T[]> => ({
+	...valueType<T[]>(`${item.sql}[]`),
+	decode:
+		item.decode &&
+		(value => (value as unknown[]).map(element => (element === null ? element : item.decode!(element))) as T[]),
+})
 const nullable = <T>(type: PostgresType<T>): PostgresType<T | null> => ({
 	...type,
 	encode: type.encode && (value => (value === null ? null : type.encode!(value))),
+	decode: type.decode && (value => (value === null ? null : type.decode!(value))),
 })
 // A type without a constructor here, like `datemultirange`, by its name in sql.
 const custom = <T = unknown>(sql: string) => valueType<T>(sql)
@@ -60,6 +80,7 @@ const table = <C extends Columns>(columns: C): PostgresType<RowOf<C>[]> => ({
 		.map(([name, type]) => `${name} ${type.sql}`)
 		.join(', ')})`,
 	shape: 'rows',
+	columns,
 })
 // RETURNS void.
 const nothing = (): PostgresType<void> => ({ sql: 'void', shape: 'nothing' })
@@ -149,10 +170,26 @@ const define = <A extends Columns, R>(definition: FunctionDefinition<A, R>): Pos
 		const rows = await client.query<{ result: unknown }>(call, params)
 
 		if (returns.shape === 'rows') {
+			const decoders = Object.entries(returns.columns ?? {}).filter(([, type]) => type.decode)
+
+			for (const row of rows as Record<string, unknown>[]) {
+				for (const [column, type] of decoders) {
+					if (row[column] !== null && row[column] !== undefined) {
+						row[column] = type.decode!(row[column])
+					}
+				}
+			}
+
 			return rows as R
 		}
 
-		return (returns.shape === 'nothing' ? undefined : rows[0]?.result) as R
+		if (returns.shape === 'nothing') {
+			return undefined as R
+		}
+
+		const result = rows[0]?.result
+
+		return (returns.decode && result !== null && result !== undefined ? returns.decode(result) : result) as R
 	}
 
 	return Object.assign(callFunction, {

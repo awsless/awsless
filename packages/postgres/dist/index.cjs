@@ -182,7 +182,7 @@ const postgresDataClient = (props) => {
 				value: value === null ? { isNull: true } : { stringValue: value }
 			})) : void 0,
 			transactionId: transaction?.id,
-			continueAfterTimeout: transaction ? true : void 0,
+			continueAfterTimeout: transaction?.outlives ? true : void 0,
 			includeResultMetadata: true,
 			resultSetOptions: {
 				longReturnType: "STRING",
@@ -195,7 +195,7 @@ const postgresDataClient = (props) => {
 				try {
 					return await api.send(command());
 				} catch (error) {
-					if (nameOf(error) === "StatementTimeoutException") return { $metadata: {} };
+					if (transaction.outlives && nameOf(error) === "StatementTimeoutException") return { $metadata: {} };
 					throw error;
 				}
 			}, transaction.deadline);
@@ -232,7 +232,10 @@ const postgresDataClient = (props) => {
 		};
 		try {
 			const result = await work({
-				query: async (sql) => require_statement.decodeRecords(await execute(sql, [], transaction)),
+				query: async (sql) => require_statement.decodeRecords(await execute(sql, [], {
+					...transaction,
+					outlives: true
+				})),
 				execute: (sql, params) => run(sql, params, transaction)
 			});
 			await afterRunning(() => api.send(new _aws_sdk_client_rds_data.CommitTransactionCommand(end)), transaction.deadline).catch((error) => {
@@ -259,19 +262,30 @@ const text = () => valueType("text");
 const integer = () => valueType("integer");
 const double = () => valueType("double precision");
 const boolean = () => valueType("boolean");
-const date = () => valueType("date");
+const pad = (value) => String(value).padStart(2, "0");
+const date = () => ({
+	...valueType("date"),
+	decode: (value) => {
+		return value instanceof Date ? `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}` : value;
+	}
+});
 const timestamp = () => valueType("timestamptz");
 const numeric = () => valueType("numeric");
 const jsonb = () => valueType("jsonb", (value) => (0, _awsless_json.stringify)(value));
-const array = (item) => valueType(`${item.sql}[]`);
+const array = (item) => ({
+	...valueType(`${item.sql}[]`),
+	decode: item.decode && ((value) => value.map((element) => element === null ? element : item.decode(element)))
+});
 const nullable = (type) => ({
 	...type,
-	encode: type.encode && ((value) => value === null ? null : type.encode(value))
+	encode: type.encode && ((value) => value === null ? null : type.encode(value)),
+	decode: type.decode && ((value) => value === null ? null : type.decode(value))
 });
 const custom = (sql) => valueType(sql);
 const table = (columns) => ({
 	sql: `TABLE (${Object.entries(columns).map(([name, type]) => `${name} ${type.sql}`).join(", ")})`,
-	shape: "rows"
+	shape: "rows",
+	columns
 });
 const nothing = () => ({
 	sql: "void",
@@ -310,8 +324,14 @@ const define = (definition) => {
 			return type.encode && value !== void 0 ? type.encode(value) : value ?? null;
 		});
 		const rows = await client.query(call, params);
-		if (returns.shape === "rows") return rows;
-		return returns.shape === "nothing" ? void 0 : rows[0]?.result;
+		if (returns.shape === "rows") {
+			const decoders = Object.entries(returns.columns ?? {}).filter(([, type]) => type.decode);
+			for (const row of rows) for (const [column, type] of decoders) if (row[column] !== null && row[column] !== void 0) row[column] = type.decode(row[column]);
+			return rows;
+		}
+		if (returns.shape === "nothing") return;
+		const result = rows[0]?.result;
+		return returns.decode && result !== null && result !== void 0 ? returns.decode(result) : result;
 	};
 	return Object.assign(callFunction, {
 		functionName: name,
@@ -342,6 +362,18 @@ const postgres = {
 //#endregion
 //#region src/query-builder.ts
 const ROLLED_BACK = Symbol("rolled back");
+const ISOLATION_LEVELS = [
+	"read uncommitted",
+	"read committed",
+	"repeatable read",
+	"serializable"
+];
+const ACCESS_MODES = ["read only", "read write"];
+const transactionModes = ({ isolationLevel, accessMode }) => {
+	if (isolationLevel && !ISOLATION_LEVELS.includes(isolationLevel)) throw new TypeError(`Postgres has no "${isolationLevel}" isolation level.`);
+	if (accessMode && !ACCESS_MODES.includes(accessMode)) throw new TypeError(`Postgres has no "${accessMode}" access mode.`);
+	return [isolationLevel && `ISOLATION LEVEL ${isolationLevel.toUpperCase()}`, accessMode?.toUpperCase()].filter((mode) => mode !== void 0);
+};
 var Connection = class {
 	props;
 	transaction;
@@ -362,8 +394,9 @@ var Connection = class {
 	streamQuery() {
 		throw new Error("Postgres results can't be streamed: the Data API returns a result whole. Read it in parts, with a limit.");
 	}
-	async begin() {
+	async begin(settings = {}) {
 		const client = await this.props.client();
+		const modes = transactionModes(settings);
 		this.transaction = await new Promise((resolve, reject) => {
 			const done = require_statement.transact(client, (session) => {
 				return new Promise((commit, rollback) => {
@@ -377,6 +410,12 @@ var Connection = class {
 			});
 			done.catch(reject);
 		});
+		if (modes.length > 0) try {
+			await this.transaction.session.execute(`SET TRANSACTION ${modes.join(", ")}`);
+		} catch (error) {
+			await this.rollback();
+			throw error;
+		}
 	}
 	async commit() {
 		const transaction = this.transaction;
@@ -398,7 +437,7 @@ const createDriver = (props) => ({
 	async acquireConnection() {
 		return new Connection(props);
 	},
-	beginTransaction: (connection) => connection.begin(),
+	beginTransaction: (connection, settings) => connection.begin(settings),
 	commitTransaction: (connection) => connection.commit(),
 	rollbackTransaction: (connection) => connection.rollback(),
 	async releaseConnection() {},

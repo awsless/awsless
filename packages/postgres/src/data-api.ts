@@ -145,7 +145,9 @@ export const postgresDataClient = (props: PostgresDataClientProps): PostgresClie
 	const execute = async (
 		sql: string,
 		parameters: { name: string; value: string | null }[],
-		transaction?: { id: string; deadline: number }
+		// `outlives` for a statement of a deploy, like ddl: its call may end
+		// before it does, and there's no result to wait for.
+		transaction?: { id: string; deadline: number; outlives?: boolean }
 	): Promise<ExecuteStatementCommandOutput> => {
 		const command = () =>
 			new ExecuteStatementCommand({
@@ -159,9 +161,9 @@ export const postgresDataClient = (props: PostgresDataClientProps): PostgresClie
 							}))
 						: undefined,
 				transactionId: transaction?.id,
-				// A statement of a transaction that outlives the call keeps
-				// running, like AWS advises for DDL. Alone it stops.
-				continueAfterTimeout: transaction ? true : undefined,
+				// A statement that outlives the call keeps running, like AWS
+				// advises for DDL. Any other stops.
+				continueAfterTimeout: transaction?.outlives ? true : undefined,
 				includeResultMetadata: true,
 				// Whole numbers & decimals as text, so none loses digits on the way.
 				resultSetOptions: { longReturnType: 'STRING', decimalReturnType: 'STRING' },
@@ -176,8 +178,9 @@ export const postgresDataClient = (props: PostgresDataClientProps): PostgresClie
 				try {
 					return await api.send(command())
 				} catch (error) {
-					// Its call is over, the statement runs on.
-					if (nameOf(error) === 'StatementTimeoutException') {
+					// Its call is over, the statement runs on. A query of the app
+					// fails instead: an empty answer would read as no rows.
+					if (transaction.outlives && nameOf(error) === 'StatementTimeoutException') {
 						return { $metadata: {} }
 					}
 
@@ -215,7 +218,7 @@ export const postgresDataClient = (props: PostgresDataClientProps): PostgresClie
 
 		try {
 			const result = await work({
-				query: async sql => decodeRecords(await execute(sql, [], transaction)),
+				query: async sql => decodeRecords(await execute(sql, [], { ...transaction, outlives: true })),
 				execute: (sql, params) => run(sql, params, transaction),
 			})
 

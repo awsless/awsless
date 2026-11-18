@@ -1,7 +1,7 @@
 import { PostgresServer } from '@awsless/postgres-server'
 import { applySchema, isPostgresFunction, postgres, postgresClient } from '../src'
 
-const { integer, text, jsonb, array, nullable, table, nothing, boolean } = postgres.type
+const { integer, text, jsonb, array, nullable, table, nothing, boolean, date } = postgres.type
 
 const double = postgres.function.define({
 	name: 'double_of',
@@ -31,6 +31,25 @@ const bump = postgres.function.define({
 	`,
 })
 
+// A day goes in & comes out as its text, alone, in an array and in a row.
+const nextDay = postgres.function.define({
+	name: 'next_day',
+	args: { day: date() },
+	returns: date(),
+	language: 'sql',
+	attributes: 'IMMUTABLE',
+	body: `SELECT day + 1`,
+})
+
+const days = postgres.function.define({
+	name: 'days_from',
+	args: { day: date() },
+	returns: table({ day: date(), others: array(date()), missing: nullable(date()) }),
+	language: 'sql',
+	attributes: 'IMMUTABLE',
+	body: `SELECT day, ARRAY[day + 1, day + 2], NULL::date`,
+})
+
 const listCounters = postgres.function.define({
 	name: 'list_counters',
 	args: { names: array(text()), settings: jsonb<{ atLeast: number }>() },
@@ -55,7 +74,7 @@ const clearCounters = postgres.function.define({
 
 describe('postgres.function.define', () => {
 	const server = new PostgresServer()
-	const definitions = [bump, listCounters, clearCounters, double]
+	const definitions = [bump, listCounters, clearCounters, double, nextDay, days]
 	let admin: ReturnType<typeof postgresClient>
 	let client: ReturnType<typeof postgresClient>
 
@@ -120,6 +139,15 @@ describe('postgres.function.define', () => {
 		])
 		expect(await clearCounters(client)).toBeUndefined()
 		expect(await listCounters(client, { names: ['visits'], settings: { atLeast: 0 } })).toStrictEqual([])
+	})
+
+	it('answers a day as the text it was given as', async () => {
+		const day: string = await nextDay(client, { day: '2026-12-31' })
+
+		expect(day).toBe('2027-01-01')
+		expect(await days(client, { day: '2026-02-28' })).toEqual([
+			{ day: '2026-02-28', others: ['2026-03-01', '2026-03-02'], missing: null },
+		])
 	})
 
 	it('refuses a name that is not plain sql and a body that holds its quote', () => {

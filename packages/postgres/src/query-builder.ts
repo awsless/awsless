@@ -7,6 +7,7 @@ import {
 	PostgresIntrospector,
 	PostgresQueryCompiler,
 	type QueryResult,
+	type TransactionSettings,
 } from 'kysely'
 import { execute, type PostgresClient, type Session, transact } from './transport'
 
@@ -38,6 +39,25 @@ type OpenTransaction = {
 
 const ROLLED_BACK = Symbol('rolled back')
 
+const ISOLATION_LEVELS = ['read uncommitted', 'read committed', 'repeatable read', 'serializable']
+const ACCESS_MODES = ['read only', 'read write']
+
+// What a transaction was asked to be, as Postgres takes it. The settings go
+// into sql as written, so only what Postgres knows passes.
+const transactionModes = ({ isolationLevel, accessMode }: TransactionSettings) => {
+	if (isolationLevel && !ISOLATION_LEVELS.includes(isolationLevel)) {
+		throw new TypeError(`Postgres has no "${isolationLevel}" isolation level.`)
+	}
+
+	if (accessMode && !ACCESS_MODES.includes(accessMode)) {
+		throw new TypeError(`Postgres has no "${accessMode}" access mode.`)
+	}
+
+	return [isolationLevel && `ISOLATION LEVEL ${isolationLevel.toUpperCase()}`, accessMode?.toUpperCase()].filter(
+		mode => mode !== undefined
+	)
+}
+
 class Connection implements DatabaseConnection {
 	transaction?: OpenTransaction
 
@@ -62,8 +82,9 @@ class Connection implements DatabaseConnection {
 		)
 	}
 
-	async begin() {
+	async begin(settings: TransactionSettings = {}) {
 		const client = await this.props.client()
+		const modes = transactionModes(settings)
 
 		this.transaction = await new Promise<OpenTransaction>((resolve, reject) => {
 			const done = transact(client, session => {
@@ -75,6 +96,17 @@ class Connection implements DatabaseConnection {
 			// A transaction that can't start has no session to hand over.
 			done.catch(reject)
 		})
+
+		// Before its first query, where Postgres still takes them.
+		if (modes.length > 0) {
+			try {
+				await this.transaction.session.execute(`SET TRANSACTION ${modes.join(', ')}`)
+			} catch (error) {
+				await this.rollback()
+
+				throw error
+			}
+		}
 	}
 
 	async commit() {
@@ -106,7 +138,7 @@ const createDriver = (props: PostgresQueryBuilderProps): Driver => ({
 	async acquireConnection() {
 		return new Connection(props)
 	},
-	beginTransaction: connection => (connection as Connection).begin(),
+	beginTransaction: (connection, settings) => (connection as Connection).begin(settings),
 	commitTransaction: connection => (connection as Connection).commit(),
 	rollbackTransaction: connection => (connection as Connection).rollback(),
 	async releaseConnection() {},
