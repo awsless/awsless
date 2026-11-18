@@ -58,7 +58,27 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 // ClickHouse writes a layout back in its own spelling, so the parts that
 // fix it compare by meaning: the engine by name, a key as its text.
 const keyText = (key: string[] | string | undefined) =>
-	(Array.isArray(key) ? key.join(', ') : (key ?? '')).replace(/\s+/g, '')
+	withoutBrackets((Array.isArray(key) ? key.join(', ') : (key ?? '')).replace(/\s+/g, ''))
+
+// ClickHouse reports a key of one column in brackets, `(id)`.
+const withoutBrackets = (text: string) => {
+	if (!text.startsWith('(')) {
+		return text
+	}
+
+	let depth = 0
+
+	for (let index = 0; index < text.length; index++) {
+		depth += text[index] === '(' ? 1 : text[index] === ')' ? -1 : 0
+
+		// The first bracket closes before the end: they don't wrap the whole key.
+		if (depth === 0 && index < text.length - 1) {
+			return text
+		}
+	}
+
+	return text.slice(1, -1)
+}
 
 // ClickHouse Cloud runs every MergeTree as its Shared variant and reports
 // that name (SharedReplacingMergeTree), a replicated cluster the Replicated
@@ -68,6 +88,10 @@ const engineName = (engine: string) =>
 		.replace(/\(.*$/s, '')
 		.trim()
 		.replace(/^(Shared|Replicated)(?=\w*MergeTree$)/, '')
+
+// What an engine is given, like the version column of a ReplacingMergeTree,
+// which decides the rows a merge keeps.
+const engineArguments = (engine: string) => (/\((.*)\)\s*$/s.exec(engine)?.[1] ?? '').replace(/\s+/g, '')
 
 const structureOf = (table: Normalized) => ({
 	engine: engineName(table.engine),
@@ -97,7 +121,13 @@ export const declaredTableStatement = (name: string, definition: TableDefinition
 // The ALTER statements that bring a table from one declared definition
 // to the next. A different engine or key would rewrite every row, so
 // that's refused instead of silently dropping the data.
-export const alterTableStatements = (name: string, prior: TableDefinition, next: TableDefinition) => {
+export const alterTableStatements = (
+	name: string,
+	prior: TableDefinition,
+	next: TableDefinition,
+	// A table found without its declaration only tells its engine's name.
+	options: { engineArgumentsUnknown?: boolean } = {}
+) => {
 	const from = normalizeTable(prior)
 	const to = normalizeTable(next)
 	const table = quoteIdentifier(name)
@@ -112,6 +142,12 @@ export const alterTableStatements = (name: string, prior: TableDefinition, next:
 				`The ${key} of ClickHouse table "${name}" can't change in place. Declare a new table & copy the data over instead.`
 			)
 		}
+	}
+
+	if (!options.engineArgumentsUnknown && engineArguments(from.engine) !== engineArguments(to.engine)) {
+		throw new TableChangeError(
+			`The engine of ClickHouse table "${name}" (${from.engine} to ${to.engine}) can't change in place. Declare a new table & copy the data over instead.`
+		)
 	}
 
 	const names = Object.keys(to.columns)
@@ -160,15 +196,17 @@ export const alterTableStatements = (name: string, prior: TableDefinition, next:
 		statements.push(to.ttl ? `ALTER TABLE ${table} MODIFY TTL ${to.ttl}` : `ALTER TABLE ${table} REMOVE TTL`)
 	}
 
-	for (const column of Object.keys(from.columns)) {
-		if (!to.columns[column]) {
-			statements.push(`ALTER TABLE ${table} DROP COLUMN IF EXISTS ${quoteIdentifier(column)}`)
-		}
-	}
-
+	// An index goes before the columns do: ClickHouse refuses to drop a
+	// column an index still reads.
 	for (const [index, props] of Object.entries(from.indexes)) {
 		if (!same(props, to.indexes[index])) {
 			statements.push(`ALTER TABLE ${table} DROP INDEX IF EXISTS ${quoteIdentifier(index)}`)
+		}
+	}
+
+	for (const column of Object.keys(from.columns)) {
+		if (!to.columns[column]) {
+			statements.push(`ALTER TABLE ${table} DROP COLUMN IF EXISTS ${quoteIdentifier(column)}`)
 		}
 	}
 
@@ -263,7 +301,8 @@ const priorDefinition = (live: NonNullable<Awaited<ReturnType<typeof describeTab
 
 	return {
 		columns,
-		engine: live.engine,
+		// The declared engine has what it's given; system.tables only its name.
+		engine: declared && engineName(declared.engine) === engineName(live.engine) ? declared.engine : live.engine,
 		orderBy: live.sorting_key ? live.sorting_key.split(',').map(part => part.trim()) : [],
 		partitionBy: live.partition_key || undefined,
 		primaryKey: live.primary_key ? live.primary_key.split(',').map(part => part.trim()) : undefined,
@@ -297,7 +336,9 @@ export const applyTable = async (
 	let statements: string[]
 
 	try {
-		statements = alterTableStatements(name, prior, definition)
+		statements = alterTableStatements(name, prior, definition, {
+			engineArgumentsUnknown: !parseComment(live.comment),
+		})
 	} catch (error) {
 		if (options.recreate && error instanceof TableChangeError) {
 			await dropTableByName(client, name)

@@ -144,6 +144,60 @@ describe('tables', () => {
 		)
 	})
 
+	it('reads the key ClickHouse reports for one column, `(id)`, as the declared one', () => {
+		const declared = { columns: { id: 'String', v: 'UInt32' }, orderBy: ['id'] }
+		const reported = { ...declared, orderBy: ['(id)'], primaryKey: ['(id)'] }
+
+		// Only the comment, which keeps the declaration, is written again.
+		expect(alterTableStatements('single', reported, declared)).toEqual([expect.stringContaining('MODIFY COMMENT')])
+		// Brackets around a part of the key are the key itself.
+		expect(() => alterTableStatements('single', { ...declared, orderBy: ['(id)', '(v)'] }, declared)).toThrow(
+			TableChangeError
+		)
+	})
+
+	it('refuses another version column for a ReplacingMergeTree, which would change nothing', () => {
+		const replacing = (engine: string) => ({
+			columns: { id: 'String', version: 'UInt32', other: 'UInt32' },
+			engine,
+			orderBy: ['id', 'version'],
+		})
+
+		expect(() =>
+			alterTableStatements(
+				'events',
+				replacing('ReplacingMergeTree(version)'),
+				replacing('ReplacingMergeTree(other)')
+			)
+		).toThrow('The engine of ClickHouse table "events" (ReplacingMergeTree(version) to ReplacingMergeTree(other))')
+		expect(
+			alterTableStatements(
+				'events',
+				replacing('ReplacingMergeTree( version )'),
+				replacing('ReplacingMergeTree(version)')
+			)
+		).toEqual([expect.stringContaining('MODIFY COMMENT')])
+		// A table found without its declaration only tells the engine's name.
+		expect(
+			alterTableStatements('events', replacing('ReplacingMergeTree'), replacing('ReplacingMergeTree(version)'), {
+				engineArgumentsUnknown: true,
+			}).filter(statement => !statement.includes('MODIFY COMMENT'))
+		).toEqual([])
+	})
+
+	it('drops an index before the column it reads', () => {
+		const table = (withTag: boolean) => ({
+			columns: { id: 'String', ...(withTag ? { tag: 'String' } : {}) },
+			orderBy: ['id'],
+			...(withTag ? { indexes: { tag: { expression: 'tag', type: 'bloom_filter' } } } : {}),
+		})
+		const statements = alterTableStatements('events', table(true), table(false))
+		const position = (part: string) => statements.findIndex(statement => statement.includes(part))
+
+		expect(position('DROP INDEX')).toBeGreaterThanOrEqual(0)
+		expect(position('DROP INDEX')).toBeLessThan(position('DROP COLUMN'))
+	})
+
 	it('refuses to change the sort key in place', async () => {
 		await applyTable(client, 'stack--events', events)
 
