@@ -360,6 +360,25 @@ describe('route fetch', () => {
 		})
 	})
 
+	it("answers the handler's expected error when a failure callback throws", async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const handle = route(() => {
+			getContext().onFailure(() => {
+				throw new Error('failure callback')
+			})
+
+			throw new ExpectedError('not-found', 'Not found')
+		})
+
+		const response = await handle.fetch(createRequest())
+
+		expect(response.status).toBe(500)
+		expect(await response.json()).toMatchObject({ type: 'not-found' })
+		expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: 'failure callback' }))
+
+		error.mockRestore()
+	})
+
 	it('runs the failure callbacks of a stream that fails with undefined', async () => {
 		const onFailure = vi.fn()
 		const onSuccess = vi.fn()

@@ -102,6 +102,38 @@ describe('Context API', () => {
 			expect(onfinally).toHaveBeenCalled()
 		})
 
+		it("keeps the handler's error when a failure or finally callback throws", async () => {
+			const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+			const handle = lambda({
+				handle() {
+					getContext()?.onFailure(() => {
+						throw new Error('failure callback')
+					})
+					getContext()?.onFinally(() => {
+						throw new Error('finally callback')
+					})
+
+					throw new Error('handler')
+				},
+			})
+
+			await expect(handle()).rejects.toThrow('handler')
+			expect(error).toHaveBeenCalledTimes(2)
+
+			error.mockRestore()
+		})
+
+		it('keeps the context for work after the handler returned', async () => {
+			const invocation = await runInvocation({
+				input: 'hello',
+				raw: 'hello',
+				handle() {},
+			})
+
+			expect(invocation.runInContext(() => getContext()?.event)).toBe('hello')
+			expect(() => getContext()).toThrow()
+		})
+
 		it('finishes once, a second call waiting for the first', async () => {
 			const calls: string[] = []
 

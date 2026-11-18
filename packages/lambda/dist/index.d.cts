@@ -149,7 +149,9 @@ declare const lambda: LambdaFactory;
 type InvocationFailure = {
   readonly error: unknown;
 };
+type RunInContext = <R>(callback: () => R) => R;
 type Invocation<T> = {
+  readonly runInContext: RunInContext;
   /**
    * Stops the timeout warning, runs the success or failure callbacks, then the
    * finally callbacks, and flushes the traces, once. A lambda calls it when its

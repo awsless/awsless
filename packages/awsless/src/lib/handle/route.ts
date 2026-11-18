@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
 import {
 	Context,
 	enhanceError,
@@ -66,14 +65,12 @@ const createErrorResponse = (error: { type: string; message: string; data?: unkn
 	)
 }
 
-type RunInContext = <R>(callback: () => R) => R
-
 // A body stream that finishes the invocation once it's read to the end,
 // fails or the caller goes away. Each read runs in the handler's own async
 // context, so a stream's own work still reaches getContext() & in-process Fn calls.
 const finishInvocationAfterBody = (
 	body: ReadableStream<Uint8Array>,
-	runInContext: RunInContext,
+	runInContext: Invocation<unknown>['runInContext'],
 	finishInvocation: Invocation<unknown>['finishInvocation'],
 	toLoggedError: (error: unknown) => Error
 ) => {
@@ -129,27 +126,19 @@ const createRouteRunner = (handle: RouteHandler) => {
 		const input = { method: request.method, path: new URL(request.url).pathname }
 		const toLoggedError = (error: unknown) => enhanceError(error, undefined, input, lambdaContext)
 
-		// The handler's async context, for reading a streamed body.
-		let runInContext: RunInContext = callback => callback()
-
 		const invocation = await runInvocation({
 			input,
 			raw: call.raw,
 			context: lambdaContext,
-			handle: async (_, context) => {
-				const response = await handle(
+			handle: (_, context) =>
+				handle(
 					{
 						request,
 						params: call.params ?? getRouteParams(request.headers),
 						ip: call.ip,
 					},
 					context
-				)
-
-				runInContext = AsyncLocalStorage.snapshot() as RunInContext
-
-				return response
-			},
+				),
 		})
 
 		// A finished invocation's error: an expected one returned as json, any other thrown.
@@ -181,7 +170,12 @@ const createRouteRunner = (handle: RouteHandler) => {
 		}
 
 		return new Response(
-			finishInvocationAfterBody(response.body, runInContext, invocation.finishInvocation, toLoggedError),
+			finishInvocationAfterBody(
+				response.body,
+				invocation.runInContext,
+				invocation.finishInvocation,
+				toLoggedError
+			),
 			{ status: response.status, statusText: response.statusText, headers: response.headers }
 		)
 	}

@@ -229,22 +229,30 @@ const runInvocation = async (options) => {
 	const finallyCallbacks = [];
 	let result;
 	let finishPromise;
+	let runInContext = (callback) => callback();
 	const stopTimeoutWarning = startTimeoutWarning(options.schema, options.input, options.context, log);
+	const runSettled = async (callbacks) => {
+		const results = await Promise.allSettled(callbacks.map(async (callback) => callback()));
+		for (const settled of results) if (settled.status === "rejected") {
+			console.error(settled.reason);
+			await log(settled.reason).catch(() => {});
+		}
+	};
 	const runCallbacks = async (failure) => {
 		stopTimeoutWarning();
 		try {
 			if (failure) {
-				await Promise.all(failureCallbacks.map((callback) => callback(failure.error)));
+				await runSettled(failureCallbacks.map((callback) => () => callback(failure.error)));
 				return;
 			}
 			try {
 				await Promise.all(successCallbacks.map((callback) => callback(result)));
 			} catch (callbackError) {
-				await Promise.all(failureCallbacks.map((callback) => callback(callbackError)));
+				await runSettled(failureCallbacks.map((callback) => () => callback(callbackError)));
 				throw callbackError;
 			}
 		} finally {
-			await Promise.all(finallyCallbacks.map((callback) => callback()));
+			await runSettled(finallyCallbacks);
 			await (0, _awsless_utils.flushTraces)();
 		}
 	};
@@ -268,18 +276,24 @@ const runInvocation = async (options) => {
 					finallyCallbacks.push(callback);
 				}
 			};
-			return eventContext.run(context, () => options.handle(event, context));
+			return eventContext.run(context, async () => {
+				const handled = await options.handle(event, context);
+				runInContext = node_async_hooks.AsyncLocalStorage.snapshot();
+				return handled;
+			});
 		}));
 	} catch (error) {
 		return {
 			isSuccessful: false,
 			error,
+			runInContext,
 			finishInvocation
 		};
 	}
 	return {
 		isSuccessful: true,
 		result,
+		runInContext,
 		finishInvocation
 	};
 };
