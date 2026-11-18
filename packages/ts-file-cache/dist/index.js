@@ -101,7 +101,7 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 			const subpath = `.${file.slice(module.length)}`;
 			const entry = resolveSubpath(localPackage, subpath);
 			if (!entry) throw new Error(`Workspace package doesn't export the import: ${file}`);
-			await generateRecursiveFileHashes(workspace, entry, entry, allowedExtensions, hashes);
+			await generateRecursiveFileHashes(workspace, entry, sourceFile, allowedExtensions, hashes);
 		}
 		return;
 	}

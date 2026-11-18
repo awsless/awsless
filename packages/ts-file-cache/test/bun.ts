@@ -55,6 +55,15 @@ describe('Bun', () => {
 		)
 	})
 
+	it('should name the file that imports a subpath whose file is missing', async () => {
+		const workspace = await loadWorkspace(fixture)
+		const file = join(fixture, 'packages/app/_missing.ts')
+
+		await expect(generateRecursiveFileHashes(workspace, file, file, ['ts'], new Map())).rejects.toThrow(
+			`inside the source: "${file}"`
+		)
+	})
+
 	it("should refuse a subpath that a package's exports don't name", async () => {
 		const workspace = await loadWorkspace(fixture)
 		const file = join(fixture, 'packages/app/_hidden.ts')

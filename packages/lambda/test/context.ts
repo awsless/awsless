@@ -123,6 +123,24 @@ describe('Context API', () => {
 			error.mockRestore()
 		})
 
+		it('answers a run that succeeded when a finally callback throws', async () => {
+			const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+			const handle = lambda({
+				handle() {
+					getContext()?.onFinally(() => {
+						throw new Error('finally callback')
+					})
+
+					return 'done'
+				},
+			})
+
+			await expect(handle()).resolves.toBe('done')
+			expect(error).toHaveBeenCalledTimes(1)
+
+			error.mockRestore()
+		})
+
 		it('keeps the context for work after the handler returned', async () => {
 			const invocation = await runInvocation({
 				input: 'hello',

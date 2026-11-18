@@ -104,7 +104,8 @@ export const generateRecursiveFileHashes = async (
 				throw new Error(`Workspace package doesn't export the import: ${file}`)
 			}
 
-			await generateRecursiveFileHashes(workspace, entry, entry, allowedExtensions, hashes)
+			// Named by the file that imports it, for the error of one that isn't there.
+			await generateRecursiveFileHashes(workspace, entry, sourceFile, allowedExtensions, hashes)
 		}
 
 		return
