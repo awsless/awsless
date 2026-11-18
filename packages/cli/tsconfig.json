@@ -7,5 +7,7 @@
 		"isolatedModules": true,
 		"types": ["bun", "node", "vitest/globals"]
 	},
-	"exclude": ["dist"]
+	// The analytics example has its ClickHouse table commented out, so its
+	// code has no table to be typed by.
+	"exclude": ["dist", "example/jack/analytics"]
 }

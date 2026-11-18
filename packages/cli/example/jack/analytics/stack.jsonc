@@ -1,12 +1,14 @@
 {
 	"$schema": "../../../dist/stack.json",
 	"name": "analytics",
-	"tests": "./test",
+	"tests": false,
 
-	"functions": {
-		"trackPageView": "./src/function/track.ts",
-		"topPages": "./src/function/top.ts"
-	}
+	// Commented out with the table below, which they query: uncomment both,
+	// the tests above & the clickhouse block in app.jsonc to try the example.
+	// "functions": {
+	// 	"trackPageView": "./src/function/track.ts",
+	// 	"topPages": "./src/function/top.ts"
+	// }
 
 	// The tables live in the stack file: a deploy creates & alters them, and
 	// `awsless types` types `ClickHouse.db` from them, as `analytics.page-views`.
