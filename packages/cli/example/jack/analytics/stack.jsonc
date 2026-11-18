@@ -1,0 +1,28 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "analytics",
+	"tests": "./test",
+
+	"functions": {
+		"trackPageView": "./src/function/track.ts",
+		"topPages": "./src/function/top.ts"
+	}
+
+	// The tables live in the stack file: a deploy creates & alters them, and
+	// `awsless types` types `ClickHouse.db` from them, as `analytics.page-views`.
+	// "clickhouse": {
+	// 	"page-views": {
+	// 		"columns": {
+	// 			"path": "keyword",
+	// 			"visitor": "String",
+	// 			// How long the page was open, in milliseconds.
+	// 			"duration": "UInt64",
+	// 			"referrer": "string?",
+	// 			"viewedAt": "date",
+	// 			// Filled in by ClickHouse, so an insert leaves it out.
+	// 			"day": { "type": "Date", "default": "toDate(viewedAt)" }
+	// 		},
+	// 		"orderBy": ["path", "viewedAt"]
+	// 	}
+	// },
+}
