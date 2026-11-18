@@ -1,4 +1,5 @@
 import { createServer, Server } from 'http'
+import { formatSandboxRouteError } from 'awsless'
 import { DevDispatch, DevReportFailure } from '../../feature.js'
 import { DevSandbox, SANDBOX_HEADER } from '../sandbox.js'
 import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
@@ -78,7 +79,7 @@ export const createLambdaServer = (props: { functionName: string }) => {
 							res.end(
 								JSON.stringify({
 									errorType: 'Error',
-									errorMessage: `Sandboxed route is not allowed: ${route}`,
+									errorMessage: formatSandboxRouteError(route),
 									trace: [],
 								})
 							)

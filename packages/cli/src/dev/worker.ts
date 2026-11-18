@@ -4,6 +4,7 @@ import { availableParallelism } from 'os'
 import { join } from 'path'
 import { debug } from '../cli/debug.js'
 import { spawnDevChild } from './children.js'
+import { DENIED_HEADER, SANDBOX_HEADER } from './sandbox.js'
 import { findFreePort, stopChild, stripAnsi, WATCHDOG_FILE, WATCHDOG_SOURCE } from './util.js'
 
 export type BundleWorker = {
@@ -108,14 +109,18 @@ const injectTrace = module => {
 
 				args[index] = { ...options, headers }
 
-				// A sandboxed function's AWS call names its caller. The lambda
-				// emulator checks an invoke against the allowlist itself; any
-				// other service the function has no permission for is sent to
-				// the port that denies it.
-				if (service) {
-					headers['x-awsless-sandbox'] = route
+				// An invoke names its caller, for the lambda emulator to check
+				// against the allowlist. A call to any other service the function
+				// has no permission for goes to the port that denies it; one it may
+				// make goes on as it is, emulated or not.
+				if (service === 'lambda') {
+					headers['${SANDBOX_HEADER}'] = route
+				} else if (service && !sandbox.services.includes(service) && !sandbox.services.includes('*')) {
+					headers['${DENIED_HEADER}'] = route
 
-					if (service !== 'lambda' && !sandbox.services.includes(service) && !sandbox.services.includes('*') && index === 0) {
+					// The sdk passes options alone. With a url in front, node
+					// would take the host from it again.
+					if (index === 0) {
 						args[index] = { ...options, headers, host: '127.0.0.1', hostname: '127.0.0.1', port: deniedPort }
 					}
 				}

@@ -38,6 +38,7 @@ var __exportAll = (all, no_symbols) => {
 };
 //#endregion
 //#region src/lib/server/sandbox.ts
+const formatSandboxRouteError = (routeKey) => `Sandboxed route is not allowed: ${routeKey}`;
 let sandboxes;
 const getDevSandbox = (routeKey) => {
 	if (!routeKey || !process.env.AWSLESS_DEV_SANDBOX) return;
@@ -136,7 +137,7 @@ const withBundleRouteContext = (routeKey, internalInvoke, callback, options = {}
 const internalInvoke = (routeKey, payload) => {
 	const context = bundleContext.getStore();
 	if (!context) throw new Error("Internal invocations are only available inside the bundle");
-	if (getDevSandbox(context.routeKey)?.routes.includes(routeKey) === false) throw new Error(`Sandboxed route is not allowed: ${routeKey}`);
+	if (getDevSandbox(context.routeKey)?.routes.includes(routeKey) === false) throw new Error(formatSandboxRouteError(routeKey));
 	return context.internalInvoke(routeKey, payload);
 };
 let bundleRoutes = [];
@@ -1030,7 +1031,7 @@ const traceClient$1 = (raw) => ({
 		namespace: "remote",
 		annotations: { clickhouse_operation: "insert" },
 		metadata: {
-			table,
+			table: [table].flat().join("."),
 			rows: rows.length
 		}
 	})
@@ -1112,6 +1113,7 @@ const ensureTestDatabase = (database) => {
 //#region src/lib/server/postgres.ts
 const toName = (name) => kebabCase(name).replaceAll("-", "_");
 const getPostgresSchemaName = (stackName) => toName(stackName);
+const getPostgresSearchPath = (stackNames) => stackNames.map(getPostgresSchemaName).toSorted();
 const getPostgresDatabaseName = (appName = getApp()) => toName(appName);
 const createClient = () => {
 	const url = process.env.POSTGRES_URL;
@@ -1426,7 +1428,7 @@ const deferPostgresDatabase = (manifest) => {
 	const stacks = manifest.postgres ?? [];
 	if (!url || stacks.length === 0) return;
 	const database = getPostgresDatabaseName();
-	const schemas = stacks.map((entry) => getPostgresSchemaName(entry.stack)).toSorted();
+	const schemas = getPostgresSearchPath(stacks.map((entry) => entry.stack));
 	process.env.POSTGRES_SCHEMAS = schemas.join(",");
 	deferTestDatabase(database, async () => {
 		const { applySchema, postgresClient } = await import("@awsless/postgres");
@@ -1859,4 +1861,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseStackName, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresDatabaseName, getPostgresSchemaName, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, sql, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSandboxRouteError, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseStackName, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresDatabaseName, getPostgresSchemaName, getPostgresSearchPath, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, sql, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };

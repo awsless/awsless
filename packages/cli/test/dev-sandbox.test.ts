@@ -35,7 +35,7 @@ export default async event => {
 				hostname: '127.0.0.1',
 				port: event.port,
 				method: 'POST',
-				path: '/',
+				path: event.path ?? '/',
 				headers: {
 					authorization:
 						'AWS4-HMAC-SHA256 Credential=local/20260101/us-east-1/' + event.service + '/aws4_request, SignedHeaders=host, Signature=x',
@@ -49,7 +49,7 @@ export default async event => {
 		)
 
 		request.on('error', reject)
-		request.end()
+		request.end(event.body ? JSON.stringify(event.body) : undefined)
 	})
 }
 export const getCurrentRoute = () => route
@@ -73,6 +73,10 @@ describe('dev sandbox', () => {
 		let port: number
 
 		const blocked = createBlockedServer({})
+		const lambda = createLambdaServer({ functionName: 'bundle' })
+		const invoked = vi.fn(async () => ({ invoked: true }))
+		let blockedPort: number
+		let lambdaPort: number
 		const service = createServer((_, response) => response.end(JSON.stringify({ reached: true })))
 
 		beforeAll(async () => {
@@ -82,6 +86,10 @@ describe('dev sandbox', () => {
 			await new Promise<void>(resolve => service.listen(0, '127.0.0.1', resolve))
 
 			port = (service.address() as { port: number }).port
+			blockedPort = await blocked.listen()
+
+			lambda.connect(invoked, undefined, sandboxes)
+			lambdaPort = await lambda.listen()
 
 			vi.stubEnv('AWSLESS_DEV_WORKERS', '1')
 
@@ -90,7 +98,7 @@ describe('dev sandbox', () => {
 				env: {
 					AWS_REGION: 'us-east-1',
 					AWS_ACCOUNT_ID: '000000000000',
-					AWS_ENDPOINT_URL: `http://127.0.0.1:${await blocked.listen()}`,
+					AWS_ENDPOINT_URL: `http://127.0.0.1:${blockedPort}`,
 					AWSLESS_DEV_SANDBOX: JSON.stringify(sandboxes),
 				},
 				functionName: 'test-bundle',
@@ -105,6 +113,7 @@ describe('dev sandbox', () => {
 		afterAll(async () => {
 			await worker.stop()
 			await blocked.stop()
+			await lambda.stop()
 			service.close()
 			await rm(buildDir, { recursive: true, force: true })
 			vi.unstubAllEnvs()
@@ -123,6 +132,31 @@ describe('dev sandbox', () => {
 			await expect(worker.dispatch({ route: 'shop:function:limited', service: 'sqs', port })).resolves.toEqual({
 				reached: true,
 			})
+		})
+
+		it("says a service it may call isn't emulated, not that it's denied", async () => {
+			const result = await worker.dispatch({ route: 'shop:function:limited', service: 'sqs', port: blockedPort })
+
+			expect(result).toMatchObject({ __type: 'NotEmulatedLocally' })
+		})
+
+		it('holds an invoke through the lambda emulator to the allowlist', async () => {
+			const invoke = (route: string) => {
+				return worker.dispatch({
+					route: 'shop:function:limited',
+					service: 'lambda',
+					port: lambdaPort,
+					path: '/2015-03-31/functions/bundle/invocations',
+					body: { '$awsless-route': route, event: {} },
+				})
+			}
+
+			expect(await invoke('shop:task:other')).toMatchObject({
+				errorMessage: 'Sandboxed route is not allowed: shop:task:other',
+			})
+			expect(invoked).not.toHaveBeenCalled()
+
+			expect(await invoke('shop:task:send-mail')).toEqual({ invoked: true })
 		})
 
 		it('leaves a function without a sandbox alone', async () => {

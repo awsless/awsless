@@ -468,11 +468,11 @@ export const startDev = async (props: {
 	// fail on an empty pool - reporting that says nothing.
 	let stopping = false
 
-	// The runtime's spans land here, so the trace view shows what a
-	// dispatch did inside, like its DynamoDB queries and fetches.
 	// What each sandboxed function may reach, enforced like after a deploy.
 	const sandboxes = createDevSandboxes(stackConfigs)
 
+	// The runtime's spans land here, so the trace view shows what a
+	// dispatch did inside, like its DynamoDB queries and fetches.
 	const xray = createXRayServer({ onSpan: span => dev.events.emit('spans', span) })
 	const xrayPort = await xray.listen()
 

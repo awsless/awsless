@@ -39,6 +39,8 @@ data = { ...(await fetchConfigData()), ...data }
 export const getConfigValue = (name: string) => {
 	const key = kebabCase(name)
 	// Local dev loads every config; a sandboxed function only sees its own.
+	// By the route that reads it: a module shared with other routes that
+	// reads a config as it loads does so for whichever route loads it first.
 	const isHidden = getDevSandbox(getCurrentRoute())?.configs.includes(key) === false
 	const value = isHidden ? undefined : data[key]
 

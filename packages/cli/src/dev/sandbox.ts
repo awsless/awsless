@@ -1,18 +1,16 @@
+import { type DevSandbox, formatRouteKey } from 'awsless'
 import { kebabCase } from 'change-case'
 import { StackConfig } from '../config/stack.js'
 
-// The header a sandboxed function's AWS calls carry to the local emulators.
+export type { DevSandbox }
+
+// The header an invoke of a sandboxed function carries to the lambda
+// emulator, which checks its route against the function's allowlist.
 export const SANDBOX_HEADER = 'x-awsless-sandbox'
 
-export type DevSandbox = {
-	routes: string[]
-	configs: string[]
-	services: string[]
-}
-
-const formatRoute = (stack: string, type: string, name: string) => {
-	return [stack, type, name].map(part => kebabCase(part)).join(':')
-}
+// The header of an AWS call the function has no permission for, on its way
+// to the server that denies it.
+export const DENIED_HEADER = 'x-awsless-sandbox-denied'
 
 // What every sandboxed function may reach, by its route. Deployed, IAM and
 // the sandbox proxy hold a function to this; locally the worker and the
@@ -30,10 +28,10 @@ export const createDevSandboxes = (stackConfigs: StackConfig[]) => {
 			const toRoute = (type: string) => (route: string) => {
 				const [stackName, name] = route.split(':')
 
-				return formatRoute(stackName!, type, name!)
+				return formatRouteKey(stackName!, type, name!)
 			}
 
-			sandboxes[formatRoute(stack.name, 'function', id)] = {
+			sandboxes[formatRouteKey(stack.name, 'function', id)] = {
 				routes: [
 					...(allowed.functions ?? []).map(toRoute('function')),
 					...(allowed.tasks ?? []).map(toRoute('task')),

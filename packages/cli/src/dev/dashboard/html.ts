@@ -2144,7 +2144,12 @@ const renderHome = main => {
 			return guide
 		}
 
+		// The spans drawn: one whose dispatch already left the feed isn't.
+		let drawn = 0
+
 		const renderTraced = (span, depth) => {
+			drawn++
+
 			const bar = $('span')
 			bar.style.left = ((span.start - started) / total * 100) + '%'
 			bar.style.width = (span.ms / total * 100) + '%'
@@ -2203,7 +2208,7 @@ const renderHome = main => {
 			$('div', { className: 'modal-head' }, [
 				$('h3', {}, 'Trace ' + traceId),
 				$('span', { className: 'detail' },
-					entries.length + ' dispatches · ' + spans.length + ' spans · ' + (ended - started) + 'ms' + (failed ? ' · failed' : '')),
+					entries.length + ' dispatches · ' + drawn + ' spans · ' + (ended - started) + 'ms' + (failed ? ' · failed' : '')),
 				close,
 			]),
 			tree,

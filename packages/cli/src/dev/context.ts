@@ -38,6 +38,10 @@ export type DevRegistry = {
 	}
 }
 
+// A dispatch has many spans, so their channel replays as many as the
+// dashboard keeps: a page opened later shows the spans of the traces it lists.
+const REPLAY_LIMITS: Record<string, number> = { spans: 2000 }
+
 // Ids keep counting across dev restarts, so a browser's last-event-id stays valid.
 let sequence = 0
 
@@ -80,7 +84,7 @@ export const createDevContext = (props: {
 
 			replay.push({ id, data })
 
-			while (replay.length > 100) {
+			while (replay.length > (REPLAY_LIMITS[channel] ?? 100)) {
 				replay.shift()
 			}
 

@@ -1,6 +1,7 @@
 import { type PostgresQueryBuilder } from '@awsless/postgres';
 export { getSqlState, postgres, PostgresError, sql, type PostgresColumn, type PostgresFunction, type PostgresGenerated, type PostgresGeneratedAlways, type PostgresNumeric, type PostgresQueryBuilder, } from '@awsless/postgres';
 export declare const getPostgresSchemaName: (stackName: string) => string;
+export declare const getPostgresSearchPath: (stackNames: string[]) => string[];
 export declare const getPostgresDatabaseName: (appName?: string) => string;
 export interface PostgresTables {
 }

@@ -1,5 +1,5 @@
 import { createServer, Server } from 'http'
-import { SANDBOX_HEADER } from '../sandbox.js'
+import { DENIED_HEADER } from '../sandbox.js'
 import { trackConnections } from '../util.js'
 
 // The generic AWS_ENDPOINT_URL points here, so a call to a service
@@ -24,7 +24,7 @@ export const createBlockedServer = (props: { onLog?: (message: string) => void }
 
 				// A sandboxed function's call to a service its permissions don't
 				// name lands here, answered the way IAM does after a deploy.
-				const sandboxed = req.headers[SANDBOX_HEADER]
+				const sandboxed = req.headers[DENIED_HEADER]
 
 				if (typeof sandboxed === 'string') {
 					props.onLog?.(`Denied aws call of the sandboxed ${sandboxed}: ${service}`)

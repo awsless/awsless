@@ -11,6 +11,10 @@ export type DevSandbox = {
 	services: string[]
 }
 
+// What the sandbox proxy answers for a route off the allowlist, which the
+// dev environment answers in its place.
+export const formatSandboxRouteError = (routeKey: string) => `Sandboxed route is not allowed: ${routeKey}`
+
 let sandboxes: Record<string, DevSandbox> | undefined
 
 export const getDevSandbox = (routeKey?: string): DevSandbox | undefined => {

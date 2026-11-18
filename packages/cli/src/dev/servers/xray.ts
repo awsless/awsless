@@ -25,7 +25,7 @@ export const toXRayHeader = (trace: { traceId: string; spanId: string }) => {
 
 const fromPadded = (value: string) => value.replace(/^0{8}/, '')
 
-export const toDevSpan = (segment: Record<string, any>): DevSpan | undefined => {
+const toDevSpan = (segment: Record<string, any>): DevSpan | undefined => {
 	if (typeof segment.trace_id !== 'string' || typeof segment.id !== 'string') {
 		return
 	}
@@ -64,7 +64,15 @@ export const createXRayServer = (props: { onSpan: (span: DevSpan) => void }) => 
 
 	return {
 		async listen() {
-			await new Promise<void>(resolve => socket.bind(0, '127.0.0.1', resolve))
+			await new Promise<void>((resolve, reject) => {
+				socket.once('error', reject)
+				socket.bind(0, '127.0.0.1', () => {
+					socket.off('error', reject)
+					// Unheard, a later socket error would take the dev process down.
+					socket.on('error', () => {})
+					resolve()
+				})
+			})
 
 			return socket.address().port
 		},
