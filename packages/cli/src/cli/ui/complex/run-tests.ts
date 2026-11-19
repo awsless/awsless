@@ -81,11 +81,9 @@ const formatResult = (props: {
 	return line.join(` `)
 }
 
-// What a passing test writes to the console is mostly an error it provokes
-// on purpose, so by default only a failed test shows its output.
-const logTestLogs = (event: TestResponse, show: true | 'failed') => {
+const logTestLogs = (event: TestResponse) => {
 	for (const test of event.tests) {
-		if (test.logs.length > 0 && (show === true || test.errors.length > 0)) {
+		if (test.logs.length > 0) {
 			log.message(
 				[
 					color.info.bold.inverse(' LOGS '),
@@ -253,8 +251,7 @@ export const runTests = async (
 	stackFilters: string[] = [],
 	testFilters: string[] = [],
 	opts: {
-		// The console output of every test, of the failed ones only, or of none.
-		showLogs: boolean | 'failed'
+		showLogs: boolean
 		// Evals call real models, so their results never cache & a slow
 		// answer gets more time than a unit test.
 		kind?: 'test' | 'eval'
@@ -356,7 +353,7 @@ export const runTests = async (
 				log.step(formatResult({ label, stack: test.name, cached: true, event: cached }))
 
 				if (opts.showLogs) {
-					logTestLogs(cached, opts.showLogs)
+					logTestLogs(cached)
 				}
 
 				logTestErrors(cached)
@@ -558,7 +555,7 @@ export const runTests = async (
 		)
 
 		if (opts.showLogs) {
-			logTestLogs(result, opts.showLogs)
+			logTestLogs(result)
 		}
 
 		logTestErrors(result)

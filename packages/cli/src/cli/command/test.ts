@@ -11,9 +11,8 @@ export const test = (program: Command) => {
 		.command('test')
 		.argument('[stacks...]', 'Optionally filter stacks to test')
 		.option('-f --filters <string...>', 'Optionally filter test files')
-		.option('-l --logs', 'Show the console output of passing tests too')
 		.description('Test your app')
-		.action(async (stacks?: string[], options?: { filters?: string[]; logs?: boolean }) => {
+		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
 			await layout(`test ${stacks?.join(' ') ?? ''}`, async ({ appConfig, stackConfigs }) => {
 				// Tests run fully local, so the synth uses the same fake
 				// account as the dev environment instead of aws credentials.
@@ -30,7 +29,7 @@ export const test = (program: Command) => {
 					stackConfigs,
 					({ manifest, manifestFile, ensureReady }) => {
 						return runTests(tests, stacks, options?.filters, {
-							showLogs: options?.logs ? true : 'failed',
+							showLogs: true,
 							manifest,
 							ensureReady,
 							env: createTestEnv({ appConfig, appId, accountId, manifestFile }),
