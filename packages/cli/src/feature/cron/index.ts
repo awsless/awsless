@@ -8,7 +8,7 @@ import { funcType, invokeTypes, testMockTypes, writeResourceTypes } from '../../
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'

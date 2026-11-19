@@ -9,7 +9,7 @@ import { createSnsServer } from '../../dev/servers/sns.js'
 import { findFreePort, stopChild, watchdogPath } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatGlobalResourceName, getEventFunctionName } from '../../util/name.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 
 const waitForHealth = async (port: number, timeoutMs: number) => {
 	const deadline = Date.now() + timeoutMs

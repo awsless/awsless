@@ -16,10 +16,18 @@ export type BundleWorker = {
 	// into every outgoing loopback request.
 	// The X-Ray header turns the runtime's own spans on for this dispatch.
 	dispatch: (event: unknown, trace?: string, xRayTraceId?: string) => Promise<unknown>
+	// A router request as the web function gets it: handed to the worker as
+	// it comes & answered as the handler writes, so a body streams both ways.
+	serve: (request: Request, trace?: string, xRayTraceId?: string) => Promise<Response>
 	// The number of live worker processes, for the dashboard's session
 	// header.
 	size: () => number
 }
+
+// A web request to the worker carries its trace & lambda context in this
+// header; a handler that failed before it answered says so in the other.
+const REQUEST_HEADER = 'x-awsless-dev-request'
+const ERROR_HEADER = 'x-awsless-dev-error'
 
 export class WorkerError extends Error {
 	constructor(
@@ -47,6 +55,8 @@ import { format } from 'node:util'
 
 let handler
 let getCurrentRoute = () => undefined
+let createWebRequest
+let writeWebResponse
 
 // The trace of the running invocation, set per dispatch by the dev
 // server. The async context keeps it accurate under concurrent
@@ -182,6 +192,8 @@ try {
 
 	handler = bundle.default
 	getCurrentRoute = bundle.getCurrentRoute ?? getCurrentRoute
+	createWebRequest = bundle.createWebRequest
+	writeWebResponse = bundle.writeWebResponse
 } catch (error) {
 	// Keep module load failures readable, instead of node dumping the
 	// whole minified line that threw.
@@ -190,7 +202,74 @@ try {
 	process.exit(1)
 }
 
+// Fabricate the parts of the lambda context that only exist at
+// runtime, like the remaining time counter.
+const createContext = context => {
+	const started = Date.now()
+
+	return {
+		functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+		functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+		memoryLimitInMB: '512',
+		awsRequestId: crypto.randomUUID(),
+		getRemainingTimeInMillis: () => 15 * 60 * 1000 - (Date.now() - started),
+		...context,
+	}
+}
+
+const formatError = error =>
+	JSON.stringify({
+		error: {
+			name: error?.name ?? 'Error',
+			message: error?.message ?? String(error),
+			stack: error?.stack,
+		},
+	})
+
+// A router request, served like the web function serves it: the body
+// streams in & the response out as the handler writes it.
+const serveRequest = async (req, res) => {
+	const controller = new AbortController()
+
+	// A caller that goes away cancels the request, so a handler can stop.
+	res.once('close', () => {
+		if (!res.writableFinished) {
+			controller.abort()
+		}
+	})
+
+	try {
+		const request = createWebRequest(req, controller.signal)
+		const { context, trace } = JSON.parse(request.headers.get('${REQUEST_HEADER}'))
+
+		request.headers.delete('${REQUEST_HEADER}')
+
+		const run = () => handler.serveRequest(request, response => writeWebResponse(response, res), createContext(context))
+
+		await (trace ? traceContext.run(trace, run) : run())
+	} catch (error) {
+		if (controller.signal.aborted) {
+			return
+		}
+
+		// An answer already on its way can only be cut short.
+		if (res.headersSent) {
+			console.error(error)
+			res.destroy()
+			return
+		}
+
+		res.writeHead(500, { 'content-type': 'application/json', '${ERROR_HEADER}': '1' })
+		res.end(formatError(error))
+	}
+}
+
 const server = createServer((req, res) => {
+	if (req.headers['${REQUEST_HEADER}']) {
+		void serveRequest(req, res)
+		return
+	}
+
 	if (req.method !== 'POST') {
 		res.writeHead(200)
 		res.end('ready')
@@ -204,32 +283,14 @@ const server = createServer((req, res) => {
 
 		try {
 			const { event, context, trace } = JSON.parse(Buffer.concat(chunks).toString())
-
-			// Fabricate the parts of the lambda context that only exist
-			// at runtime, like the remaining time counter.
-			const started = Date.now()
-			const run = () => handler(event, {
-				functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
-				functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
-				memoryLimitInMB: '512',
-				awsRequestId: crypto.randomUUID(),
-				getRemainingTimeInMillis: () => 15 * 60 * 1000 - (Date.now() - started),
-				...context,
-			})
-
+			const run = () => handler(event, createContext(context))
 			const result = await (trace ? traceContext.run(trace, run) : run())
 
 			// Serialized inside the try: a result the json encoder rejects
 			// (a bigint, a cycle) is a handler error, not a worker crash.
 			body = JSON.stringify({ result: typeof result === 'undefined' ? null : result })
 		} catch (error) {
-			body = JSON.stringify({
-				error: {
-					name: error?.name ?? 'Error',
-					message: error?.message ?? String(error),
-					stack: error?.stack,
-				},
-			})
+			body = formatError(error)
 		}
 
 		res.writeHead(200, { 'content-type': 'application/json' })
@@ -288,6 +349,8 @@ export const createFrameReader = (onRecord: (record: WorkerRecord) => void) => {
 		}
 	}
 }
+
+type WorkerBody = { result?: unknown; error?: { name: string; message: string; stack?: string } }
 
 type PoolWorker = {
 	child: ChildProcess
@@ -479,6 +542,57 @@ export const createBundleWorker = (props: {
 		await Promise.all(stopping.map(worker => stopChild(worker.child)))
 	}
 
+	// Runs a call on the least busy worker, and tells a worker that
+	// died under it from a call that failed.
+	const withWorker = async <T>(call: (worker: PoolWorker) => Promise<T>) => {
+		// A start or restart in flight finishes first, so a dispatch
+		// landing between a restart's stop & start never sees an empty
+		// pool. Only lifecycle operations count - a crash never stalls
+		// dispatches to the healthy workers.
+		while (pending > 0) {
+			await lifecycle
+		}
+
+		if (workers.length === 0) {
+			throw new Error('The bundle worker is not running.')
+		}
+
+		// The least busy worker takes the request, so a stalled or
+		// slow worker never queues up work while others sit idle.
+		const worker = workers.reduce((a, b) => (b.inflight < a.inflight ? b : a))
+
+		worker.inflight++
+
+		try {
+			return await call(worker)
+		} catch (error) {
+			// The handler's own error.
+			if (error instanceof WorkerError) {
+				throw error
+			}
+
+			// The socket can drop before the exit event lands, so give
+			// the process a moment before deciding whether it crashed.
+			const hasExited = () =>
+				worker.exited !== undefined || worker.child.exitCode !== null || worker.child.signalCode !== null
+
+			for (let i = 0; i < 10 && !hasExited(); i++) {
+				await new Promise(resolve => setTimeout(resolve, 25))
+			}
+
+			if (hasExited()) {
+				throw new WorkerError(
+					'WorkerCrashed',
+					`The bundle worker exited (${worker.child.signalCode ?? `code ${worker.child.exitCode}`}) while handling the request.`
+				)
+			}
+
+			throw error
+		} finally {
+			worker.inflight--
+		}
+	}
+
 	return {
 		size: () => workers.length,
 		start: () => serialize(doStart),
@@ -488,65 +602,53 @@ export const createBundleWorker = (props: {
 				await doStop()
 				await doStart()
 			}),
-		async dispatch(event, trace, xRayTraceId) {
-			// A start or restart in flight finishes first, so a dispatch
-			// landing between a restart's stop & start never sees an empty
-			// pool. Only lifecycle operations count - a crash never stalls
-			// dispatches to the healthy workers.
-			while (pending > 0) {
-				await lifecycle
-			}
+		dispatch(event, trace, xRayTraceId) {
+			return withWorker(async worker => {
+				const res = await fetch(`http://127.0.0.1:${worker.port}`, {
+					method: 'POST',
+					body: JSON.stringify({ event, context: { ...context, xRayTraceId }, trace }),
+				})
 
-			if (workers.length === 0) {
-				throw new Error('The bundle worker is not running.')
-			}
-
-			// The least busy worker takes the request, so a stalled or
-			// slow worker never queues up work while others sit idle.
-			const worker = workers.reduce((a, b) => (b.inflight < a.inflight ? b : a))
-
-			worker.inflight++
-
-			try {
-				let body: { result?: unknown; error?: { name: string; message: string; stack?: string } }
-
-				try {
-					const res = await fetch(`http://127.0.0.1:${worker.port}`, {
-						method: 'POST',
-						body: JSON.stringify({ event, context: { ...context, xRayTraceId }, trace }),
-					})
-
-					body = await res.json()
-				} catch (error) {
-					// The socket can drop before the exit event lands, so give
-					// the process a moment before deciding whether it crashed.
-					const hasExited = () =>
-						worker.exited !== undefined ||
-						worker.child.exitCode !== null ||
-						worker.child.signalCode !== null
-
-					for (let i = 0; i < 10 && !hasExited(); i++) {
-						await new Promise(resolve => setTimeout(resolve, 25))
-					}
-
-					if (hasExited()) {
-						throw new WorkerError(
-							'WorkerCrashed',
-							`The bundle worker exited (${worker.child.signalCode ?? `code ${worker.child.exitCode}`}) while handling the request.`
-						)
-					}
-
-					throw error
-				}
+				const body: WorkerBody = await res.json()
 
 				if (body.error) {
 					throw new WorkerError(body.error.name, body.error.message, body.error.stack)
 				}
 
 				return body.result
-			} finally {
-				worker.inflight--
-			}
+			})
+		},
+		serve(request, trace, xRayTraceId) {
+			return withWorker(async worker => {
+				const url = new URL(request.url)
+				const headers = new Headers(request.headers)
+
+				headers.set(REQUEST_HEADER, JSON.stringify({ context: { ...context, xRayTraceId }, trace }))
+
+				const res = await fetch(`http://127.0.0.1:${worker.port}${url.pathname}${url.search}`, {
+					method: request.method,
+					headers,
+					body: request.body,
+					redirect: 'manual',
+					// The handler's own encoding reaches the browser untouched.
+					decompress: false,
+					duplex: 'half',
+				} as RequestInit)
+
+				if (res.headers.has(ERROR_HEADER)) {
+					const { error }: WorkerBody = await res.json()
+
+					throw new WorkerError(error!.name, error!.message, error!.stack)
+				}
+
+				// The connection to the worker is ours, not the caller's.
+				const answer = new Headers(res.headers)
+
+				answer.delete('connection')
+				answer.delete('keep-alive')
+
+				return new Response(res.body, { status: res.status, statusText: res.statusText, headers: answer })
+			})
 		},
 	}
 }

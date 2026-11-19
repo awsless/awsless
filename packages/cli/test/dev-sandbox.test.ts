@@ -8,6 +8,7 @@ import { createDevSandboxes, SANDBOX_HEADER } from '../src/dev/sandbox'
 import { createBlockedServer } from '../src/dev/servers/blocked'
 import { createLambdaServer } from '../src/dev/servers/lambda'
 import { createBundleWorker } from '../src/dev/worker'
+import { formatPatternRouteKey } from '../src/feature/router/pattern'
 
 const sandboxes = createDevSandboxes([
 	{
@@ -20,6 +21,9 @@ const sandboxes = createDevSandboxes([
 				permissions: [{ effect: 'allow', actions: ['sqs:SendMessage'], resources: ['*'] }],
 			},
 		},
+		// A route & a site's ssr, which deploy as web functions of their own.
+		routes: { main: { '/open': {}, '/hooks/pay': { sandbox: { functions: ['shop:open'] } } } },
+		sites: { web: { ssr: { sandbox: true } }, plain: { ssr: {} }, static: {} },
 	} as unknown as StackConfig,
 ])
 
@@ -64,6 +68,12 @@ describe('dev sandbox', () => {
 				configs: ['api-key'],
 				services: ['sqs'],
 			},
+			[formatPatternRouteKey('shop', '/hooks/pay')]: {
+				routes: ['shop:function:open'],
+				configs: [],
+				services: [],
+			},
+			'shop:site:web': { routes: [], configs: [], services: [] },
 		})
 	})
 

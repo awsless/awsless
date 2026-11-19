@@ -99,7 +99,8 @@ export const assetFeature = defineFeature({
 						{
 							Effect: 'Allow',
 							Action: ['s3:GetObject', 's3:GetObjectVersion'],
-							Resource: `${arn}/bundle/*`,
+							// The bundle's code, and that of a handler's own web function.
+							Resource: [`${arn}/bundle/*`, `${arn}/web-function/*`],
 							Principal: {
 								Service: 'lambda.amazonaws.com',
 							},

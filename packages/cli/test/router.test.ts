@@ -172,22 +172,18 @@ describe('router routes', () => {
 		])
 	})
 
-	it('should answer preflights at the edge unless the router turns cors off', async () => {
+	it('should answer preflights at the edge', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
 			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
 		])
-		const preflight = () => ({ ...createRequest('/api'), method: 'OPTIONS' })
 
-		const withCors = (await createRouter(values).handler({ request: preflight() })) as Response
-		expect(withCors.statusCode).toBe(204)
-		expect(withCors.headers?.['access-control-allow-origin']).toEqual({ value: '*' })
+		const response = (await createRouter(values).handler({
+			request: { ...createRequest('/api'), method: 'OPTIONS' },
+		})) as Response
 
-		// Without cors the request goes on to its route like any other.
-		const without = (await createRouter(values, { cors: false }).handler({ request: preflight() })) as Request
-		expect(without.uri).toBe('/api')
-		expect(without.method).toBe('OPTIONS')
-		expect(getViewerRequestFunctionCode({ router: 'main', cors: false })).not.toContain('access-control')
+		expect(response.statusCode).toBe(204)
+		expect(response.headers?.['access-control-allow-origin']).toEqual({ value: '*' })
 	})
 
 	it('should give the error responses a router asks for, a caching time alone included', () => {
@@ -220,18 +216,6 @@ describe('router routes', () => {
 			responseCode: '500',
 			responsePagePath: '/500.html',
 		})
-	})
-
-	it('should leave a router without cors without a cors response policy', () => {
-		const result = createRouterApp({ main: { cors: false }, other: {} })
-		result.ready()
-
-		const policies = listResources(result.app, 'aws_cloudfront_response_headers_policy') as {
-			input: { corsConfig?: unknown }
-		}[]
-
-		expect(policies).toHaveLength(2)
-		expect(policies.filter(policy => policy.input.corsConfig === undefined)).toHaveLength(1)
 	})
 
 	it('should only use syntax the cloudfront js runtime supports', async () => {

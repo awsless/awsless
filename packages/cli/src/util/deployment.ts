@@ -15,6 +15,7 @@ import {
 	optional,
 	putItem,
 	query,
+	record,
 	string,
 	updateItem,
 } from '@awsless/dynamodb'
@@ -77,6 +78,8 @@ const table = define('awsless-deployments', {
 		message: optional(string()),
 		functionVersion: optional(string()),
 		webFunctionRevisionId: optional(string()),
+		// The revision of every web function a handler has of its own, by its name.
+		webFunctionRevisions: optional(record(string())),
 		promotedAt: optional(string()),
 	}),
 })
@@ -93,6 +96,7 @@ export type Deployment = {
 	message?: string
 	functionVersion?: string
 	webFunctionRevisionId?: string
+	webFunctionRevisions?: Record<string, string>
 	promotedAt?: string
 }
 
@@ -209,6 +213,7 @@ export const markDeployed = async (props: {
 	id: string
 	functionVersion: string
 	webFunctionRevisionId?: string
+	webFunctionRevisions?: Record<string, string>
 }) => {
 	await updateItem(
 		table,
@@ -217,6 +222,9 @@ export const markDeployed = async (props: {
 			update: e => [
 				e.functionVersion.set(props.functionVersion),
 				...(props.webFunctionRevisionId ? [e.webFunctionRevisionId.set(props.webFunctionRevisionId)] : []),
+				...(Object.keys(props.webFunctionRevisions ?? {}).length > 0
+					? [e.webFunctionRevisions.set(props.webFunctionRevisions!)]
+					: []),
 			],
 			when: e => e.id.exists(),
 			client: props.client,
@@ -475,15 +483,20 @@ export const readDeployedFunctionVersions = (state: DeploymentState) => {
 	return functions
 }
 
-// The web function's revision of a deployment, which promotion puts live.
-export const readDeployedWebFunctionRevisionId = (state: DeploymentState) => {
+// The revision of every web function in a deployment, by its function's
+// name, which promotion puts live.
+export const readDeployedWebFunctionRevisions = (state: DeploymentState) => {
+	const revisions: Record<string, string> = {}
+
 	for (const [, node] of readStateNodes(state)) {
-		if (node.type === 'aws_lambdaweb_function_revision' && node.output.revisionId) {
-			return node.output.revisionId
+		const { functionName, revisionId } = node.output
+
+		if (node.type === 'aws_lambdaweb_function_revision' && functionName && revisionId) {
+			revisions[functionName] = revisionId
 		}
 	}
 
-	return undefined
+	return revisions
 }
 
 // ------------------------------------------------------------
@@ -630,9 +643,23 @@ export const promoteDeployment = async (props: {
 		)
 	}
 
+	// The web functions handlers have of their own flip with the same routes.
+	const ownWebFunctions = Object.entries(deployment.webFunctionRevisions ?? {})
+
+	for (const [name, revisionId] of ownWebFunctions) {
+		if (!(await hasWebFunctionRevision(props.lambdaWeb, name, revisionId))) {
+			throw new ExpectedError(
+				`The revision "${revisionId}" of the web function "${name}" of this deployment no longer exists.`
+			)
+		}
+	}
+
 	let wasAliasUpdateStarted = false
 	let previousWebFunctionRevisionId: string | undefined
 	let wasEndpointUpdateStarted = false
+
+	// The endpoints that were moved, with the revision to put back.
+	const flippedEndpoints: { functionName: string; revisionId: string }[] = []
 
 	const flippedStores: RouteStoreTarget[] = []
 	const flipped: { functionName: string; liveVersion?: string; liveDescription?: string }[] = []
@@ -690,6 +717,20 @@ export const promoteDeployment = async (props: {
 			}
 		}
 
+		for (const [name, revisionId] of ownWebFunctions) {
+			const previous = await getEndpointRevisionId(props.lambdaWeb, name, WEB_FUNCTION_ENDPOINT_NAME)
+
+			if (previous !== revisionId) {
+				// A new endpoint took this revision at its creation, so one without
+				// a previous revision has nothing to go back to.
+				if (previous) {
+					flippedEndpoints.push({ functionName: name, revisionId: previous })
+				}
+
+				await setEndpointRevisionId(props.lambdaWeb, name, WEB_FUNCTION_ENDPOINT_NAME, revisionId)
+			}
+		}
+
 		for (const store of stores) {
 			if (activeRoutes.get(store.arn)?.id !== store.deployment.id) {
 				flippedStores.push(store)
@@ -735,6 +776,9 @@ export const promoteDeployment = async (props: {
 						),
 					]
 				: []),
+			...flippedEndpoints.map(item =>
+				setEndpointRevisionId(props.lambdaWeb, item.functionName, WEB_FUNCTION_ENDPOINT_NAME, item.revisionId)
+			),
 			...(wasAliasUpdateStarted
 				? [
 						revertLiveAlias({

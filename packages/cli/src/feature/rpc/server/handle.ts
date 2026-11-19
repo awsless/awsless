@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { ExpectedError } from '@awsless/lambda'
-import { internalInvoke, toFunctionUrlResult, toWebRequest } from 'awsless'
+import { internalInvoke } from 'awsless'
 import { authenticate } from './auth.js'
 import { getFunctionDetails } from './details.js'
 import {
@@ -171,8 +171,5 @@ const handleRequest = async (request: Request): Promise<Response> => {
 	}
 }
 
-// A function url event's call, answered read whole, and the web function's request.
-export default Object.assign(
-	async (event: unknown) => toFunctionUrlResult(await handleRequest(toWebRequest(event).request)),
-	{ fetch: handleRequest }
-)
+// Always served by a web function, which hands it the request.
+export default { fetch: handleRequest }

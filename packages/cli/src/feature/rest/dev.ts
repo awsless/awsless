@@ -2,7 +2,7 @@ import { constantCase } from 'change-case'
 import { createRestServer, RestRoute } from '../../dev/servers/rest.js'
 import { DevContext } from '../../feature.js'
 import { shortId } from '../../util/id.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 
 export const restOnDev = async (ctx: DevContext) => {
 	const ids = Object.keys(ctx.appConfig.rest ?? {})

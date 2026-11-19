@@ -2,8 +2,8 @@ import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Permission } from './feature.js'
 import { BucketLifecycleRule } from './feature/asset/index.js'
-import { BundleHandler } from './feature/bundle/util.js'
-import type { WebFunction } from './feature/bundle/web-function.js'
+import { BundleHandler } from './feature/bundle/util/index.js'
+import type { WebFunction } from './feature/bundle/util/web-function.js'
 import { Route } from './feature/router/route.js'
 
 type SharedState = {
@@ -59,6 +59,7 @@ type SharedState = {
 		}
 		// The Lambda Web Function: the routers' bundle routes over HTTP.
 		'web-function': WebFunction
+		'web-network-connector': aws.lambdacore.NetworkConnector
 	}
 
 	cron: {

@@ -4,7 +4,7 @@ import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'

@@ -9,7 +9,7 @@ import { defineFeature } from '../../feature.js'
 import { funcType, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import {

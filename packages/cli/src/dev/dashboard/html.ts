@@ -866,22 +866,18 @@ const rpcPanel = (main, r) => {
 		try {
 			const parsed = payload.value.trim() ? JSON.parse(payload.value) : undefined
 
-			// The same lambda url event the local router sends the rpc
-			// server for a real request.
-			const event = {
-				version: '2.0',
-				rawPath: '/',
-				requestContext: { http: { method: 'POST', userAgent: 'awsless dev dashboard', sourceIp: '127.0.0.1' } },
-				headers: {
-					'content-type': 'application/json',
-					...(auth.value.trim() ? { authentication: auth.value.trim() } : {}),
-				},
-				body: JSON.stringify([{ name: query.value, ...(parsed === undefined ? {} : { payload: parsed }) }]),
-			}
-
-			const data = await api('/api/invoke', {
+			// The request the local router sends the rpc server.
+			const data = await api('/api/request', {
 				method: 'POST',
-				body: JSON.stringify({ routeKey: r.routeKey, event }),
+				body: JSON.stringify({
+					routeKey: r.routeKey,
+					headers: {
+						'content-type': 'application/json',
+						'user-agent': 'awsless dev dashboard',
+						...(auth.value.trim() ? { authentication: auth.value.trim() } : {}),
+					},
+					body: JSON.stringify([{ name: query.value, ...(parsed === undefined ? {} : { payload: parsed }) }]),
+				}),
 			})
 
 			let body = data.result?.body

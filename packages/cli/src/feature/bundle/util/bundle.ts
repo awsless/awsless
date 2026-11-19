@@ -3,12 +3,12 @@ import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { generateDependencyHash, generateFileHash } from '@awsless/ts-file-cache'
-import { Builder, getBuildPath } from '../../build/index.js'
-import { AppContext, StackContext } from '../../feature.js'
-import { formatByteSize } from '../../util/byte-size.js'
-import { createTempFolder } from '../../util/temp.js'
-import { bundleTypeScriptWithRolldown, formatRouteModuleId } from './build/rolldown.js'
-import { zipFiles } from './build/zip.js'
+import { Builder, getBuildPath } from '../../../build/index.js'
+import { AppContext, StackContext } from '../../../feature.js'
+import { formatByteSize } from '../../../util/byte-size.js'
+import { createTempFolder } from '../../../util/temp.js'
+import { bundleTypeScriptWithRolldown, formatRouteModuleId } from '../build/rolldown.js'
+import { zipFiles } from '../build/zip.js'
 
 // The route protocol strings live in the awsless lib, shared with the handlers.
 export { DEPLOYMENT_ID_HEADER, formatRouteKey, ROUTE_HEADER } from 'awsless'
@@ -103,6 +103,10 @@ export const getCurrentRoute = () => runtime.getCurrentRoute?.()
 
 // The web function's entry (web-function.mjs) serves this same bundle over HTTP.
 export const startWebFunctionServer = runtime.startWebFunctionServer
+
+// The local dev worker serves a router request the way the web function does.
+export const createWebRequest = runtime.createWebRequest
+export const writeWebResponse = runtime.writeWebResponse
 
 export default runtime.createBundle({
 ${entries.join('\n')}

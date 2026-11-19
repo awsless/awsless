@@ -13,8 +13,6 @@ import {
 	ROUTE_PROPERTY,
 	runTraceStep,
 	setBundleRoutes,
-	toFunctionUrlEvent,
-	toWebResponse,
 	trace,
 	withBundleRouteContext,
 	withTraceHeader,
@@ -45,8 +43,9 @@ type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unk
 // The local dev worker reads the active route to tag console output.
 export { getCurrentRoute } from 'awsless'
 
-// The bundle's web function serves its router paths over HTTP.
-export { startWebFunctionServer } from './web-function.js'
+// The bundle's web function serves its router paths over HTTP, and the
+// local dev worker with the same two halves.
+export { createWebRequest, startWebFunctionServer, writeWebResponse } from './web-function.js'
 
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
@@ -192,10 +191,9 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 		return runBundleRoute(match)
 	}
 
-	// A request to the web function. A route whose handler takes web
-	// requests (h.route, h.site, the rpc server) streams its request &
-	// response; any other gets the function url event, read whole. The
-	// response is written inside the route's context.
+	// A request to the web function, streamed in & out by the route's
+	// handler (h.route, h.site, the rpc server). The response is written
+	// inside the route's context.
 	const serveRequest = async (
 		request: Request,
 		writeResponse: (response: Response) => Promise<void>,
@@ -207,20 +205,20 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			throw new Error('Unknown bundle route: ' + key)
 		}
 
-		// Lambda appends the address that connected, CloudFront's edge, as a function url's source ip.
-		const sourceIp = request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim()
 		const runBundleRoute = createBundleRouteRunner(context)
 
 		await runBundleRoute(
-			{ key, payload: undefined },
+			// The method alone: a url can hold ids and emails.
+			{ key, payload: undefined, describeSpan: () => ({ trigger: 'http', http: { method: request.method } }) },
 			{
 				runHandler: async (handle, routedContext) => {
 					const { fetch } = handle as Partial<h.RouteEntry>
-					const response = fetch
-						? await fetch(request, routedContext)
-						: toWebResponse(await handle(await toFunctionUrlEvent(request, { sourceIp }), routedContext))
 
-					await writeResponse(response)
+					if (!fetch) {
+						throw new Error(`Route "${key}" takes no web request. Wrap its handler in h.route().`)
+					}
+
+					await writeResponse(await fetch(request, routedContext))
 				},
 			}
 		)

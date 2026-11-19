@@ -437,7 +437,6 @@ describe('bundle handler', () => {
 		'stack-1:route:page',
 		'stack-1:icon:icons',
 		'stack-1:image:images',
-		'base:rpc:api',
 	])('should dispatch the %s route header', async route => {
 		const event = {
 			headers: {

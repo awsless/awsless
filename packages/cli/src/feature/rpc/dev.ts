@@ -5,7 +5,7 @@ import { kebabCase } from 'change-case'
 import { DevContext } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 
 export const rpcOnDev = async (ctx: DevContext) => {
 	const ids = Object.keys(ctx.appConfig.rpc ?? {})

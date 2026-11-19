@@ -7,16 +7,15 @@ import * as t from "@awsless/dynamodb";
 import { define as define$2 } from "@awsless/dynamodb";
 import * as v from "@awsless/validate";
 import { array, boolean, date, dynamoDbStream, isoTimestamp, literal, object, optional, parse, picklist, pipe, record, redact, snsTopic, sqsQueue, string, transform, union, unknown } from "@awsless/validate";
-import { ExpectedError, enhanceError, getContext, invoke, isErrorResponse, isTestEnv, lambda, runInvocation, toErrorResponse } from "@awsless/lambda";
+import { ExpectedError, enhanceError, invoke, isErrorResponse, isTestEnv, lambda, runInvocation, toErrorResponse } from "@awsless/lambda";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { constantCase, kebabCase } from "change-case";
-import { createHash, randomUUID } from "node:crypto";
 import { stringify } from "@awsless/json";
 import { publish } from "@awsless/sns";
 import { ssm } from "@awsless/ssm";
 import { WeakCache } from "@awsless/weak-cache";
 import { getCachedQueueUrl, sendMessage, sendMessageBatch } from "@awsless/sqs";
-import { randomUUID as randomUUID$1 } from "crypto";
+import { randomUUID } from "crypto";
 import { runTask } from "@awsless/ecs";
 import { deleteObject, getObject, headObject, putObject } from "@awsless/s3";
 import { schedule } from "@awsless/scheduler";
@@ -25,6 +24,7 @@ import { PostgresError, getSqlState, postgres, postgresClient, postgresDataClien
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { sendEmail } from "@awsless/ses";
 import { batchPutData, createDurationMetric, createMetric, createSizeMetric, putData } from "@awsless/cloudwatch";
+import { createHash } from "node:crypto";
 //#region \0rolldown/runtime.js
 var __defProp = Object.defineProperty;
 var __exportAll = (all, no_symbols) => {
@@ -301,67 +301,6 @@ const toWebRequest = (input) => {
 		pathParameters: event.pathParameters
 	};
 };
-/** A web Request as the function url event a handler without a web entry takes, its body read whole. */
-const toFunctionUrlEvent = async (request, props = {}) => {
-	const headers = Object.fromEntries(request.headers);
-	const url = new URL(request.url);
-	const query = getQuery(url);
-	const body = Buffer.from(await request.arrayBuffer());
-	const isText = isTextContentType(headers["content-type"]) && Buffer.from(body.toString()).equals(body);
-	const cookies = headers.cookie?.split(";").map((cookie) => cookie.trim()).filter(Boolean);
-	const now = /* @__PURE__ */ new Date();
-	return {
-		version: "2.0",
-		routeKey: "$default",
-		rawPath: url.pathname,
-		rawQueryString: url.search.slice(1),
-		cookies: cookies && cookies.length > 0 ? cookies : void 0,
-		headers,
-		queryStringParameters: Object.keys(query).length > 0 ? query : void 0,
-		requestContext: {
-			accountId: "anonymous",
-			apiId: "web",
-			domainName: url.host,
-			domainPrefix: url.host.split(".")[0] ?? "",
-			http: {
-				method: request.method,
-				path: url.pathname,
-				protocol: "HTTP/1.1",
-				sourceIp: props.sourceIp ?? "",
-				userAgent: headers["user-agent"] ?? ""
-			},
-			requestId: randomUUID(),
-			routeKey: "$default",
-			stage: "$default",
-			time: now.toISOString(),
-			timeEpoch: now.getTime()
-		},
-		body: body.byteLength > 0 ? body.toString(isText ? "utf8" : "base64") : void 0,
-		isBase64Encoded: body.byteLength > 0 && !isText
-	};
-};
-const isFunctionUrlResult = (result) => {
-	return typeof result === "object" && result !== null && typeof result.statusCode === "number";
-};
-const NULL_BODY_STATUSES = [
-	101,
-	103,
-	204,
-	205,
-	304
-];
-/** A handler's answer as a web Response: a result with a status code is the response, anything else a 200 json body. */
-const toWebResponse = (result) => {
-	if (!isFunctionUrlResult(result)) return Response.json(result ?? null);
-	const headers = new Headers();
-	for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
-	for (const cookie of result.cookies ?? []) headers.append("set-cookie", cookie);
-	const body = typeof result.body === "string" && !NULL_BODY_STATUSES.includes(result.statusCode) ? Buffer.from(result.body, result.isBase64Encoded ? "base64" : "utf8") : null;
-	return new Response(body, {
-		status: result.statusCode,
-		headers
-	});
-};
 /** A web Response read to its end, as the result a function url answers. */
 const toFunctionUrlResult = async (response) => {
 	const headers = {};
@@ -378,12 +317,6 @@ const toFunctionUrlResult = async (response) => {
 		body: body.byteLength > 0 ? body.toString(isText ? "utf8" : "base64") : void 0,
 		isBase64Encoded: body.byteLength > 0 && !isText
 	};
-};
-/** A url's query, a repeated name's values joined with commas like a function url's. */
-const getQuery = (url) => {
-	const query = {};
-	for (const name of new Set(url.searchParams.keys())) query[name] = url.searchParams.getAll(name).join(",");
-	return query;
 };
 /** The caller behind CloudFront: its viewer address ("ip:port", also for ipv6), which CloudFront writes over any a client sends. */
 const getViewerIp = (headers) => {
@@ -815,7 +748,7 @@ const Job = /*@__PURE__*/ createProxy((stackName) => {
 			let storedPayload = payload;
 			const bucket = process.env.JOB_PAYLOAD_BUCKET;
 			if (payload !== void 0 && bucket) {
-				const key = `job/payloads/${randomUUID$1()}.json`;
+				const key = `job/payloads/${randomUUID()}.json`;
 				await putObject({
 					bucket,
 					key,
@@ -1729,7 +1662,8 @@ const traceClient = (cache, raw) => ({
 });
 const Cache = /*@__PURE__*/ createProxy((stack) => {
 	return /* @__PURE__ */ createProxy((name) => {
-		return (db = 0, { keepConnection = false } = {}) => {
+		const clients = /* @__PURE__ */ new Map();
+		const createClient = (db) => {
 			return traceClient(`${stack}.${name}`, createLazyClient(() => {
 				const client = createIoRedisClient({
 					...getCacheProps(name, stack),
@@ -1743,9 +1677,16 @@ const Cache = /*@__PURE__*/ createProxy((stack) => {
 					}
 				});
 				if (isTest()) registerTestCleanup(() => client.destroy());
-				else if (!keepConnection) getContext().onFinally(() => client.destroy());
 				return client;
 			}));
+		};
+		return (db = 0) => {
+			let client = clients.get(db);
+			if (!client) {
+				client = createClient(db);
+				clients.set(db, client);
+			}
+			return client;
 		};
 	});
 });
@@ -1861,4 +1802,4 @@ const Store = /*@__PURE__*/ createProxy((stack) => {
 	});
 });
 //#endregion
-export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSandboxRouteError, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseStackName, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresDatabaseName, getPostgresSchemaName, getPostgresSearchPath, getPubSubPublisherName, getQuery, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, sql, startSpan, t, toFunctionUrlEvent, toFunctionUrlResult, toWebRequest, toWebResponse, trace, v, withBundleRouteContext, withTraceHeader };
+export { Alert, Auth, Cache, ClickHouse, Config, Cron, DEPLOYMENT_ID_HEADER, Email, Fn, Instance, Job, LIVE_BUNDLE_ALIAS, Metric, Postgres, PostgresError, PubSub, Queue, ROUTE_HEADER, ROUTE_PROPERTY, Search, Store, Table, Task, Topic, assertKeyAttributes, assertMatchingColumns, assertMatchingMappings, c, captureInvokedQualifier, flushTraces, formatRouteEnvName, formatRouteKey, formatRoutePayload, formatSandboxRouteError, formatSearchIndexName, getAccountId, getAlertName, getApp, getAppId, getAuthProps, getCacheProps, getClickHouseProps, getClickHouseStackName, getClickHouseTableName, getConfigName, getConfigValue, getCronName, getCurrentRoute, getEventFunctionName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getInvokedQualifier, getJobClusterName, getJobName, getMetricName, getMetricNamespace, getOnFailureBucketArn, getOnFailureBucketName, getOnFailureQueueArn, getOnFailureQueueName, getPostgresDatabaseName, getPostgresSchemaName, getPostgresSearchPath, getPubSubPublisherName, getQueueName, getQueueUrl, getRegion, getRouteEnv, getSearchProps, getSqlState, getStack, getStandaloneFunctionName, getStoreName, getTableName, getTableProps, getTaskName, getTopicName, getViewerIp, handle_exports as h, hasBundleRoute, internalInvoke, invokeBundle, isInsideBundle, isTracing, mock, postgres, runTraceStep, s, seed, setBundleRoutes, setConfigValue, setupTestEnv, shouldThrowExpectedErrors, sql, startSpan, t, toFunctionUrlResult, toWebRequest, trace, v, withBundleRouteContext, withTraceHeader };

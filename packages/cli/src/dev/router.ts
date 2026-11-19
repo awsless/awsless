@@ -1,13 +1,13 @@
-import { toFunctionUrlEvent, toWebResponse } from 'awsless'
-import { DevDispatch, DevRoute } from '../feature.js'
-import { ROUTE_HEADER } from '../feature/bundle/util.js'
+import { DevDispatch, DevRoute, DevServe } from '../feature.js'
+import { ROUTE_HEADER } from '../feature/bundle/util/index.js'
 import { compileRoutePattern } from '../feature/router/pattern.js'
-import { parseTraceHeader, TRACE_HEADER } from './util.js'
+import { parseTraceHeader, toResponse, TRACE_HEADER } from './util.js'
 
 type CompiledRoute = {
 	match?: RegExp
 	params?: string[]
 	routeKey?: string
+	eventFunction?: boolean
 	proxy?: string
 	rewrite?: { regex: string; to: string }
 	// Raw keys are the static asset routes, which the deployed viewer
@@ -17,6 +17,7 @@ type CompiledRoute = {
 
 type RouteMatch = {
 	routeKey?: string
+	eventFunction?: boolean
 	proxy?: string
 	params: Record<string, string>
 	rewrite?: { regex: string; to: string }
@@ -39,6 +40,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 			match: 'match' in compiled && compiled.match ? new RegExp(compiled.match) : undefined,
 			params: 'params' in compiled ? compiled.params : undefined,
 			routeKey: route.routeKey,
+			eventFunction: route.eventFunction,
 			proxy: route.proxy,
 			rewrite: route.rewrite,
 			readOnly: Boolean(route.rawKey),
@@ -75,6 +77,10 @@ export const compileRoutes = (routes: DevRoute[]) => {
 		return [path, `/${root}/*`, '/*']
 	}
 
+	const target = ({ routeKey, eventFunction, proxy, rewrite }: CompiledRoute) => {
+		return { routeKey, eventFunction, proxy, rewrite }
+	}
+
 	return (requestPath: string, method = 'GET'): RouteMatch | undefined => {
 		// Only the route selection drops a trailing slash, like the viewer
 		// function - the forwarded path stays untouched.
@@ -87,7 +93,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 				}
 
 				if (!route.match) {
-					return { routeKey: route.routeKey, proxy: route.proxy, params: {}, rewrite: route.rewrite }
+					return { ...target(route), params: {} }
 				}
 
 				const result = route.match.exec(path)
@@ -99,7 +105,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 						params[name] = result[index + 1]!
 					})
 
-					return { routeKey: route.routeKey, proxy: route.proxy, params, rewrite: route.rewrite }
+					return { ...target(route), params }
 				}
 			}
 		}
@@ -131,6 +137,15 @@ export const createRoutedRequest = (request: Request, route: RouteMatch, url: UR
 		headers.set(`x-param-${name.toLowerCase()}`, value)
 	}
 
+	// The host & protocol the caller used, which a handler builds its urls from.
+	if (!headers.has('x-forwarded-host')) {
+		headers.set('x-forwarded-host', url.host)
+	}
+
+	if (!headers.has('x-forwarded-proto')) {
+		headers.set('x-forwarded-proto', url.protocol.slice(0, -1))
+	}
+
 	const routedUrl = new URL(url)
 	routedUrl.pathname = rewrittenPath(route, url.pathname)
 
@@ -140,6 +155,16 @@ export const createRoutedRequest = (request: Request, route: RouteMatch, url: UR
 		body: request.body,
 		duplex: 'half',
 	} as RequestInit)
+}
+
+// The image & icon servers run on the event function, behind its function
+// url: they read the event's path alone (exported for its tests).
+export const createMediaEvent = (request: Request, route: RouteMatch, url: URL) => {
+	return {
+		rawPath: rewrittenPath(route, url.pathname),
+		headers: { [ROUTE_HEADER]: route.routeKey! },
+		requestContext: { http: { method: request.method } },
+	}
 }
 
 type SocketData = {
@@ -155,6 +180,7 @@ export const startDevRouter = async (props: {
 	// Opt-in lan exposure, for testing the site on a phone.
 	host?: boolean
 	dispatch: DevDispatch
+	serve: DevServe
 	// Handler errors surface here, so they reach the terminal & the
 	// dashboard's worker log instead of vanishing into a bare 500.
 	onError?: (error: unknown, routeKey: string) => void
@@ -237,16 +263,17 @@ export const startDevRouter = async (props: {
 
 			const sourceIp = server.requestIP(request)?.address ?? '127.0.0.1'
 
-			let result: unknown
+			// A browser request starts a fresh trace - but a handler
+			// fetching its own router (like an ssr page calling an rpc)
+			// carries the trace header & stays inside its caller's trace.
+			const trace = parseTraceHeader(request.headers.get(TRACE_HEADER))
 
 			try {
-				// A browser request starts a fresh trace - but a handler
-				// fetching its own router (like an ssr page calling an rpc)
-				// carries the trace header & stays inside its caller's trace.
-				result = await props.dispatch(
-					await toFunctionUrlEvent(createRoutedRequest(request, route, url, sourceIp), { sourceIp }),
-					parseTraceHeader(request.headers.get(TRACE_HEADER))
-				)
+				if (route.eventFunction) {
+					return toResponse(await props.dispatch(createMediaEvent(request, route, url), trace))
+				}
+
+				return await props.serve(createRoutedRequest(request, route, url, sourceIp), route.routeKey, trace)
 			} catch (error) {
 				props.onError?.(error, route.routeKey)
 
@@ -259,8 +286,6 @@ export const startDevRouter = async (props: {
 					headers: { 'content-type': 'text/plain' },
 				})
 			}
-
-			return toWebResponse(result)
 		},
 		websocket: {
 			open(ws) {

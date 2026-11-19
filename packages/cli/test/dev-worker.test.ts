@@ -6,7 +6,9 @@ import { createBundleWorker, WorkerError } from '../src/dev/worker'
 
 // A stand-in for the built bundle: the handler misbehaves on request,
 // so the pool's crash & error handling can be driven from the test.
-const BUNDLE = `export default async (event, context) => {
+const BUNDLE = `import { Readable } from 'node:stream'
+
+const handler = async (event, context) => {
 	if (event.crash) process.exit(3)
 	if (event.throw) throw new TypeError('boom')
 	if (event.bigint) return { value: 1n }
@@ -14,7 +16,43 @@ const BUNDLE = `export default async (event, context) => {
 	if (event.log) console.log(event.log)
 	return { echo: event, pid: process.pid, arn: context.invokedFunctionArn }
 }
+
+export default handler
 export const getCurrentRoute = () => 'stack:route'
+
+// The web halves the worker serves a router request with.
+export const createWebRequest = (req, signal) =>
+	new Request('http://' + req.headers.host + req.url, {
+		method: req.method,
+		headers: req.headers,
+		signal,
+		body: req.method === 'POST' ? Readable.toWeb(req) : undefined,
+		duplex: 'half',
+	})
+
+export const writeWebResponse = async (response, res) => {
+	res.writeHead(response.status, Object.fromEntries(response.headers))
+	res.end(Buffer.from(await response.arrayBuffer()))
+}
+
+handler.serveRequest = async (request, write, context) => {
+	const url = new URL(request.url)
+
+	if (url.pathname === '/crash') process.exit(3)
+	if (url.pathname === '/throw') throw new TypeError('boom')
+
+	await write(
+		Response.json(
+			{
+				path: url.pathname + url.search,
+				body: await request.text(),
+				devHeader: request.headers.get('x-awsless-dev-request'),
+				arn: context.invokedFunctionArn,
+			},
+			{ status: 201, headers: { 'x-route': request.headers.get('x-awsless-route') } }
+		)
+	)
+}
 `
 
 const waitFor = (condition: () => boolean, timeout = 10_000) => {
@@ -101,6 +139,34 @@ describe('dev bundle worker pool', () => {
 		// The worker survived the encoding failure.
 		expect(worker.size()).toBe(2)
 		await expect(worker.dispatch({})).resolves.toMatchObject({ echo: {} })
+	})
+
+	it('should serve a web request as it is & answer what the handler writes', async () => {
+		const response = await worker.serve(
+			new Request('http://localhost:4610/users/42?x=1', {
+				method: 'POST',
+				headers: { 'x-awsless-route': 'stack:route:users' },
+				body: 'hello',
+			})
+		)
+
+		expect(response.status).toBe(201)
+		expect(response.headers.get('x-route')).toBe('stack:route:users')
+		expect(await response.json()).toEqual({
+			path: '/users/42?x=1',
+			body: 'hello',
+			// The worker's own header never reaches the handler.
+			devHeader: null,
+			arn: 'arn:aws:lambda:us-east-1:000000000000:function:test-bundle:local',
+		})
+	})
+
+	it("should surface a web request's handler error without losing the worker", async () => {
+		const error = await worker.serve(new Request('http://localhost:4610/throw')).catch(e => e)
+
+		expect(error).toBeInstanceOf(WorkerError)
+		expect(error).toMatchObject({ name: 'TypeError', message: 'boom' })
+		expect(worker.size()).toBe(2)
 	})
 
 	it('should evict a crashed worker & keep serving on the rest', async () => {

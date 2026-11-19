@@ -80,24 +80,19 @@ describe('RPC server', () => {
 		locks.clear()
 	})
 
-	const createRequest = (payload: any, token = 'token') => {
-		return {
-			requestContext: {
-				domainName: 'app.example.com',
-				http: {
+	// The answer as the tests read it: its status & its body's text.
+	const invoke = async (payload: unknown, token = 'token') => {
+		const response = await withBundleRouteContext(route, internalInvoke, () =>
+			handle.fetch(
+				new Request('https://app.example.com/', {
 					method: 'POST',
-					userAgent: '',
-					sourceIp: '',
-				},
-			},
-			headers: {
-				authentication: token,
-			},
-			body: JSON.stringify(payload),
-		}
-	}
-	const invoke = (payload: unknown, token?: string) => {
-		return withBundleRouteContext(route, internalInvoke, () => handle(createRequest(payload, token)))
+					headers: { authentication: token },
+					body: JSON.stringify(payload),
+				})
+			)
+		)
+
+		return { statusCode: response.status, body: await response.text() }
 	}
 
 	describe('lock', () => {

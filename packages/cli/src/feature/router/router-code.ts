@@ -1,5 +1,5 @@
 import { minutes, seconds, toSeconds } from '@awsless/duration'
-import { DEPLOYMENT_ID_HEADER, ROUTE_HEADER } from '../bundle/util.js'
+import { DEPLOYMENT_ID_HEADER, ROUTE_HEADER } from '../bundle/util/index.js'
 import { MAINTENANCE_KEY, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { LOGIN_PAGE_HEADER, LOGIN_PATH, PasswordAuth } from './password-auth.js'
 
@@ -9,9 +9,6 @@ const ORIGIN_CONNECTION_TIMEOUT = toSeconds(seconds(10))
 
 export const getViewerRequestFunctionCode = (props: {
 	router: string
-	// Answer OPTIONS preflights at the edge (the default). A router without
-	// cors lets them through to its routes.
-	cors?: boolean
 	blockDirectAccess?: boolean
 	redirectWww?: boolean
 	passwordAuth?: PasswordAuth
@@ -20,7 +17,6 @@ export const getViewerRequestFunctionCode = (props: {
 }): string => {
 	return compact(
 		CODE({
-			cors: props.cors !== false,
 			traceSampling: props.traceSampleRate === undefined ? '' : TRACE_SAMPLING(props.traceSampleRate),
 			before: [
 				props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
@@ -274,25 +270,11 @@ try {
 
 const prefix = table + ':' + router + ':';`
 
-const CORS_PREFLIGHT = `
-if (request.method === 'OPTIONS') {
-	return {
-		statusCode: 204,
-		headers: {
-			'access-control-allow-origin': { value: '*' },
-			'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
-			'access-control-allow-headers': { value: '*' },
-			'access-control-max-age': { value: '86400' }
-		}
-	};
-}`
-
 const CODE = (props: {
 	before: string[]
 	prefix: string
 	after: string[]
 	withCrypto: boolean
-	cors: boolean
 	traceSampling: string
 }) => `
 import cf from "cloudfront";
@@ -510,7 +492,17 @@ async function handler(event) {
 		path = request.uri;
 	}
 
-	${props.cors ? CORS_PREFLIGHT : ''}
+	if (request.method === 'OPTIONS') {
+		return {
+			statusCode: 204,
+			headers: {
+				'access-control-allow-origin': { value: '*' },
+				'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
+				'access-control-allow-headers': { value: '*' },
+				'access-control-max-age': { value: '86400' }
+			}
+		};
+	}
 
 	${props.before.join('\n')}
 

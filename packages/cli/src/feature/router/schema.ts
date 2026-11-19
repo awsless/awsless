@@ -2,7 +2,7 @@ import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { BundledFunctionSchema } from '../function/schema.js'
+import { WebFunctionSchema } from '../function/schema.js'
 import { compileRoutePattern } from './pattern.js'
 
 const ErrorResponsePathSchema = z
@@ -57,7 +57,7 @@ export const RoutesSchema = z
 	.record(
 		ResourceIdSchema.describe('The router id to add your routes to.'),
 		z
-			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), BundledFunctionSchema)
+			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), WebFunctionSchema)
 			.superRefine((routes, ctx) => {
 				for (const pattern of Object.keys(routes)) {
 					try {
@@ -229,28 +229,20 @@ export const RouterDefaultSchema = z
 					.describe('Customize the error responses for specific HTTP status codes.'),
 
 				cors: z
-					.union([
-						z.literal(false),
-						z.object({
-							override: z.boolean().default(false),
-							maxAge: DurationSchema.prefault('365 days'),
-							exposeHeaders: z.string().array().default(['*']),
-							credentials: z.boolean().default(false),
-							headers: z.string().array().default(['*']),
-							origins: z.string().array().default(['*']),
-							methods: z
-								.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
-								.array()
-								.default(['ALL']),
-						}),
-					])
+					.object({
+						override: z.boolean().default(false),
+						maxAge: DurationSchema.prefault('365 days'),
+						exposeHeaders: z.string().array().default(['*']),
+						credentials: z.boolean().default(false),
+						headers: z.string().array().default(['*']),
+						origins: z.string().array().default(['*']),
+						methods: z
+							.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
+							.array()
+							.default(['ALL']),
+					})
 					.prefault({})
-					.describe(
-						[
-							'Specify the cors headers.',
-							'Use false for a router no browser may call cross origin: no cors headers, and OPTIONS requests reach the routes instead of a preflight answer.',
-						].join('\n')
-					),
+					.describe('Specify the cors headers.'),
 
 				maintenance: z
 					.boolean()

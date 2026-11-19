@@ -1,11 +1,10 @@
 import { aws } from '@terraforge/aws'
 import { Group, Input, Resource } from '@terraforge/core'
-import { AppContext, Permission } from '../../feature.js'
-import { WebFunctionLiveRevision } from '../../formation/lambda.js'
-import { formatGlobalResourceName, getWebFunctionName, WEB_FUNCTION_ENDPOINT_NAME } from '../../util/name.js'
-import { formatLoggingConfig } from '../function/util.js'
-import { createLogGroup } from '../on-error-log/util.js'
-import { WEB_FUNCTION_ENTRY_FILE } from './util.js'
+import { AppContext, Permission, StackContext } from '../../../feature.js'
+import { WebFunctionLiveRevision } from '../../../formation/lambda.js'
+import { formatGlobalResourceName, WEB_FUNCTION_ENDPOINT_NAME } from '../../../util/name.js'
+import { deployFunctionSourcemaps, formatLoggingConfig, LambdaLogProps } from '../../function/util/function.js'
+import { createLogGroup } from '../../on-error-log/util.js'
 
 // Lambda Web Functions run Node.js 24 only, whatever the bundle's runtime.
 const WEB_FUNCTION_RUNTIME = 'nodejs24.x'
@@ -17,54 +16,22 @@ export type WebFunction = {
 	policy: aws.lambdaweb.ResourcePolicy
 }
 
-// A copy of the bundle as a Lambda Web Function, which serves every router's
-// bundle routes: the same code and role, started from its web entry, behind one
-// HomeRegion endpoint that only CloudFront may call.
-export const createWebFunction = (
-	ctx: AppContext,
-	props: {
-		code: aws.s3.BucketObject
-		role: aws.iam.Role
-		variables: Record<string, Input<string>>
-		timeout: number
-		dependsOn: Resource[]
-		addPermission: (...permissions: Permission[]) => void
+// What every web function starts from: the app's web function defaults,
+// and the function defaults for what they leave out.
+export const getWebFunctionDefaults = (ctx: AppContext | StackContext) => {
+	const { timeout, log } = ctx.appConfig.webFunction
+	const defined = Object.fromEntries(Object.entries(log ?? {}).filter(([, value]) => value !== undefined))
+
+	return {
+		timeout: timeout ?? ctx.appConfig.function.timeout,
+		log: { ...ctx.appConfig.function.log, ...defined } as LambdaLogProps,
 	}
-): WebFunction => {
-	const defaults = ctx.appConfig.function
-	const group = new Group(ctx.base, 'bundle', 'web')
-	const name = getWebFunctionName(ctx.app.name)
-	const logging = formatLoggingConfig(name, defaults.log)
+}
 
-	const webFunction = new aws.lambdaweb.Function(group, 'function', { functionName: name })
-
-	// ------------------------------------------------------
-	// Logging: Lambda writes the app's logs to the log group and its own system
-	// logs to a companion with a ".local" suffix.
-
-	const logGroup = createLogGroup(new Group(group, 'log', 'app'), ctx, {
-		name: logging.logGroup,
-		retention: defaults.log.retention,
-	})
-
-	const systemLogGroup = createLogGroup(new Group(group, 'log', 'system'), ctx, {
-		name: `${logging.logGroup}.local`,
-		retention: defaults.log.retention,
-		errorLog: false,
-	})
-
-	if (logGroup && systemLogGroup) {
-		props.addPermission({
-			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
-			resources: [logGroup.arn.pipe(arn => `${arn}:*`), systemLogGroup.arn.pipe(arn => `${arn}:*`)],
-		})
-	}
-
-	// ------------------------------------------------------
-	// The network connector puts the web function's traffic in the app vpc, like
-	// the event function's vpc config. Lambda makes its network interfaces with
-	// the network role.
-
+// The network connector puts a web function's traffic in the app vpc, like
+// the event function's vpc config. Lambda makes its network interfaces with
+// the network role. One serves every web function of the app.
+export const createWebFunctionNetwork = (ctx: AppContext, group: Group, name: string) => {
 	const networkRole = new aws.iam.Role(group, 'network-role', {
 		name: formatGlobalResourceName({
 			appName: ctx.app.name,
@@ -138,6 +105,59 @@ export const createWebFunction = (
 		}
 	)
 
+	return networkConnector
+}
+
+// A Lambda Web Function and its one endpoint, in the app's region, which only
+// the given routers' distributions may call. The app's shared web function
+// is one, running a copy of the bundle; so is a route's or ssr's own.
+export const createWebFunction = (
+	ctx: AppContext | StackContext,
+	group: Group,
+	props: {
+		name: string
+		code: aws.s3.BucketObject
+		// The file of the code archive Lambda starts.
+		entryFile: string
+		role: aws.iam.Role
+		variables: Record<string, Input<string>>
+		timeout: number
+		log: LambdaLogProps
+		networkConnectorArn: Input<string>
+		routers: string[]
+		// The event function, when the code is its bundle: it uploads the sourcemaps.
+		bundleOf?: string
+		dependsOn: Resource[]
+		addPermission: (...permissions: Permission[]) => void
+	}
+): WebFunction => {
+	const { name } = props
+	const logging = formatLoggingConfig(name, props.log)
+
+	const webFunction = new aws.lambdaweb.Function(group, 'function', { functionName: name })
+
+	// ------------------------------------------------------
+	// Logging: Lambda writes the app's logs to the log group and its own system
+	// logs to a companion with a ".local" suffix.
+
+	const logGroup = createLogGroup(new Group(group, 'log', 'app'), ctx, {
+		name: logging.logGroup,
+		retention: props.log.retention,
+	})
+
+	const systemLogGroup = createLogGroup(new Group(group, 'log', 'system'), ctx, {
+		name: `${logging.logGroup}.local`,
+		retention: props.log.retention,
+		errorLog: false,
+	})
+
+	if (logGroup && systemLogGroup) {
+		props.addPermission({
+			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
+			resources: [logGroup.arn.pipe(arn => `${arn}:*`), systemLogGroup.arn.pipe(arn => `${arn}:*`)],
+		})
+	}
+
 	// ------------------------------------------------------
 	// A revision is immutable, and every deployment makes one (its env names
 	// the deployment), which promotion puts live. Prune deletes a pruned
@@ -167,11 +187,11 @@ export const createWebFunction = (
 			serviceConfig: [
 				{
 					executionRoleArn: props.role.arn,
-					egressNetworkConnectorArn: networkConnector.latestVersionArn,
+					egressNetworkConnectorArn: props.networkConnectorArn,
 					timeoutSeconds: props.timeout,
 					environmentVariables: {
 						...props.variables,
-						AWS_LAMBDA_NODEJS_ENTRYPOINT: WEB_FUNCTION_ENTRY_FILE,
+						AWS_LAMBDA_NODEJS_ENTRYPOINT: props.entryFile,
 						AWSLESS_WEB_FUNCTION_NAME: name,
 						AWSLESS_WEB_FUNCTION_TIMEOUT_SECONDS: String(props.timeout),
 						// So every deployment has a revision of its own (bundle/server/web-function.ts).
@@ -203,6 +223,14 @@ export const createWebFunction = (
 		}
 	)
 
+	// An error's log stream names the revision, so its stack maps back to source.
+	deployFunctionSourcemaps(group, ctx, {
+		name,
+		buildType: props.bundleOf ? 'bundle' : 'function',
+		mapsOf: props.bundleOf,
+		version: revision.revisionId,
+	})
+
 	// The endpoint keeps the promoted deployment's revision; promotion puts
 	// a new one live, with the route tables (util/deployment.ts).
 	const liveRevision = new WebFunctionLiveRevision(group, 'live-revision', {
@@ -223,7 +251,7 @@ export const createWebFunction = (
 
 	// Only the routers' distributions may call the endpoint, signing with
 	// always-amz-auth (the router function's web origin).
-	const sourceArns = Object.keys(ctx.appConfig.router ?? {}).map(id =>
+	const sourceArns = props.routers.map(id =>
 		ctx.shared
 			.entry('router', 'id', id)
 			.pipe(distributionId => `arn:aws:cloudfront::${ctx.accountId}:distribution/${distributionId}`)

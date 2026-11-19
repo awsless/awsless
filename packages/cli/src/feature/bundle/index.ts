@@ -10,7 +10,7 @@ import { defineFeature, Permission } from '../../feature.js'
 import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
-import { formatGlobalResourceName, getEventFunctionName } from '../../util/name.js'
+import { formatGlobalResourceName, getEventFunctionName, getWebFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { formatPolicyDocument } from '../../util/policy.js'
 import {
@@ -18,13 +18,13 @@ import {
 	formatLoggingConfig,
 	formatTracingConfig,
 	TRACING_PERMISSION,
-} from '../function/util.js'
+} from '../function/util/index.js'
 import { createLogGroup } from '../on-error-log/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipWithEnvFile } from './build/zip.js'
 import { PolicyStatement } from './policy.js'
-import { buildBundle, BundleHandler } from './util.js'
-import { createWebFunction } from './web-function.js'
+import { buildBundle, BundleHandler, WEB_FUNCTION_ENTRY_FILE } from './util/index.js'
+import { createWebFunction, createWebFunctionNetwork, getWebFunctionDefaults } from './util/index.js'
 
 export const bundleFeature = defineFeature({
 	name: 'bundle',
@@ -403,18 +403,31 @@ export const bundleFeature = defineFeature({
 		// none), so routes that need them stay on the event function's url.
 		// It sends no spans: a Lambda Web Function has no X-Ray daemon.
 
-		const webFunction =
-			Object.keys(ctx.appConfig.router ?? {}).length > 0
-				? createWebFunction(ctx, {
-						code,
-						role,
-						variables,
-						timeout,
-						// The bucket policy lets Lambda read the code.
-						dependsOn: [policy, ctx.shared.get('asset', 'bucket').policy],
-						addPermission,
-					})
-				: undefined
+		const routerIds = Object.keys(ctx.appConfig.router ?? {})
+		const webGroup = new Group(ctx.base, 'bundle', 'web')
+		const webName = getWebFunctionName(ctx.app.name)
+		const webDefaults = getWebFunctionDefaults(ctx)
+
+		// One network connector serves the app's web functions, a handler's own too.
+		const networkConnector = routerIds.length > 0 ? createWebFunctionNetwork(ctx, webGroup, webName) : undefined
+
+		const webFunction = networkConnector
+			? createWebFunction(ctx, webGroup, {
+					name: webName,
+					code,
+					entryFile: WEB_FUNCTION_ENTRY_FILE,
+					role,
+					variables,
+					timeout: toSeconds(webDefaults.timeout),
+					log: webDefaults.log,
+					networkConnectorArn: networkConnector.latestVersionArn,
+					routers: routerIds,
+					bundleOf: name,
+					// The bucket policy lets Lambda read the code.
+					dependsOn: [policy, ctx.shared.get('asset', 'bucket').policy],
+					addPermission,
+				})
+			: undefined
 
 		// ------------------------------------------------------
 		// The app level env vars & permissions apply to every handler.
@@ -433,8 +446,9 @@ export const bundleFeature = defineFeature({
 		// Every feature defines the permissions for its own resources.
 		ctx.onPermission(addPermission)
 
-		if (webFunction) {
+		if (webFunction && networkConnector) {
 			ctx.shared.set('bundle', 'web-function', webFunction)
+			ctx.shared.set('bundle', 'web-network-connector', networkConnector)
 		}
 
 		ctx.shared.add('function', 'role', 'bundle', role)

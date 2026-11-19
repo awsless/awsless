@@ -13,7 +13,8 @@ const createLambdaContext = (requestId: string, timeout: number): LambdaContext 
 	return {
 		callbackWaitsForEmptyEventLoop: false,
 		functionName,
-		functionVersion: '$LATEST',
+		// A revision can't know its own id; its deployment names it just as well.
+		functionVersion: process.env.AWSLESS_DEPLOYMENT_ID ?? '$LATEST',
 		// No qualifier, so internal calls out of the bundle reach its live alias.
 		invokedFunctionArn: '',
 		memoryLimitInMB: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE ?? '',

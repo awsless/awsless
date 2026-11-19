@@ -6,7 +6,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import { type PutDataProps, putData, batchPutData } from '@awsless/cloudwatch'

@@ -1,7 +1,7 @@
 import { AddressInfo } from 'net'
 import { findInputDeps, getMeta } from '@terraforge/core'
-import { h, isInsideBundle, toFunctionUrlEvent, toWebResponse } from 'awsless'
-import { afterEach, describe, expect, it } from 'vitest'
+import { h, isInsideBundle } from 'awsless'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createBundle } from '../src/feature/bundle/server/handle'
 import { startWebFunctionServer } from '../src/feature/bundle/server/web-function'
 import { createTestApp, findStatements, listResources } from './_kit'
@@ -121,6 +121,15 @@ describe('router web function', () => {
 		expect(liveRevision.input.deploymentId).toBe('main-7')
 	})
 
+	it("should keep the web function's own headers from the caller", () => {
+		const { app } = createWebApp()
+		const policy = listResources(app, 'aws_cloudfront_response_headers_policy')[0]!
+
+		expect(policy.input.removeHeadersConfig.items).toEqual(
+			expect.arrayContaining([{ header: 'lambda-web-logstream' }, { header: 'lambda-web-request-id' }])
+		)
+	})
+
 	it('should only let the distributions call the endpoint', () => {
 		const { app } = createWebApp()
 		const policy = listResources(app, 'aws_lambdaweb_resource_policy')[0]!
@@ -131,74 +140,93 @@ describe('router web function', () => {
 	})
 })
 
-describe('web function requests', () => {
-	it('should turn a request into the function url event', async () => {
-		const event = await toFunctionUrlEvent(
-			new Request('https://example.com/identify?a%20b=1%2F2&a%20b=x+y&flag', {
-				method: 'POST',
-				headers: {
-					'x-awsless-route': 'api:route:identify',
-					cookie: 'a=1; b=2',
-					'content-type': 'application/json; charset=utf-8',
-					'x-forwarded-for': '203.0.113.7, 130.176.1.1',
-					'cloudfront-viewer-address': '203.0.113.7:51234',
-					'lambda-web-request-id': 'req-1',
-				},
-				body: '{"a":1}',
-			}),
-			{ sourceIp: '130.176.1.1' }
-		)
-
-		expect(event.rawPath).toBe('/identify')
-		expect(event.rawQueryString).toBe('a%20b=1%2F2&a%20b=x+y&flag')
-		expect(event.queryStringParameters).toEqual({ 'a b': '1/2,x y', flag: '' })
-		expect(event.cookies).toEqual(['a=1', 'b=2'])
-		expect(event.headers).toMatchObject({
-			'x-awsless-route': 'api:route:identify',
-			'cloudfront-viewer-address': '203.0.113.7:51234',
-		})
-		expect(event.requestContext.http).toMatchObject({ method: 'POST', sourceIp: '130.176.1.1' })
-		expect(event.body).toBe('{"a":1}')
-		expect(event.isBase64Encoded).toBe(false)
-	})
-
-	it('should hand a binary body over in base64 & leave out an empty one', async () => {
-		const binary = await toFunctionUrlEvent(
-			new Request('https://example.com/upload', {
-				method: 'PUT',
-				headers: { 'content-type': 'application/octet-stream' },
-				body: new Uint8Array([0, 1, 2]),
-			})
-		)
-
-		expect(binary.body).toBe('AAEC')
-		expect(binary.isBase64Encoded).toBe(true)
-
-		const empty = await toFunctionUrlEvent(new Request('https://example.com/'))
-
-		expect(empty.body).toBeUndefined()
-		expect(empty.isBase64Encoded).toBe(false)
-		expect(empty.queryStringParameters).toBeUndefined()
-	})
-
-	it('should answer like a function url', async () => {
-		const json = toWebResponse({ a: 1 })
-
-		expect(json.status).toBe(200)
-		expect(await json.json()).toEqual({ a: 1 })
-
-		const redirect = toWebResponse({
-			statusCode: 302,
-			headers: { Location: '/next' },
-			cookies: ['a=1; Path=/', 'b=2; Path=/'],
-			body: 'AAEC',
-			isBase64Encoded: true,
+describe('web function defaults & a route of its own', () => {
+	const createWith = (props: { webFunction?: object; route?: object }) => {
+		const result = createTestApp({
+			app: {
+				domains: { main: { domain: 'example.com' } },
+				router: { main: { domain: 'main' } },
+				function: { timeout: '5 minutes' },
+				...(props.webFunction ? { webFunction: props.webFunction } : {}),
+			},
+			stacks: [{ name: 'api', routes: { main: { '/plain': { code }, '/own': { code, ...props.route } } } }],
 		})
 
-		expect(redirect.status).toBe(302)
-		expect(redirect.headers.get('location')).toBe('/next')
-		expect(redirect.headers.getSetCookie()).toEqual(['a=1; Path=/', 'b=2; Path=/'])
-		expect(new Uint8Array(await redirect.arrayBuffer())).toEqual(new Uint8Array([0, 1, 2]))
+		result.ready()
+
+		return result
+	}
+
+	const serviceOf = (app: ReturnType<typeof createWith>['app'], name: string) => {
+		const revision = listResources(app, 'aws_lambdaweb_function_revision').find(
+			meta => meta.input.serviceConfig[0].environmentVariables.AWSLESS_WEB_FUNCTION_NAME === name
+		)
+
+		return revision?.input.serviceConfig[0]
+	}
+
+	it("should take the function defaults for what the app's webFunction leaves out", () => {
+		expect(serviceOf(createWith({}).app, 'test-app--bundle--web').timeoutSeconds).toBe(300)
+
+		const { app } = createWith({ webFunction: { timeout: '30 seconds', log: { level: 'warn' } } })
+		const service = serviceOf(app, 'test-app--bundle--web')
+
+		expect(service.timeoutSeconds).toBe(30)
+		expect(service.telemetryConfig[0].loggingConfig[0].applicationLogLevel).toBe('WARN')
+	})
+
+	it('should keep a route without a config of its own in the shared web function', () => {
+		const { app } = createWith({})
+
+		expect(listResources(app, 'aws_lambdaweb_function')).toHaveLength(1)
+	})
+
+	it('should give a route with a config of its own a web function of its own', () => {
+		const { app } = createWith({
+			webFunction: { timeout: '30 seconds' },
+			route: { environment: { MODE: 'strict' }, permissions: [{ actions: ['s3:GetObject'], resources: ['*'] }] },
+		})
+
+		const own = listResources(app, 'aws_lambdaweb_function').find(
+			meta => meta.input.functionName !== 'test-app--bundle--web'
+		)!
+		const service = serviceOf(app, own.input.functionName)
+		const endpoint = listResources(app, 'aws_lambdaweb_function_endpoint').find(meta =>
+			findInputDeps(meta.input.functionName).includes(own)
+		)!
+
+		expect(own.input.functionName).toMatch(/^test-app--api--route--own-/)
+		// The app's web function default, as the route sets no timeout itself.
+		expect(service.timeoutSeconds).toBe(30)
+		expect(service.environmentVariables.AWS_LAMBDA_NODEJS_ENTRYPOINT).toBe('index.mjs')
+		// Its own env is baked into its code archive, next to the app's.
+		expect(service.environmentVariables.MODE).toBeUndefined()
+		expect(findInputDeps(listResources(app, 'route-deployment')[0]!.input.routes)).toContain(endpoint)
+	})
+})
+
+describe('web function sourcemaps', () => {
+	it("should index every web function's maps under its revision, the shared one's at the bundle's", () => {
+		const { app } = createTestApp({
+			app: {
+				domains: { main: { domain: 'example.com' } },
+				router: { main: { domain: 'main' } },
+				onErrorLog: { code },
+			},
+			stacks: [{ name: 'api', routes: { main: { '/plain': { code }, '/own': { code, timeout: '20 seconds' } } } }],
+		})
+
+		const indexes = listResources(app, 'sourcemap-deployment')
+		const shared = indexes.find(meta => meta.input.name === 'test-app--bundle--web')!
+		const own = indexes.find(meta => String(meta.input.name).startsWith('test-app--api--route--own-'))!
+		const revisionOf = (meta: typeof shared) => findInputDeps(meta.input.version).map(dependency => dependency.type)
+
+		// The shared one runs the event function's bundle, which uploads the maps.
+		expect(shared.input.maps).toBe('test-app--bundle--event')
+		expect(revisionOf(shared)).toEqual(['aws_lambdaweb_function_revision'])
+
+		expect(own.input.maps).toBeUndefined()
+		expect(revisionOf(own)).toEqual(['aws_lambdaweb_function_revision'])
 	})
 })
 
@@ -250,12 +278,8 @@ describe('web function server', () => {
 	// CloudFront names the viewer on every request, which a route asks for.
 	const viewer = { 'cloudfront-viewer-address': '198.51.100.10:1234' }
 
-	// A plain handler, which gets the function url event.
-	const echoRoute = async (event: { rawPath: string; cookies?: string[]; body?: string }) => ({
-		statusCode: 201,
-		cookies: ['a=1', 'b=2'],
-		body: JSON.stringify({ path: event.rawPath, cookies: event.cookies, body: event.body }),
-	})
+	// A plain handler, which takes an event & no web request.
+	const echoRoute = async () => ({ statusCode: 201 })
 
 	const startServer = async () => {
 		process.env.AWS_LAMBDA_HTTP_ENDPOINT = '127.0.0.1:0'
@@ -356,17 +380,15 @@ describe('web function server', () => {
 		expect(response.headers.get('x-signature-headers')).toBe('')
 	})
 
-	it('should hand any other route the function url event', async () => {
+	it('should refuse a route that takes no web request', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
 		const url = await startServer()
-		const response = await fetch(`${url}/echo?x=1`, {
-			method: 'POST',
-			headers: { 'x-awsless-route': 'api:route:echo', cookie: 'c=3', 'content-type': 'application/json' },
-			body: '{"a":1}',
-		})
+		const response = await fetch(`${url}/echo`, { headers: { 'x-awsless-route': 'api:route:echo' } })
 
-		expect(response.status).toBe(201)
-		expect(response.headers.getSetCookie()).toEqual(['a=1', 'b=2'])
-		expect(await response.json()).toEqual({ path: '/echo', cookies: ['c=3'], body: '{"a":1}' })
+		expect(response.status).toBe(500)
+		expect(String(error.mock.calls[0]?.[0])).toContain('Wrap its handler in h.route()')
+
+		error.mockRestore()
 	})
 
 	it("should keep a streamed body's work inside the bundle, so its Fn calls stay in-process", async () => {

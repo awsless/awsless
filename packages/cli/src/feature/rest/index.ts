@@ -4,7 +4,7 @@ import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util/index.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { restOnDev } from './dev.js'
 

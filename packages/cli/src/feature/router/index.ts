@@ -7,13 +7,13 @@ import { ExpectedError, FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
 import { FunctionDeployment } from '../../formation/lambda.js'
-import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, ROUTE_HEADER } from '../bundle/util/index.js'
+import { createStandaloneWebFunction, isStandaloneWebFunction } from '../function/util/index.js'
 import { formatFullDomainName, getDomainNameById } from '../domain/util.js'
 import { createMaintenanceEntries, MAINTENANCE_TABLE_PREFIX } from './maintenance.js'
 import { createPasswordAuth, LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH } from './password-auth.js'
-import { compileRoutePattern } from './pattern.js'
+import { compileRoutePattern, formatPatternRouteKey } from './pattern.js'
 import {
 	assertRouteValueSize,
 	createRouteStoreEntries,
@@ -27,13 +27,6 @@ import { getViewerRequestFunctionCode, getViewerResponseFunctionCode } from './r
 // The error status codes CloudFront caches by itself.
 const CACHED_ERROR_CODES = [400, 403, 404, 405, 414, 416, 500, 501, 502, 503, 504] as const
 
-// The bundle route key of a route pattern, shared by the deployed
-// route store & the local dev router so both dispatch the same keys.
-const formatPatternRouteKey = (stackName: string, pattern: string) => {
-	const slug = kebabCase(pattern).slice(0, 20)
-
-	return formatRouteKey(stackName, 'route', `${slug || 'root'}-${shortId(pattern)}`)
-}
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -164,7 +157,6 @@ export const routerFeature = defineFeature({
 					runtime: 'cloudfront-js-2.0',
 					code: getViewerRequestFunctionCode({
 						router: id,
-						cors: props.cors !== false,
 						blockDirectAccess: !!props.domain,
 						redirectWww: !!props.domain && props.redirectWww,
 						passwordAuth,
@@ -262,19 +254,23 @@ export const routerFeature = defineFeature({
 
 			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
-				corsConfig: props.cors
-					? {
-							originOverride: props.cors.override,
-							accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
-							accessControlAllowHeaders: { items: props.cors.headers },
-							accessControlAllowMethods: { items: props.cors.methods },
-							accessControlAllowOrigins: { items: props.cors.origins },
-							accessControlExposeHeaders: { items: props.cors.exposeHeaders },
-							accessControlAllowCredentials: props.cors.credentials,
-						}
-					: undefined,
+				corsConfig: {
+					originOverride: props.cors.override,
+					accessControlMaxAgeSec: toSeconds(props.cors.maxAge),
+					accessControlAllowHeaders: { items: props.cors.headers },
+					accessControlAllowMethods: { items: props.cors.methods },
+					accessControlAllowOrigins: { items: props.cors.origins },
+					accessControlExposeHeaders: { items: props.cors.exposeHeaders },
+					accessControlAllowCredentials: props.cors.credentials,
+				},
 				removeHeadersConfig: {
-					items: [{ header: 'server' }],
+					// A web function answers with its own log stream & request
+					// id, which name the function and its revision to any caller.
+					items: [
+						{ header: 'server' },
+						{ header: 'lambda-web-logstream' },
+						{ header: 'lambda-web-request-id' },
+					],
 				},
 				securityHeadersConfig: {
 					contentTypeOptions: {
@@ -725,10 +721,11 @@ export const routerFeature = defineFeature({
 									// A bundle route's origin, with the deployment that wrote it:
 									// the cache key, so a deploy serves fresh responses.
 									const withOrigin = (route: Route): Route => {
+										// A handler with a web function of its own names its endpoint itself.
 										if (isWebFunctionRoute(route)) {
 											return {
 												...route,
-												domainName: webFunctionDomainName,
+												domainName: route.domainName ?? webFunctionDomainName,
 												deploymentId: ctx.deploymentId ?? 'local-0',
 											}
 										}
@@ -766,12 +763,30 @@ export const routerFeature = defineFeature({
 
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', id)
 			const grouped: Record<string, Route[]> = {}
+			const dependsOn: Resource[] = []
 
 			for (const [pattern, props] of Object.entries(patterns)) {
 				const compiled = compileRoutePattern(pattern)
 				const routeKey = formatPatternRouteKey(ctx.stack.name, pattern)
 
-				registerBundleFunction(ctx, routeKey, props)
+				// A config of its own deploys the route as a web function of its
+				// own; locally every route runs in the one bundle worker.
+				const webFunction =
+					isStandaloneWebFunction(props) && !ctx.dev
+						? createStandaloneWebFunction(ctx, {
+								kind: 'route',
+								id: routeKey.split(':')[2]!,
+								routeKey,
+								router: id,
+								local: props,
+							})
+						: undefined
+
+				if (webFunction) {
+					dependsOn.push(webFunction.revision, webFunction.policy)
+				} else {
+					registerBundleFunction(ctx, routeKey, props)
+				}
 
 				grouped[compiled.key] ??= []
 				grouped[compiled.key]!.push({
@@ -780,6 +795,7 @@ export const routerFeature = defineFeature({
 					urlEncodedQueryString: true,
 					match: compiled.match,
 					params: compiled.params,
+					domainName: webFunction?.endpoint.domainName,
 					requestHeaders: {
 						[ROUTE_HEADER]: routeKey,
 					},
@@ -798,7 +814,7 @@ export const routerFeature = defineFeature({
 				}
 			}
 
-			addRoutes(merged)
+			addRoutes(merged, { dependsOn })
 		}
 	},
 	onDev(ctx) {

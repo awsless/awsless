@@ -10,7 +10,7 @@ import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util/index.js'
 import { formatPubSubRuleKey, ORIGIN_SECRET_HEADER } from '../load-balancer/util.js'
 import { pubsubOnDev } from './dev.js'
 import { pubsubEventTypes } from './schema.js'

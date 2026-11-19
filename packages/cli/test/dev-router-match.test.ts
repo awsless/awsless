@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { compileRoutes, createRoutedRequest } from '../src/dev/router'
+import { compileRoutes, createMediaEvent, createRoutedRequest } from '../src/dev/router'
 import { DevRoute } from '../src/feature'
 import { compileRoutePattern } from '../src/feature/router/pattern'
 import { getViewerRequestFunctionCode } from '../src/feature/router/router-code'
@@ -183,5 +183,49 @@ describe('dev router routed request', () => {
 		const request = createRoutedRequest(new Request(url), { routeKey: 'api:route:x', params: {} }, url, '127.0.0.1')
 
 		expect(request.url).toBe('http://localhost:4610//other/path?x=1')
+	})
+
+	it('should name the host & protocol the caller used, unless a proxy in front already did', () => {
+		const url = new URL('http://localhost:4610/page')
+		const route = { routeKey: 'api:route:x', params: {} }
+
+		const direct = createRoutedRequest(new Request(url), route, url, '127.0.0.1')
+
+		expect(direct.headers.get('x-forwarded-host')).toBe('localhost:4610')
+		expect(direct.headers.get('x-forwarded-proto')).toBe('http')
+
+		const tunnelled = createRoutedRequest(
+			new Request(url, { headers: { 'x-forwarded-host': 'my.tunnel.dev', 'x-forwarded-proto': 'https' } }),
+			route,
+			url,
+			'127.0.0.1'
+		)
+
+		expect(tunnelled.headers.get('x-forwarded-host')).toBe('my.tunnel.dev')
+		expect(tunnelled.headers.get('x-forwarded-proto')).toBe('https')
+	})
+})
+
+describe('dev router media event', () => {
+	it("should hand an image or icon server the route's rewritten path, like its function url", () => {
+		const match = compileRoutes([
+			{
+				routerId: 'main',
+				pattern: '/img/*',
+				routeKey: 'stack:image:photos',
+				eventFunction: true,
+				rewrite: { regex: '^/img/(.*)$', to: '/$1' },
+			},
+		])
+
+		const url = new URL('http://localhost:4610/img/large/cat.webp')
+		const route = match(url.pathname)!
+
+		expect(route.eventFunction).toBe(true)
+		expect(createMediaEvent(new Request(url), route, url)).toEqual({
+			rawPath: '/large/cat.webp',
+			headers: { 'x-awsless-route': 'stack:image:photos' },
+			requestContext: { http: { method: 'GET' } },
+		})
 	})
 })

@@ -8,9 +8,9 @@ import { build, getBuildPath } from '../build/index.js'
 import { debug, setDebugSink } from '../cli/debug.js'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
-import { DevTrace } from '../feature.js'
+import { DevServe, DevTrace } from '../feature.js'
 import { createAuthAdmin } from '../feature/auth/dev.js'
-import { ROUTE_HEADER } from '../feature/bundle/util.js'
+import { ROUTE_HEADER } from '../feature/bundle/util/index.js'
 import { features } from '../feature/index.js'
 import { getEventFunctionName } from '../util/name.js'
 import { directories, useDevBuildDir } from '../util/path.js'
@@ -567,14 +567,17 @@ export const startDev = async (props: {
 		return payload.length > 1000 ? payload.slice(0, 1000) + '\u2026' : payload
 	}
 
-	// Every dispatch lands on the homepage activity feed - the bus replay
-	// gives a freshly opened page the recent history.
-	const dispatch = async (event: unknown, parent?: DevTrace) => {
+	// Every dispatch & served request lands on the homepage activity feed -
+	// the bus replay gives a freshly opened page the recent history.
+	const track = async <T>(
+		route: string,
+		payload: string,
+		parent: DevTrace | undefined,
+		run: (trace: DevTrace) => Promise<T>
+	) => {
 		await reload.ensureFresh()
 
 		const started = Date.now()
-		const route = describeDispatch(event)
-		const payload = describePayload(event)
 
 		// Every dispatch is one span of a trace. A dispatch caused by a
 		// running handler (a queue send, a task invoke) joins its caller's
@@ -584,19 +587,23 @@ export const startDev = async (props: {
 			spanId: traceId(),
 		}
 
-		try {
-			const result = await worker.dispatch(event, formatTraceHeader(trace), toXRayHeader(trace))
-
+		const emit = (outcome: { ok: true } | { ok: false; error: string }) => {
 			dev.events.emit('activity', {
 				date: started,
 				route,
 				payload,
 				ms: Date.now() - started,
-				ok: true,
+				...outcome,
 				trace: trace.traceId,
 				span: trace.spanId,
 				parent: parent?.spanId,
 			})
+		}
+
+		try {
+			const result = await run(trace)
+
+			emit({ ok: true })
 
 			return result
 		} catch (error) {
@@ -606,20 +613,26 @@ export const startDev = async (props: {
 				;(error as Error & { trace?: DevTrace }).trace = trace
 			}
 
-			dev.events.emit('activity', {
-				date: started,
-				route,
-				payload,
-				ms: Date.now() - started,
-				ok: false,
-				error: error instanceof Error ? error.message : String(error),
-				trace: trace.traceId,
-				span: trace.spanId,
-				parent: parent?.spanId,
-			})
+			emit({ ok: false, error: error instanceof Error ? error.message : String(error) })
 
 			throw error
 		}
+	}
+
+	const dispatch = (event: unknown, parent?: DevTrace) => {
+		return track(describeDispatch(event), describePayload(event), parent, trace =>
+			worker.dispatch(event, formatTraceHeader(trace), toXRayHeader(trace))
+		)
+	}
+
+	// A web route's request shows by its method & path: its body streams
+	// past, unread.
+	const serve: DevServe = (request, routeKey, parent) => {
+		const url = new URL(request.url)
+
+		return track(routeKey, `${request.method} ${url.pathname}${url.search}`, parent, trace =>
+			worker.serve(request, formatTraceHeader(trace), toXRayHeader(trace))
+		)
 	}
 
 	// Failed async consumers route to the on-failure consumer when the
@@ -735,6 +748,7 @@ export const startDev = async (props: {
 				port,
 				host: props.host,
 				dispatch,
+				serve,
 				onError(error, routeKey) {
 					// Handler errors from web routes would otherwise never
 					// print anywhere - the worker only returns them.
@@ -785,7 +799,7 @@ export const startDev = async (props: {
 		events: dev.events,
 	})
 
-	dashboard.connect(dispatch)
+	dashboard.connect(dispatch, serve)
 	await dashboard.listen(dashboardPort)
 
 	// The source watcher marks the bundle dirty & kicks the rebuild in

@@ -35,6 +35,7 @@ import {
 	promoteAppDeployment,
 	promoteDeployment,
 	readDeployedFunctionVersions,
+	readDeployedWebFunctionRevisions,
 	selectPrunableDeployments,
 	selectPrunableVersions,
 	slugifyBranch,
@@ -55,11 +56,24 @@ vi.mock('../src/util/git', async importOriginal => {
 const appId = 'app-id'
 const functionName = 'app--bundle--event'
 
-type Attr = { S?: string; N?: string; BOOL?: boolean }
+type Attr = { S?: string; N?: string; BOOL?: boolean; M?: Record<string, Attr> }
 
-const fromAttr = (value: Attr) => ('S' in value ? value.S : 'N' in value ? Number(value.N) : value.BOOL)
+const fromAttr = (value: Attr): unknown =>
+	'S' in value
+		? value.S
+		: 'N' in value
+			? Number(value.N)
+			: 'M' in value
+				? Object.fromEntries(Object.entries(value.M!).map(([key, item]) => [key, fromAttr(item)]))
+				: value.BOOL
 const toAttr = (value: unknown): Attr =>
-	typeof value === 'string' ? { S: value } : typeof value === 'number' ? { N: String(value) } : { BOOL: !!value }
+	typeof value === 'string'
+		? { S: value }
+		: typeof value === 'number'
+			? { N: String(value) }
+			: typeof value === 'object' && value !== null
+				? { M: Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toAttr(item)])) }
+				: { BOOL: !!value }
 const toItem = (row: Record<string, unknown>) =>
 	Object.fromEntries(
 		Object.entries(row)
@@ -615,6 +629,38 @@ describe('prune selection', () => {
 	})
 })
 
+describe('deployed web function revisions', () => {
+	it("should read every web function's revision by its function's name", () => {
+		const state = {
+			stacks: {
+				base: {
+					nodes: {
+						shared: {
+							type: 'aws_lambdaweb_function_revision',
+							output: { functionName: 'app--bundle--web', revisionId: 'rev-7' },
+						},
+						unfinished: { type: 'aws_lambdaweb_function_revision', output: { functionName: 'app--x' } },
+					},
+				},
+				site: {
+					nodes: {
+						own: {
+							type: 'aws_lambdaweb_function_revision',
+							output: { functionName: 'app--site--site--app', revisionId: 'rev-3' },
+						},
+						other: { type: 'aws_lambda_function', output: { functionName: 'app--bundle--event' } },
+					},
+				},
+			},
+		}
+
+		expect(readDeployedWebFunctionRevisions(state as never)).toEqual({
+			'app--bundle--web': 'rev-7',
+			'app--site--site--app': 'rev-3',
+		})
+	})
+})
+
 describe('deployment claims', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
@@ -1058,6 +1104,91 @@ describe('web function promotion', () => {
 		)
 
 		expect(endpoint.updates).toEqual([])
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:main-1')
+		expect(aws.aliasUpdates).toBe(0)
+	})
+})
+
+describe("promotion of a handler's own web function", () => {
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	const SITE = 'app--site--site--app'
+	const SHARED = 'app--bundle--web'
+
+	// Every deployment has a revision of the site's own web function too.
+	const seedSiteManifest = () =>
+		seedRouterManifest().map(row => ({ ...row, webFunctionRevisions: { [SITE]: `site-${row.functionVersion}` } }))
+
+	// Every web function's endpoint, serving one revision each.
+	const mockEndpoints = (live: Record<string, string>, { missing = [] as string[] } = {}) => {
+		const updates: string[] = []
+
+		vi.spyOn(LambdaWebClient.prototype, 'send').mockImplementation(async (command: any) => {
+			const name = command.constructor.name
+			const { functionName, revisionId } = command.input
+
+			if (name === 'GetWebFunctionRevisionCommand') {
+				if (missing.includes(revisionId)) {
+					throw notFound('ResourceNotFoundException')
+				}
+
+				return {}
+			}
+
+			if (name === 'UpdateWebFunctionEndpointCommand') {
+				live[functionName] = command.input.revisionWeights[0].revisionId
+				updates.push(`${functionName}:${live[functionName]}`)
+			}
+
+			return { revisionWeights: [{ revisionId: live[functionName], weight: 100 }], updateStatus: 'Successful' }
+		})
+
+		return { live, updates }
+	}
+
+	it('should put its revision live with the shared one & the routes', async () => {
+		const aws = mockAws(seedSiteManifest())
+		const endpoints = mockEndpoints({ [SHARED]: 'rev-1', [SITE]: 'site-1' })
+
+		await promoteDeployment({ ...clients(), id: 'main-2', stores: [seedStore(aws.stores)] })
+
+		expect(endpoints.live).toEqual({ [SHARED]: 'rev-2', [SITE]: 'site-2' })
+		expect(aws.alias?.FunctionVersion).toBe('2')
+	})
+
+	it('should leave an endpoint alone that already serves the revision', async () => {
+		const aws = mockAws(seedSiteManifest())
+		const endpoints = mockEndpoints({ [SHARED]: 'rev-2', [SITE]: 'site-2' })
+
+		await promoteDeployment({ ...clients(), id: 'main-2', stores: [seedStore(aws.stores)] })
+
+		expect(endpoints.updates).toEqual([])
+	})
+
+	it('should put both live revisions back when the promotion fails', async () => {
+		const aws = mockAws(seedSiteManifest())
+		const store = seedStore(aws.stores)
+		const endpoints = mockEndpoints({ [SHARED]: 'rev-1', [SITE]: 'site-1' })
+
+		aws.setFailStore(store.arn)
+
+		await expect(promoteDeployment({ ...clients(), id: 'main-2', stores: [store] })).rejects.toThrow()
+
+		expect(endpoints.live).toEqual({ [SHARED]: 'rev-1', [SITE]: 'site-1' })
+	})
+
+	it('should preflight its revision before changing anything', async () => {
+		const aws = mockAws(seedSiteManifest())
+		const store = seedStore(aws.stores)
+		const endpoints = mockEndpoints({ [SHARED]: 'rev-1', [SITE]: 'site-1' }, { missing: ['site-2'] })
+
+		await expect(promoteDeployment({ ...clients(), id: 'main-2', stores: [store] })).rejects.toThrow(
+			`The revision "site-2" of the web function "${SITE}" of this deployment no longer exists.`
+		)
+
+		expect(endpoints.updates).toEqual([])
 		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:main-1')
 		expect(aws.aliasUpdates).toBe(0)
 	})

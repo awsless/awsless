@@ -5,7 +5,7 @@ import { DevContext } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { getFeatureFolder } from '../asset/index.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 
 export const imageOnDev = async (ctx: DevContext) => {
 	const images = ctx.stackConfigs.flatMap(stack => Object.keys(stack.images ?? {}))
@@ -35,6 +35,7 @@ export const imageOnDev = async (ctx: DevContext) => {
 				routerId: props.router,
 				pattern,
 				routeKey,
+				eventFunction: true,
 				rewrite: {
 					regex: `^${props.path}/(.*)$`,
 					to: '/$1',

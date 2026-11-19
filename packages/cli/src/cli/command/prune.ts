@@ -109,26 +109,36 @@ export const prune = (program: Command) => {
 								}
 							}
 
-							// The web function's revisions of the pruned deployments, but
-							// never one a surviving deployment, or the endpoint, still has.
-							const webFunctionName = getWebFunctionName(appConfig.name)
-							const survivingRevisionIds = new Set([
-								...freshItems
+							// The web functions' revisions of the pruned deployments, but
+							// never one a surviving deployment, or its endpoint, still has.
+							const revisionsOf = (item: (typeof freshItems)[number]): Record<string, string> => ({
+								...item.webFunctionRevisions,
+								...(item.webFunctionRevisionId
+									? { [getWebFunctionName(appConfig.name)]: item.webFunctionRevisionId }
+									: {}),
+							})
+
+							const surviving = new Set(
+								freshItems
 									.filter(item => survivingIds.has(item.id))
-									.map(item => item.webFunctionRevisionId),
-								await getEndpointRevisionId(lambdaWeb, webFunctionName, WEB_FUNCTION_ENDPOINT_NAME),
-							])
+									.flatMap(item => Object.entries(revisionsOf(item)))
+									.map(([name, revisionId]) => `${name}:${revisionId}`)
+							)
+
+							const liveRevisions = new Map<string, string | undefined>()
 
 							for (const item of prune) {
-								if (
-									item.webFunctionRevisionId &&
-									!survivingRevisionIds.has(item.webFunctionRevisionId)
-								) {
-									await pruneWebFunctionRevision(
-										lambdaWeb,
-										webFunctionName,
-										item.webFunctionRevisionId
-									)
+								for (const [name, revisionId] of Object.entries(revisionsOf(item))) {
+									if (!liveRevisions.has(name)) {
+										liveRevisions.set(
+											name,
+											await getEndpointRevisionId(lambdaWeb, name, WEB_FUNCTION_ENDPOINT_NAME)
+										)
+									}
+
+									if (!surviving.has(`${name}:${revisionId}`) && liveRevisions.get(name) !== revisionId) {
+										await pruneWebFunctionRevision(lambdaWeb, name, revisionId)
+									}
 								}
 							}
 

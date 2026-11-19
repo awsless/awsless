@@ -9,7 +9,7 @@ import { parseTraceHeader } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 import { formatTableKeys } from './util.js'
 
 type TableProps = NonNullable<StackConfig['tables']>[string]

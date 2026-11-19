@@ -13,7 +13,7 @@ import { getCacheControl, getContentType } from '../../util/content.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import { Body, PutObjectProps, BodyStream } from '@awsless/s3'

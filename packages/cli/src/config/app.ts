@@ -4,7 +4,7 @@ import { AuthDefaultSchema } from '../feature/auth/schema.js'
 import { ClickHouseDefaultSchema } from '../feature/clickhouse/schema.js'
 import { ConfigsSchema } from '../feature/config/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
-import { FunctionDefaultSchema } from '../feature/function/schema.js'
+import { FunctionDefaultSchema, WebFunctionDefaultSchema } from '../feature/function/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { JobDefaultSchema } from '../feature/job/schema.js'
 import { LayerSchema } from '../feature/layer/schema.js'
@@ -75,6 +75,7 @@ export const AppSchema = z
 		auth: AuthDefaultSchema,
 		domains: DomainsDefaultSchema,
 		function: FunctionDefaultSchema,
+		webFunction: WebFunctionDefaultSchema,
 		instance: InstanceDefaultSchema,
 		job: JobDefaultSchema,
 		queue: QueueDefaultSchema,

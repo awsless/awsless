@@ -12,7 +12,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util/index.js'
 import { rpcOnDev } from './dev.js'
 
 export const rpcFeature = defineFeature({

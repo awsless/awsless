@@ -10,8 +10,9 @@ import {
 	preflightDeployment,
 	promoteAppDeployment,
 	readDeployedFunctionVersions,
-	readDeployedWebFunctionRevisionId,
+	readDeployedWebFunctionRevisions,
 } from '../../util/deployment.js'
+import { getWebFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
@@ -172,12 +173,17 @@ export const deploy = (program: Command) => {
 							const functionVersion = readDeployedFunctionVersions(remoteState)[functionName]
 
 							if (functionVersion) {
+								// The shared web function's revision, and the rest by name.
+								const { [getWebFunctionName(appConfig.name)]: webFunctionRevisionId, ...webFunctionRevisions } =
+									readDeployedWebFunctionRevisions(remoteState)
+
 								await markDeployed({
 									client: dynamo,
 									appId: globalAppId,
 									id: deployment.id,
 									functionVersion,
-									webFunctionRevisionId: readDeployedWebFunctionRevisionId(remoteState),
+									webFunctionRevisionId,
+									webFunctionRevisions,
 								})
 							}
 
