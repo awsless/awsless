@@ -80,6 +80,9 @@ export const FunctionDeployment = createCustomResourceClass<FunctionDeploymentIn
 	'function-deployment'
 )
 
+// How often a throttled delete is tried, with up to 8 seconds in between.
+const THROTTLE_ATTEMPTS = 10
+
 export const createLambdaProvider = ({ credentials, region }: ProviderProps) => {
 	const lambda = new LambdaClient({ credentials, region })
 	const lambdaWeb = new LambdaWebClient({ credentials, region })
@@ -260,17 +263,37 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 
 		return url
 	}
+	// A function that goes takes the url of every deployment it ever had with
+	// it, more calls than Lambda's rate limit and the sdk's own retries allow.
+	const isThrottled = (error: unknown) => {
+		return (
+			isError(error, 'TooManyRequestsException') ||
+			isError(error, 'ThrottlingException') ||
+			(error instanceof Error && error.message.includes('Rate exceeded'))
+		)
+	}
+
 	const deleteFunctionUrl = async (functionName: string, qualifier: string) => {
-		try {
-			await lambda.send(
-				new DeleteFunctionUrlConfigCommand({
-					FunctionName: functionName,
-					Qualifier: qualifier,
-				})
-			)
-		} catch (error) {
-			if (!isError(error, 'ResourceNotFoundException')) {
-				throw error
+		for (let attempt = 1; ; attempt++) {
+			try {
+				await lambda.send(
+					new DeleteFunctionUrlConfigCommand({
+						FunctionName: functionName,
+						Qualifier: qualifier,
+					})
+				)
+
+				return
+			} catch (error) {
+				if (isError(error, 'ResourceNotFoundException')) {
+					return
+				}
+
+				if (!isThrottled(error) || attempt === THROTTLE_ATTEMPTS) {
+					throw error
+				}
+
+				await new Promise(resolve => setTimeout(resolve, Math.min(500 * 2 ** (attempt - 1), 8000)))
 			}
 		}
 	}
