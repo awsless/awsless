@@ -1,4 +1,3 @@
-import { getContext } from '@awsless/lambda'
 import { createIoRedisClient, createLazyClient, type RedisClient, type RedisCommand } from '@awsless/redis'
 import { trace } from '@awsless/utils'
 import { constantCase } from 'change-case'
@@ -13,13 +12,6 @@ export const getCacheProps = (name: string, stack: string = getStack()) => {
 		host: process.env[`${prefix}_HOST`]!,
 		port: parseInt(process.env[`${prefix}_PORT`]!, 10),
 	} as const
-}
-
-export type CacheClientOptions = {
-	// Keeps the connection open for the container's life instead of closing it
-	// when the invocation that first used it ends: opening one (tls, then the
-	// cluster's slots and nodes) costs far more than a command.
-	keepConnection?: boolean
 }
 
 // The command names of a batch, like "get,incrby": never their keys or values.
@@ -55,7 +47,12 @@ export interface CacheResources {}
 
 export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
-		return (db: number = 0, { keepConnection = false }: CacheClientOptions = {}) => {
+		// One client per database for the container's life, whoever asks for it:
+		// opening a connection (tls, then the cluster's slots and nodes) costs
+		// far more than a command, so it's never closed between invocations.
+		const clients = new Map<number, RedisClient>()
+
+		const createClient = (db: number) => {
 			return traceClient(
 				`${stack}.${name}`,
 				createLazyClient(() => {
@@ -78,21 +75,25 @@ export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 								}),
 					})
 
-					// Tests call handlers without a lambda context, so the client
-					// cleans up when the test file finishes. Otherwise the invocation
-					// that first uses the client owns its cleanup, unless the caller
-					// keeps the connection; a module scope client is shared by every
-					// invocation and every internal call in between, so it must not
-					// be torn down for each of them.
+					// An open connection keeps a test file from finishing.
 					if (isTest()) {
 						registerTestCleanup(() => client.destroy())
-					} else if (!keepConnection) {
-						getContext().onFinally(() => client.destroy())
 					}
 
 					return client
 				})
 			)
+		}
+
+		return (db: number = 0) => {
+			let client = clients.get(db)
+
+			if (!client) {
+				client = createClient(db)
+				clients.set(db, client)
+			}
+
+			return client
 		}
 	})
 })
