@@ -28,6 +28,20 @@ describe('queue', () => {
 		expect(listResources(withoutConsumer.app, 'aws_lambda_event_source_mapping')).toHaveLength(0)
 	})
 
+	it('caps the consumer concurrency', () => {
+		const capped = createTestApp({
+			stacks: [{ name: 'stack-1', queues: { jobs: { consumer: { code }, maxConcurrency: 20 } } }],
+		})
+		const uncapped = createTestApp({
+			stacks: [{ name: 'stack-1', queues: { jobs: { consumer: { code } } } }],
+		})
+
+		expect(listResources(capped.app, 'aws_lambda_event_source_mapping')[0]!.input.scalingConfig).toEqual({
+			maximumConcurrency: 20,
+		})
+		expect(listResources(uncapped.app, 'aws_lambda_event_source_mapping')[0]!.input.scalingConfig).toBeUndefined()
+	})
+
 	it('grants the app access to the queue', () => {
 		const { shared } = createTestApp({
 			stacks: [{ name: 'stack-1', queues: { jobs: { consumer: { code } } } }],

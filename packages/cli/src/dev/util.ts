@@ -186,3 +186,37 @@ export const stripAnsi = (line: string) => {
 	// eslint-disable-next-line no-control-regex
 	return line.replaceAll(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
 }
+
+// What a handler answers through a function url or an http api.
+type HttpResult = {
+	statusCode: number
+	headers?: Record<string, string>
+	cookies?: string[]
+	body?: string
+	isBase64Encoded?: boolean
+}
+
+// Statuses whose response can't have a body.
+const NULL_BODY_STATUSES = [101, 103, 204, 205, 304]
+
+// The answer of a handler that was handed an event (the image & icon
+// servers, a rest api's route) as the response its caller gets: a result
+// with a status code is the response, anything else a 200 json body.
+export const toResponse = (result: unknown) => {
+	const http = result as HttpResult | null | undefined
+
+	if (typeof http !== 'object' || http === null || typeof http.statusCode !== 'number') {
+		return Response.json(result ?? null)
+	}
+
+	const headers = new Headers(http.headers)
+
+	for (const cookie of http.cookies ?? []) {
+		headers.append('set-cookie', cookie)
+	}
+
+	const hasBody = typeof http.body === 'string' && !NULL_BODY_STATUSES.includes(http.statusCode)
+	const body = hasBody ? Buffer.from(http.body!, http.isBase64Encoded ? 'base64' : 'utf8') : null
+
+	return new Response(body, { status: http.statusCode, headers })
+}

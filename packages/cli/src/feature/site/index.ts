@@ -4,15 +4,14 @@ import { Group } from '@terraforge/core'
 import { glob } from 'glob'
 import { ExpectedError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
-import { FunctionDeployment } from '../../formation/lambda.js'
 import { SiteDeployment } from '../../formation/s3.js'
 import { getCredentials } from '../../util/aws.js'
 import { generateCacheKey } from '../../util/cache.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { getFeatureFolder } from '../asset/index.js'
-import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
-import { createLambdaFunction, isStandaloneFunction } from '../function/util.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util/index.js'
+import { createStandaloneWebFunction, isStandaloneWebFunction } from '../function/util/index.js'
 import { Route } from '../router/route.js'
 import { binPath, siteOnDev } from './dev.js'
 import { planStaticRoutes } from './static-routes.js'
@@ -123,43 +122,32 @@ export const siteFeature = defineFeature({
 				// The site dev server renders ssr itself locally, so the ssr
 				// handler stays out of the local dev bundle - often the
 				// biggest part of the bundle build.
-			} else if (props.ssr && isStandaloneFunction(props.ssr) && !ctx.dev) {
-				// A custom lambda config deploys the ssr as its own stand-alone
-				// lambda & the router hits its function url directly, with the
-				// same cloudfront signing as the shared bundle url.
-				const fn = createLambdaFunction(ctx, `${id}-ssr`, props.ssr)
-
-				// Every deployment gets its own immutable alias & url,
-				// so a staged deployment only goes live at promotion and old
-				// route tables keep working for rollbacks.
-				const deployment = new FunctionDeployment(
-					group,
-					'ssr-deployment',
-					{
-						functionName: fn.lambda.functionName,
-						id: ctx.deploymentId ?? 'local-0',
-						sourceArns: [
-							ctx.shared
-								.entry('router', 'id', props.router)
-								.pipe(
-									distributionId =>
-										`arn:aws:cloudfront::${ctx.accountId}:distribution/${distributionId}`
-								),
-						],
-					},
-					{
-						dependsOn: [fn.deployment],
-					}
-				)
-
-				addRoutes({
-					[routeKey]: {
-						type: 'lambda',
-						forwardHost: true,
-						urlEncodedQueryString: true,
-						domainName: deployment.url.pipe(url => url.split('/')[2]!),
-					},
+			} else if (props.ssr && isStandaloneWebFunction(props.ssr) && !ctx.dev) {
+				// A config of its own deploys the ssr as a web function of its
+				// own, which the router reaches like the shared one.
+				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
+				const webFunction = createStandaloneWebFunction(ctx, {
+					kind: 'site',
+					id,
+					routeKey: bundleRouteKey,
+					router: props.router,
+					local: props.ssr,
 				})
+
+				addRoutes(
+					{
+						[routeKey]: {
+							type: 'web-function',
+							forwardHost: true,
+							urlEncodedQueryString: true,
+							domainName: webFunction.endpoint.domainName,
+							requestHeaders: {
+								[ROUTE_HEADER]: bundleRouteKey,
+							},
+						},
+					},
+					{ dependsOn: [webFunction.revision, webFunction.policy] }
+				)
 			} else if (props.ssr) {
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
@@ -168,7 +156,7 @@ export const siteFeature = defineFeature({
 
 				addRoutes({
 					[routeKey]: {
-						type: 'lambda',
+						type: 'web-function',
 						forwardHost: true,
 						urlEncodedQueryString: true,
 

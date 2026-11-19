@@ -204,7 +204,7 @@ describe('on-failure & on-error-log wiring', () => {
 				'/aws/ecs/test-app--stack-1--job--export',
 				'/aws/ecs/test-app--stack-1--instance--worker',
 				'/aws/lambda/test-app--stack-1--function--echo',
-				'/aws/lambda/test-app--function--bundle',
+				'/aws/lambda/test-app--bundle--event',
 			])
 		)
 

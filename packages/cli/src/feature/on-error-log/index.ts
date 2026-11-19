@@ -5,13 +5,13 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util/index.js'
 import {
 	addEnvWithoutConfigs,
 	createLambda,
 	deployFunctionSourcemaps,
 	registerFunctionBuild,
-} from '../function/util.js'
+} from '../function/util/index.js'
 import { SOURCEMAP_ROOT } from './keys.js'
 
 export const onErrorLogFeature = defineFeature({

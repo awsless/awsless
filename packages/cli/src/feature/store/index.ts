@@ -13,7 +13,7 @@ import { getCacheControl, getContentType } from '../../util/content.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
@@ -231,15 +231,20 @@ export const storeFeature = defineFeature({
 
 			// A bucket holds a single notification config, so all events
 			// of the store share one.
-			const bundle = ctx.shared.get('bundle', 'main')
-			const permission = new aws.lambda.Permission(group, 'permission', {
-				action: 'lambda:InvokeFunction',
-				principal: 's3.amazonaws.com',
-				functionName: bundle.lambda.functionName,
-				qualifier: bundle.alias.name,
-				sourceAccount: ctx.accountId,
-				sourceArn: bucket.arn,
-			})
+			const eventFunction = ctx.shared.get('bundle', 'event-function')
+			const permission = new aws.lambda.Permission(
+				group,
+				'permission',
+				{
+					action: 'lambda:InvokeFunction',
+					principal: 's3.amazonaws.com',
+					functionName: eventFunction.lambda.functionName,
+					qualifier: eventFunction.alias.name,
+					sourceAccount: ctx.accountId,
+					sourceArn: bucket.arn,
+				},
+				{ replaceOnChanges: ['functionName'] }
+			)
 
 			new aws.s3.BucketNotification(
 				group,
@@ -249,7 +254,7 @@ export const storeFeature = defineFeature({
 					lambdaFunction: events.map(([event]) => ({
 						id: formatEventRouteKey(ctx.stack.name, id, event),
 						events: [eventMap[event]!],
-						lambdaFunctionArn: bundle.alias.arn,
+						lambdaFunctionArn: eventFunction.alias.arn,
 					})),
 				},
 				{ dependsOn: [permission] }

@@ -10,6 +10,7 @@ export declare const stream: <T extends AnyTable, H extends Handler<DynamoDBStre
             Keys: unknown;
             OldImage?: unknown;
             NewImage?: unknown;
+            SequenceNumber?: string;
         };
     }[];
 }, context?: import("@awsless/lambda").LambdaContext) => Promise<Awaited<ReturnType<H>>>;

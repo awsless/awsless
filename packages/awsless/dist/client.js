@@ -21,11 +21,6 @@ const createHttpFetcher = (host, options = {}) => {
 		if (query) for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
 		headers.set("content-type", "application/json");
 		const payload = body === void 0 ? void 0 : JSON.stringify(body);
-		if (method === "POST") {
-			const bytes = new TextEncoder().encode(payload ?? "");
-			const hash = await crypto.subtle.digest("SHA-256", bytes);
-			headers.set("x-amz-content-sha256", Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join(""));
-		}
 		const response = await fetch(url, {
 			method,
 			headers,

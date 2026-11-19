@@ -5,6 +5,7 @@ import { ExpectedError } from '../../error.js'
 import { withTestEnvironment } from '../../test/environment.js'
 import { layout } from '../ui/complex/layout.js'
 import { createTestEnv, runTests } from '../ui/complex/run-tests.js'
+import { assertStackFilters } from '../../util/stack-filter.js'
 
 export const test = (program: Command) => {
 	program
@@ -14,6 +15,8 @@ export const test = (program: Command) => {
 		.description('Test your app')
 		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
 			await layout(`test ${stacks?.join(' ') ?? ''}`, async ({ appConfig, stackConfigs }) => {
+				assertStackFilters(stackConfigs, stacks)
+
 				// Tests run fully local, so the synth uses the same fake
 				// account as the dev environment instead of aws credentials.
 				const accountId = LOCAL_ACCOUNT_ID

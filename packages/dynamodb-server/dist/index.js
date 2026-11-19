@@ -1032,6 +1032,18 @@ function applyProjection(item, projectionExpression, expressionAttributeNames) {
 	}
 	return result;
 }
+function applyIndexProjection(item, projection, indexKeyAttributes, tableKeyAttributes) {
+	const projectionType = projection.ProjectionType || "ALL";
+	if (projectionType === "ALL") return item;
+	const result = {};
+	const keyAttrs = /* @__PURE__ */ new Set([...indexKeyAttributes, ...tableKeyAttributes]);
+	for (const attr of keyAttrs) if (item[attr]) result[attr] = item[attr];
+	if (projectionType === "KEYS_ONLY") return result;
+	if (projectionType === "INCLUDE" && projection.NonKeyAttributes) {
+		for (const attr of projection.NonKeyAttributes) if (item[attr]) result[attr] = item[attr];
+	}
+	return result;
+}
 //#endregion
 //#region src/expressions/update.ts
 function parseUpdateExpression(expression) {
@@ -1485,6 +1497,12 @@ function query(store, input) {
 				if (indexKeySchema) lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexKeySchema, table.keySchema));
 			}
 		}
+	}
+	const indexProjection = input.IndexName ? table.getIndexProjection(input.IndexName) : void 0;
+	if (input.IndexName && indexProjection) {
+		const indexKeys = (table.getIndexKeySchema(input.IndexName) ?? []).map((key) => key.AttributeName);
+		const tableKeys = table.keySchema.map((key) => key.AttributeName);
+		items = items.map((item) => applyIndexProjection(item, indexProjection, indexKeys, tableKeys));
 	}
 	if (input.ProjectionExpression) items = items.map((item) => applyProjection(item, input.ProjectionExpression, input.ExpressionAttributeNames));
 	const output = {
@@ -2277,6 +2295,9 @@ var Table = class {
 	}
 	hasIndex(indexName) {
 		return this.globalSecondaryIndexes.has(indexName) || this.localSecondaryIndexes.has(indexName);
+	}
+	getIndexProjection(indexName) {
+		return this.globalSecondaryIndexes.get(indexName)?.projection || this.localSecondaryIndexes.get(indexName)?.projection;
 	}
 	getIndexKeySchema(indexName) {
 		return this.globalSecondaryIndexes.get(indexName)?.keySchema || this.localSecondaryIndexes.get(indexName)?.keySchema;

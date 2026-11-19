@@ -43,8 +43,6 @@ export type Viewer = {
 }
 
 export const buildViewerPayload = (request: InferOutput<typeof requestSchema>): Viewer => {
-	const http = request.requestContext.http
-
 	const getViewer = (name: string) => {
 		return request.headers[`cloudfront-viewer-${name}`]
 	}
@@ -60,7 +58,7 @@ export const buildViewerPayload = (request: InferOutput<typeof requestSchema>): 
 	}
 
 	return {
-		userAgent: http.userAgent,
+		userAgent: request.headers['user-agent'] ?? '',
 		ip: stripPortFromIp(getViewer('address'))!,
 		city: getViewer('city'),
 		region: {

@@ -300,4 +300,43 @@ describe('Lambda function deployment', () => {
 			'main-1',
 		])
 	})
+
+	it("should try a url's delete again when Lambda throttles it", async () => {
+		vi.useFakeTimers()
+
+		// The first two deletes hit the rate limit.
+		let throttled = 2
+		const send = vi.spyOn(LambdaClient.prototype, 'send').mockImplementation(async () => {
+			if (throttled-- > 0) {
+				throw Object.assign(new Error('Rate exceeded'), { name: 'TooManyRequestsException' })
+			}
+
+			return {}
+		})
+
+		const provider = createLambdaProvider({ credentials, region: 'us-east-1' })
+		const deleted = provider.deleteResource({
+			type: 'function-deployment',
+			state: {
+				functionName: 'test-function',
+				id: 'main-2',
+				sourceArns,
+				url: 'https://main-2.lambda-url.us-east-1.on.aws/',
+				oldDeployments: ['main-1'],
+			},
+		})
+
+		await vi.runAllTimersAsync()
+		await deleted
+
+		vi.useRealTimers()
+
+		// Three tries for the first url, one for the second.
+		expect(sent(send, DeleteFunctionUrlConfigCommand).map(command => command.input.Qualifier)).toEqual([
+			'main-2',
+			'main-2',
+			'main-2',
+			'main-1',
+		])
+	})
 })

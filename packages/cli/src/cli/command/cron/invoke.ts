@@ -4,7 +4,7 @@ import { formatRouteKey, formatRoutePayload, LIVE_BUNDLE_ALIAS } from 'awsless'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../error.js'
 import { getCredentials } from '../../../util/aws.js'
-import { getBundleFunctionName } from '../../../util/name.js'
+import { getEventFunctionName } from '../../../util/name.js'
 import { layout } from '../../ui/complex/layout.js'
 
 export const invoke = (program: Command) => {
@@ -83,7 +83,7 @@ export const invoke = (program: Command) => {
 				// ------------------------------------------------
 				// Get the cron
 
-				const functionName = getBundleFunctionName(appConfig.name)
+				const functionName = getEventFunctionName(appConfig.name)
 
 				const payload = stackConfig.crons?.[name]?.payload ?? {}
 				const routeKey = formatRouteKey(stackConfig.name, 'cron', name)

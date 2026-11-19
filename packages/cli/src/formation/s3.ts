@@ -34,6 +34,8 @@ type SourcemapDeploymentInput = {
 	hash: Input<string>
 	source: Input<string>
 	version: Input<string>
+	// The function whose maps these are, when it runs another's build.
+	maps?: Input<string>
 }
 
 type SourcemapDeploymentOutput = {
@@ -87,6 +89,7 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 		hash: z.string(),
 		source: z.string(),
 		version: z.string(),
+		maps: z.string().optional(),
 	})
 
 	// The version index: reading it is the only lookup the error-log
@@ -96,14 +99,15 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 			new PutObjectCommand({
 				Bucket: state.bucket,
 				Key: formatSourcemapVersionKey(state.name, state.version),
-				Body: formatSourcemapPrefix(state.name, state.hash),
+				Body: formatSourcemapPrefix(state.maps ?? state.name, state.hash),
 				ContentType: 'text/plain',
 			})
 		)
 	}
 
 	const uploadSourcemaps = async (state: z.output<typeof sourcemapSchema>) => {
-		const files = glob.sync('**/*.map', { cwd: state.source, nodir: true })
+		// Another function uploads the maps; this one only points at them.
+		const files = state.maps ? [] : glob.sync('**/*.map', { cwd: state.source, nodir: true })
 		const limit = promiseLimit(16)
 		const prefix = formatSourcemapPrefix(state.name, state.hash)
 

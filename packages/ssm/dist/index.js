@@ -3,8 +3,9 @@ import { globalClient, mockFn, nextTick } from "@awsless/utils";
 import chunk from "chunk";
 import { mockClient } from "aws-sdk-vitest-mock";
 //#region src/client.ts
+const MAX_ATTEMPTS = 5;
 const ssmClient = globalClient(() => {
-	return new SSMClient$1({});
+	return new SSMClient$1({ maxAttempts: MAX_ATTEMPTS });
 });
 //#endregion
 //#region src/ssm.ts

@@ -17,7 +17,9 @@ export type RpcAuthResult = {
     authorized: false;
 };
 declare const authEventSchema: import("valibot").ObjectSchema<{
-    readonly token: import("valibot").StringSchema<undefined>;
+    readonly token: import("valibot").SchemaWithPipe<readonly [import("valibot").StringSchema<undefined>, import("valibot").MetadataAction<string, {
+        redact: true;
+    }>]>;
 }, undefined>;
 /** The event the rpc authorizer receives. */
 export type AuthEvent = {

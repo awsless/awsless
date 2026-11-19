@@ -1,5 +1,5 @@
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
-import { getBundleName, LIVE_BUNDLE_ALIAS } from '../../bundle/config.js'
+import { getEventFunctionName, LIVE_BUNDLE_ALIAS } from '../../bundle/config.js'
 
 const client = new LambdaClient({})
 const routes = new Set<string>(JSON.parse(process.env.SANDBOX_ROUTES ?? '[]'))
@@ -29,7 +29,7 @@ export default async (event: SandboxEvent, context: { invokedFunctionArn?: strin
 
 	const result = await client.send(
 		new InvokeCommand({
-			FunctionName: getBundleName(),
+			FunctionName: getEventFunctionName(),
 			Qualifier: qualifier ?? LIVE_BUNDLE_ALIAS,
 			InvocationType: asynchronous ? 'Event' : 'RequestResponse',
 			Payload: JSON.stringify(event),

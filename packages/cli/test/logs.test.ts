@@ -63,7 +63,7 @@ describe('logs command', () => {
 
 	describe('log group origin', () => {
 		it('should map log group names to their logical resource', () => {
-			expect(originFromLogGroup('/aws/lambda/my-app--function--bundle', 'my-app')).toBe('function:bundle')
+			expect(originFromLogGroup('/aws/lambda/my-app--bundle--event', 'my-app')).toBe('bundle:event')
 			expect(originFromLogGroup('/aws/lambda/my-app--stack-1--function--site-ssr', 'my-app')).toBe(
 				'stack-1:function:site-ssr'
 			)
@@ -80,11 +80,11 @@ describe('logs command', () => {
 
 	describe('group matching', () => {
 		it('should stream everything without groups', () => {
-			expect(matchGroups('function:bundle', [])).toBe(true)
+			expect(matchGroups('bundle:event', [])).toBe(true)
 		})
 
 		it('should match a bare name against any segment', () => {
-			expect(matchGroups('function:bundle', ['bundle'])).toBe(true)
+			expect(matchGroups('bundle:event', ['bundle'])).toBe(true)
 			expect(matchGroups('stack:function:standalone', ['stack'])).toBe(true)
 			expect(matchGroups('stack:function:standalone', ['standalone'])).toBe(true)
 			expect(matchGroups('stack:function:standalone', ['other'])).toBe(false)
@@ -95,7 +95,7 @@ describe('logs command', () => {
 			expect(matchGroups('stack:function:standalone', ['stack:function:standalone'])).toBe(true)
 			expect(matchGroups('stack:instance:worker', ['*:instance:*'])).toBe(true)
 			expect(matchGroups('stack:function:standalone', ['*:instance:*'])).toBe(false)
-			expect(matchGroups('function:bundle', ['*'])).toBe(true)
+			expect(matchGroups('bundle:event', ['*'])).toBe(true)
 		})
 	})
 })

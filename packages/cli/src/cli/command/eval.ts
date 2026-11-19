@@ -9,6 +9,7 @@ import { getCredentials } from '../../util/aws.js'
 import { SsmStore } from '../../util/ssm.js'
 import { layout } from '../ui/complex/layout.js'
 import { createTestEnv, runTests } from '../ui/complex/run-tests.js'
+import { assertStackFilters } from '../../util/stack-filter.js'
 
 export const evaluate = (program: Command) => {
 	program
@@ -18,6 +19,8 @@ export const evaluate = (program: Command) => {
 		.description('Evaluate your app against real AI models')
 		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
 			await layout(`eval ${stacks?.join(' ') ?? ''}`, async ({ appConfig, stackConfigs }) => {
+				assertStackFilters(stackConfigs, stacks)
+
 				// Only the config values come from aws, everything else runs
 				// on the same local mocks as the tests.
 				const accountId = LOCAL_ACCOUNT_ID

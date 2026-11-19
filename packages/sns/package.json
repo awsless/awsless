@@ -29,9 +29,9 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-sns": "3.1113.0",
+		"@aws-sdk/client-sns": "3.1164.0",
 		"@awsless/utils": "workspace:^",
-		"@smithy/types": "4.17.2",
+		"@smithy/types": "4.20.0",
 		"aws-sdk-client-mock": "4.1.0"
 	},
 	"peerDependencies": {

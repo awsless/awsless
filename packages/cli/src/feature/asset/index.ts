@@ -75,7 +75,8 @@ export const assetFeature = defineFeature({
 		)
 
 		// Any distribution in the account may read the public site assets
-		// & the router login page.
+		// & the router login page. Lambda reads the bundle's code for the web
+		// function's revisions.
 		const policy = new aws.s3.BucketPolicy(group, 'policy', {
 			bucket: bucket.bucket,
 			policy: bucket.arn.pipe(arn =>
@@ -88,6 +89,20 @@ export const assetFeature = defineFeature({
 							Resource: [`${arn}/site/*`, `${arn}/router/*`],
 							Principal: {
 								Service: 'cloudfront.amazonaws.com',
+							},
+							Condition: {
+								StringEquals: {
+									'AWS:SourceAccount': ctx.accountId,
+								},
+							},
+						},
+						{
+							Effect: 'Allow',
+							Action: ['s3:GetObject', 's3:GetObjectVersion'],
+							// The bundle's code, and that of a handler's own web function.
+							Resource: [`${arn}/bundle/*`, `${arn}/web-function/*`],
+							Principal: {
+								Service: 'lambda.amazonaws.com',
 							},
 							Condition: {
 								StringEquals: {

@@ -8,11 +8,11 @@ import { build, getBuildPath } from '../build/index.js'
 import { debug, setDebugSink } from '../cli/debug.js'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
-import { DevTrace } from '../feature.js'
+import { DevServe, DevTrace } from '../feature.js'
 import { createAuthAdmin } from '../feature/auth/dev.js'
-import { ROUTE_HEADER } from '../feature/bundle/util.js'
+import { ROUTE_HEADER } from '../feature/bundle/util/index.js'
 import { features } from '../feature/index.js'
-import { getBundleFunctionName } from '../util/name.js'
+import { getEventFunctionName } from '../util/name.js'
 import { directories, useDevBuildDir } from '../util/path.js'
 import { reapOrphanedDevChildren } from './children.js'
 import { createDevContext } from './context.js'
@@ -21,10 +21,12 @@ import { createFailureReporter } from './failure.js'
 import { ServerPool } from './pool.js'
 import { createDataReset } from './reset.js'
 import { startDevRouter } from './router.js'
+import { createDevSandboxes } from './sandbox.js'
 import { linkSdkPackages } from './sdk.js'
 import { createSeedRunner } from './seed.js'
 import { createBlockedServer } from './servers/blocked.js'
 import { createLambdaServer } from './servers/lambda.js'
+import { createXRayServer, toXRayHeader } from './servers/xray.js'
 import {
 	formatTraceHeader,
 	IGNORED_DIRECTORIES,
@@ -226,6 +228,9 @@ export const startDev = async (props: {
 	port: number
 	// Expose the routers on the lan, so a phone can open the sites.
 	host?: boolean
+	// The host name the routers are opened on: localhost, or a name under
+	// .localhost.
+	domain?: string
 	pool: ServerPool
 	onLog?: (message: string) => void
 	phase?: DevPhase
@@ -310,8 +315,8 @@ export const startDev = async (props: {
 		})
 	})
 
-	const bundleName = getBundleFunctionName(appConfig.name)
-	const buildDir = getBuildPath('bundle', bundleName, '.')
+	const eventFunctionName = getEventFunctionName(appConfig.name)
+	const buildDir = getBuildPath('bundle', eventFunctionName, '.')
 
 	// The bundle inlines the build output of other features, like the
 	// SSR server code of the sites, so the bundle must build last.
@@ -341,7 +346,7 @@ export const startDev = async (props: {
 
 		// The deploy resolves the bundle env into this file, but locally
 		// the worker env carries everything.
-		await writeFile(getBuildPath('bundle', bundleName, 'files/awsless-env.mjs'), 'export default {}\n')
+		await writeFile(getBuildPath('bundle', eventFunctionName, 'files/awsless-env.mjs'), 'export default {}\n')
 
 		// Play the lambda runtime role for aws sdk packages the project
 		// doesn't depend on directly.
@@ -410,8 +415,8 @@ export const startDev = async (props: {
 			// The lambda emulator carries the bundle's sns fan-out self invokes,
 			// async task invokes & outside callers, by routing Invoke calls back
 			// into the worker.
-			const pooledLambda = await props.pool.keep('lambda', bundleName, async () => {
-				const server = createLambdaServer({ functionName: bundleName })
+			const pooledLambda = await props.pool.keep('lambda', eventFunctionName, async () => {
+				const server = createLambdaServer({ functionName: eventFunctionName })
 				const port = await server.listen()
 
 				return { value: { server, port }, stop: () => server.stop() }
@@ -427,7 +432,7 @@ export const startDev = async (props: {
 				AWS_ACCOUNT_ID: LOCAL_ACCOUNT_ID,
 				AWS_ACCESS_KEY_ID: 'local',
 				AWS_SECRET_ACCESS_KEY: 'local',
-				AWS_LAMBDA_FUNCTION_NAME: bundleName,
+				AWS_LAMBDA_FUNCTION_NAME: eventFunctionName,
 				AWS_LAMBDA_FUNCTION_VERSION: 'local',
 				AWS_ENDPOINT_URL: `http://127.0.0.1:${blockedPort}`,
 				AWS_ENDPOINT_URL_LAMBDA: `http://127.0.0.1:${lambdaPort}`,
@@ -437,7 +442,7 @@ export const startDev = async (props: {
 			// The bind carries a bare host like the deployed domain name bind,
 			// so app code can prepend its own protocol.
 			for (const [id, port] of Object.entries(routerPorts)) {
-				env[`ROUTER_${constantCase(id)}_ENDPOINT`] = `localhost:${port}`
+				env[`ROUTER_${constantCase(id)}_ENDPOINT`] = `${props.domain ?? 'localhost'}:${port}`
 			}
 
 			// Sibling processes like `awsless bind --local vite dev` attach to
@@ -463,10 +468,23 @@ export const startDev = async (props: {
 	// fail on an empty pool - reporting that says nothing.
 	let stopping = false
 
+	// What each sandboxed function may reach, enforced like after a deploy.
+	const sandboxes = createDevSandboxes(stackConfigs)
+
+	// The runtime's spans land here, so the trace view shows what a
+	// dispatch did inside, like its DynamoDB queries and fetches.
+	const xray = createXRayServer({ onSpan: span => dev.events.emit('spans', span) })
+	const xrayPort = await xray.listen()
+
 	const worker = createBundleWorker({
 		buildDir,
-		env,
-		functionName: bundleName,
+		env: {
+			...env,
+			AWSLESS_DEV_SANDBOX: JSON.stringify(sandboxes),
+			AWSLESS_TRACING: 'true',
+			AWS_XRAY_DAEMON_ADDRESS: `127.0.0.1:${xrayPort}`,
+		},
+		functionName: eventFunctionName,
 		quiet: () => seeding,
 		onOutput: (line, stream, route) => emitWorkerLine(line, stream === 'stderr', route),
 		onCrash: info => reload.onCrash(info),
@@ -549,14 +567,17 @@ export const startDev = async (props: {
 		return payload.length > 1000 ? payload.slice(0, 1000) + '\u2026' : payload
 	}
 
-	// Every dispatch lands on the homepage activity feed - the bus replay
-	// gives a freshly opened page the recent history.
-	const dispatch = async (event: unknown, parent?: DevTrace) => {
+	// Every dispatch & served request lands on the homepage activity feed -
+	// the bus replay gives a freshly opened page the recent history.
+	const track = async <T>(
+		route: string,
+		payload: string,
+		parent: DevTrace | undefined,
+		run: (trace: DevTrace) => Promise<T>
+	) => {
 		await reload.ensureFresh()
 
 		const started = Date.now()
-		const route = describeDispatch(event)
-		const payload = describePayload(event)
 
 		// Every dispatch is one span of a trace. A dispatch caused by a
 		// running handler (a queue send, a task invoke) joins its caller's
@@ -566,19 +587,23 @@ export const startDev = async (props: {
 			spanId: traceId(),
 		}
 
-		try {
-			const result = await worker.dispatch(event, formatTraceHeader(trace))
-
+		const emit = (outcome: { ok: true } | { ok: false; error: string }) => {
 			dev.events.emit('activity', {
 				date: started,
 				route,
 				payload,
 				ms: Date.now() - started,
-				ok: true,
+				...outcome,
 				trace: trace.traceId,
 				span: trace.spanId,
 				parent: parent?.spanId,
 			})
+		}
+
+		try {
+			const result = await run(trace)
+
+			emit({ ok: true })
 
 			return result
 		} catch (error) {
@@ -588,20 +613,26 @@ export const startDev = async (props: {
 				;(error as Error & { trace?: DevTrace }).trace = trace
 			}
 
-			dev.events.emit('activity', {
-				date: started,
-				route,
-				payload,
-				ms: Date.now() - started,
-				ok: false,
-				error: error instanceof Error ? error.message : String(error),
-				trace: trace.traceId,
-				span: trace.spanId,
-				parent: parent?.spanId,
-			})
+			emit({ ok: false, error: error instanceof Error ? error.message : String(error) })
 
 			throw error
 		}
+	}
+
+	const dispatch = (event: unknown, parent?: DevTrace) => {
+		return track(describeDispatch(event), describePayload(event), parent, trace =>
+			worker.dispatch(event, formatTraceHeader(trace), toXRayHeader(trace))
+		)
+	}
+
+	// A web route's request shows by its method & path: its body streams
+	// past, unread.
+	const serve: DevServe = (request, routeKey, parent) => {
+		const url = new URL(request.url)
+
+		return track(routeKey, `${request.method} ${url.pathname}${url.search}`, parent, trace =>
+			worker.serve(request, formatTraceHeader(trace), toXRayHeader(trace))
+		)
 	}
 
 	// Failed async consumers route to the on-failure consumer when the
@@ -633,7 +664,7 @@ export const startDev = async (props: {
 	// so the worker module init can talk to them right away. Their
 	// dispatch only fires in reaction to traffic, so the worker is
 	// always up by then.
-	lambda.connect(dispatch, reportFailure)
+	lambda.connect(dispatch, reportFailure, sandboxes)
 
 	await phase(
 		{
@@ -717,6 +748,7 @@ export const startDev = async (props: {
 				port,
 				host: props.host,
 				dispatch,
+				serve,
 				onError(error, routeKey) {
 					// Handler errors from web routes would otherwise never
 					// print anywhere - the worker only returns them.
@@ -767,7 +799,7 @@ export const startDev = async (props: {
 		events: dev.events,
 	})
 
-	dashboard.connect(dispatch)
+	dashboard.connect(dispatch, serve)
 	await dashboard.listen(dashboardPort)
 
 	// The source watcher marks the bundle dirty & kicks the rebuild in
@@ -847,6 +879,8 @@ export const startDev = async (props: {
 			for (const server of dev.servers.toReversed()) {
 				await server.stop?.()
 			}
+
+			xray.stop()
 		},
 	}
 }

@@ -1,0 +1,20 @@
+{
+	"$schema": "../../../../dist/stack.json",
+	"name": "shop",
+
+	"clickhouse": {
+		"orders": {
+			"columns": {
+				"id": "String",
+				"customer": "keyword",
+				"items": "UInt64",
+				"total": "Decimal(38, 10)",
+				"tags": "keyword[]",
+				"note": "string?",
+				"createdAt": "date",
+				"day": { "type": "Date", "default": "toDate(createdAt)" }
+			},
+			"orderBy": ["customer", "createdAt"]
+		}
+	}
+}

@@ -216,6 +216,7 @@ declare class Table {
     indexKeySchema: KeySchemaElement[];
   };
   hasIndex(indexName: string): boolean;
+  getIndexProjection(indexName: string): Projection | undefined;
   getIndexKeySchema(indexName: string): KeySchemaElement[] | undefined;
   private attributeEquals;
   private compareAttributes;

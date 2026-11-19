@@ -1,5 +1,11 @@
 import { ResourceNotFoundException, ValidationException } from '../errors/index.js'
-import { applyProjection, evaluateCondition, matchesKeyCondition, parseKeyCondition } from '../expressions/index.js'
+import {
+	applyIndexProjection,
+	applyProjection,
+	evaluateCondition,
+	matchesKeyCondition,
+	parseKeyCondition,
+} from '../expressions/index.js'
 import type { TableStore } from '../store/index.js'
 import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { AttributeMap, AttributeValue, ConsumedCapacity } from '../types.js'
@@ -105,6 +111,16 @@ export function query(store: TableStore, input: QueryInput): QueryOutput {
 				}
 			}
 		}
+	}
+
+	// An index holds only what it projects, like DynamoDB's: a query on a
+	// keys-only or INCLUDE index never sees the table's other attributes.
+	const indexProjection = input.IndexName ? table.getIndexProjection(input.IndexName) : undefined
+
+	if (input.IndexName && indexProjection) {
+		const indexKeys = (table.getIndexKeySchema(input.IndexName) ?? []).map(key => key.AttributeName)
+		const tableKeys = table.keySchema.map(key => key.AttributeName)
+		items = items.map(item => applyIndexProjection(item, indexProjection, indexKeys, tableKeys))
 	}
 
 	if (input.ProjectionExpression) {

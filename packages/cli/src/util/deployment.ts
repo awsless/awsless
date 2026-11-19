@@ -2,6 +2,7 @@ import { userInfo } from 'node:os'
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { DeleteFunctionCommand, GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import { LambdaWebClient } from '@aws-sdk/client-lambda-web'
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import {
 	AnyTable,
@@ -14,6 +15,7 @@ import {
 	optional,
 	putItem,
 	query,
+	record,
 	string,
 	updateItem,
 } from '@awsless/dynamodb'
@@ -40,7 +42,15 @@ import {
 	LIVE_LAMBDA_ALIAS,
 	upsertLambdaAlias,
 } from './lambda.js'
-import { formatGlobalResourceName, generateGlobalAppId, getAppNamePrefix, getBundleFunctionName } from './name.js'
+import {
+	formatGlobalResourceName,
+	generateGlobalAppId,
+	getAppNamePrefix,
+	getEventFunctionName,
+	getWebFunctionName,
+	WEB_FUNCTION_ENDPOINT_NAME,
+} from './name.js'
+import { getEndpointRevisionId, hasWebFunctionRevision, setEndpointRevisionId } from './web-function.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 // ------------------------------------------------------------
@@ -67,6 +77,9 @@ const table = define('awsless-deployments', {
 		commit: optional(string()),
 		message: optional(string()),
 		functionVersion: optional(string()),
+		webFunctionRevisionId: optional(string()),
+		// The revision of every web function a handler has of its own, by its name.
+		webFunctionRevisions: optional(record(string())),
 		promotedAt: optional(string()),
 	}),
 })
@@ -82,6 +95,8 @@ export type Deployment = {
 	commit?: string
 	message?: string
 	functionVersion?: string
+	webFunctionRevisionId?: string
+	webFunctionRevisions?: Record<string, string>
 	promotedAt?: string
 }
 
@@ -197,12 +212,20 @@ export const markDeployed = async (props: {
 	appId: string
 	id: string
 	functionVersion: string
+	webFunctionRevisionId?: string
+	webFunctionRevisions?: Record<string, string>
 }) => {
 	await updateItem(
 		table,
 		{ appId: props.appId, id: props.id },
 		{
-			update: e => e.functionVersion.set(props.functionVersion),
+			update: e => [
+				e.functionVersion.set(props.functionVersion),
+				...(props.webFunctionRevisionId ? [e.webFunctionRevisionId.set(props.webFunctionRevisionId)] : []),
+				...(Object.keys(props.webFunctionRevisions ?? {}).length > 0
+					? [e.webFunctionRevisions.set(props.webFunctionRevisions!)]
+					: []),
+			],
 			when: e => e.id.exists(),
 			client: props.client,
 		}
@@ -460,6 +483,22 @@ export const readDeployedFunctionVersions = (state: DeploymentState) => {
 	return functions
 }
 
+// The revision of every web function in a deployment, by its function's
+// name, which promotion puts live.
+export const readDeployedWebFunctionRevisions = (state: DeploymentState) => {
+	const revisions: Record<string, string> = {}
+
+	for (const [, node] of readStateNodes(state)) {
+		const { functionName, revisionId } = node.output
+
+		if (node.type === 'aws_lambdaweb_function_revision' && functionName && revisionId) {
+			revisions[functionName] = revisionId
+		}
+	}
+
+	return revisions
+}
+
 // ------------------------------------------------------------
 // Promotion
 
@@ -527,6 +566,7 @@ export const preflightDeployment = async (props: {
 export const promoteDeployment = async (props: {
 	kvs: CloudFrontKeyValueStoreClient
 	lambda: LambdaClient
+	lambdaWeb: LambdaWebClient
 	dynamo: DynamoDBClient
 	appId: string
 	appName: string
@@ -586,7 +626,40 @@ export const promoteDeployment = async (props: {
 		throw error
 	}
 
-	let aliasUpdateStarted = false
+	const webFunctionName = getWebFunctionName(props.appName)
+	const webFunctionRevisionId = deployment.webFunctionRevisionId
+
+	// An app with routers has a web function, which serves their bundle routes.
+	if (stores.length > 0 && !webFunctionRevisionId) {
+		throw new ExpectedError(`Deployment "${props.id}" has no web function revision for its routes.`)
+	}
+
+	if (
+		webFunctionRevisionId &&
+		!(await hasWebFunctionRevision(props.lambdaWeb, webFunctionName, webFunctionRevisionId))
+	) {
+		throw new ExpectedError(
+			`The web function revision "${webFunctionRevisionId}" of this deployment no longer exists.`
+		)
+	}
+
+	// The web functions handlers have of their own flip with the same routes.
+	const ownWebFunctions = Object.entries(deployment.webFunctionRevisions ?? {})
+
+	for (const [name, revisionId] of ownWebFunctions) {
+		if (!(await hasWebFunctionRevision(props.lambdaWeb, name, revisionId))) {
+			throw new ExpectedError(
+				`The revision "${revisionId}" of the web function "${name}" of this deployment no longer exists.`
+			)
+		}
+	}
+
+	let wasAliasUpdateStarted = false
+	let previousWebFunctionRevisionId: string | undefined
+	let wasEndpointUpdateStarted = false
+
+	// The endpoints that were moved, with the revision to put back.
+	const flippedEndpoints: { functionName: string; revisionId: string }[] = []
 
 	const flippedStores: RouteStoreTarget[] = []
 	const flipped: { functionName: string; liveVersion?: string; liveDescription?: string }[] = []
@@ -625,6 +698,39 @@ export const promoteDeployment = async (props: {
 			})
 		}
 
+		// The web function's endpoint flips with the routes it serves.
+		if (webFunctionRevisionId) {
+			previousWebFunctionRevisionId = await getEndpointRevisionId(
+				props.lambdaWeb,
+				webFunctionName,
+				WEB_FUNCTION_ENDPOINT_NAME
+			)
+
+			if (previousWebFunctionRevisionId !== webFunctionRevisionId) {
+				wasEndpointUpdateStarted = true
+				await setEndpointRevisionId(
+					props.lambdaWeb,
+					webFunctionName,
+					WEB_FUNCTION_ENDPOINT_NAME,
+					webFunctionRevisionId
+				)
+			}
+		}
+
+		for (const [name, revisionId] of ownWebFunctions) {
+			const previous = await getEndpointRevisionId(props.lambdaWeb, name, WEB_FUNCTION_ENDPOINT_NAME)
+
+			if (previous !== revisionId) {
+				// A new endpoint took this revision at its creation, so one without
+				// a previous revision has nothing to go back to.
+				if (previous) {
+					flippedEndpoints.push({ functionName: name, revisionId: previous })
+				}
+
+				await setEndpointRevisionId(props.lambdaWeb, name, WEB_FUNCTION_ENDPOINT_NAME, revisionId)
+			}
+		}
+
 		for (const store of stores) {
 			if (activeRoutes.get(store.arn)?.id !== store.deployment.id) {
 				flippedStores.push(store)
@@ -633,7 +739,7 @@ export const promoteDeployment = async (props: {
 		}
 
 		if (alias?.FunctionVersion !== functionVersion || alias?.Description !== props.id) {
-			aliasUpdateStarted = true
+			wasAliasUpdateStarted = true
 			await upsertLambdaAlias(props.lambda, {
 				functionName: props.functionName,
 				functionVersion,
@@ -660,7 +766,20 @@ export const promoteDeployment = async (props: {
 
 		const rollback = [
 			...flippedStores.map(store => setActiveRouteDeployment(props.kvs, store.arn, activeRoutes.get(store.arn))),
-			...(aliasUpdateStarted
+			...(wasEndpointUpdateStarted && previousWebFunctionRevisionId
+				? [
+						setEndpointRevisionId(
+							props.lambdaWeb,
+							webFunctionName,
+							WEB_FUNCTION_ENDPOINT_NAME,
+							previousWebFunctionRevisionId
+						),
+					]
+				: []),
+			...flippedEndpoints.map(item =>
+				setEndpointRevisionId(props.lambdaWeb, item.functionName, WEB_FUNCTION_ENDPOINT_NAME, item.revisionId)
+			),
+			...(wasAliasUpdateStarted
 				? [
 						revertLiveAlias({
 							functionName: props.functionName,
@@ -695,8 +814,9 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 	const cloudfront = new CloudFrontClient({ credentials, region: 'us-east-1' })
 	const kvs = createKvsClient({ credentials, region })
 	const lambda = new LambdaClient({ credentials, region })
+	const lambdaWeb = new LambdaWebClient({ credentials, region })
 	const dynamo = new DynamoDBClient({ credentials, region })
-	const functionName = getBundleFunctionName(props.appConfig.name)
+	const functionName = getEventFunctionName(props.appConfig.name)
 
 	const id = props.id ?? (await previousDeploymentId({ lambda, dynamo, appId, functionName }))
 	const stores: RouteStoreTarget[] = []
@@ -727,6 +847,7 @@ const activateDeployment = async (props: { appConfig: AppConfig; id?: string; re
 	await promoteDeployment({
 		kvs,
 		lambda,
+		lambdaWeb,
 		dynamo,
 		appId,
 		appName: props.appConfig.name,

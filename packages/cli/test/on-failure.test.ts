@@ -33,7 +33,7 @@ describe('on failure handler', () => {
 		timestamp: '2026-01-01T00:00:00.000Z',
 		requestContext: {
 			requestId: 'request-id',
-			functionArn: 'arn:aws:lambda:eu-west-1:123456789:function:test-app--function--bundle:live',
+			functionArn: 'arn:aws:lambda:eu-west-1:123456789:function:test-app--bundle--event:live',
 		},
 		requestPayload: { hello: 'world' },
 		responsePayload: {
@@ -83,7 +83,7 @@ describe('on failure handler', () => {
 				type: 'async-lambda',
 				date: new Date('2026-01-01T00:00:00.000Z'),
 				id: 'request-id',
-				function: { name: 'test-app--function--bundle' },
+				function: { name: 'test-app--bundle--event' },
 				payload: { hello: 'world' },
 				error: {
 					type: 'Error',
@@ -157,7 +157,7 @@ describe('on failure handler', () => {
 		await handle(sqsEvent(s3Event('topic.json')) as any)
 
 		expect(events.at(-1)).toMatchObject({
-			function: { name: 'test-app--function--bundle' },
+			function: { name: 'test-app--bundle--event' },
 			source: { resource: 'topic:failure-requested', event: { id: 'event-1' } },
 		})
 	})

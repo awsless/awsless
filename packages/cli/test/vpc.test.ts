@@ -17,4 +17,10 @@ describe('vpc', () => {
 		expect(shared.get('vpc', 'public-subnets')).toHaveLength(subnets.length / 2)
 		expect(shared.get('vpc', 'security-group-id')).toBeDefined()
 	})
+
+	it('binds the addresses its outbound traffic leaves from', () => {
+		const { binds } = createTestApp()
+
+		expect(binds.map(bind => bind.name)).toEqual(expect.arrayContaining(['NAT_IP', 'VPC_IPV6_CIDR']))
+	})
 })

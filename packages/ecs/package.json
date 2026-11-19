@@ -32,7 +32,7 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-ecs": "3.1113.0",
+		"@aws-sdk/client-ecs": "3.1164.0",
 		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"aws-sdk-vitest-mock": "1.0.98"

@@ -1,0 +1,14 @@
+{
+	"$schema": "../../../../dist/stack.json",
+	"name": "crm",
+
+	"clickhouse": {
+		"customers": {
+			"columns": {
+				"id": "String",
+				"name": "String"
+			},
+			"orderBy": ["id"]
+		}
+	}
+}

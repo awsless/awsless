@@ -1,4 +1,7 @@
+import { kebabCase } from 'change-case'
 import { ExpectedError } from '../../error.js'
+import { shortId } from '../../util/id.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 
 export type CompiledRoutePattern = {
 	key: string
@@ -99,4 +102,12 @@ export const compileRoutePattern = (pattern: string): CompiledRoutePattern => {
 		match: `^${regex}$`,
 		params: params.length > 0 ? params : undefined,
 	}
+}
+
+// The bundle route key of a route pattern, shared by the deployed
+// route store & the local dev router so both dispatch the same keys.
+export const formatPatternRouteKey = (stackName: string, pattern: string) => {
+	const slug = kebabCase(pattern).slice(0, 20)
+
+	return formatRouteKey(stackName, 'route', `${slug || 'root'}-${shortId(pattern)}`)
 }

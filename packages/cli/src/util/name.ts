@@ -27,14 +27,27 @@ export const getAppNamePrefix = (appName: string) => {
 	return `${kebabCase(appName)}--`
 }
 
-// The name of the shared bundle lambda that contains all handler code.
-export const getBundleFunctionName = (appName: string) => {
+// The bundle's Lambda function: invokes, queues, streams, crons and the
+// routes that need its layers.
+export const getEventFunctionName = (appName: string) => {
 	return formatGlobalResourceName({
 		appName,
-		resourceType: 'function',
-		resourceName: 'bundle',
+		resourceType: 'bundle',
+		resourceName: 'event',
 	})
 }
+
+// The bundle's Lambda Web Function: the routers' bundle routes over HTTP.
+export const getWebFunctionName = (appName: string) => {
+	return formatGlobalResourceName({
+		appName,
+		resourceType: 'bundle',
+		resourceName: 'web',
+	})
+}
+
+// The web function's one endpoint, which every router calls.
+export const WEB_FUNCTION_ENDPOINT_NAME = 'router'
 
 export const formatLocalResourceName = (opt: {
 	appName: string

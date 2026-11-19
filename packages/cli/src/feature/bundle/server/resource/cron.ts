@@ -6,7 +6,8 @@ export const cronHandler: RouteMatcher = event => {
 	const route = event?.[ROUTE_PROPERTY]
 
 	if (typeof route === 'string' && routeType(route) === 'cron') {
-		return asyncRoute(route, event.event)
+		// EventBridge runs a cron on its schedule.
+		return asyncRoute(route, event.event, () => ({ trigger: 'schedule' }))
 	}
 
 	return

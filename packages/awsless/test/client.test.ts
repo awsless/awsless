@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { createHttpClient, createHttpFetcher } from '../src/lib/client/http'
 
 describe('HTTP client', () => {
@@ -6,7 +5,7 @@ describe('HTTP client', () => {
 		vi.unstubAllGlobals()
 	})
 
-	it('should address the route and hash POST bodies for Lambda URL OAC', async () => {
+	it('should address the route and send the body as json', async () => {
 		const fetch = vi.fn(async (..._args: [URL, RequestInit]) => new Response(JSON.stringify({ ok: true })))
 		vi.stubGlobal('fetch', fetch)
 
@@ -24,10 +23,12 @@ describe('HTTP client', () => {
 
 		expect(url.toString()).toBe('https://example.com/api/items')
 		expect(init.body).toBe(payload)
-		expect(headers.get('x-amz-content-sha256')).toBe(createHash('sha256').update(payload).digest('hex'))
+		expect(headers.get('content-type')).toBe('application/json')
+		// The routes run on the Lambda Web Function, which takes a body unsigned.
+		expect(headers.has('x-amz-content-sha256')).toBe(false)
 	})
 
-	it('should hash empty POST bodies for Lambda URL OAC', async () => {
+	it('should send a POST without a body', async () => {
 		const fetch = vi.fn(async (..._args: [URL, RequestInit]) => new Response(JSON.stringify({ ok: true })))
 		vi.stubGlobal('fetch', fetch)
 
@@ -41,7 +42,7 @@ describe('HTTP client', () => {
 		const headers = init.headers as Headers
 
 		expect(init.body).toBeUndefined()
-		expect(headers.get('x-amz-content-sha256')).toBe(createHash('sha256').update('').digest('hex'))
+		expect(headers.has('x-amz-content-sha256')).toBe(false)
 	})
 
 	it('should replace route parameters', async () => {

@@ -1,6 +1,24 @@
+import { days, hours } from '@awsless/duration'
 import { z } from 'zod'
-import { DurationSchema } from '../../config/schema/duration.js'
+import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+
+// Cognito takes whole hours for the id and access tokens and whole days for
+// the refresh token here, so a validity in between would be rounded down
+// (15 minutes to 0 hours). Within Cognito's own limits.
+const TokenValiditySchema = DurationSchema.refine(
+	duration => duration.value % hours(1).value === 0n,
+	'A token validity must be whole hours.'
+)
+	.refine(durationMin(hours(1)), 'A token validity can not be under an hour.')
+	.refine(durationMax(days(1)), 'A token validity can not be over a day.')
+
+const RefreshTokenValiditySchema = DurationSchema.refine(
+	duration => duration.value % days(1).value === 0n,
+	'The refresh token validity must be whole days.'
+)
+	.refine(durationMin(days(1)), 'The refresh token validity can not be under a day.')
+	.refine(durationMax(days(3650)), 'The refresh token validity can not be over 3650 days.')
 
 export const AuthDefaultSchema = z
 	.record(
@@ -69,14 +87,14 @@ export const AuthDefaultSchema = z
 
 			validity: z
 				.object({
-					idToken: DurationSchema.prefault('1 hour').describe(
-						"The ID token time limit. After this limit expires, your user can't use their ID token."
+					idToken: TokenValiditySchema.prefault('1 hour').describe(
+						"The ID token time limit, in whole hours from 1 hour to 1 day. After this limit expires, your user can't use their ID token."
 					),
-					accessToken: DurationSchema.prefault('1 hour').describe(
-						"The access token time limit. After this limit expires, your user can't use their access token."
+					accessToken: TokenValiditySchema.prefault('1 hour').describe(
+						"The access token time limit, in whole hours from 1 hour to 1 day. After this limit expires, your user can't use their access token."
 					),
-					refreshToken: DurationSchema.prefault('365 days').describe(
-						"The refresh token time limit. After this limit expires, your user can't use their refresh token."
+					refreshToken: RefreshTokenValiditySchema.prefault('365 days').describe(
+						"The refresh token time limit, in whole days from 1 to 3650 days. After this limit expires, your user can't use their refresh token."
 					),
 				})
 				.prefault({})

@@ -59,6 +59,16 @@ export interface TestMock {
             to?: string[];
             subject?: string;
             html?: string;
+            text?: string;
+            headers?: {
+                name?: string;
+                value?: string;
+            }[];
+            attachments?: {
+                filename?: string;
+                contentType?: string;
+                content?: Uint8Array;
+            }[];
         }) => unknown>;
     };
 }

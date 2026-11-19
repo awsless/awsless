@@ -5,8 +5,8 @@ import { defineFeature } from '../../feature.js'
 import { funcType, invokeTypes, testMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, registerBundleFunction } from '../bundle/util.js'
-import { createLambdaFunction, isStandaloneFunction } from './util.js'
+import { formatRouteKey, registerBundleFunction } from '../bundle/util/index.js'
+import { createLambdaFunction, isStandaloneFunction } from './util/index.js'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'

@@ -3,6 +3,8 @@ import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { runTests } from '../src/cli/ui/complex/run-tests'
+import { StackSchema } from '../src/config/stack'
+import { createTestManifest } from '../src/test/manifest'
 import { TestResponse } from '../src/test/start'
 import { setRoot } from '../src/util/path'
 
@@ -128,6 +130,45 @@ describe('test runner cache', () => {
 
 		await expect(runTests(tests(), [], [], { showLogs: false, manifest })).resolves.toBe(true)
 		expect(mocks.start).toHaveBeenCalledTimes(2)
+	})
+
+	it("should run again when a stack's Postgres tables or function files change", async () => {
+		mocks.start.mockResolvedValue(new Map([['a', response()]]))
+		const file = join(root, 'stacks/a/src/util/sql/function.sql')
+		await mkdir(dirname(file), { recursive: true })
+		await writeFile(file, 'CREATE FUNCTION one() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;\n')
+
+		// The manifest the test command makes for a stack with a Postgres schema.
+		const manifest = (columns: Record<string, string> = { id: 'integer' }) =>
+			createTestManifest({ name: 'app', region: 'us-east-1', test: { configs: {} } } as never, [
+				{
+					...StackSchema.parse({
+						name: 'aa',
+						postgres: {
+							tables: { notes: { columns, primaryKey: ['id'] } },
+							functions: [{ nocheck: file }],
+						},
+					}),
+					file: 'stacks/a/stack.json',
+				},
+			])
+
+		await expect(runTests(tests(), [], [], { showLogs: false, manifest: manifest() })).resolves.toBe(true)
+		await expect(runTests(tests(), [], [], { showLogs: false, manifest: manifest() })).resolves.toBe(true)
+		expect(mocks.start).toHaveBeenCalledTimes(1)
+
+		// The functions every test calls are made from the file's contents.
+		await writeFile(file, 'CREATE FUNCTION one() RETURNS int LANGUAGE sql AS $$ SELECT 2 $$;\n')
+
+		await expect(runTests(tests(), [], [], { showLogs: false, manifest: manifest() })).resolves.toBe(true)
+		expect(mocks.start).toHaveBeenCalledTimes(2)
+
+		// The tables every test runs against are declared in the stack file.
+		const changed = () => manifest({ id: 'integer', body: 'text?' })
+
+		await expect(runTests(tests(), [], [], { showLogs: false, manifest: changed() })).resolves.toBe(true)
+		await expect(runTests(tests(), [], [], { showLogs: false, manifest: changed() })).resolves.toBe(true)
+		expect(mocks.start).toHaveBeenCalledTimes(3)
 	})
 
 	it('should run again when a test config value changes', async () => {

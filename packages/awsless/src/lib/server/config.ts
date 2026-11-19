@@ -1,5 +1,7 @@
 import { ssm } from '@awsless/ssm'
 import { kebabCase } from 'change-case'
+import { getCurrentRoute } from './bundle.js'
+import { getDevSandbox } from './sandbox.js'
 import { getApp, isTest } from './util.js'
 
 export const getConfigName = (name: string) => {
@@ -36,7 +38,11 @@ data = { ...(await fetchConfigData()), ...data }
 
 export const getConfigValue = (name: string) => {
 	const key = kebabCase(name)
-	const value = data[key]
+	// Local dev loads every config; a sandboxed function only sees its own.
+	// By the route that reads it: a module shared with other routes that
+	// reads a config as it loads does so for whichever route loads it first.
+	const isHidden = getDevSandbox(getCurrentRoute())?.configs.includes(key) === false
+	const value = isHidden ? undefined : data[key]
 
 	if (typeof value === 'undefined') {
 		// The failure plane runs without any config access on purpose.

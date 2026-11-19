@@ -9,26 +9,26 @@ import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
 import { kebabCase } from 'change-case'
 import deepmerge from 'deepmerge'
-import { getBuildPath } from '../../build/index.js'
-import { FileError } from '../../error.js'
-import { AppContext, Permission, StackContext } from '../../feature.js'
-import { DeploymentAlias, LiveTarget } from '../../formation/lambda.js'
-import { SourcemapDeployment } from '../../formation/s3.js'
-import { formatByteSize } from '../../util/byte-size.js'
-import { shortId } from '../../util/id.js'
-import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { relativePath } from '../../util/path.js'
-import { formatPolicyDocument } from '../../util/policy.js'
-import { configParameterPrefix } from '../../util/ssm.js'
-import { createTempFolder } from '../../util/temp.js'
-import { bundleTypeScriptWithRolldown } from '../bundle/build/rolldown.js'
-import { zipFiles, zipWithEnvFile } from '../bundle/build/zip.js'
-import { PolicyStatement } from '../bundle/policy.js'
-import { parseExportName } from '../bundle/util.js'
-import { createLogGroup } from '../on-error-log/util.js'
-import { getGlobalOnFailure } from '../on-failure/util.js'
-import { StackFunctionProps } from './schema.js'
+import { getBuildPath } from '../../../build/index.js'
+import { FileError } from '../../../error.js'
+import { AppContext, Permission, StackContext } from '../../../feature.js'
+import { DeploymentAlias, LiveTarget } from '../../../formation/lambda.js'
+import { SourcemapDeployment } from '../../../formation/s3.js'
+import { formatByteSize } from '../../../util/byte-size.js'
+import { shortId } from '../../../util/id.js'
+import { LIVE_LAMBDA_ALIAS } from '../../../util/lambda.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../../util/name.js'
+import { relativePath } from '../../../util/path.js'
+import { formatPolicyDocument } from '../../../util/policy.js'
+import { configParameterPrefix } from '../../../util/ssm.js'
+import { createTempFolder } from '../../../util/temp.js'
+import { bundleTypeScriptWithRolldown } from '../../bundle/build/rolldown.js'
+import { zipFiles, zipWithEnvFile } from '../../bundle/build/zip.js'
+import { PolicyStatement } from '../../bundle/policy.js'
+import { parseExportName } from '../../bundle/util/bundle.js'
+import { createLogGroup } from '../../on-error-log/util.js'
+import { getGlobalOnFailure } from '../../on-failure/util.js'
+import { EventFunctionProps } from '../schema.js'
 
 // Any lambda infra field opts the function out of the shared bundle.
 // The handler & code fields only describe the build & the vpc flag only
@@ -48,7 +48,7 @@ const standaloneFields = [
 	'sandbox',
 ] as const
 
-export const isStandaloneFunction = (props: StackFunctionProps) => {
+export const isStandaloneFunction = (props: EventFunctionProps) => {
 	return standaloneFields.some(field => typeof props[field] !== 'undefined')
 }
 
@@ -137,9 +137,13 @@ export const registerFunctionBuild = (
 		handler?: string
 		external?: string[]
 		wrapper?: string
+		// Builds the entry of a web function of the handler's own, which serves
+		// the route over HTTP from the moment Lambda starts the file.
+		web?: { routeKey: string }
 	}
 ) => {
 	const exportName = parseExportName(props.handler ?? ctx.appConfig.function.handler)
+	const webRuntime = join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.js')
 
 	// The code archive is only needed for deploys - dev rebuilds skip
 	// the compression to keep reloads fast.
@@ -151,6 +155,7 @@ export const registerFunctionBuild = (
 		const fingerprint = createHash('sha1')
 			.update(await generateFileHash(workspace, props.code.file))
 			.update(props.wrapper ? await readFile(props.wrapper) : '')
+			.update(props.web ? await readFile(webRuntime) : '')
 			.update(generateDependencyHash(workspace, 'awsless') ?? '')
 			// The trailing number versions the build output format - bump it
 			// when the written artifacts change, so stale caches missing the
@@ -165,7 +170,8 @@ export const registerFunctionBuild = (
 					props.code.moduleSideEffects,
 					props.external,
 					zip,
-					2,
+					props.web?.routeKey,
+					3,
 				])
 			)
 			.digest('hex')
@@ -176,12 +182,31 @@ export const registerFunctionBuild = (
 			// The env is applied before the handler modules are loaded, so
 			// module level env reads work & the real lambda environment
 			// always wins over the bundled environment.
-			const entry = `import env from './awsless-env.mjs'
+			const applyEnv = `import env from './awsless-env.mjs'
 
 for (const name in env) {
 	process.env[name] ??= env[name]
 }
+`
+			// A web function has no invocation to take a qualifier from, and no
+			// bundle around the handler: its Fn calls go out like a lambda's own.
+			const webEntry = `${applyEnv}
+const { startWebFunctionServer } = await import(${JSON.stringify(webRuntime)})
+${handlerImport}
 
+if (typeof handler?.fetch !== 'function') {
+	throw new Error(${JSON.stringify(`Route "${props.web?.routeKey}" takes no web request. Wrap its handler in h.route().`)})
+}
+
+startWebFunctionServer({
+	serveRequest: async (request, writeResponse, context) => {
+		await writeResponse(await handler.fetch(request, { ...context, route: ${JSON.stringify(props.web?.routeKey)} }))
+	},
+})
+`
+			const entry = props.web
+				? webEntry
+				: `${applyEnv}
 const { captureInvokedQualifier } = await import('awsless')
 ${
 	props.wrapper
@@ -216,6 +241,10 @@ export default (event, context) => {
 				],
 				moduleSideEffects: props.code.moduleSideEffects,
 				importAsString: props.code.importAsString,
+				// A web function's runtime has no AWS SDK of its own, and the
+				// server it starts must import the app's own awsless, the one
+				// the handler imports.
+				...(props.web ? { bundleAwsSdk: true, resolveFromRoot: [dirname(webRuntime)] } : {}),
 			})
 
 			// Clear out the stale chunks from the previous build.
@@ -302,8 +331,12 @@ export const deployFunctionSourcemaps = (
 		name: string
 		buildType?: 'bundle' | 'function'
 		// The published version ("$LATEST" for an unpublished lambda,
-		// whose index simply tracks the newest deploy).
+		// whose index simply tracks the newest deploy), or a web function's
+		// revision id: what its log stream is named with.
 		version: Input<string>
+		// The function that uploads these maps already, for one that runs the
+		// same build: the shared web function runs the event function's bundle.
+		mapsOf?: string
 	}
 ) => {
 	if (!ctx.appConfig.onErrorLog) {
@@ -311,19 +344,21 @@ export const deployFunctionSourcemaps = (
 	}
 
 	const buildType = props.buildType ?? 'function'
+	const buildName = props.mapsOf ?? props.name
 
 	// The pure build hash, without the env: an env-only change never
 	// re-uploads or re-keys the maps.
 	const buildHash = new Output<string>(new Set(), async (resolve: (value: string) => void) => {
-		resolve((await readFile(getBuildPath(buildType, props.name, 'HASH'), 'utf8')).trim())
+		resolve((await readFile(getBuildPath(buildType, buildName, 'HASH'), 'utf8')).trim())
 	})
 
 	new SourcemapDeployment(group, 'sourcemaps', {
 		bucket: ctx.shared.get('asset', 'bucket').name,
 		name: props.name,
 		hash: buildHash,
-		source: relativePath(getBuildPath(buildType, props.name, 'files')),
+		source: relativePath(getBuildPath(buildType, buildName, 'files')),
 		version: props.version,
+		maps: props.mapsOf,
 	})
 }
 
@@ -391,6 +426,17 @@ export const formatLambdaName = (ctx: StackContext | AppContext, ns: string, id:
 const logFormats = {
 	text: 'Text',
 	json: 'JSON',
+}
+
+// The lambda's X-Ray tracing mode: active when the app turned tracing on.
+export const formatTracingConfig = (ctx: StackContext | AppContext) => ({
+	mode: ctx.appConfig.tracing ? 'Active' : 'PassThrough',
+})
+
+// The role's right to send segments, which active tracing needs.
+export const TRACING_PERMISSION: Permission & PolicyStatement = {
+	actions: ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
+	resources: ['*'],
 }
 
 // The log levels only apply to structured json logs.
@@ -570,6 +616,7 @@ export const createLambda = (
 				: undefined,
 
 			loggingConfig: formatLoggingConfig(name, props.log),
+			tracingConfig: formatTracingConfig(ctx),
 		},
 		{
 			dependsOn,
@@ -649,6 +696,12 @@ export const createLambda = (
 		variables.STACK = ctx.stackConfig.name
 	}
 
+	if (ctx.appConfig.tracing) {
+		// The runtime's spans only go out where the app turned tracing on.
+		variables.AWSLESS_TRACING = 'true'
+		addPermission(TRACING_PERMISSION)
+	}
+
 	if (props.vpc) {
 		// Tell all aws clients to use the dualstack endpoint when the
 		// lambda runs inside the vpc.
@@ -695,12 +748,19 @@ export type Lambda = ReturnType<typeof createLambda>
 // ------------------------------------------------------------
 // Sandboxing
 
-type Sandbox = Exclude<NonNullable<StackFunctionProps['sandbox']>, false>
+type Sandbox = Exclude<NonNullable<EventFunctionProps['sandbox']>, false>
+
+// What a sandbox is applied to: a stand-alone lambda, or a web function.
+type SandboxTarget = {
+	group: Group
+	setEnvironment: (name: string, value: Input<string>) => void
+	addPermission: (...permissions: Permission[]) => void
+}
 
 // A sandboxed function only reaches the configs & bundle routes on its
 // allowlist. The allowlisted routes are served by a private sandbox
 // proxy, the only lambda the sandboxed function is allowed to invoke.
-const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: Lambda) => {
+export const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: SandboxTarget) => {
 	// The real lambda env wins over the baked app env, so the config
 	// prefetch only sees the sandbox's allowlisted configs instead of
 	// the app wide config list.
@@ -746,7 +806,7 @@ const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: Lambd
 		return
 	}
 
-	const bundle = ctx.shared.get('bundle', 'main')
+	const eventFunction = ctx.shared.get('bundle', 'event-function')
 	const distDir = dirname(fileURLToPath(import.meta.url))
 
 	// The proxy has its own namespace, so it can never collide with a
@@ -780,7 +840,7 @@ const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: Lambd
 
 	proxy.addPermission({
 		actions: ['lambda:InvokeFunction'],
-		resources: [bundle.lambda.arn.pipe(arn => `${arn}:*`)],
+		resources: [eventFunction.lambda.arn.pipe(arn => `${arn}:*`)],
 	})
 
 	fn.setEnvironment('SANDBOX_PROXY', proxy.name)
@@ -799,7 +859,7 @@ const applySandbox = (ctx: StackContext, id: string, sandbox: Sandbox, fn: Lambd
 // Deploy a stack function as its own stand-alone lambda, like the old
 // awsless did for every function. Callers invoke it directly by name, so
 // it deploys in place & doesn't participate in blue-green deployments.
-export const createLambdaFunction = (ctx: StackContext, id: string, local: StackFunctionProps) => {
+export const createLambdaFunction = (ctx: StackContext, id: string, local: EventFunctionProps) => {
 	const props = deepmerge(ctx.appConfig.function, local)
 
 	if (props.runtime === 'container') {

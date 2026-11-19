@@ -9,6 +9,7 @@ import { createWorkSpace } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
 import { color } from '../../ui/style.js'
 import { createClients } from '../util.js'
+import { assertStackFilters } from '../../../util/stack-filter.js'
 
 export const refresh = (program: Command) => {
 	program
@@ -23,6 +24,8 @@ export const refresh = (program: Command) => {
 		)
 		.action(async (filters: string[], options: { commit?: boolean | string[] }) => {
 			await layout('state refresh', async ({ appConfig, stackConfigs }) => {
+				assertStackFilters(stackConfigs, filters)
+
 				const { region, credentials, accountId } = await createClients(appConfig)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
@@ -35,10 +38,6 @@ export const refresh = (program: Command) => {
 					.map(s => s.name)
 
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
-
-				if (filters.length > 0 && stackNames.length === 0) {
-					throw new ExpectedError(`The stack filters provided didn't match.`)
-				}
 
 				if (!process.env.SKIP_PROMPT) {
 					const refreshAll = filters.length === 0

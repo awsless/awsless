@@ -6,6 +6,10 @@ import { optimize } from 'svgo/browser'
 // @ts-ignore
 import svgstore from 'svgstore'
 
+// Deployed, an icon never changes under its path. Locally its original can be
+// replaced any moment, so the browser asks again every time.
+const CACHE_CONTROL = process.env.AWSLESS_ENV === 'local' ? 'no-cache' : 'public, max-age=31536000, immutable'
+
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const path = event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath
@@ -31,7 +35,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 					isBase64Encoded: true,
 					headers: {
 						'Content-Type': 'image/svg+xml',
-						'Cache-Control': 'public, max-age=31536000, immutable',
+						'Cache-Control': CACHE_CONTROL,
 					},
 				}
 			}
@@ -135,7 +139,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			isBase64Encoded: true,
 			headers: {
 				'Content-Type': 'image/svg+xml',
-				'Cache-Control': 'public, max-age=31536000, immutable',
+				'Cache-Control': CACHE_CONTROL,
 			},
 		}
 	} catch (error) {

@@ -9,6 +9,7 @@ import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color, icon } from '../ui/style.js'
 import { createClients } from './util.js'
+import { assertStackFilters } from '../../util/stack-filter.js'
 
 export const resources = (program: Command) => {
 	program
@@ -17,6 +18,8 @@ export const resources = (program: Command) => {
 		.description(`List all defined resources in your app`)
 		.action(async (filters: string[]) => {
 			await layout('resources', async ({ appConfig, stackConfigs }) => {
+				assertStackFilters(stackConfigs, filters)
+
 				// ---------------------------------------------------
 				const { region, credentials, accountId, dynamo, appId } = await createClients(appConfig)
 

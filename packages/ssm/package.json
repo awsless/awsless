@@ -29,7 +29,7 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-ssm": "3.1113.0",
+		"@aws-sdk/client-ssm": "3.1164.0",
 		"@awsless/utils": "workspace:^",
 		"aws-sdk-vitest-mock": "1.0.98",
 		"chunk": "0.0.3"

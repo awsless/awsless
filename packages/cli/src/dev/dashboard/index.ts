@@ -5,7 +5,8 @@ import { join, relative, sep } from 'path'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb'
 import { Redis } from 'ioredis'
-import { DevDispatch, DevResource, DevRoute } from '../../feature.js'
+import { DevDispatch, DevResource, DevRoute, DevServe } from '../../feature.js'
+import { ROUTE_HEADER } from '../../feature/bundle/util/index.js'
 import { AuthAdmin } from '../../feature/auth/dev.js'
 import { readBody, trackConnections } from '../util.js'
 import { dashboardHtml } from './html.js'
@@ -48,6 +49,7 @@ export const createDashboardServer = (props: {
 	let closeServer: (() => Promise<void>) | undefined
 	let boundPort = 0
 	let dispatch: DevDispatch | undefined
+	let serve: DevServe | undefined
 	let documentClient: DynamoDBDocumentClient | undefined
 
 	const getDocumentClient = () => {
@@ -79,7 +81,13 @@ export const createDashboardServer = (props: {
 			host = host.split(':')[0]!
 		}
 
-		return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
+		return (
+			host === 'localhost' ||
+			host.endsWith('.localhost') ||
+			host === '127.0.0.1' ||
+			host === '[::1]' ||
+			host === '::1'
+		)
 	}
 
 	const allowed = (req: IncomingMessage) => {
@@ -148,6 +156,23 @@ export const createDashboardServer = (props: {
 			const result = await dispatch?.({ '$awsless-route': routeKey, event: event ?? {} })
 
 			return { status: 200, body: JSON.stringify({ result: result ?? null }) }
+		}
+
+		// A web route (the rpc server) takes a request, like the local router sends it.
+		if (url.pathname === '/api/request' && req.method === 'POST') {
+			const { routeKey, headers, body } = JSON.parse((await readBody(req)).toString() || '{}')
+			const response = await serve?.(
+				new Request('http://localhost/', {
+					method: 'POST',
+					headers: { ...headers, [ROUTE_HEADER]: routeKey, 'cloudfront-viewer-address': '127.0.0.1:0' },
+					body,
+				}),
+				routeKey
+			)
+
+			const result = response ? { statusCode: response.status, body: await response.text() } : null
+
+			return { status: 200, body: JSON.stringify({ result }) }
 		}
 
 		if (url.pathname === '/api/publish' && req.method === 'POST') {
@@ -523,8 +548,9 @@ export const createDashboardServer = (props: {
 	}
 
 	return {
-		connect(dispatchFn: DevDispatch) {
+		connect(dispatchFn: DevDispatch, serveFn?: DevServe) {
 			dispatch = dispatchFn
+			serve = serveFn
 		},
 		// Resolves with the bound port, so a listen on port 0 is usable.
 		async listen(port: number) {

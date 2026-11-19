@@ -6,6 +6,7 @@ import { Client } from '@opensearch-project/opensearch'
 import { formatSearchIndexName } from 'awsless'
 import { Redis } from 'ioredis'
 import { StackConfig } from '../config/stack.js'
+import { applyStackSchemas } from '../feature/postgres/util.js'
 import { resolveSearchMappings } from '../feature/search/util.js'
 import { applySearchIndex } from '../formation/open-search.js'
 import { directories } from '../util/path.js'
@@ -95,6 +96,13 @@ export const createDataReset = (props: { pool: ServerPool; stackConfigs: StackCo
 						})
 					}
 				}
+			}
+
+			// Postgres schemas start over, empty, from their declaration.
+			const postgres = props.pool.peek<{ url: string }>('postgres')
+
+			if (postgres) {
+				await applyStackSchemas(postgres.url, props.stackConfigs, { reset: true })
 			}
 
 			// The store files clear, except the image & icon origins that

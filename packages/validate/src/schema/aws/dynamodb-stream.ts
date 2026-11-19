@@ -9,6 +9,7 @@ import {
 	picklist,
 	pipe,
 	transform,
+	string,
 	unknown,
 } from 'valibot'
 
@@ -18,6 +19,7 @@ type DynamoDBStreamInputRecord = {
 		Keys: unknown
 		OldImage?: unknown
 		NewImage?: unknown
+		SequenceNumber?: string
 	}
 }
 
@@ -33,6 +35,14 @@ type DynamoDBStreamOutputRecord<T extends AnyTable> = {
 
 	/** The item after the change, when the stream captures new images. */
 	new?: Infer<T>
+
+	/**
+	 * The record's place in its shard. A handler names the records that failed
+	 * by it, returning `{ batchItemFailures: [{ itemIdentifier: sequenceNumber }] }`,
+	 * so the stream retries from the first of them instead of the whole batch.
+	 * Only set on records that came from a stream.
+	 */
+	sequenceNumber?: string
 }
 
 export type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<
@@ -67,6 +77,7 @@ export const dynamoDbStream = <T extends AnyTable>(
 							Keys: unmarshallKeys(),
 							OldImage: optional(unmarshall()),
 							NewImage: optional(unmarshall()),
+							SequenceNumber: optional(string()),
 						}),
 					})
 				),
@@ -86,6 +97,10 @@ export const dynamoDbStream = <T extends AnyTable>(
 
 				if ('NewImage' in record.dynamodb) {
 					item.new = record.dynamodb.NewImage
+				}
+
+				if (record.dynamodb.SequenceNumber !== undefined) {
+					item.sequenceNumber = record.dynamodb.SequenceNumber
 				}
 
 				return item as DynamoDBStreamOutputRecord<T>
