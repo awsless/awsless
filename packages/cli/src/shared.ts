@@ -93,18 +93,6 @@ type SharedState = {
 		'cluster-arn': Output<string>
 		'secret-arn': Output<string>
 	}
-
-	// Only set when the app has a pubsub.
-	'load-balancer': {
-		main: {
-			lb: aws.Lb
-			listener: aws.lb.Listener
-			securityGroup: aws.security.Group
-			dnsName: Output<string>
-			// The priority of a rule by its key, unique across the listener.
-			priority: (key: string) => number
-		}
-	}
 }
 
 type SharedEntries = {

@@ -42,7 +42,7 @@ export const createPubSubService = (
 		securityGroupId: Input<string>
 		environment: Record<string, Input<string>>
 		// ECS refuses a target group no listener forwards to yet.
-		listenerRule: Resource
+		listener: Resource
 	}
 ) => {
 	const group = new Group(parentGroup, 'service', id)
@@ -349,7 +349,7 @@ exec /usr/app/program`,
 		},
 		{
 			replaceOnChanges: ['cluster'],
-			dependsOn: [inputs.listenerRule],
+			dependsOn: [inputs.listener],
 		}
 	)
 

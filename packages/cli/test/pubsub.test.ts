@@ -1,4 +1,4 @@
-import { findInputDeps } from '@terraforge/core'
+import { findInputDeps, getMeta } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
 import { createTestApp, listResources } from './_kit'
 
@@ -22,6 +22,10 @@ describe('pubsub', () => {
 		expect(listResources(app, 'aws_ecs_task_definition')[0]!.input.family).toBe('test-app--pubsub--main')
 		expect(listResources(app, 'aws_ecs_service')).toHaveLength(1)
 		expect(listResources(app, 'aws_lb')).toHaveLength(1)
+		// ECS refuses a target group no listener forwards to yet.
+		expect(
+			listResources(app, 'aws_ecs_service')[0]!.config?.dependsOn?.map(dependency => getMeta(dependency).type)
+		).toContain('aws_lb_listener')
 		expect(listResources(app, 'aws_appautoscaling_policy')).toHaveLength(1)
 		expect(listResources(app, 'aws_elasticache_serverless_cache')).toHaveLength(1)
 		expect(listResources(app, 'aws_sns_topic').map(meta => meta.input.name)).toContain(
