@@ -25,6 +25,6 @@ declare const runTask: ({ client, cluster, taskDefinition, subnets, securityGrou
 type Tasks = {
   [key: string]: (payload: any) => unknown;
 };
-declare const mockEcs: <T extends Tasks>(tasks: T) => { [P in keyof T]: Mock<(...args: any[]) => any>; };
+declare const mockEcs: <T extends Tasks>(tasks: T) => { [K in keyof T]: Mock<T[K]>; };
 //#endregion
 export { ECSClient, type RunTaskOptions, ecsClient, mockEcs, runTask };
