@@ -1,7 +1,7 @@
-import { MemoryLockBackend, MemoryStateBackend, type Provider, type StateBackend } from '@terraforge/core'
 import { mkdtemp, readFile, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { MemoryLockBackend, MemoryStateBackend, type Provider, type StateBackend } from '@terraforge/core'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { ExpectedError } from '../src/error'
 import { DeployStopped, isStopping, withGracefulStop, withStopGuard } from '../src/util/graceful-stop'
@@ -47,7 +47,11 @@ describe('network errors', () => {
 		const reset = Object.assign(new Error('read: connection reset by peer'), { code: 'ECONNRESET' })
 		const createResource = vi.fn().mockRejectedValue(reset)
 		const getResource = vi.fn().mockRejectedValueOnce(reset).mockResolvedValueOnce({ version: 0, state: {} })
-		const provider = withNetworkRetry({ ownResource: () => true, createResource, getResource } as unknown as Provider)
+		const provider = withNetworkRetry({
+			ownResource: () => true,
+			createResource,
+			getResource,
+		} as unknown as Provider)
 
 		await expect(provider.createResource({} as never)).rejects.toThrow('connection reset')
 		await expect(provider.getResource({} as never)).resolves.toEqual({ version: 0, state: {} })

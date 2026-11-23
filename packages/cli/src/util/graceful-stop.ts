@@ -52,13 +52,17 @@ export const withStopGuard = (provider: Provider): Provider => {
 // from starting. The process exits once the running ones finished & the
 // state is saved. A third signal still forces the exit.
 export const withGracefulStop = async <T>(fn: () => Promise<T>) => {
+	// Restored as is, so it stays unbound.
+	// oxlint-disable-next-line typescript/unbound-method
 	const exit = process.exit
 	let signals = 0
 
 	const stop = () => {
 		if (!stopping) {
 			stopping = true
-			log.warning('Stopping once the running operations finish & the state is saved. Press Ctrl-C twice more to force.')
+			log.warning(
+				'Stopping once the running operations finish & the state is saved. Press Ctrl-C twice more to force.'
+			)
 		}
 	}
 

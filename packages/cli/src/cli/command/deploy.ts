@@ -180,7 +180,9 @@ export const deploy = (program: Command) => {
 									throw error
 								}
 
-								const issues = error.issues.filter(issue => issue.message !== new DeployStopped().message)
+								const issues = error.issues.filter(
+									issue => issue.message !== new DeployStopped().message
+								)
 
 								if (issues.length > 0) {
 									throw new AppError(error.app, issues, error.message)
@@ -188,7 +190,9 @@ export const deploy = (program: Command) => {
 							}
 
 							if (isStopping()) {
-								throw new ExpectedError('Deploy stopped. The state is saved, so deploy again to continue.')
+								throw new ExpectedError(
+									'Deploy stopped. The state is saved, so deploy again to continue.'
+								)
 							}
 
 							await pullRemoteState(app, state)
@@ -197,8 +201,10 @@ export const deploy = (program: Command) => {
 
 							if (functionVersion) {
 								// The shared web function's revision, and the rest by name.
-								const { [getWebFunctionName(appConfig.name)]: webFunctionRevisionId, ...webFunctionRevisions } =
-									readDeployedWebFunctionRevisions(remoteState)
+								const {
+									[getWebFunctionName(appConfig.name)]: webFunctionRevisionId,
+									...webFunctionRevisions
+								} = readDeployedWebFunctionRevisions(remoteState)
 
 								await retryOnNetworkError(() =>
 									markDeployed({
