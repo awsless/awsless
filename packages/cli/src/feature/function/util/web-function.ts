@@ -183,6 +183,7 @@ export const createStandaloneWebFunction = (
 		role,
 		variables,
 		timeout: toSeconds(local.timeout ?? defaults.timeout),
+		maxConcurrency: sandbox ? 1 : undefined,
 		log: { ...defaults.log, ...definedOnly(local.log) },
 		networkConnectorArn: ctx.shared.get('bundle', 'web-network-connector').latestVersionArn,
 		routers: [props.router],

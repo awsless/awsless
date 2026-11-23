@@ -122,6 +122,7 @@ export const createWebFunction = (
 		role: aws.iam.Role
 		variables: Record<string, Input<string>>
 		timeout: number
+		maxConcurrency?: number
 		log: LambdaLogProps
 		networkConnectorArn: Input<string>
 		routers: string[]
@@ -189,6 +190,7 @@ export const createWebFunction = (
 					executionRoleArn: props.role.arn,
 					egressNetworkConnectorArn: props.networkConnectorArn,
 					timeoutSeconds: props.timeout,
+					maxConcurrencyPerEnvironment: props.maxConcurrency,
 					environmentVariables: {
 						...props.variables,
 						AWS_LAMBDA_NODEJS_ENTRYPOINT: props.entryFile,

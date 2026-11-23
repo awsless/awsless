@@ -202,6 +202,18 @@ describe('web function defaults & a route of its own', () => {
 		// Its own env is baked into its code archive, next to the app's.
 		expect(service.environmentVariables.MODE).toBeUndefined()
 		expect(findInputDeps(listResources(app, 'route-deployment')[0]!.input.routes)).toContain(endpoint)
+		expect(service.maxConcurrencyPerEnvironment).toBeUndefined()
+	})
+
+	it('should serve one request at a time in a sandboxed web function', () => {
+		const { app } = createWith({ route: { sandbox: {} } })
+
+		const own = listResources(app, 'aws_lambdaweb_function').find(
+			meta => meta.input.functionName !== 'test-app--bundle--web'
+		)!
+
+		expect(serviceOf(app, own.input.functionName).maxConcurrencyPerEnvironment).toBe(1)
+		expect(serviceOf(app, 'test-app--bundle--web').maxConcurrencyPerEnvironment).toBeUndefined()
 	})
 })
 
@@ -213,7 +225,9 @@ describe('web function sourcemaps', () => {
 				router: { main: { domain: 'main' } },
 				onErrorLog: { code },
 			},
-			stacks: [{ name: 'api', routes: { main: { '/plain': { code }, '/own': { code, timeout: '20 seconds' } } } }],
+			stacks: [
+				{ name: 'api', routes: { main: { '/plain': { code }, '/own': { code, timeout: '20 seconds' } } } },
+			],
 		})
 
 		const indexes = listResources(app, 'sourcemap-deployment')
