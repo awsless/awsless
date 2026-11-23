@@ -23,8 +23,23 @@ type I18nPluginProps = {
   locales: string[];
   /** Function that performs the translation of a given text. */
   translate: Translator;
+  /** Translate new texts while the dev server runs. When off, dev only uses
+   * the translations already cached and builds still translate everything.
+   * Run `translate` to translate without building.
+   * @default false
+   */
+  translateInDev?: boolean;
 };
-declare const i18n: (props: I18nPluginProps) => Plugin;
+type I18nPluginApi = {
+  /** Finds every translatable text under `cwd`, translates the missing ones
+   * and drops the unused ones from the generated cache. */
+  translate(cwd: string, log: Logger): Promise<void>;
+};
+type Logger = {
+  info: (message: string) => void;
+  warn: (message: string) => void;
+};
+declare const i18n: (props: I18nPluginProps) => Plugin<I18nPluginApi>;
 //#endregion
 //#region src/translate/ai.d.ts
 type AiTranslationProps = {
@@ -41,4 +56,4 @@ type AiTranslationProps = {
 };
 declare const ai: (props: AiTranslationProps) => Translator;
 //#endregion
-export { type AiTranslationProps, type I18nPluginProps, type Translator, ai, i18n };
+export { type AiTranslationProps, type I18nPluginApi, type I18nPluginProps, type Translator, ai, i18n };

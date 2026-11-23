@@ -1,8 +1,8 @@
 import { readFile, stat, writeFile } from 'fs/promises'
 import { join } from 'path'
 
-const GENERATED_CACHE_FILE = 'i18n.generated.json'
-const OVERRIDE_CACHE_FILE = 'i18n.json'
+export const GENERATED_CACHE_FILE = 'i18n.generated.json'
+export const OVERRIDE_CACHE_FILE = 'i18n.json'
 
 /** Identifies a translation: the source text plus the context it was
  * found with, if any. The same text can carry different meanings in
