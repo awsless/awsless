@@ -350,6 +350,9 @@ exec /usr/app/program`,
 		{
 			replaceOnChanges: ['cluster'],
 			dependsOn: [inputs.listener],
+			import: ctx.import
+				? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:service/${ctx.app.name}-pubsub/${name}`
+				: undefined,
 		}
 	)
 

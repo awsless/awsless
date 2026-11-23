@@ -104,40 +104,51 @@ export const searchFeature = defineFeature({
 			},
 			{
 				replaceOnChanges: ['name'],
+				import: ctx.import ? `${name}-search-access` : undefined,
 			}
 		)
 
-		const encryption = new aws.opensearchserverless.SecurityPolicy(group, 'encryption', {
-			region: ctx.appConfig.region,
-			name,
-			type: 'encryption',
-			policy: JSON.stringify({
-				Rules: [
-					{
-						ResourceType: 'collection',
-						Resource: [`collection/${name}`],
-					},
-				],
-				AWSOwnedKey: true,
-			}),
-		})
-
-		const network = new aws.opensearchserverless.SecurityPolicy(group, 'network', {
-			region: ctx.appConfig.region,
-			name,
-			type: 'network',
-			policy: JSON.stringify([
-				{
+		const encryption = new aws.opensearchserverless.SecurityPolicy(
+			group,
+			'encryption',
+			{
+				region: ctx.appConfig.region,
+				name,
+				type: 'encryption',
+				policy: JSON.stringify({
 					Rules: [
 						{
 							ResourceType: 'collection',
 							Resource: [`collection/${name}`],
 						},
 					],
-					AllowFromPublic: true,
-				},
-			]),
-		})
+					AWSOwnedKey: true,
+				}),
+			},
+			{ import: ctx.import ? name : undefined }
+		)
+
+		const network = new aws.opensearchserverless.SecurityPolicy(
+			group,
+			'network',
+			{
+				region: ctx.appConfig.region,
+				name,
+				type: 'network',
+				policy: JSON.stringify([
+					{
+						Rules: [
+							{
+								ResourceType: 'collection',
+								Resource: [`collection/${name}`],
+							},
+						],
+						AllowFromPublic: true,
+					},
+				]),
+			},
+			{ import: ctx.import ? name : undefined }
+		)
 
 		const dataAccessPolicy = (principals: string[]) => {
 			return JSON.stringify([
@@ -160,25 +171,35 @@ export const searchFeature = defineFeature({
 		}
 
 		// The provider records region on read, so a policy update without it plans a replace.
-		const access = new aws.opensearchserverless.AccessPolicy(group, 'access', {
-			region: ctx.appConfig.region,
-			name,
-			type: 'data',
-			// The account root gives the aws console access to browse the data.
-			policy: accessRole.arn.pipe(arn => dataAccessPolicy([arn, `arn:aws:iam::${ctx.accountId}:root`])),
-		})
+		const access = new aws.opensearchserverless.AccessPolicy(
+			group,
+			'access',
+			{
+				region: ctx.appConfig.region,
+				name,
+				type: 'data',
+				// The account root gives the aws console access to browse the data.
+				policy: accessRole.arn.pipe(arn => dataAccessPolicy([arn, `arn:aws:iam::${ctx.accountId}:root`])),
+			},
+			{ import: ctx.import ? name : undefined }
+		)
 
 		// Every role that receives the app wide aoss grant registers itself
 		// here, and the last ones only exist once every stack has synthed.
 		ctx.onReady(() => {
 			const roles = ctx.shared.list('function', 'role')
 
-			new aws.opensearchserverless.AccessPolicy(group, 'access-functions', {
-				region: ctx.appConfig.region,
-				name: formatFunctionsPolicyName(name),
-				type: 'data',
-				policy: $combine(...roles.map(role => role.arn)).pipe(dataAccessPolicy),
-			})
+			new aws.opensearchserverless.AccessPolicy(
+				group,
+				'access-functions',
+				{
+					region: ctx.appConfig.region,
+					name: formatFunctionsPolicyName(name),
+					type: 'data',
+					policy: $combine(...roles.map(role => role.arn)).pipe(dataAccessPolicy),
+				},
+				{ import: ctx.import ? formatFunctionsPolicyName(name) : undefined }
+			)
 		})
 
 		// A nextgen collection group scales to zero when idle, unlike

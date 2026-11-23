@@ -346,6 +346,9 @@ export const bundleFeature = defineFeature({
 			},
 			{
 				dependsOn: [policy],
+				import: ctx.import
+					? `arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${name}:${LIVE_LAMBDA_ALIAS}`
+					: undefined,
 			}
 		)
 

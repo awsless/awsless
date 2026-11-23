@@ -365,6 +365,9 @@ exec /usr/app/program`,
 		},
 		{
 			replaceOnChanges: ['cluster'],
+			import: ctx.import
+				? `arn:aws:ecs:${ctx.appConfig.region}:${ctx.accountId}:service/${ctx.app.name}-instance/${name}`
+				: undefined,
 		}
 	)
 

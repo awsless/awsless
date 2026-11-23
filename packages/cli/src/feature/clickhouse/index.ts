@@ -143,59 +143,68 @@ export const clickhouseFeature = defineFeature({
 			const sessionName = password.hash.pipe(hash =>
 				createHash('sha256').update(`backup:${hash}`).digest('hex').slice(0, 48)
 			)
-			const role = new aws.iam.Role(group, 'backup-role', {
-				name: formatGlobalResourceName({
-					appName: ctx.app.name,
-					resourceType: 'clickhouse',
-					resourceName: 'backup',
-				}),
-				description: `${ctx.app.name} ClickHouse backups`,
-				assumeRolePolicy: $combine(service.iamRole, sessionName).pipe(([principal, session]) =>
-					JSON.stringify({
-						Version: '2012-10-17',
-						Statement: [
-							{
-								Effect: 'Allow',
-								Action: 'sts:AssumeRole',
-								Principal: { AWS: principal },
-								Condition: { StringEquals: { 'sts:RoleSessionName': session } },
-							},
-						],
-					})
-				),
-				inlinePolicy: [
-					{
-						name: 'Backups',
-						// What a backup needs, as the ClickHouse Cloud docs list it, kept
-						// to the bucket's clickhouse folder: it only ever deletes its own
-						// lock files.
-						policy: bucket.arn.pipe(arn =>
-							JSON.stringify({
-								Version: '2012-10-17',
-								Statement: [
-									{ Effect: 'Allow', Action: ['s3:GetBucketLocation'], Resource: [arn] },
-									{
-										Effect: 'Allow',
-										Action: ['s3:ListBucket'],
-										Resource: [arn],
-										Condition: { StringLike: { 's3:prefix': ['clickhouse', 'clickhouse/*'] } },
-									},
-									{
-										Effect: 'Allow',
-										Action: ['s3:Get*', 's3:List*', 's3:PutObject'],
-										Resource: [`${arn}/clickhouse/*`],
-									},
-									{
-										Effect: 'Allow',
-										Action: ['s3:DeleteObject'],
-										Resource: [`${arn}/clickhouse/*/.lock`],
-									},
-								],
-							})
-						),
-					},
-				],
+			const roleName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'clickhouse',
+				resourceName: 'backup',
 			})
+
+			const role = new aws.iam.Role(
+				group,
+				'backup-role',
+				{
+					name: roleName,
+					description: `${ctx.app.name} ClickHouse backups`,
+					assumeRolePolicy: $combine(service.iamRole, sessionName).pipe(([principal, session]) =>
+						JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Effect: 'Allow',
+									Action: 'sts:AssumeRole',
+									Principal: { AWS: principal },
+									Condition: { StringEquals: { 'sts:RoleSessionName': session } },
+								},
+							],
+						})
+					),
+					inlinePolicy: [
+						{
+							name: 'Backups',
+							// What a backup needs, as the ClickHouse Cloud docs list it, kept
+							// to the bucket's clickhouse folder: it only ever deletes its own
+							// lock files.
+							policy: bucket.arn.pipe(arn =>
+								JSON.stringify({
+									Version: '2012-10-17',
+									Statement: [
+										{ Effect: 'Allow', Action: ['s3:GetBucketLocation'], Resource: [arn] },
+										{
+											Effect: 'Allow',
+											Action: ['s3:ListBucket'],
+											Resource: [arn],
+											Condition: { StringLike: { 's3:prefix': ['clickhouse', 'clickhouse/*'] } },
+										},
+										{
+											Effect: 'Allow',
+											Action: ['s3:Get*', 's3:List*', 's3:PutObject'],
+											Resource: [`${arn}/clickhouse/*`],
+										},
+										{
+											Effect: 'Allow',
+											Action: ['s3:DeleteObject'],
+											Resource: [`${arn}/clickhouse/*/.lock`],
+										},
+									],
+								})
+							),
+						},
+					],
+				},
+				{
+					import: ctx.import ? roleName : undefined,
+				}
+			)
 
 			new ClickHouseBackupBucket(
 				group,

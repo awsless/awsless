@@ -115,7 +115,7 @@ export const postgresFeature = defineFeature({
 				description: `${ctx.app.name} Postgres`,
 				subnetIds: ctx.shared.get('vpc', 'private-subnets'),
 			},
-			{ retainOnDelete }
+			{ retainOnDelete, import: ctx.import ? name : undefined }
 		)
 
 		const cluster = new aws.rds.Cluster(
@@ -154,7 +154,7 @@ export const postgresFeature = defineFeature({
 				deletionProtection: retainOnDelete,
 				skipFinalSnapshot: !retainOnDelete,
 			},
-			{ retainOnDelete }
+			{ retainOnDelete, import: ctx.import ? name : undefined }
 		)
 
 		const writer = new aws.rds.ClusterInstance(
@@ -172,7 +172,7 @@ export const postgresFeature = defineFeature({
 				autoMinorVersionUpgrade: !version.includes('.'),
 				applyImmediately: true,
 			},
-			{ retainOnDelete }
+			{ retainOnDelete, import: ctx.import ? `${name}-writer` : undefined }
 		)
 
 		const clusterArn = cluster.arn

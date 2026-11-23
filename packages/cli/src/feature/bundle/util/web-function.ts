@@ -32,25 +32,34 @@ export const getWebFunctionDefaults = (ctx: AppContext | StackContext) => {
 // the event function's vpc config. Lambda makes its network interfaces with
 // the network role. One serves every web function of the app.
 export const createWebFunctionNetwork = (ctx: AppContext, group: Group, name: string) => {
-	const networkRole = new aws.iam.Role(group, 'network-role', {
-		name: formatGlobalResourceName({
-			appName: ctx.app.name,
-			resourceType: 'bundle',
-			resourceName: 'web',
-			postfix: 'network',
-		}),
-		description: `${name} network connector`,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: { Service: 'lambda.amazonaws.com' },
-				},
-			],
-		}),
+	const networkRoleName = formatGlobalResourceName({
+		appName: ctx.app.name,
+		resourceType: 'bundle',
+		resourceName: 'web',
+		postfix: 'network',
 	})
+
+	const networkRole = new aws.iam.Role(
+		group,
+		'network-role',
+		{
+			name: networkRoleName,
+			description: `${name} network connector`,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: { Service: 'lambda.amazonaws.com' },
+					},
+				],
+			}),
+		},
+		{
+			import: ctx.import ? networkRoleName : undefined,
+		}
+	)
 
 	const networkPolicy = new aws.iam.RolePolicy(group, 'network-policy', {
 		role: networkRole.name,
@@ -135,7 +144,12 @@ export const createWebFunction = (
 	const { name } = props
 	const logging = formatLoggingConfig(name, props.log)
 
-	const webFunction = new aws.lambdaweb.Function(group, 'function', { functionName: name })
+	const webFunction = new aws.lambdaweb.Function(
+		group,
+		'function',
+		{ functionName: name },
+		{ import: ctx.import ? name : undefined }
+	)
 
 	// ------------------------------------------------------
 	// Logging: Lambda writes the app's logs to the log group and its own system
@@ -242,14 +256,21 @@ export const createWebFunction = (
 		deploymentId: ctx.deploymentId ?? 'local-0',
 	})
 
-	const endpoint = new aws.lambdaweb.FunctionEndpoint(group, 'endpoint', {
-		functionName: webFunction.functionName,
-		endpointName: WEB_FUNCTION_ENDPOINT_NAME,
-		endpointType: 'HomeRegion',
-		authType: 'IamAuth',
-		autoDeploymentMode: 'Disabled',
-		revisionWeight: [{ revisionId: liveRevision.liveRevisionId, weight: 100 }],
-	})
+	const endpoint = new aws.lambdaweb.FunctionEndpoint(
+		group,
+		'endpoint',
+		{
+			functionName: webFunction.functionName,
+			endpointName: WEB_FUNCTION_ENDPOINT_NAME,
+			endpointType: 'HomeRegion',
+			authType: 'IamAuth',
+			autoDeploymentMode: 'Disabled',
+			revisionWeight: [{ revisionId: liveRevision.liveRevisionId, weight: 100 }],
+		},
+		{
+			import: ctx.import ? `${name}/${WEB_FUNCTION_ENDPOINT_NAME}` : undefined,
+		}
+	)
 
 	// Only the routers' distributions may call the endpoint, signing with
 	// always-amz-auth (the router function's web origin).

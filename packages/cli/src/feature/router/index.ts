@@ -133,19 +133,28 @@ export const routerFeature = defineFeature({
 				publishPage('login-page', 'login', LOGIN_PAGE, LOGIN_PAGE_METADATA, LOGIN_PATH)
 			}
 
+			const responseFunctionName = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'router',
+				resourceName: id,
+				postfix: 'response',
+			})
+
 			// The login page leaves s3 as a 200 & gets its real status on the way out.
 			const responseFunction = passwordAuth
-				? new aws.cloudfront.Function(group, 'response-function', {
-						name: formatGlobalResourceName({
-							appName: ctx.app.name,
-							resourceType: 'router',
-							resourceName: id,
-							postfix: 'response',
-						}),
-						runtime: 'cloudfront-js-2.0',
-						code: getViewerResponseFunctionCode(),
-						publish: true,
-					})
+				? new aws.cloudfront.Function(
+						group,
+						'response-function',
+						{
+							name: responseFunctionName,
+							runtime: 'cloudfront-js-2.0',
+							code: getViewerResponseFunctionCode(),
+							publish: true,
+						},
+						{
+							import: ctx.import ? responseFunctionName : undefined,
+						}
+					)
 				: undefined
 
 			// the function names are capped at 64 characters

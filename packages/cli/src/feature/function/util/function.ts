@@ -58,6 +58,7 @@ export const createDeploymentAliases = (
 	group: Group,
 	ctx: StackContext | AppContext,
 	props: {
+		name: string
 		lambda: aws.lambda.Function
 		policy: aws.iam.RolePolicy
 		onFailureArn?: Output<string>
@@ -93,6 +94,9 @@ export const createDeploymentAliases = (
 		},
 		{
 			dependsOn: [props.policy],
+			import: ctx.import
+				? `arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${props.name}:${LIVE_LAMBDA_ALIAS}`
+				: undefined,
 		}
 	)
 
@@ -638,6 +642,7 @@ export const createLambda = (
 
 	if (props.versioned) {
 		const aliases = createDeploymentAliases(group, ctx, {
+			name,
 			lambda,
 			policy,
 			onFailureArn: onFailure?.arn,
