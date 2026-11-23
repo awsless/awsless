@@ -32,7 +32,18 @@ export const dev = (program: Command) => {
 		.description('Start the development service')
 		.option('--port <port>', 'The port for the local router', '3000')
 		.option('--host', 'Expose the routers on the local network, for testing on a phone')
-		.action(async (options: { port: string; host?: boolean }) => {
+		.option(
+			'--domain <domain>',
+			'The host name the routers are opened on, localhost or a name under .localhost',
+			'localhost'
+		)
+		.action(async (options: { port: string; host?: boolean; domain: string }) => {
+			// Only localhost and names under it resolve to the loopback
+			// address in every browser, and count as a secure context.
+			if (options.domain !== 'localhost' && !options.domain.endsWith('.localhost')) {
+				throw new Error(`The dev domain must be localhost or end with .localhost: ${options.domain}`)
+			}
+
 			await layout('dev', async ({ exit, ...props }) => {
 				await buildTypes(props)
 
@@ -103,6 +114,7 @@ export const dev = (program: Command) => {
 						stackConfigs,
 						port,
 						host: options.host,
+						domain: options.domain,
 						pool,
 						phase,
 						onLog(message) {
@@ -116,10 +128,10 @@ export const dev = (program: Command) => {
 					const lanIp = options.host ? findLanIp() : undefined
 
 					log.list('Endpoints', {
-						Dashboard: color.info(`http://localhost:${instance.dashboardPort}`),
+						Dashboard: color.info(`http://${options.domain}:${instance.dashboardPort}`),
 						...Object.fromEntries(
 							Object.entries(instance.routerPorts).flatMap(([id, routerPort]) => [
-								[`Router ${id}`, color.info(`http://localhost:${routerPort}`)],
+								[`Router ${id}`, color.info(`http://${options.domain}:${routerPort}`)],
 								...(lanIp ? [[`Router ${id} (lan)`, color.info(`http://${lanIp}:${routerPort}`)]] : []),
 							])
 						),

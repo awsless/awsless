@@ -8,21 +8,19 @@ export class TimeoutError extends Error {
 	}
 }
 
-export const createTimeoutWrap = async <R>(
+// Logs a timeout a second before the deadline, so the error is logged before
+// lambda kills the sandbox; answers the function that stops it.
+export const startTimeoutWarning = (
 	schema: GenericSchema | undefined,
 	event: unknown,
 	context: Context | undefined,
-	log: (error: TimeoutError) => void,
-	callback: () => R
-): Promise<R> => {
+	log: (error: TimeoutError) => void
+) => {
 	if (!context) {
-		return callback()
+		return () => {}
 	}
 
-	// Fire a second before the deadline, so the error is logged before
-	// lambda kills the sandbox.
-	const time = context.getRemainingTimeInMillis()
-	const delay = Math.max(time - 1000, 1000)
+	const delay = Math.max(context.getRemainingTimeInMillis() - 1000, 1000)
 
 	const id = setTimeout(() => {
 		const timeoutError = new TimeoutError(context.getRemainingTimeInMillis())
@@ -32,9 +30,5 @@ export const createTimeoutWrap = async <R>(
 		console.error(enhancedError)
 	}, delay)
 
-	try {
-		return await callback()
-	} finally {
-		clearTimeout(id)
-	}
+	return () => clearTimeout(id)
 }

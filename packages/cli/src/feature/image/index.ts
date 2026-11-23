@@ -15,7 +15,7 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { getFeatureFolder } from '../asset/index.js'
-import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util.js'
+import { formatRouteKey, registerBundleFunction, ROUTE_HEADER } from '../bundle/util/index.js'
 import { imageOnDev } from './dev.js'
 
 // The image & icon features share one server shape: a bundle handler
@@ -93,7 +93,8 @@ export const registerMediaServer = (
 
 	addRoutes({
 		[routeKey]: {
-			type: 'lambda',
+			// Sharp comes from a Lambda layer, which only the event function has.
+			type: 'event-function',
 			requestHeaders: {
 				[ROUTE_HEADER]: serverRouteKey,
 			},

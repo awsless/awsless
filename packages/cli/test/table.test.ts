@@ -1,3 +1,4 @@
+import type { ResourceConfig } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
 import { StackSchema } from '../src/config/stack'
 import { formatTableKeys } from '../src/feature/table/util'
@@ -41,6 +42,51 @@ describe('table', () => {
 		expect(mapping.input.functionResponseTypes).toEqual(['ReportBatchItemFailures'])
 		expect(mapping.input.startingPosition).toBe('LATEST')
 		expect(mapping.input.destinationConfig).toBeUndefined()
+	})
+
+	it('starts a mapping at the trim horizon, replacing one that started elsewhere', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					tables: {
+						tasks: {
+							hash: 'id',
+							stream: {
+								type: 'new-image',
+								startingPosition: 'trim-horizon',
+								bisectOnError: true,
+								maxRecordAge: '6 hours',
+								consumer: { code },
+							},
+						},
+					},
+				},
+			],
+		})
+
+		const mapping = listResources(app, 'aws_lambda_event_source_mapping')[0]!
+
+		expect(mapping.input.startingPosition).toBe('TRIM_HORIZON')
+		expect(mapping.input.bisectBatchOnFunctionError).toBe(true)
+		expect(mapping.input.maximumRecordAgeInSeconds).toBe(6 * 60 * 60)
+		expect((mapping.config as ResourceConfig).replaceOnChanges).toEqual(['eventSourceArn', 'startingPosition'])
+	})
+
+	it('leaves bisect & the record age unset by default', () => {
+		const { app } = createTestApp({
+			stacks: [
+				{
+					name: 'stack-1',
+					tables: { tasks: { hash: 'id', stream: { type: 'new-image', consumer: { code } } } },
+				},
+			],
+		})
+
+		const mapping = listResources(app, 'aws_lambda_event_source_mapping')[0]!
+
+		expect(mapping.input.bisectBatchOnFunctionError).toBeUndefined()
+		expect(mapping.input.maximumRecordAgeInSeconds).toBeUndefined()
 	})
 
 	it('reports stream failures to the on-failure bucket', () => {

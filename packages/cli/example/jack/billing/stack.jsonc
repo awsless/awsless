@@ -1,0 +1,47 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "billing",
+	"tests": "./test",
+
+	"functions": {
+		"createInvoice": "./src/function/create.ts",
+		"payInvoice": "./src/function/pay.ts",
+		"outstanding": "./src/function/outstanding.ts",
+		"payments": "./src/function/payments.ts"
+	},
+
+	// The tables live in the stack file: a deploy creates & alters them, and
+	// `awsless types` types `Postgres.billing.db` from them.
+	"postgres": {
+		"tables": {
+			"invoices": {
+				"columns": {
+					"id": { "type": "bigint", "identity": true },
+					"customer": "text",
+					// Money as a numeric: read & written as a BigFloat.
+					"amount": "numeric",
+					"paid_at": "timestamptz?",
+					// A json document keeps what it holds, like a Date.
+					"details": "jsonb?",
+					"created_at": { "type": "timestamptz", "default": "now()" }
+				},
+				"primaryKey": ["id"],
+				"indexes": {
+					"customer": ["customer", "created_at"]
+				}
+			},
+			"payments": {
+				"columns": {
+					"id": { "type": "bigint", "identity": true },
+					"invoice_id": "bigint",
+					"amount": "numeric",
+					"paid_at": { "type": "timestamptz", "default": "now()" }
+				},
+				"primaryKey": ["id"],
+				"indexes": {
+					"invoice": ["invoice_id"]
+				}
+			}
+		}
+	}
+}

@@ -2,6 +2,7 @@ import { OpenSearchServer } from '@awsless/open-search-server'
 import { Client } from '@opensearch-project/opensearch'
 import { formatSearchIndexName } from 'awsless'
 import { localEngine } from '../../dev/engine.js'
+import { connectServerSink, createServerSink } from '../../dev/server-sink.js'
 import { DevContext } from '../../feature.js'
 import { applySearchIndex } from '../../formation/open-search.js'
 import { resolveSearchMappings } from './util.js'
@@ -20,31 +21,12 @@ export const searchOnDev = async (ctx: DevContext) => {
 	// survives dev restarts so indexed data stays put, and the declared
 	// indexes reapply on every run.
 	const { port, sink } = await ctx.keep('opensearch', null, async () => {
-		const sink: {
-			health?: (status: 'up' | 'down', detail?: string) => void
-			log?: (line: string) => void
-			tail: string[]
-			crashed?: string
-		} = { tail: [] }
+		const sink = createServerSink()
 
 		const server = new OpenSearchServer({
 			engine: localEngine() === 'real' ? 'opensearch' : 'memory',
-			onExit(code, signal) {
-				sink.crashed = code !== null ? `exited with code ${code}` : `killed by ${signal}`
-				sink.health?.('down', sink.crashed)
-			},
-			// The real server's output streams to the dashboard's search
-			// panel, with a short tail replayed into every fresh run's
-			// event bus.
-			onOutput(line) {
-				sink.tail.push(line)
-
-				while (sink.tail.length > 20) {
-					sink.tail.shift()
-				}
-
-				sink.log?.(line)
-			},
+			onExit: sink.onExit,
+			onOutput: sink.onOutput,
 		})
 
 		await server.listen()
@@ -52,15 +34,7 @@ export const searchOnDev = async (ctx: DevContext) => {
 		return { value: { port: server.port, sink }, stop: () => server.close() }
 	})
 
-	// The health & log sinks swap every run - a crash while no run
-	// listened still reports through the crashed marker.
-	sink.health = (status, detail) => ctx.reportHealth('search', status, detail)
-	sink.health(sink.crashed ? 'down' : 'up', sink.crashed)
-	sink.log = line => ctx.emitEvent('search', { date: Date.now(), line })
-
-	for (const line of sink.tail) {
-		ctx.emitEvent('search', { date: Date.now(), line })
-	}
+	connectServerSink(ctx, 'search', sink)
 
 	// One local domain backs every index, exactly like the one shared
 	// domain in production.

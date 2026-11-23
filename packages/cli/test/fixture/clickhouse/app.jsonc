@@ -1,0 +1,6 @@
+{
+	"$schema": "../../../dist/app.json",
+	"name": "app-clickhouse",
+	"region": "eu-west-1",
+	"profile": "test"
+}

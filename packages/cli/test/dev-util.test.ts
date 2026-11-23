@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeAwsChunked, isConfigFile, isIgnoredPath, registerConfigFile } from '../src/dev/util'
+import { decodeAwsChunked, isConfigFile, isIgnoredPath, registerConfigFile, toResponse } from '../src/dev/util'
 import { createFrameReader, WorkerRecord } from '../src/dev/worker'
 
 describe('decodeAwsChunked', () => {
@@ -133,5 +133,32 @@ describe('worker output frames', () => {
 			{ route: 'b', text: '2' },
 			{ text: 'tail' },
 		])
+	})
+})
+
+describe('toResponse', () => {
+	it("should answer a handler's result like a function url", async () => {
+		const json = toResponse({ a: 1 })
+
+		expect(json.status).toBe(200)
+		expect(await json.json()).toEqual({ a: 1 })
+
+		const redirect = toResponse({
+			statusCode: 302,
+			headers: { Location: '/next' },
+			cookies: ['a=1; Path=/', 'b=2; Path=/'],
+			body: 'AAEC',
+			isBase64Encoded: true,
+		})
+
+		expect(redirect.status).toBe(302)
+		expect(redirect.headers.get('location')).toBe('/next')
+		expect(redirect.headers.getSetCookie()).toEqual(['a=1; Path=/', 'b=2; Path=/'])
+		expect(new Uint8Array(await redirect.arrayBuffer())).toEqual(new Uint8Array([0, 1, 2]))
+	})
+
+	it('should leave the body off a status that has none', () => {
+		expect(toResponse({ statusCode: 304, body: 'x' }).body).toBeNull()
+		expect(toResponse({ statusCode: 404 }).status).toBe(404)
 	})
 })

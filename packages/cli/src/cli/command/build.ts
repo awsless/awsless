@@ -3,6 +3,7 @@ import { createApp } from '../../app.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
 import { createClients } from './util.js'
+import { assertStackFilters } from '../../util/stack-filter.js'
 
 export const build = (program: Command) => {
 	program
@@ -11,6 +12,8 @@ export const build = (program: Command) => {
 		.description('Build your app assets')
 		.action(async (filters: string[]) => {
 			await layout('build', async ({ appConfig, stackConfigs }) => {
+				assertStackFilters(stackConfigs, filters)
+
 				const { accountId } = await createClients(appConfig)
 
 				const { builders } = createApp({ appConfig, stackConfigs, accountId })

@@ -188,6 +188,41 @@ export const BundledFunctionSchema = z.union([
 	BundledFnSchema,
 ])
 
+// The schema of the handlers a router serves over HTTP: a route and a
+// site's ssr. They run in the app's shared web function; setting any of the
+// infra fields deploys the handler as a web function of its own. A Lambda
+// Web Function has no memory size, architecture, runtime or layers to set.
+const WebFnSchema = z
+	.object({
+		code: CodeSchema,
+		handler: HandlerSchema.optional(),
+
+		timeout: TimeoutSchema.optional(),
+		log: LogSchema.optional(),
+		environment: EnvironmentSchema.optional(),
+		permissions: PermissionsSchema.optional(),
+		sandbox: SandboxSchema.optional(),
+	})
+	.strict()
+
+export type WebFunctionProps = z.output<typeof WebFnSchema>
+
+export const WebFunctionSchema = z.union([
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof WebFnSchema>).pipe(WebFnSchema),
+	WebFnSchema,
+])
+
+// What every web function starts from, the shared one and a handler's own.
+// Left out, they take the function defaults.
+export const WebFunctionDefaultSchema = z
+	.object({
+		timeout: TimeoutSchema.optional(),
+		log: LogSchema.optional(),
+	})
+	.strict()
+	.prefault({})
+	.describe('The defaults of the web functions that serve your routers.')
+
 // The function schema for the global feature handlers, like on-failure.
 // The handler runs as its own stand-alone lambda, so it accepts the
 // lambda infra fields that apply to such a handler.
@@ -214,7 +249,7 @@ export const FunctionSchema = z.union([
 // The rich per-function schema for stack functions. Setting any of the
 // lambda infra fields deploys the function as its own stand-alone lambda
 // instead of registering it inside the shared bundle.
-const StackFnSchema = z
+const EventFnSchema = z
 	.object({
 		code: CodeSchema,
 		handler: HandlerSchema.optional(),
@@ -238,15 +273,15 @@ const StackFnSchema = z
 	})
 	.strict()
 
-export type StackFunctionProps = z.output<typeof StackFnSchema>
+export type EventFunctionProps = z.output<typeof EventFnSchema>
 
-export const StackFunctionSchema = z.union([
-	LocalFileSchema.transform(code => ({ code }) as z.input<typeof StackFnSchema>).pipe(StackFnSchema),
-	StackFnSchema,
+export const EventFunctionSchema = z.union([
+	LocalFileSchema.transform(code => ({ code }) as z.input<typeof EventFnSchema>).pipe(EventFnSchema),
+	EventFnSchema,
 ])
 
 export const FunctionsSchema = z
-	.record(ResourceIdSchema, StackFunctionSchema)
+	.record(ResourceIdSchema, EventFunctionSchema)
 	.optional()
 	.describe('Define the functions in your stack.')
 
@@ -266,7 +301,7 @@ export const FunctionDefaultSchema = z
 			system: 'system' in log ? log.system : 'warn',
 			format: 'format' in log ? log.format : 'json',
 		})),
-		// The defaults size the shared bundle lambda, which also serves queues,
+		// The defaults size the event function, which also serves queues,
 		// crons & tasks. Stand-alone functions inherit them as well.
 		timeout: TimeoutSchema.prefault('15 minutes'),
 		memorySize: MemorySizeSchema.prefault('1024 MB'),

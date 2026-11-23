@@ -1,6 +1,6 @@
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
 import { describe, expect, it } from 'vitest'
-import { BundledFunctionSchema, FunctionSchema, StackFunctionSchema } from '../src/feature/function/schema'
+import { BundledFunctionSchema, FunctionSchema, EventFunctionSchema } from '../src/feature/function/schema'
 import { isStandaloneFunction } from '../src/feature/function/util'
 import { createTestApp } from './_kit'
 
@@ -224,7 +224,7 @@ describe('sandbox', () => {
 
 		const queue = metas.find(meta => meta.type === 'aws_sqs_queue')!
 		const bundle = metas.find(
-			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--function--bundle'
+			meta => meta.type === 'aws_lambda_function' && meta.input.functionName === 'test-app--bundle--event'
 		)!
 		const sandboxed = findInputDeps(policyOf('test-app--stack-1--function--echo').input.policy)
 		const standalone = findInputDeps(policyOf('test-app--stack-1--function--standalone').input.policy)
@@ -327,14 +327,14 @@ describe('sandbox', () => {
 	})
 
 	it('rejects invalid sandbox routes', () => {
-		expect(() => StackFunctionSchema.parse({ code, sandbox: ['stack:function:name'] })).toThrow()
-		expect(() => StackFunctionSchema.parse({ code, sandbox: { functions: ['not a route'] } })).toThrow()
-		expect(() => StackFunctionSchema.parse({ code, sandbox: { queues: ['stack:name'] } })).toThrow()
-		expect(() => StackFunctionSchema.parse({ code, sandbox: { configs: ['SECRET'] } })).toThrow()
-		expect(StackFunctionSchema.parse({ code, sandbox: { functions: ['stack:name'] } })).toBeDefined()
-		expect(StackFunctionSchema.parse({ code, sandbox: { tasks: ['stack:name'] } })).toBeDefined()
-		expect(StackFunctionSchema.parse({ code, sandbox: { configs: ['secret'] } })).toBeDefined()
-		expect(StackFunctionSchema.parse({ code, sandbox: true })).toBeDefined()
+		expect(() => EventFunctionSchema.parse({ code, sandbox: ['stack:function:name'] })).toThrow()
+		expect(() => EventFunctionSchema.parse({ code, sandbox: { functions: ['not a route'] } })).toThrow()
+		expect(() => EventFunctionSchema.parse({ code, sandbox: { queues: ['stack:name'] } })).toThrow()
+		expect(() => EventFunctionSchema.parse({ code, sandbox: { configs: ['SECRET'] } })).toThrow()
+		expect(EventFunctionSchema.parse({ code, sandbox: { functions: ['stack:name'] } })).toBeDefined()
+		expect(EventFunctionSchema.parse({ code, sandbox: { tasks: ['stack:name'] } })).toBeDefined()
+		expect(EventFunctionSchema.parse({ code, sandbox: { configs: ['secret'] } })).toBeDefined()
+		expect(EventFunctionSchema.parse({ code, sandbox: true })).toBeDefined()
 	})
 
 	it('kebab-cases the sandbox routes to match the bundle route keys', () => {
@@ -365,11 +365,11 @@ describe('sandbox', () => {
 
 describe('isStandaloneFunction', () => {
 	it('triggers on every lambda infra field', () => {
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code }))).toBe(false)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, handler: 'index.other' }))).toBe(false)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code }))).toBe(false)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, handler: 'index.other' }))).toBe(false)
 		expect(
 			isStandaloneFunction(
-				StackFunctionSchema.parse({
+				EventFunctionSchema.parse({
 					code: {
 						...code,
 						minify: false,
@@ -382,31 +382,31 @@ describe('isStandaloneFunction', () => {
 		).toBe(false)
 
 		// The vpc flag only applies to an already stand-alone lambda.
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, vpc: true }))).toBe(false)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, vpc: true }))).toBe(false)
 
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, memorySize: '256 MB' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, timeout: '30 seconds' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, log: false }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, runtime: 'nodejs22.x' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, description: 'desc' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, architecture: 'x86_64' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, ephemeralStorageSize: '1 GB' }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, reserved: 1 }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, layers: [] }))).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, environment: { A: 'b' } }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, memorySize: '256 MB' }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, timeout: '30 seconds' }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, log: false }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, runtime: 'nodejs22.x' }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, description: 'desc' }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, architecture: 'x86_64' }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, ephemeralStorageSize: '1 GB' }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, reserved: 1 }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, layers: [] }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, environment: { A: 'b' } }))).toBe(true)
 		expect(
 			isStandaloneFunction(
-				StackFunctionSchema.parse({ code, permissions: { actions: 's3:GetObject', resources: '*' } })
+				EventFunctionSchema.parse({ code, permissions: { actions: 's3:GetObject', resources: '*' } })
 			)
 		).toBe(true)
-		expect(isStandaloneFunction(StackFunctionSchema.parse({ code, sandbox: true }))).toBe(true)
+		expect(isStandaloneFunction(EventFunctionSchema.parse({ code, sandbox: true }))).toBe(true)
 	})
 })
 
 describe('function schemas', () => {
 	it('rejects unknown keys on stack functions', () => {
-		expect(() => StackFunctionSchema.parse({ code, warm: 1 })).toThrow()
-		expect(() => StackFunctionSchema.parse({ code, memory: '256 MB' })).toThrow()
+		expect(() => EventFunctionSchema.parse({ code, warm: 1 })).toThrow()
+		expect(() => EventFunctionSchema.parse({ code, memory: '256 MB' })).toThrow()
 	})
 
 	it('keeps the bundled function schema narrow', () => {

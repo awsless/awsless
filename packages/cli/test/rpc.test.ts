@@ -80,23 +80,19 @@ describe('RPC server', () => {
 		locks.clear()
 	})
 
-	const createRequest = (payload: any, token = 'token') => {
-		return {
-			requestContext: {
-				http: {
+	// The answer as the tests read it: its status & its body's text.
+	const invoke = async (payload: unknown, token = 'token') => {
+		const response = await withBundleRouteContext(route, internalInvoke, () =>
+			handle.fetch(
+				new Request('https://app.example.com/', {
 					method: 'POST',
-					userAgent: '',
-					sourceIp: '',
-				},
-			},
-			headers: {
-				authentication: token,
-			},
-			body: JSON.stringify(payload),
-		} as any
-	}
-	const invoke = (payload: unknown, token?: string) => {
-		return withBundleRouteContext(route, internalInvoke, () => handle(createRequest(payload, token)))
+					headers: { authentication: token },
+					body: JSON.stringify(payload),
+				})
+			)
+		)
+
+		return { statusCode: response.status, body: await response.text() }
 	}
 
 	describe('lock', () => {
@@ -126,7 +122,7 @@ describe('RPC server', () => {
 			const result = await invoke([{ name: 'write' }], 'token-2')
 
 			expect(result.statusCode).toBe(200)
-			expect(JSON.parse(result.body)[0].ok).toBe(false)
+			expect(JSON.parse(result.body!)[0].ok).toBe(false)
 		})
 
 		it('should succeed for valid permissions', async () => {
@@ -135,7 +131,47 @@ describe('RPC server', () => {
 			const result = await invoke([{ name: 'read' }], 'token-2')
 
 			expect(result.statusCode).toBe(200)
-			expect(JSON.parse(result.body)[0].ok).toBe(true)
+			expect(JSON.parse(result.body!)[0].ok).toBe(true)
+		})
+	})
+
+	describe('web function', () => {
+		it('should answer a web request the same as the function url event', async () => {
+			process.env[formatRouteEnvName(serverRoute, 'AUTH')] = 'test:rpc:permission-auth'
+
+			const callRpcFunction = (name: string) =>
+				withBundleRouteContext(route, internalInvoke, () =>
+					handle.fetch(
+						new Request('https://app.example.com/rpc', {
+							method: 'POST',
+							headers: {
+								authentication: 'token-2',
+								'cloudfront-viewer-address': '198.51.100.7:1234',
+								'x-forwarded-for': '198.51.100.7, 130.176.1.1',
+							},
+							body: JSON.stringify([{ name, payload: { a: 1 } }]),
+						})
+					)
+				)
+
+			const allowedResponse = await callRpcFunction('read')
+			const [result] = await allowedResponse.json()
+
+			expect(allowedResponse.status).toBe(200)
+			expect(allowedResponse.headers.get('content-type')).toBe('application/json')
+			expect(result).toMatchObject({ ok: true, data: { a: 1, viewer: { ip: '198.51.100.7' } } })
+
+			const [refusedResult] = await (await callRpcFunction('write')).json()
+
+			expect(refusedResult.ok).toBe(false)
+		})
+
+		it('should refuse a web request that is no POST', async () => {
+			const response = await withBundleRouteContext(route, internalInvoke, () =>
+				handle.fetch(new Request('https://app.example.com/rpc', { headers: { authentication: 'token' } }))
+			)
+
+			expect(response.status).toBe(400)
 		})
 	})
 
@@ -163,7 +199,7 @@ describe('RPC server', () => {
 			try {
 				const result = await invoke([{ name: 'read' }])
 
-				expect(JSON.parse(result.body)[0]).toStrictEqual({
+				expect(JSON.parse(result.body!)[0]).toStrictEqual({
 					ok: true,
 					data: { route: 'other' },
 				})

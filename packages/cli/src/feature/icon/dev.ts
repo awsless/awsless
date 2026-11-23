@@ -1,11 +1,11 @@
-import { cp } from 'fs/promises'
 import { isAbsolute, join } from 'path'
 import { formatRouteEnvName } from 'awsless'
+import { seedMediaOrigin } from '../../dev/media-origin.js'
 import { DevContext } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { getFeatureFolder } from '../asset/index.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 
 export const iconOnDev = async (ctx: DevContext) => {
 	const icons = ctx.stackConfigs.flatMap(stack => Object.keys(stack.icons ?? {}))
@@ -35,6 +35,7 @@ export const iconOnDev = async (ctx: DevContext) => {
 				routerId: props.router,
 				pattern,
 				routeKey,
+				eventFunction: true,
 				rewrite: {
 					regex: `^${props.path}/(.*)$`,
 					to: '/$1',
@@ -68,9 +69,12 @@ export const iconOnDev = async (ctx: DevContext) => {
 					? props.origin.static
 					: join(directories.root, props.origin.static)
 
-				await cp(source, join(directories.output, 'local', 'store', bucket, folder, 'origin'), {
-					recursive: true,
-				})
+				await seedMediaOrigin(
+					ctx,
+					`icon origin ${stack.name}:${id}`,
+					source,
+					join(directories.output, 'local', 'store', bucket, folder)
+				)
 			}
 
 			ctx.registerResource({

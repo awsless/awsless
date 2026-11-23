@@ -6,7 +6,7 @@ import { spawnDevChild } from '../../dev/children.js'
 import { findFreePort, stopChild, stripAnsi } from '../../dev/util.js'
 import { DevContext } from '../../feature.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey } from '../bundle/util.js'
+import { formatRouteKey } from '../bundle/util/index.js'
 import { planStaticRoutes } from './static-routes.js'
 
 // A pooled site dev server: the child survives dev restarts & every

@@ -1,14 +1,13 @@
-import { randomUUID } from 'crypto'
-import { ServerResponse } from 'http'
-import { DevDispatch, DevRoute } from '../feature.js'
-import { ROUTE_HEADER } from '../feature/bundle/util.js'
+import { DevDispatch, DevRoute, DevServe } from '../feature.js'
+import { ROUTE_HEADER } from '../feature/bundle/util/index.js'
 import { compileRoutePattern } from '../feature/router/pattern.js'
-import { parseTraceHeader, TRACE_HEADER } from './util.js'
+import { parseTraceHeader, toResponse, TRACE_HEADER } from './util.js'
 
 type CompiledRoute = {
 	match?: RegExp
 	params?: string[]
 	routeKey?: string
+	eventFunction?: boolean
 	proxy?: string
 	rewrite?: { regex: string; to: string }
 	// Raw keys are the static asset routes, which the deployed viewer
@@ -18,6 +17,7 @@ type CompiledRoute = {
 
 type RouteMatch = {
 	routeKey?: string
+	eventFunction?: boolean
 	proxy?: string
 	params: Record<string, string>
 	rewrite?: { regex: string; to: string }
@@ -40,6 +40,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 			match: 'match' in compiled && compiled.match ? new RegExp(compiled.match) : undefined,
 			params: 'params' in compiled ? compiled.params : undefined,
 			routeKey: route.routeKey,
+			eventFunction: route.eventFunction,
 			proxy: route.proxy,
 			rewrite: route.rewrite,
 			readOnly: Boolean(route.rawKey),
@@ -76,6 +77,10 @@ export const compileRoutes = (routes: DevRoute[]) => {
 		return [path, `/${root}/*`, '/*']
 	}
 
+	const target = ({ routeKey, eventFunction, proxy, rewrite }: CompiledRoute) => {
+		return { routeKey, eventFunction, proxy, rewrite }
+	}
+
 	return (requestPath: string, method = 'GET'): RouteMatch | undefined => {
 		// Only the route selection drops a trailing slash, like the viewer
 		// function - the forwarded path stays untouched.
@@ -88,7 +93,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 				}
 
 				if (!route.match) {
-					return { routeKey: route.routeKey, proxy: route.proxy, params: {}, rewrite: route.rewrite }
+					return { ...target(route), params: {} }
 				}
 
 				const result = route.match.exec(path)
@@ -100,7 +105,7 @@ export const compileRoutes = (routes: DevRoute[]) => {
 						params[name] = result[index + 1]!
 					})
 
-					return { routeKey: route.routeKey, proxy: route.proxy, params, rewrite: route.rewrite }
+					return { ...target(route), params }
 				}
 			}
 		}
@@ -109,151 +114,57 @@ export const compileRoutes = (routes: DevRoute[]) => {
 	}
 }
 
-// Lambda function urls pass textual bodies through as plain text and
-// only base64 encode binary payloads.
-const isTextualBody = (contentType: string) => {
-	return (
-		contentType.startsWith('text/') ||
-		contentType.includes('json') ||
-		contentType.includes('xml') ||
-		contentType.includes('javascript') ||
-		contentType.includes('x-www-form-urlencoded')
-	)
-}
-
 // Apply the route's origin path rewrite, like the deployed router.
 const rewrittenPath = (route: RouteMatch, path: string) => {
 	return route.rewrite ? path.replace(new RegExp(route.rewrite.regex), route.rewrite.to) : path
 }
 
-const formatWebEvent = (request: Request, route: RouteMatch, body: Buffer, url: URL, sourceIp: string) => {
-	const path = rewrittenPath(route, url.pathname)
-
-	const headers: Record<string, string> = {}
-
-	for (const [name, value] of request.headers) {
-		headers[name] = value
-	}
+// The request as the deployed router hands it to its origin: the route's
+// rewritten path and handler, its params as headers, and CloudFront's viewer
+// headers, which CloudFront writes over a client's (exported for its tests).
+export const createRoutedRequest = (request: Request, route: RouteMatch, url: URL, sourceIp: string) => {
+	const headers = new Headers(request.headers)
 
 	// The client can never hijack the routing.
-	headers[ROUTE_HEADER] = route.routeKey!
+	headers.set(ROUTE_HEADER, route.routeKey!)
+	headers.set('cloudfront-viewer-address', `${sourceIp}:0`)
 
-	// CloudFront fronts every deployed router & the runtime reads its
-	// viewer headers, so the local router synthesizes the essentials.
-	headers['cloudfront-viewer-address'] ??= `${sourceIp}:0`
-	headers['cloudfront-viewer-country'] ??= 'US'
+	if (!headers.has('cloudfront-viewer-country')) {
+		headers.set('cloudfront-viewer-country', 'US')
+	}
 
-	// Param values are passed to the function as request headers.
 	for (const [name, value] of Object.entries(route.params)) {
-		headers[`x-param-${name.toLowerCase()}`] = value
+		headers.set(`x-param-${name.toLowerCase()}`, value)
 	}
 
-	const queryStringParameters: Record<string, string> = {}
-	for (const [name, value] of url.searchParams) {
-		queryStringParameters[name] = value
+	// The host & protocol the caller used, which a handler builds its urls from.
+	if (!headers.has('x-forwarded-host')) {
+		headers.set('x-forwarded-host', url.host)
 	}
 
-	const cookie = request.headers.get('cookie')
+	if (!headers.has('x-forwarded-proto')) {
+		headers.set('x-forwarded-proto', url.protocol.slice(0, -1))
+	}
 
-	// Only a present textual content type marks the body as text - and only
-	// when the bytes survive a utf-8 round trip: some clients post binary
-	// payloads under a textual content type & those must pass as base64
-	// instead of corrupting through the decode.
-	const contentType = request.headers.get('content-type')
-	const textual =
-		typeof contentType === 'string' && isTextualBody(contentType) && Buffer.from(body.toString()).equals(body)
-	const now = new Date()
+	const routedUrl = new URL(url)
+	routedUrl.pathname = rewrittenPath(route, url.pathname)
 
-	return {
-		version: '2.0',
-		routeKey: '$default',
-		rawPath: path,
-		rawQueryString: url.search.slice(1),
-		cookies: cookie ? cookie.split(';').map(v => v.trim()) : undefined,
+	return new Request(routedUrl, {
+		method: request.method,
 		headers,
-		queryStringParameters,
-		requestContext: {
-			accountId: 'anonymous',
-			apiId: 'local',
-			domainName: url.hostname,
-			domainPrefix: url.hostname.split('.')[0],
-			http: {
-				method: request.method,
-				path,
-				protocol: 'HTTP/1.1',
-				sourceIp,
-				userAgent: headers['user-agent'] ?? '',
-			},
-			requestId: randomUUID(),
-			routeKey: '$default',
-			stage: '$default',
-			time: now.toISOString(),
-			timeEpoch: now.getTime(),
-		},
-		body: body.length > 0 ? (textual ? body.toString() : body.toString('base64')) : undefined,
-		isBase64Encoded: body.length > 0 && !textual,
+		body: request.body,
+		duplex: 'half',
+	} as RequestInit)
+}
+
+// The image & icon servers run on the event function, behind its function
+// url: they read the event's path alone (exported for its tests).
+export const createMediaEvent = (request: Request, route: RouteMatch, url: URL) => {
+	return {
+		rawPath: rewrittenPath(route, url.pathname),
+		headers: { [ROUTE_HEADER]: route.routeKey! },
+		requestContext: { http: { method: request.method } },
 	}
-}
-
-type StructuredResult = {
-	statusCode: number
-	headers?: Record<string, string>
-	cookies?: string[]
-	body?: string
-	isBase64Encoded?: boolean
-}
-
-const isStructured = (result: unknown): result is StructuredResult => {
-	return typeof result === 'object' && result !== null && typeof (result as StructuredResult).statusCode === 'number'
-}
-
-// Mirror the lambda function url response semantics: a structured
-// response is written as-is & everything else becomes a 200 json
-// response.
-const toResponse = (result: unknown) => {
-	if (isStructured(result)) {
-		const headers = new Headers(result.headers ?? {})
-
-		for (const cookie of result.cookies ?? []) {
-			headers.append('set-cookie', cookie)
-		}
-
-		const body =
-			typeof result.body === 'string'
-				? result.isBase64Encoded
-					? Buffer.from(result.body, 'base64')
-					: result.body
-				: null
-
-		return new Response(body, { status: result.statusCode, headers })
-	}
-
-	return Response.json(result ?? null)
-}
-
-// The node http server still uses this shape for the rest emulator.
-export const writeWebResponse = (res: ServerResponse, result: unknown) => {
-	if (isStructured(result)) {
-		const headers: Record<string, string | string[]> = { ...result.headers }
-
-		if (result.cookies && result.cookies.length > 0) {
-			headers['set-cookie'] = result.cookies
-		}
-
-		res.writeHead(result.statusCode, headers)
-		res.end(
-			typeof result.body === 'string'
-				? result.isBase64Encoded
-					? Buffer.from(result.body, 'base64')
-					: result.body
-				: undefined
-		)
-
-		return
-	}
-
-	res.writeHead(200, { 'content-type': 'application/json' })
-	res.end(JSON.stringify(result ?? null))
 }
 
 type SocketData = {
@@ -269,6 +180,7 @@ export const startDevRouter = async (props: {
 	// Opt-in lan exposure, for testing the site on a phone.
 	host?: boolean
 	dispatch: DevDispatch
+	serve: DevServe
 	// Handler errors surface here, so they reach the terminal & the
 	// dashboard's worker log instead of vanishing into a bare 500.
 	onError?: (error: unknown, routeKey: string) => void
@@ -286,7 +198,7 @@ export const startDevRouter = async (props: {
 			const route = match(url.pathname, request.method)
 
 			if (!route) {
-				return new Response(`No route matched: ${url.pathname}`, { status: 404 })
+				return new Response(null, { status: 404 })
 			}
 
 			// Proxy routes stream straight to their local target server,
@@ -346,22 +258,22 @@ export const startDevRouter = async (props: {
 			}
 
 			if (!route.routeKey) {
-				return new Response(`No route matched: ${url.pathname}`, { status: 404 })
+				return new Response(null, { status: 404 })
 			}
 
-			const body = Buffer.from(await request.arrayBuffer())
 			const sourceIp = server.requestIP(request)?.address ?? '127.0.0.1'
 
-			let result: unknown
+			// A browser request starts a fresh trace - but a handler
+			// fetching its own router (like an ssr page calling an rpc)
+			// carries the trace header & stays inside its caller's trace.
+			const trace = parseTraceHeader(request.headers.get(TRACE_HEADER))
 
 			try {
-				// A browser request starts a fresh trace - but a handler
-				// fetching its own router (like an ssr page calling an rpc)
-				// carries the trace header & stays inside its caller's trace.
-				result = await props.dispatch(
-					formatWebEvent(request, route, body, url, sourceIp),
-					parseTraceHeader(request.headers.get(TRACE_HEADER))
-				)
+				if (route.eventFunction) {
+					return toResponse(await props.dispatch(createMediaEvent(request, route, url), trace))
+				}
+
+				return await props.serve(createRoutedRequest(request, route, url, sourceIp), route.routeKey, trace)
 			} catch (error) {
 				props.onError?.(error, route.routeKey)
 
@@ -374,8 +286,6 @@ export const startDevRouter = async (props: {
 					headers: { 'content-type': 'text/plain' },
 				})
 			}
-
-			return toResponse(result)
 		},
 		websocket: {
 			open(ws) {

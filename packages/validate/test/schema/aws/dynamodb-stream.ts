@@ -80,6 +80,30 @@ describe('DynamoDB Stream', () => {
 		])
 	})
 
+	it('should keep the sequence number, for partial batch failures', () => {
+		const result = parse(schema, {
+			Records: [
+				{
+					eventName: 'INSERT',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: { id: { N: '1' }, name: { S: 'name' } },
+						SequenceNumber: '100000000000000000001',
+					},
+				},
+			],
+		})
+
+		expect(result).toStrictEqual([
+			{
+				event: 'insert',
+				keys: { id: 1 },
+				new: { id: 1, name: 'name' },
+				sequenceNumber: '100000000000000000001',
+			},
+		])
+	})
+
 	it('should throw for invalid key schema', () => {
 		expect(() =>
 			parse(schema, {
@@ -118,6 +142,7 @@ describe('DynamoDB Stream', () => {
 					Keys: unknown
 					OldImage?: unknown
 					NewImage?: unknown
+					SequenceNumber?: string
 				}
 			}>
 		}>()
@@ -128,6 +153,7 @@ describe('DynamoDB Stream', () => {
 				keys: { id: number }
 				old?: { id: number; name: string }
 				new?: { id: number; name: string }
+				sequenceNumber?: string
 			}>
 		>()
 	})

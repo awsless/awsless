@@ -2,7 +2,7 @@ import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { BundledFunctionSchema } from '../function/schema.js'
+import { WebFunctionSchema } from '../function/schema.js'
 import { compileRoutePattern } from './pattern.js'
 
 const ErrorResponsePathSchema = z
@@ -39,7 +39,7 @@ const ErrorResponseSchema = z
 	.union([
 		ErrorResponsePathSchema,
 		z.object({
-			path: ErrorResponsePathSchema,
+			path: ErrorResponsePathSchema.optional(),
 			statusCode: StatusCodeSchema.optional(),
 			minTTL: MinTTLSchema.optional(),
 		}),
@@ -57,7 +57,7 @@ export const RoutesSchema = z
 	.record(
 		ResourceIdSchema.describe('The router id to add your routes to.'),
 		z
-			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), BundledFunctionSchema)
+			.record(z.string().regex(/^\//, 'Route must start with a slash (/)'), WebFunctionSchema)
 			.superRefine((routes, ctx) => {
 				for (const pattern of Object.keys(routes)) {
 					try {
@@ -108,6 +108,33 @@ const WafSettingsSchema = z
 					.describe(
 						'The amount of time, in seconds, that AWS WAF should include in its request counts, looking back from the current time.'
 					),
+				key: z
+					.union([z.literal('ip'), z.object({ header: z.string().min(1) })])
+					.default('ip')
+					.describe(
+						"What the requests are counted by: the caller's ip, or the value of a header (like an API key header). Requests without the header aren't counted."
+					),
+				path: z
+					.string()
+					.startsWith('/')
+					.optional()
+					.describe('Only count requests to this exact path. All paths by default.'),
+				response: z
+					.object({
+						status: z.number().int().min(200).max(599).describe('The status code of the answer.'),
+						body: z.string().max(4096).describe('The body of the answer.'),
+						contentType: z
+							.enum(['json', 'text', 'html'])
+							.default('json')
+							.transform(v => ({ json: 'APPLICATION_JSON', text: 'TEXT_PLAIN', html: 'TEXT_HTML' })[v])
+							.describe('The content type of the body.'),
+						headers: z
+							.record(z.string(), z.string())
+							.default({})
+							.describe('Extra headers on the answer.'),
+					})
+					.optional()
+					.describe("The answer to a limited request. WAF's own 403 by default."),
 				visibility: VisibilitySchema,
 			})
 			.optional()

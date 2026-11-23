@@ -1,19 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { h, Queue, v } from 'awsless'
 
-export default h.route(
-	{
-		body: v.object({
-			id: v.uuid(),
-			name: v.string(),
-		}),
-	},
-	async request => {
-		await Queue.todo.reminders(
-			{ id: request.data.id, name: request.data.name },
-			{ groupId: request.data.id, deduplicationId: randomUUID() }
-		)
+const schema = v.object({
+	id: v.uuid(),
+	name: v.string(),
+})
 
-		return Response.json({ queued: true })
-	}
-)
+export default h.route(async ({ request }) => {
+	const data = v.parse(schema, await request.json())
+
+	await Queue.todo.reminders({ id: data.id, name: data.name }, { groupId: data.id, deduplicationId: randomUUID() })
+
+	return Response.json({ queued: true })
+})

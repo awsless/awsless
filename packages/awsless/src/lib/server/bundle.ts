@@ -1,9 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { kebabCase } from 'change-case'
+import { formatSandboxRouteError, getDevSandbox } from './sandbox.js'
 import { formatResourceName } from './util.js'
 
-// Every function of the app deploys into one shared bundle lambda. A
+// Every function of the app deploys into one bundle, run by its event function. A
 // route key like "stack:function:name" picks the handler inside it.
 
 // The payload property that routes lambda invokes to a bundle handler.
@@ -12,11 +13,15 @@ export const ROUTE_PROPERTY = '$awsless-route'
 // The request header that routes web requests to a bundle handler.
 export const ROUTE_HEADER = 'x-awsless-route'
 
+// The request header that names the deployment whose route table sent a
+// web function request.
+export const DEPLOYMENT_ID_HEADER = 'x-awsless-deployment-id'
+
 // The alias every deploy promotes.
 export const LIVE_BUNDLE_ALIAS = 'live'
 
-export const getBundleName = () => {
-	return formatResourceName({ resourceType: 'function', resourceName: 'bundle' })
+export const getEventFunctionName = () => {
+	return formatResourceName({ resourceType: 'bundle', resourceName: 'event' })
 }
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
@@ -56,7 +61,7 @@ export const invokeBundle = ({ routeKey, payload, ...options }: InvokeBundleProp
 
 	return invoke({
 		...options,
-		name: proxy || getBundleName(),
+		name: proxy || getEventFunctionName(),
 		qualifier: options.qualifier ?? getInvokedQualifier() ?? LIVE_BUNDLE_ALIAS,
 		payload: formatRoutePayload(routeKey, payload),
 	})
@@ -108,6 +113,11 @@ export const internalInvoke = (routeKey: string, payload: unknown) => {
 
 	if (!context) {
 		throw new Error('Internal invocations are only available inside the bundle')
+	}
+
+	// The sandbox proxy's answer to a route off the allowlist, for local dev.
+	if (getDevSandbox(context.routeKey)?.routes.includes(routeKey) === false) {
+		throw new Error(formatSandboxRouteError(routeKey))
 	}
 
 	return context.internalInvoke(routeKey, payload)

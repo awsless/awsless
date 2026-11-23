@@ -6,7 +6,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util/index.js'
 
 const typeGenCode = `
 import { type PutDataProps, putData, batchPutData } from '@awsless/cloudwatch'
@@ -69,7 +69,7 @@ export const metricFeature = defineFeature({
 		await ctx.write('metric.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
+		const eventFunction = ctx.shared.get('bundle', 'event-function')
 		const namespace = `awsless/${kebabCase(ctx.app.name)}/${kebabCase(ctx.stack.name)}`
 		const metrics = Object.entries(ctx.stackConfig.metrics ?? {})
 
@@ -147,7 +147,7 @@ export const metricFeature = defineFeature({
 					registerBundleFunction(ctx, routeKey, trigger)
 
 					invokesBundle = true
-					alarmAction = bundle.alias.arn
+					alarmAction = eventFunction.alias.arn
 				}
 
 				// ----------------------------------------
@@ -171,14 +171,19 @@ export const metricFeature = defineFeature({
 				})
 
 				if (invokesBundle) {
-					new aws.lambda.Permission(alarmGroup, 'permission', {
-						action: 'lambda:InvokeFunction',
-						principal: 'lambda.alarms.cloudwatch.amazonaws.com',
-						functionName: bundle.lambda.functionName,
-						qualifier: bundle.alias.name,
-						sourceAccount: ctx.accountId,
-						sourceArn: alarm.arn,
-					})
+					new aws.lambda.Permission(
+						alarmGroup,
+						'permission',
+						{
+							action: 'lambda:InvokeFunction',
+							principal: 'lambda.alarms.cloudwatch.amazonaws.com',
+							functionName: eventFunction.lambda.functionName,
+							qualifier: eventFunction.alias.name,
+							sourceAccount: ctx.accountId,
+							sourceArn: alarm.arn,
+						},
+						{ replaceOnChanges: ['functionName'] }
+					)
 				}
 			}
 		}

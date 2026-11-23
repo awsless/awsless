@@ -27,8 +27,9 @@ let chunk = require("chunk");
 chunk = __toESM(chunk, 1);
 let aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 //#region src/client.ts
+const MAX_ATTEMPTS = 5;
 const ssmClient = (0, _awsless_utils.globalClient)(() => {
-	return new _aws_sdk_client_ssm.SSMClient({});
+	return new _aws_sdk_client_ssm.SSMClient({ maxAttempts: MAX_ATTEMPTS });
 });
 //#endregion
 //#region src/ssm.ts

@@ -20,7 +20,7 @@ const sesClient = (0, _awsless_utils.globalClient)(() => {
 });
 //#endregion
 //#region src/commands.ts
-const sendEmail = async ({ client = sesClient(), subject, from, to, html }) => {
+const sendEmail = async ({ client = sesClient(), subject, from, to, html, text, headers, attachments }) => {
 	const command = new _aws_sdk_client_sesv2.SendEmailCommand({
 		FromEmailAddress: from,
 		Destination: { ToAddresses: to },
@@ -29,10 +29,27 @@ const sendEmail = async ({ client = sesClient(), subject, from, to, html }) => {
 				Data: subject,
 				Charset: "UTF-8"
 			},
-			Body: { Html: {
-				Data: html,
-				Charset: "UTF-8"
-			} }
+			Body: {
+				Html: {
+					Data: html,
+					Charset: "UTF-8"
+				},
+				...text === void 0 ? {} : { Text: {
+					Data: text,
+					Charset: "UTF-8"
+				} }
+			},
+			...headers?.length ? { Headers: headers.map(({ name, value }) => ({
+				Name: name,
+				Value: value
+			})) } : {},
+			...attachments?.length ? { Attachments: attachments.map(({ filename, contentType, content }) => ({
+				FileName: filename,
+				ContentType: contentType,
+				ContentDisposition: "ATTACHMENT",
+				ContentTransferEncoding: "BASE64",
+				RawContent: content
+			})) } : {}
 		} }
 	});
 	return client.send(command);

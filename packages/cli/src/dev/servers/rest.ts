@@ -1,9 +1,9 @@
 import { randomUUID } from 'crypto'
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import { DevDispatch } from '../../feature.js'
-import { ROUTE_HEADER } from '../../feature/bundle/util.js'
-import { writeWebResponse } from '../router.js'
-import { parseTraceHeader, readBody, TRACE_HEADER, trackConnections } from '../util.js'
+import { writeWebResponse } from '../../feature/bundle/server/web-function.js'
+import { ROUTE_HEADER } from '../../feature/bundle/util/index.js'
+import { parseTraceHeader, readBody, toResponse, TRACE_HEADER, trackConnections } from '../util.js'
 
 export type RestRoute = {
 	// The api gateway route key, like "GET /users/{id}" or "$default".
@@ -174,7 +174,7 @@ export const createRestServer = (props: { id: string; routes: RestRoute[] }) => 
 			parseTraceHeader(req.headers[TRACE_HEADER])
 		)
 
-		writeWebResponse(res, result)
+		await writeWebResponse(toResponse(result), res)
 	}
 
 	return {

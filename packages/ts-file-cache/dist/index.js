@@ -19,8 +19,6 @@ const findImports = async (file, code) => {
 	} });
 	return [...importing].map((importee) => {
 		if (importee.startsWith(".")) return resolve(dirname(file), importee);
-		const parts = importee.split("/");
-		if (parts.length > 2) return parts.slice(0, 2).join("/");
 		return importee;
 	});
 };
@@ -64,6 +62,17 @@ const toAbsolute = (file) => {
 };
 //#endregion
 //#region src/hash.ts
+const resolveSubpath = (localPackage, subpath) => {
+	const exact = localPackage.exports[subpath];
+	if (exact) return exact;
+	const patterns = Object.entries(localPackage.exports).filter(([pattern]) => pattern.includes("*")).toSorted(([a], [b]) => b.indexOf("*") - a.indexOf("*"));
+	for (const [pattern, target] of patterns) {
+		const [prefix, suffix] = pattern.split("*");
+		if (subpath.length > prefix.length + suffix.length && subpath.startsWith(prefix) && subpath.endsWith(suffix)) return target.replaceAll("*", subpath.slice(prefix.length, subpath.length - suffix.length));
+	}
+	if (subpath === ".") return localPackage.main;
+	return localPackage.hasExports ? void 0 : join(localPackage.path, subpath);
+};
 const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExtensions, hashes) => {
 	if (isLocalCodeFile(file)) {
 		try {
@@ -89,8 +98,10 @@ const generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedE
 		else {
 			const localPackage = workspace.packages[dependency.link];
 			if (!localPackage) throw new Error(`Can't find the local workspace package for: ${file}`);
-			if (!localPackage.main) throw new Error(`Workspace package doesn't have a main entry: ${file}`);
-			await generateRecursiveFileHashes(workspace, localPackage.main, localPackage.main, allowedExtensions, hashes);
+			const subpath = `.${file.slice(module.length)}`;
+			const entry = resolveSubpath(localPackage, subpath);
+			if (!entry) throw new Error(`Workspace package doesn't export the import: ${file}`);
+			await generateRecursiveFileHashes(workspace, entry, sourceFile, allowedExtensions, hashes);
 		}
 		return;
 	}
@@ -320,14 +331,44 @@ const buildPackages = async (cwd, importers) => {
 		const packageJson = await readFile(join(cwd, path, "package.json"), "utf8");
 		const packageData = JSON.parse(packageJson);
 		const entry = packageData.module ?? packageData.main;
+		const exports = Object.fromEntries(Object.entries(exportFiles(packageData.exports)).map(([subpath, file]) => [subpath, join(cwd, path, file)]));
 		packages[join(cwd, path)] = {
 			name: packageData.name,
 			path: join(cwd, path),
 			main: entry ? join(cwd, path, entry) : void 0,
+			exports,
+			hasExports: packageData.exports !== void 0,
 			dependencies
 		};
 	}));
 	return packages;
+};
+const exportFiles = (exports) => {
+	const target = (value) => {
+		if (typeof value === "string") return value;
+		if (value && typeof value === "object" && !Array.isArray(value)) {
+			const conditions = value;
+			for (const condition of [
+				"bun",
+				"import",
+				"module",
+				"default",
+				"require"
+			]) {
+				const file = target(conditions[condition]);
+				if (file) return file;
+			}
+		}
+	};
+	if (exports && typeof exports === "object" && !Array.isArray(exports)) {
+		const entries = Object.entries(exports);
+		if (entries.every(([key]) => key.startsWith("."))) return Object.fromEntries(entries.flatMap(([subpath, value]) => {
+			const file = target(value);
+			return file ? [[subpath, file]] : [];
+		}));
+	}
+	const file = target(exports);
+	return file ? { ".": file } : {};
 };
 //#endregion
 //#region src/index.ts

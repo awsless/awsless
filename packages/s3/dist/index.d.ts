@@ -11,7 +11,7 @@ declare const s3Client: {
   set(client: S3Client$1): void;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@aws-sdk+types@3.974.4/node_modules/@aws-sdk/types/dist-types/serde.d.ts
+//#region ../../node_modules/.pnpm/@aws-sdk+types@3.975.0/node_modules/@aws-sdk/types/dist-types/serde.d.ts
 /**
  * @public
  *

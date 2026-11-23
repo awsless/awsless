@@ -3,6 +3,7 @@
 	"main": "_index.ts",
 	"dependencies": {
 		"@fixture/lib": "workspace:*",
+		"@fixture/plain": "workspace:*",
 		"yaml": "^2.9.0"
 	}
 }

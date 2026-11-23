@@ -3,7 +3,7 @@ import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalEntrySchema } from '../../config/schema/local-entry.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { ConfigNameSchema } from '../config/schema.js'
-import { StackFunctionSchema } from '../function/schema.js'
+import { WebFunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 export const SitesSchema = z
@@ -34,7 +34,7 @@ export const SitesSchema = z
 
 			static: LocalDirectorySchema.optional().describe('Specifies the path to the static files directory.'),
 
-			ssr: StackFunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
+			ssr: WebFunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
 
 			dev: z
 				.object({

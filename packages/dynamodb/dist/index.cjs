@@ -464,6 +464,7 @@ const migrate = (client, tables) => {
 const dynamoDBClient = /* @__PURE__ */ (0, _awsless_utils.globalClient)(() => {
 	return new _aws_sdk_client_dynamodb.DynamoDBClient({
 		maxAttempts: 2,
+		useDualstackEndpoint: false,
 		requestHandler: new _smithy_node_http_handler.NodeHttpHandler({
 			connectionTimeout: 3e3,
 			requestTimeout: 3e3

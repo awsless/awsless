@@ -3,15 +3,24 @@ import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { generateDependencyHash, generateFileHash } from '@awsless/ts-file-cache'
-import { Builder, getBuildPath } from '../../build/index.js'
-import { AppContext, StackContext } from '../../feature.js'
-import { formatByteSize } from '../../util/byte-size.js'
-import { createTempFolder } from '../../util/temp.js'
-import { bundleTypeScriptWithRolldown, formatRouteModuleId } from './build/rolldown.js'
-import { zipFiles } from './build/zip.js'
+import { Builder, getBuildPath } from '../../../build/index.js'
+import { AppContext, StackContext } from '../../../feature.js'
+import { formatByteSize } from '../../../util/byte-size.js'
+import { createTempFolder } from '../../../util/temp.js'
+import { bundleTypeScriptWithRolldown, formatRouteModuleId } from '../build/rolldown.js'
+import { zipFiles } from '../build/zip.js'
 
 // The route protocol strings live in the awsless lib, shared with the handlers.
-export { formatRouteKey, ROUTE_HEADER } from 'awsless'
+export { DEPLOYMENT_ID_HEADER, formatRouteKey, ROUTE_HEADER } from 'awsless'
+
+// The web function starts this file of the same code archive, which
+// serves the bundle's handler over HTTP (AWS_LAMBDA_NODEJS_ENTRYPOINT).
+export const WEB_FUNCTION_ENTRY_FILE = 'web-function.mjs'
+
+const WEB_FUNCTION_ENTRY = `import handler, { startWebFunctionServer } from './index.mjs'
+
+startWebFunctionServer(handler)
+`
 
 export type BundleHandler = {
 	routeKey: string
@@ -92,6 +101,13 @@ const runtime = await import(${JSON.stringify(runtime)})
 // hoist the runtime import above the env application.
 export const getCurrentRoute = () => runtime.getCurrentRoute?.()
 
+// The web function's entry (web-function.mjs) serves this same bundle over HTTP.
+export const startWebFunctionServer = runtime.startWebFunctionServer
+
+// The local dev worker serves a router request the way the web function does.
+export const createWebRequest = runtime.createWebRequest
+export const writeWebResponse = runtime.writeWebResponse
+
 export default runtime.createBundle({
 ${entries.join('\n')}
 })
@@ -108,6 +124,7 @@ ${entries.join('\n')}
 
 		const hash = createHash('sha1')
 			.update(entry)
+			.update(WEB_FUNCTION_ENTRY)
 			// The trailing number versions the build output format - bump it
 			// when the written artifacts change, so stale caches missing the
 			// new artifacts rebuild.
@@ -117,13 +134,14 @@ ${entries.join('\n')}
 					props.minify,
 					handlers.map(h => [h.external, h.importAsString, h.moduleSideEffects]),
 					props.zip ?? false,
-					2,
+					4,
 				])
 			)
 
 		// The prebuilt runtime imports the awsless package from the
-		// project's node_modules, outside the workspace hashes - its
-		// subtree hash covers everything the runtime can pull in.
+		// project's node_modules (see resolveFromRoot), outside the
+		// workspace hashes - its subtree hash covers everything the runtime
+		// can pull in.
 		hash.update(generateDependencyHash(workspace, 'awsless') ?? '')
 
 		for (const item of hashes) {
@@ -151,6 +169,11 @@ ${entries.join('\n')}
 				],
 				importAsString: importAsString.length > 0 ? importAsString : undefined,
 				moduleSideEffects: moduleSideEffects.length > 0 ? moduleSideEffects : undefined,
+				// The web function's runtime has no AWS SDK of its own.
+				bundleAwsSdk: true,
+				// The runtime & its sibling handlers must import the app's own
+				// awsless, the one the app's handlers import.
+				resolveFromRoot: [dirname(runtime)],
 			})
 
 			// The new output lands next to the old chunks before the stale
@@ -159,19 +182,24 @@ ${entries.join('\n')}
 			// must never be empty in between.
 			const filesDir = getBuildPath('bundle', props.name, 'files')
 			const previous = await readdir(filesDir).catch(() => [] as string[])
-			const current = new Set(bundle.files.flatMap(file => [file.name, `${file.name}.map`]))
+			const files = [
+				...bundle.files,
+				{ name: WEB_FUNCTION_ENTRY_FILE, code: Buffer.from(WEB_FUNCTION_ENTRY), map: undefined },
+			]
+			const current = new Set(files.flatMap(file => [file.name, `${file.name}.map`]))
 
 			// The code archive is compressed here, in the cached build phase -
 			// the deploy-time resolve only injects the env file into it.
 			const archive = props.zip
-				? await zipFiles(bundle.files.map(file => ({ name: file.name, code: file.code })))
+				? await zipFiles(files.map(file => ({ name: file.name, code: file.code })))
 				: undefined
 
 			await Promise.all([
-				write('HASH', bundle.hash),
+				// The web function's entry is part of the archive, so it's part of its hash.
+				write('HASH', createHash('sha1').update(bundle.hash).update(WEB_FUNCTION_ENTRY).digest('hex')),
 				archive && write('code.zip', archive),
-				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
-				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
+				...files.map(file => write(`files/${file.name}`, file.code)),
+				...files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
 			])
 
 			await Promise.all(

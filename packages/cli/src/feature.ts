@@ -108,6 +108,10 @@ export type DevTrace = {
 // trace links the dispatch into the trace of the caller that caused it.
 export type DevDispatch = (event: unknown, parent?: DevTrace) => Promise<unknown>
 
+// A router request to one of the bundle's web routes, served like the web
+// function serves it after a deploy: the request streams in & the answer out.
+export type DevServe = (request: Request, routeKey: string, parent?: DevTrace) => Promise<Response>
+
 // A failed async consumer dispatch. There are no retries locally: the
 // failure routes to the app's on-failure consumer when one is set.
 export type DevFailureReport = {
@@ -132,6 +136,10 @@ export type DevRoute = {
 
 	// Dispatch matching requests into the bundle under this route key.
 	routeKey?: string
+
+	// The route runs on the event function, like the deployed image & icon
+	// servers: its handler takes the function url's event, not a web request.
+	eventFunction?: boolean
 
 	// Proxy matching requests (including websocket upgrades) to another
 	// local server instead of the bundle, like the url origins of the
@@ -162,6 +170,8 @@ export type DevResource = {
 		| 'email'
 		| 'task'
 		| 'search'
+		| 'clickhouse'
+		| 'postgres'
 		| 'cache'
 		| 'pubsub'
 		| 'image'

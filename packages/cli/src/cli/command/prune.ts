@@ -14,7 +14,13 @@ import {
 	withAppReleaseLock,
 } from '../../util/deployment.js'
 import { deleteLambdaAlias, listLambdaFunctions } from '../../util/lambda.js'
-import { formatGlobalResourceName, getAppNamePrefix } from '../../util/name.js'
+import {
+	formatGlobalResourceName,
+	getAppNamePrefix,
+	getWebFunctionName,
+	WEB_FUNCTION_ENDPOINT_NAME,
+} from '../../util/name.js'
+import { getEndpointRevisionId, pruneWebFunctionRevision } from '../../util/web-function.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 import { createClients } from './util.js'
@@ -41,7 +47,8 @@ export const prune = (program: Command) => {
 		.description('Delete old deployments & the resources they hold on to')
 		.action(async (options: PruneOptions) => {
 			await layout('prune', async ({ appConfig }) => {
-				const { appId, functionName, dynamo, lambda, kvs, cloudfront, s3 } = await createClients(appConfig)
+				const { appId, functionName, dynamo, lambda, lambdaWeb, kvs, cloudfront, s3 } =
+					await createClients(appConfig)
 
 				const [items, liveId] = await Promise.all([
 					listDeployments(dynamo, appId),
@@ -99,6 +106,39 @@ export const prune = (program: Command) => {
 									survivingIds,
 								})) {
 									await pruneFunctionVersion(lambda, name, version)
+								}
+							}
+
+							// The web functions' revisions of the pruned deployments, but
+							// never one a surviving deployment, or its endpoint, still has.
+							const revisionsOf = (item: (typeof freshItems)[number]): Record<string, string> => ({
+								...item.webFunctionRevisions,
+								...(item.webFunctionRevisionId
+									? { [getWebFunctionName(appConfig.name)]: item.webFunctionRevisionId }
+									: {}),
+							})
+
+							const surviving = new Set(
+								freshItems
+									.filter(item => survivingIds.has(item.id))
+									.flatMap(item => Object.entries(revisionsOf(item)))
+									.map(([name, revisionId]) => `${name}:${revisionId}`)
+							)
+
+							const liveRevisions = new Map<string, string | undefined>()
+
+							for (const item of prune) {
+								for (const [name, revisionId] of Object.entries(revisionsOf(item))) {
+									if (!liveRevisions.has(name)) {
+										liveRevisions.set(
+											name,
+											await getEndpointRevisionId(lambdaWeb, name, WEB_FUNCTION_ENDPOINT_NAME)
+										)
+									}
+
+									if (!surviving.has(`${name}:${revisionId}`) && liveRevisions.get(name) !== revisionId) {
+										await pruneWebFunctionRevision(lambdaWeb, name, revisionId)
+									}
 								}
 							}
 

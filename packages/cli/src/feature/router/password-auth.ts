@@ -1,5 +1,5 @@
-import { days, Duration, toSeconds } from '@awsless/duration'
 import { createHash } from 'crypto'
+import { days, Duration, toSeconds } from '@awsless/duration'
 import { renderPage } from './page.js'
 
 // Reserved router path for the cookie session.
@@ -33,7 +33,9 @@ export const createPasswordAuth = (props: {
 	domain?: string
 }): PasswordAuth => {
 	const temporary = props.sessionDuration === 'temporary'
-	const validity = toSeconds(props.sessionDuration === 'temporary' ? TEMPORARY_SESSION_VALIDITY : props.sessionDuration)
+	const validity = toSeconds(
+		props.sessionDuration === 'temporary' ? TEMPORARY_SESSION_VALIDITY : props.sessionDuration
+	)
 	const hash = (scope: string) => {
 		return createHash('sha256').update(`awsless:router:${scope}:${props.password}`).digest('hex')
 	}

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/scheduler",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
@@ -29,7 +29,7 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-scheduler": "3.1113.0",
+		"@aws-sdk/client-scheduler": "3.1164.0",
 		"@awsless/duration": "workspace:^",
 		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",

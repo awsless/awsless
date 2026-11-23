@@ -30,7 +30,7 @@ describe('standalone routes', () => {
 
 		expect(invoke).toHaveBeenCalledWith(
 			expect.objectContaining({
-				name: 'app--function--bundle',
+				name: 'app--bundle--event',
 				qualifier: 'live',
 			})
 		)
@@ -71,7 +71,7 @@ describe('standalone routes', () => {
 		const { Fn } = await import('../src/lib/server/function')
 
 		captureInvokedQualifier({
-			invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:app--function--bundle:main-8',
+			invokedFunctionArn: 'arn:aws:lambda:us-east-1:123456789012:function:app--bundle--event:main-8',
 		})
 		setBundleRoutes(['stack:function:bundled'])
 

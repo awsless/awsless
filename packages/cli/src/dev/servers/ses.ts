@@ -9,6 +9,8 @@ export type CapturedEmail = {
 	to: string[]
 	subject?: string
 	html?: string
+	text?: string
+	headers: { name: string; value: string }[]
 }
 
 // A minimal ses emulator: every SendEmail call is captured for the
@@ -49,6 +51,11 @@ export const createSesServer = () => {
 							to: body.Destination?.ToAddresses ?? [],
 							subject: body.Content?.Simple?.Subject?.Data,
 							html: body.Content?.Simple?.Body?.Html?.Data,
+							text: body.Content?.Simple?.Body?.Text?.Data,
+							headers: (body.Content?.Simple?.Headers ?? []).map((header: any) => ({
+								name: String(header?.Name ?? ''),
+								value: String(header?.Value ?? ''),
+							})),
 						})
 
 						res.writeHead(200, { 'content-type': 'application/json' })
