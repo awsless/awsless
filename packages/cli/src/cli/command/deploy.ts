@@ -1,4 +1,5 @@
 import { log, prompt } from '@awsless/clui'
+import { AppError } from '@terraforge/core'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled, ExpectedError } from '../../error.js'
@@ -12,7 +13,9 @@ import {
 	readDeployedFunctionVersions,
 	readDeployedWebFunctionRevisions,
 } from '../../util/deployment.js'
+import { DeployStopped, isStopping, withGracefulStop } from '../../util/graceful-stop.js'
 import { getWebFunctionName } from '../../util/name.js'
+import { retryOnNetworkError } from '../../util/network.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { SsmStore } from '../../util/ssm.js'
 import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
@@ -165,8 +168,28 @@ export const deploy = (program: Command) => {
 						const release = await releaseLock.lock(releaseUrn)
 
 						try {
-							await preflightDeployment({ lambda, dynamo, appId: globalAppId, functionName, deployment })
-							await workspace.deploy(app, { filters: [] })
+							await state.recover(app.urn)
+							await retryOnNetworkError(() =>
+								preflightDeployment({ lambda, dynamo, appId: globalAppId, functionName, deployment })
+							)
+
+							try {
+								await withGracefulStop(() => workspace.deploy(app, { filters: [] }))
+							} catch (error) {
+								if (!isStopping() || !(error instanceof AppError)) {
+									throw error
+								}
+
+								const issues = error.issues.filter(issue => issue.message !== new DeployStopped().message)
+
+								if (issues.length > 0) {
+									throw new AppError(error.app, issues, error.message)
+								}
+							}
+
+							if (isStopping()) {
+								throw new ExpectedError('Deploy stopped. The state is saved, so deploy again to continue.')
+							}
 
 							await pullRemoteState(app, state)
 							const remoteState = await state.get(app.urn)
@@ -177,14 +200,16 @@ export const deploy = (program: Command) => {
 								const { [getWebFunctionName(appConfig.name)]: webFunctionRevisionId, ...webFunctionRevisions } =
 									readDeployedWebFunctionRevisions(remoteState)
 
-								await markDeployed({
-									client: dynamo,
-									appId: globalAppId,
-									id: deployment.id,
-									functionVersion,
-									webFunctionRevisionId,
-									webFunctionRevisions,
-								})
+								await retryOnNetworkError(() =>
+									markDeployed({
+										client: dynamo,
+										appId: globalAppId,
+										id: deployment.id,
+										functionVersion,
+										webFunctionRevisionId,
+										webFunctionRevisions,
+									})
+								)
 							}
 
 							// Promotion goes live, so it must be the last fallible step.

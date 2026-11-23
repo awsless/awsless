@@ -25,6 +25,8 @@ import { createOpenSearchProvider } from '../formation/open-search.js'
 import { createPostgresProvider } from '../formation/postgres.js'
 import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
+import { withStopGuard } from './graceful-stop.js'
+import { withLockNetworkRetry, withNetworkRetry, withStateJournal } from './network.js'
 import { directories, fileExist } from './path.js'
 
 export const getStateBucketName = (region: Region, accountId: string) => {
@@ -42,15 +44,21 @@ type BackendProps = {
 }
 
 export const createDeploymentBackends = (props: BackendProps) => {
-	const lock = new DynamoLockBackend({
-		...props,
-		tableName: 'awsless-locks',
-	})
+	const lock = withLockNetworkRetry(
+		new DynamoLockBackend({
+			...props,
+			tableName: 'awsless-locks',
+		})
+	)
 
-	const state = new S3StateBackend({
-		...props,
-		bucket: getStateBucketName(props.region, props.accountId),
-	})
+	// Dev & prod apps share an urn, so the journal is per account.
+	const state = withStateJournal(
+		new S3StateBackend({
+			...props,
+			bucket: getStateBucketName(props.region, props.accountId),
+		}),
+		urn => join(directories.state, 'unsaved', props.accountId, props.region, `${urn}.json`)
+	)
 
 	return {
 		lock,
@@ -156,7 +164,7 @@ export const createWorkSpace = async (
 			// Starts lazily, on the first ClickHouse resource it touches, with
 			// the key from the keychain like the aws credentials.
 			clickhouseKey ? clickhouse(clickhouseKey) : requireClickHouseKey(clickhouse({}), props.accountId),
-		],
+		].map(provider => withStopGuard(withNetworkRetry(provider))),
 		concurrency: 15,
 		backend: {
 			state,
