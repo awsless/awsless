@@ -1,12 +1,23 @@
 import T from "./T.svelte";
 //#region src/framework/svelte-5.svelte.ts
 let locale = $state("en");
+let localeSource;
+const currentLocale = () => localeSource?.() ?? locale;
+/** Reads the locale from the given function when it returns one, like a
+* request's own locale while the server renders it.
+*
+* @example
+* setLocaleSource(() => storage.getStore()?.locale)
+*/
+const setLocaleSource = (source) => {
+	localeSource = source;
+};
 let t = $derived.by(() => {
 	const api = (template, ...args) => {
 		return String.raw({ raw: template.raw }, ...args);
 	};
 	api.get = (og, translations) => {
-		return translations[locale] ?? og;
+		return translations[currentLocale()] ?? og;
 	};
 	return api;
 });
@@ -17,7 +28,7 @@ const lang = {
 	* console.log(lang.locale)
 	*/
 	get locale() {
-		return locale;
+		return currentLocale();
 	},
 	/** To change the locale that is being rendered simply change this property.
 	*
@@ -39,4 +50,4 @@ const lang = {
 	}
 };
 //#endregion
-export { T, lang };
+export { T, lang, setLocaleSource };

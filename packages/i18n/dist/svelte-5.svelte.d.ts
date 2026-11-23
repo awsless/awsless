@@ -6,6 +6,13 @@ type StringArgs = Array<string | number | {
 type Translate = {
   (template: TemplateStringsArray, ...args: StringArgs): string;
 };
+/** Reads the locale from the given function when it returns one, like a
+ * request's own locale while the server renders it.
+ *
+ * @example
+ * setLocaleSource(() => storage.getStore()?.locale)
+ */
+declare const setLocaleSource: (source: () => string | undefined) => void;
 declare const lang: {
   /** Get the current locale.
    *
@@ -23,4 +30,4 @@ declare const lang: {
   readonly t: Translate;
 };
 //#endregion
-export { T, lang };
+export { T, lang, setLocaleSource };
