@@ -1,5 +1,6 @@
 import { createHmac } from 'crypto'
 import { kebabCase } from 'change-case'
+import { shortId } from './id.js'
 
 export const formatGlobalResourceName = (opt: {
 	appName: string
@@ -70,6 +71,20 @@ export const formatLocalResourceName = (opt: {
 		.filter(v => typeof v === 'string')
 		.map(v => kebabCase(v) || v)
 		.join(opt.seperator ?? '--')
+}
+
+// Some AWS names have a tight length limit. A name that fits stays as is,
+// so resources that already exist are never renamed. A longer one becomes
+// the short prefix plus an id of the full name.
+export const limitResourceNameLength = (opt: { name: string; shortPrefix: string; maxLength: number }) => {
+	if (opt.name.length <= opt.maxLength) {
+		return opt.name
+	}
+
+	const id = shortId(opt.name)
+	const prefix = opt.shortPrefix.substring(0, opt.maxLength - id.length - 1).replace(/-+$/, '')
+
+	return `${prefix}-${id}`
 }
 
 export const generateGlobalAppId = (opt: { accountId: string; region: string; appName: string }) => {

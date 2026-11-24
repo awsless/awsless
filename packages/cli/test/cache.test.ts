@@ -15,6 +15,17 @@ describe('cache', () => {
 		expect(listResources(app, 'aws_security_group').some(meta => meta.input.name === cache.input.name)).toBe(true)
 	})
 
+	it('shortens a cache name over the 40 character limit', () => {
+		const { app } = createTestApp({
+			stacks: [{ name: 'casino-live-bet', caches: { leaderboards: {} } }],
+		})
+
+		const cache = listResources(app, 'aws_elasticache_serverless_cache')[0]!
+
+		expect(cache.input.name).toMatch(/^test-app-cache-[0-9a-f]{10}$/)
+		expect(cache.input.tags).toMatchObject({ APP: 'test-app', STACK: 'casino-live-bet', CACHE: 'leaderboards' })
+	})
+
 	it('opens the cache ports inside the vpc', () => {
 		const { app } = createTestApp({
 			stacks: [{ name: 'stack-1', caches: { main: {} } }],

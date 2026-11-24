@@ -124,6 +124,21 @@ const StartupCommandSchema = z
 	.union([z.string().transform(v => [v]), z.string().array()])
 	.describe('Optional shell commands to run before the instance program starts.')
 
+const CountSchema = z
+	.number()
+	.int()
+	.min(1)
+	.max(10)
+	.describe(
+		'The number of tasks that run the instance, all with the same code. They share the instance queue, each message goes to one of them. Default: 1.'
+	)
+
+const DeploymentStrategySchema = z
+	.enum(['replace', 'rolling'])
+	.describe(
+		'How a deploy swaps the running task. replace stops the old task before the new one starts, so the instance is down in between. rolling starts the new task first and stops the old one once it is healthy, so for a moment both run. Default: replace.'
+	)
+
 const ISchema = z.object({
 	code: CodeSchema,
 	description: DescriptionSchema.optional(),
@@ -136,6 +151,8 @@ const ISchema = z.object({
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
 	healthCheck: HealthCheckSchema.optional(),
+	count: CountSchema.optional(),
+	deploymentStrategy: DeploymentStrategySchema.optional(),
 })
 
 const InstanceSchema = z.union([

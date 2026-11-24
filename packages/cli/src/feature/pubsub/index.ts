@@ -4,12 +4,13 @@ import { dirname, join } from 'path'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
+import { kebabCase } from 'change-case'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { plainTestMockTypes, writeResourceTypes } from '../../type-gen/snippets.js'
 import { shortId } from '../../util/id.js'
 import { LIVE_LAMBDA_ALIAS } from '../../util/lambda.js'
-import { formatGlobalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, limitResourceNameLength } from '../../util/name.js'
 import { formatRouteKey, registerBundleFunction } from '../bundle/util/index.js'
 import { pubsubOnDev } from './dev.js'
 import { pubsubEventTypes } from './schema.js'
@@ -170,12 +171,18 @@ export const pubsubFeature = defineFeature({
 			// Create the Redis pub/sub cache used to fan-out messages
 			// to every fargate task.
 
-			// ElastiCache doesn't allow consecutive hyphens in the name.
-			const cacheName = formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'pubsub-cache',
-				resourceName: id,
-				seperator: '-',
+			// ElastiCache doesn't allow consecutive hyphens in the name,
+			// and caps it at 40 characters. The tags tell which pubsub a
+			// shortened name belongs to.
+			const cacheName = limitResourceNameLength({
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'pubsub-cache',
+					resourceName: id,
+					seperator: '-',
+				}),
+				shortPrefix: `${kebabCase(ctx.app.name)}-pubsub-cache`,
+				maxLength: 40,
 			})
 
 			const cacheSecurityGroup = new aws.security.Group(group, 'cache-security', {
@@ -189,6 +196,11 @@ export const pubsubFeature = defineFeature({
 				'cache',
 				{
 					name: cacheName,
+					tags: {
+						APP: ctx.appConfig.name,
+						APP_ID: ctx.appId,
+						PUBSUB: id,
+					},
 					engine: 'valkey',
 					networkType: 'dual_stack',
 					majorEngineVersion: '8',

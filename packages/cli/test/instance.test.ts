@@ -22,6 +22,7 @@ describe('instance', () => {
 		expect(task.input.memory).toBe('512')
 		expect(task.input.runtimePlatform.cpuArchitecture).toBe('ARM64')
 		expect(service.input.desiredCount).toBe(1)
+		expect(service.input.deploymentMaximumPercent).toBe(100)
 		expect(service.input.deploymentMinimumHealthyPercent).toBe(0)
 		expect(target.input.minCapacity).toBe(1)
 		expect(target.input.maxCapacity).toBe(1)
@@ -29,6 +30,31 @@ describe('instance', () => {
 		expect(queue.input.name).toBe('test-app--stack-1--instance--worker')
 
 		expect(findStatements(shared, 'sqs:SendMessage')).toHaveLength(1)
+	})
+
+	it('starts the new task before stopping the old one on a rolling deploy', () => {
+		const { app } = createTestApp({
+			stacks: [{ name: 'stack-1', instances: { worker: { code, deploymentStrategy: 'rolling' } } }],
+		})
+
+		const service = listResources(app, 'aws_ecs_service')[0]!
+
+		expect(service.input.desiredCount).toBe(1)
+		expect(service.input.deploymentMaximumPercent).toBe(200)
+		expect(service.input.deploymentMinimumHealthyPercent).toBe(100)
+	})
+
+	it('runs as many tasks as the count', () => {
+		const { app } = createTestApp({
+			stacks: [{ name: 'stack-1', instances: { worker: { code, count: 2 } } }],
+		})
+
+		const service = listResources(app, 'aws_ecs_service')[0]!
+		const target = listResources(app, 'aws_appautoscaling_target')[0]!
+
+		expect(service.input.desiredCount).toBe(2)
+		expect(target.input.minCapacity).toBe(2)
+		expect(target.input.maxCapacity).toBe(2)
 	})
 
 	it('creates the roles & log group of the task', () => {

@@ -336,7 +336,7 @@ exec /usr/app/program`,
 			name: name,
 			cluster: clusterArn,
 			taskDefinition: task.arn,
-			desiredCount: 1,
+			desiredCount: props.count ?? 1,
 			launchType: 'FARGATE',
 			networkConfiguration: {
 				subnets: ctx.shared.get('vpc', 'private-subnets'),
@@ -349,10 +349,12 @@ exec /usr/app/program`,
 			tags,
 
 			// ------------------------------------------------------------
-			// Deployment safeguards: keep the service pinned to one running task.
+			// Deployment safeguards: by default a deploy stops the running
+			// tasks before it starts the new ones. A rolling deploy lets the new
+			// tasks run next to the old ones until they are healthy.
 			schedulingStrategy: 'REPLICA',
-			deploymentMaximumPercent: 100,
-			deploymentMinimumHealthyPercent: 0,
+			deploymentMaximumPercent: props.deploymentStrategy === 'rolling' ? 200 : 100,
+			deploymentMinimumHealthyPercent: props.deploymentStrategy === 'rolling' ? 100 : 0,
 			deploymentCircuitBreaker: {
 				enable: true,
 				rollback: true,
@@ -377,8 +379,8 @@ exec /usr/app/program`,
 		{
 			serviceNamespace: 'ecs',
 			scalableDimension: 'ecs:service:DesiredCount',
-			minCapacity: 1,
-			maxCapacity: 1,
+			minCapacity: props.count ?? 1,
+			maxCapacity: props.count ?? 1,
 			resourceId: $resolve([clusterName, service.name], (clusterName: string, serviceName: string) => {
 				return `service/${clusterName}/${serviceName}`
 			}),

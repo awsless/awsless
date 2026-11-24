@@ -5,6 +5,7 @@ import {
 	generateGlobalAppId,
 	getAppNamePrefix,
 	getEventFunctionName,
+	limitResourceNameLength,
 } from '../src/util/name'
 
 describe('resource names', () => {
@@ -48,6 +49,33 @@ describe('resource names', () => {
 		expect(getAppNamePrefix('MyApp')).toBe('my-app--')
 		expect(getEventFunctionName('MyApp')).toBe('my-app--bundle--event')
 		expect(getEventFunctionName('MyApp').startsWith(getAppNamePrefix('MyApp'))).toBe(true)
+	})
+
+	it('should leave a name that fits the limit untouched', () => {
+		const props = { shortPrefix: 'app-cache', maxLength: 40 }
+
+		expect(limitResourceNameLength({ ...props, name: 'app-stack-cache-session' })).toBe('app-stack-cache-session')
+		expect(limitResourceNameLength({ ...props, name: 'a'.repeat(40) })).toBe('a'.repeat(40))
+	})
+
+	it('should swap a name over the limit for the short prefix and a stable id', () => {
+		const props = { shortPrefix: 'jacksclub-cache', maxLength: 40 }
+		const name = 'jacksclub-casino-live-bet-cache-leaderboards'
+		const short = limitResourceNameLength({ ...props, name })
+
+		expect(short).toMatch(/^jacksclub-cache-[0-9a-f]{10}$/)
+		expect(limitResourceNameLength({ ...props, name })).toBe(short)
+		expect(limitResourceNameLength({ ...props, name: `${name}-2` })).not.toBe(short)
+	})
+
+	it('should cut a short prefix that is itself too long', () => {
+		const short = limitResourceNameLength({
+			name: 'a'.repeat(60),
+			shortPrefix: `${'a'.repeat(28)}-cache`,
+			maxLength: 40,
+		})
+
+		expect(short).toMatch(/^a{28}-[0-9a-f]{10}$/)
 	})
 
 	it('should generate a stable short app id per account, region & name', () => {

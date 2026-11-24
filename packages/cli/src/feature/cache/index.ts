@@ -1,11 +1,11 @@
 import { toGibibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
-import { constantCase } from 'change-case'
+import { constantCase, kebabCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatLocalResourceName } from '../../util/name.js'
+import { formatLocalResourceName, limitResourceNameLength } from '../../util/name.js'
 import { cacheOnDev } from './dev.js'
 
 const typeGenCode = `
@@ -77,11 +77,25 @@ export const cacheFeature = defineFeature({
 						]
 					: []
 
+			// ElastiCache caps a serverless cache name at 40 characters.
+			// The tags tell which cache a shortened name belongs to.
+			const cacheName = limitResourceNameLength({
+				name,
+				shortPrefix: `${kebabCase(ctx.app.name)}-cache`,
+				maxLength: 40,
+			})
+
 			const cache = new aws.elasticache.ServerlessCache(
 				group,
 				'cache',
 				{
-					name,
+					name: cacheName,
+					tags: {
+						APP: ctx.appConfig.name,
+						APP_ID: ctx.appId,
+						STACK: ctx.stackConfig.name,
+						CACHE: id,
+					},
 					engine: 'valkey',
 					dailySnapshotTime: '02:00',
 					majorEngineVersion: '8',
@@ -95,7 +109,7 @@ export const cacheFeature = defineFeature({
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
-					import: ctx.import ? name : undefined,
+					import: ctx.import ? cacheName : undefined,
 				}
 			)
 
