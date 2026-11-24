@@ -41,17 +41,16 @@ export const overrideOptions = (options: IoRedisOptions) => {
 
 export const createIoRedisClient = (options: IoRedisOptions): RedisClient => {
 	const createClient = () => {
-		const props = {
+		const merged = {
 			tls: {},
 			lazyConnect: true,
 			stringNumbers: true,
-			keepAlive: 0,
+			keepAlive: 30000,
 			noDelay: true,
 			enableReadyCheck: false,
 			maxRetriesPerRequest: 3,
 			autoResubscribe: false,
-			autoResendUnfulfilledCommands: false,
-			connectTimeout: 5000,
+			autoResendUnfulfilledCommands: true,
 			commandTimeout: 5000,
 
 			reconnectOnError(err: Error) {
@@ -67,34 +66,58 @@ export const createIoRedisClient = (options: IoRedisOptions): RedisClient => {
 			...optionOverrides,
 		}
 
-		if (!props.cluster) {
-			return new Redis(props)
-		} else {
-			return new Cluster(
-				[
-					{
-						host: props.host,
-						port: props.port,
-					},
-				],
-				{
-					dnsLookup: (address, callback) => callback(null, address),
-					slotsRefreshTimeout: 5000,
-					enableReadyCheck: false,
-					clusterRetryStrategy(times) {
-						if (times > 5) return null
-						return Math.min(times * 200, 2000)
-					},
-					redisOptions: props,
-				}
-			)
+		// commandTimeout only rejects the promise and leaves a dead socket open.
+		// Shorter connect/socket timeouts tear it down in time to reconnect and retry.
+		const defaultIoTimeout =
+			typeof merged.commandTimeout === 'number' && merged.commandTimeout > 0
+				? Math.max(1, Math.floor(merged.commandTimeout / 2))
+				: 5000
+
+		const props: IoRedisOptions = {
+			...merged,
+			connectTimeout:
+				'connectTimeout' in options || 'connectTimeout' in optionOverrides
+					? merged.connectTimeout
+					: defaultIoTimeout,
+			socketTimeout:
+				'socketTimeout' in options || 'socketTimeout' in optionOverrides
+					? merged.socketTimeout
+					: defaultIoTimeout,
 		}
+
+		const client = !props.cluster
+			? new Redis(props)
+			: new Cluster(
+					[
+						{
+							host: props.host,
+							port: props.port,
+						},
+					],
+					{
+						dnsLookup: (address, callback) => callback(null, address),
+						slotsRefreshTimeout: props.commandTimeout ?? 5000,
+						enableReadyCheck: false,
+						clusterRetryStrategy(times) {
+							if (times > 5) return null
+							return Math.min(times * 200, 2000)
+						},
+						redisOptions: props,
+					}
+				)
+
+		// The underlying ioredis instance isn't exposed to callers, so silence
+		// background error events while command promises still surface failures.
+		client.on('error', () => {})
+
+		return client
 	}
 
 	let redis: Redis | Cluster | undefined
 
 	const getLazyClient = () => {
-		if (!redis) {
+		// An ended client never reconnects on its own, so start a fresh one.
+		if (!redis || redis.status === 'end') {
 			redis = createClient()
 		}
 
@@ -124,9 +147,11 @@ export const createIoRedisClient = (options: IoRedisOptions): RedisClient => {
 		},
 		async destroy() {
 			if (redis) {
-				const promise = redis.quit()
+				const current = redis
 				redis = undefined
-				await promise
+				if (current.status !== 'end') {
+					await current.quit()
+				}
 			}
 		},
 	}

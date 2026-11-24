@@ -56,17 +56,16 @@ const overrideOptions = (options) => {
 };
 const createIoRedisClient = (options) => {
 	const createClient = () => {
-		const props = {
+		const merged = {
 			tls: {},
 			lazyConnect: true,
 			stringNumbers: true,
-			keepAlive: 0,
+			keepAlive: 3e4,
 			noDelay: true,
 			enableReadyCheck: false,
 			maxRetriesPerRequest: 3,
 			autoResubscribe: false,
-			autoResendUnfulfilledCommands: false,
-			connectTimeout: 5e3,
+			autoResendUnfulfilledCommands: true,
 			commandTimeout: 5e3,
 			reconnectOnError(err) {
 				return err.message.includes("READONLY") ? 2 : false;
@@ -74,13 +73,18 @@ const createIoRedisClient = (options) => {
 			...options,
 			...optionOverrides
 		};
-		if (!props.cluster) return new ioredis.Redis(props);
-		else return new ioredis.Cluster([{
+		const defaultIoTimeout = typeof merged.commandTimeout === "number" && merged.commandTimeout > 0 ? Math.max(1, Math.floor(merged.commandTimeout / 2)) : 5e3;
+		const props = {
+			...merged,
+			connectTimeout: "connectTimeout" in options || "connectTimeout" in optionOverrides ? merged.connectTimeout : defaultIoTimeout,
+			socketTimeout: "socketTimeout" in options || "socketTimeout" in optionOverrides ? merged.socketTimeout : defaultIoTimeout
+		};
+		const client = !props.cluster ? new ioredis.Redis(props) : new ioredis.Cluster([{
 			host: props.host,
 			port: props.port
 		}], {
 			dnsLookup: (address, callback) => callback(null, address),
-			slotsRefreshTimeout: 5e3,
+			slotsRefreshTimeout: props.commandTimeout ?? 5e3,
 			enableReadyCheck: false,
 			clusterRetryStrategy(times) {
 				if (times > 5) return null;
@@ -88,10 +92,12 @@ const createIoRedisClient = (options) => {
 			},
 			redisOptions: props
 		});
+		client.on("error", () => {});
+		return client;
 	};
 	let redis;
 	const getLazyClient = () => {
-		if (!redis) redis = createClient();
+		if (!redis || redis.status === "end") redis = createClient();
 		return redis;
 	};
 	return {
@@ -111,9 +117,9 @@ const createIoRedisClient = (options) => {
 		},
 		async destroy() {
 			if (redis) {
-				const promise = redis.quit();
+				const current = redis;
 				redis = void 0;
-				await promise;
+				if (current.status !== "end") await current.quit();
 			}
 		}
 	};
